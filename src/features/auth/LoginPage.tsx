@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Link, Navigate } from "react-router-dom";
+import { Link, Navigate, useLocation } from "react-router-dom";
 import {
   ArrowRight,
   Check,
@@ -17,11 +17,17 @@ import { isConfigured, supabase } from "@/lib/supabase";
 import { friendlyError } from "@/lib/errors";
 import { useAuth } from "./AuthProvider";
 const loginSchema = z.object({
-  email: z.email("Email chưa hợp lệ"),
+  identifier: z
+    .string()
+    .min(3, "Vui lòng nhập tên đăng nhập hoặc email")
+    .max(120, "Tối đa 120 ký tự"),
   password: z.string().min(1, "Nhập mật khẩu"),
   remember: z.boolean(),
 });
 export default function LoginPage() {
+  const location = useLocation();
+  const from: unknown = location.state?.from;
+  const returnTo = typeof from === "string" && from.startsWith("/") && !from.startsWith("//") && !from.startsWith("/login") ? from : "/";
   const { profile, refresh, error: authError, user, signOut } = useAuth();
   const [show, setShow] = useState(false),
     [error, setError] = useState<unknown>(null);
@@ -33,16 +39,41 @@ export default function LoginPage() {
     resolver: zodResolver(loginSchema),
     defaultValues: { remember: true },
   });
-  if (profile) return <Navigate to="/" replace />;
+  if (profile) return <Navigate to={returnTo} replace />;
   const login = handleSubmit(async (values) => {
     setError(null);
     if (!supabase) return;
     localStorage.setItem("xe-remember", String(values.remember));
-    const { error } = await supabase.auth.signInWithPassword({
-      email: values.email,
+
+    const raw = values.identifier.trim();
+    let loginEmail = raw;
+
+    if (raw.includes("@")) {
+      // Real email login (Owner or email-based account)
+      loginEmail = raw.toLowerCase();
+    } else {
+      // Internal username login (Staff or Owner username)
+      const normalizedUsername = raw.toLowerCase();
+      try {
+        const { data: resolvedEmail, error: rpcErr } = await supabase.rpc(
+          "resolve_login_email",
+          { p_identifier: normalizedUsername },
+        );
+        if (!rpcErr && resolvedEmail) {
+          loginEmail = resolvedEmail;
+        } else {
+          loginEmail = `${normalizedUsername}@internal.xecrm.app`;
+        }
+      } catch {
+        loginEmail = `${normalizedUsername}@internal.xecrm.app`;
+      }
+    }
+
+    const { error: signInErr } = await supabase.auth.signInWithPassword({
+      email: loginEmail,
       password: values.password,
     });
-    if (error) setError(error);
+    if (signInErr) setError(signInErr);
     else await refresh();
   });
   return (
@@ -50,7 +81,7 @@ export default function LoginPage() {
       <div className="login-story">
         <Link to="/" className="brand">
           <span className="brand-icon">
-            <Bike size={27} />
+            <img src="/logo.jpg" alt="Logo Cà Rém" className="brand-logo-img" />
           </span>
           <span>
             Xe CRM<small>VẬN HÀNH CỬA HÀNG</small>
@@ -114,12 +145,15 @@ export default function LoginPage() {
             </div>
           ) : null}
           <form onSubmit={login} className="stack">
-            <Field label="Email" error={errors.email?.message}>
+            <Field
+              label="Tên đăng nhập hoặc email"
+              error={errors.identifier?.message}
+            >
               <input
-                type="email"
-                autoComplete="username"
-                placeholder="ban@cuahang.vn"
-                {...register("email")}
+                type="text"
+                autoComplete="username email"
+                placeholder="VD: owner@gmail.com hoặc nguyenb"
+                {...register("identifier")}
                 disabled={!isConfigured}
               />
             </Field>

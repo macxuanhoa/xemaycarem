@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { dateValue, moneyValue } from "@/features/vehicles/vehicleSchema";
+import { dateValue, moneyValue } from "@/lib/validation";
 
 export const saleSchema = z
   .object({
@@ -7,6 +7,7 @@ export const saleSchema = z
     customer_phone: z.string().trim().max(30),
     sale_price: moneyValue,
     sale_date: dateValue,
+    due_date: z.string().optional().or(z.literal("")),
     initial_payment: moneyValue,
     payment_method: z.enum(["CASH", "BANK_TRANSFER", "OTHER"]),
     notes: z.string().trim().max(5000),
@@ -14,7 +15,17 @@ export const saleSchema = z
   .refine((values) => values.initial_payment <= values.sale_price, {
     path: ["initial_payment"],
     message: "Số tiền thu không được vượt quá giá bán.",
-  });
+  })
+  .refine(
+    (values) => {
+      if (!values.due_date) return true;
+      return values.due_date >= values.sale_date;
+    },
+    {
+      path: ["due_date"],
+      message: "Hạn thanh toán phải từ ngày bán trở đi.",
+    },
+  );
 export type SaleFormValues = z.infer<typeof saleSchema>;
 
 export const paymentSchema = z.object({

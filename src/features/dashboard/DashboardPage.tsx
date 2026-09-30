@@ -1,16 +1,21 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 import {
+  AlertCircle,
+  AlertTriangle,
   ArrowDownLeft,
   ArrowRight,
   ArrowUpRight,
+  Bike,
   Boxes,
   CalendarDays,
   Clock3,
-  Bike,
+  CreditCard,
+  FileSpreadsheet,
   Plus,
   Receipt,
+  Scale,
   TrendingUp,
   Wallet,
 } from "lucide-react";
@@ -33,11 +38,21 @@ import {
   money,
   monthRange,
 } from "@/lib/format";
+import {
+  getRecentVehicles,
+  formatRelativeTime,
+  type RecentVehicleItem,
+} from "@/lib/recentVehicles";
 import { useAuth } from "@/features/auth/AuthProvider";
 import type { DashboardData } from "@/types";
 export default function DashboardPage() {
   const { profile } = useAuth();
   const [range, setRange] = useState(monthRange);
+  const [recentVehicles, setRecentVehicles] = useState<RecentVehicleItem[]>([]);
+
+  useEffect(() => {
+    setRecentVehicles(getRecentVehicles(profile?.id));
+  }, [profile?.id]);
   const query = useQuery({
     queryKey: ["dashboard", range],
     queryFn: () =>
@@ -55,14 +70,37 @@ export default function DashboardPage() {
         actions={
           canOperate(profile) && (
             <Button asChild>
-              <Link to="/vehicles/new">
+              <Link to="/acquisitions/new">
                 <Plus size={18} />
-                Nhập xe mới
+                Thu xe mới
               </Link>
             </Button>
           )
         }
       />
+      <div
+        className={`quick-actions mobile-home-actions ${!canManage(profile) ? "operational-home-actions" : ""}`}
+      >
+        <Link to="/capture">📷 Quét / Chụp</Link>
+        {canOperate(profile) && (
+          <>
+            <Link to="/acquisitions/new">
+              <ArrowDownLeft size={18} /> Thu xe
+            </Link>
+            <Link to="/sell">
+              <ArrowUpRight size={18} /> Bán xe
+            </Link>
+          </>
+        )}
+        {canManage(profile) && (
+          <Link to="/expenses">
+            <Plus size={18} /> Chi phí
+          </Link>
+        )}
+        <Link to="/vehicles">
+          <Bike size={18} /> Tìm xe
+        </Link>
+      </div>
       <div className="dashboard-period">
         <div>
           <span className="eyebrow dark">TỔNG QUAN KINH DOANH</span>
@@ -79,16 +117,36 @@ export default function DashboardPage() {
       ) : (
         d && (
           <>
+            {/* ═══ PRIMARY CARDS: THU VÀO – TỒN KHO – BÁN RA ═══ */}
             <div className="metric-grid">
               <Metric
-                label="Xe đang trong kho"
+                to={`/acquisitions?from=${monthRange().from}&to=${monthRange().to}`}
+                label="Thu vào tháng này"
+                value={String(d.acquired_month ?? 0)}
+                detail={`${d.acquisitions_count ?? 0} xe trong kỳ đã chọn`}
+                icon={<ArrowDownLeft size={21} />}
+                featured
+              />
+              <Metric
+                to="/vehicles?status=IN_STOCK"
+                label="Tồn kho hiện tại"
                 value={String(d.in_stock + d.reserved)}
                 detail={`${d.in_stock} sẵn sàng · ${d.reserved} giữ chỗ`}
                 icon={<Bike size={21} />}
                 featured
               />
+              <Metric
+                to={`/sales?from=${monthRange().from}&to=${monthRange().to}`}
+                label="Bán ra tháng này"
+                value={String(d.sold_month)}
+                detail={`${d.sales_count} xe trong kỳ đã chọn`}
+                icon={<ArrowUpRight size={21} />}
+                featured
+              />
+              {/* Financial KPIs */}
               {canManage(profile) ? (
                 <Metric
+                  to="/reports"
                   label="Doanh thu trong kỳ"
                   value={compactMoney(d.revenue)}
                   detail={`${d.sales_count} giao dịch hoàn tất`}
@@ -96,29 +154,27 @@ export default function DashboardPage() {
                 />
               ) : (
                 <Metric
+                  to="/sales"
                   label="Xe bán trong kỳ"
                   value={String(d.sales_count)}
                   detail="Giao dịch đã hoàn tất"
                   icon={<Receipt size={21} />}
                 />
               )}
-              {canFinance(profile) ? (
+            </div>
+
+            {/* ═══ FINANCIAL KPI ROW (for managers/owners) ═══ */}
+            {canFinance(profile) && (
+              <div className="metric-grid">
                 <Metric
+                  to="/reports"
                   label="Lợi nhuận gộp trong kỳ"
                   value={compactMoney(d.gross_profit)}
                   detail="Doanh thu trừ giá vốn đã chốt"
                   icon={<TrendingUp size={21} />}
                 />
-              ) : (
                 <Metric
-                  label="Xe đã bán tháng này"
-                  value={String(d.sold_month)}
-                  detail="Giao dịch đã hoàn tất"
-                  icon={<TrendingUp size={21} />}
-                />
-              )}
-              {canFinance(profile) ? (
-                <Metric
+                  to="/vehicles?status=IN_STOCK"
                   label="Giá vốn tồn kho"
                   value={compactMoney(d.inventory_cost)}
                   detail={
@@ -128,36 +184,166 @@ export default function DashboardPage() {
                   }
                   icon={<Boxes size={21} />}
                 />
-              ) : (
-                <Metric
-                  label="Xe bán hôm nay"
-                  value={String(d.sold_today)}
-                  detail="Cập nhật theo giao dịch"
-                  icon={<CalendarDays size={21} />}
-                />
-              )}
-            </div>
+                {d.acquisition_cost != null && (
+                  <Metric
+                    to="/acquisitions"
+                    label="Tổng giá thu trong kỳ"
+                    value={compactMoney(d.acquisition_cost)}
+                    detail={`${d.acquisitions_count ?? 0} xe thu vào`}
+                    icon={<ArrowDownLeft size={21} />}
+                  />
+                )}
+              </div>
+            )}
+
+            {/* ═══ ACTIONABLE BUSINESS ALERTS: CẦN XỬ LÝ ═══ */}
+            {(d.inventory_cost_pending > 0 ||
+              (d.overdue_sales_count ?? 0) > 0 ||
+              (d.unpaid_sales_count ?? 0) > 0 ||
+              (d.old_inventory_count ?? 0) > 0) && (
+              <section className="business-alerts">
+                <div
+                  className="section-heading"
+                  style={{ marginBottom: "12px" }}
+                >
+                  <div
+                    className="row"
+                    style={{ gap: "8px", alignItems: "center" }}
+                  >
+                    <AlertTriangle
+                      size={18}
+                      style={{ color: "var(--color-danger, #dc2626)" }}
+                    />
+                    <h2 style={{ fontSize: "16px", margin: 0 }}>
+                      Cần xử lý ngay
+                    </h2>
+                  </div>
+                  <span className="muted small">
+                    Công việc và khoản mục cần giải quyết để bảo đảm dòng tiền
+                    và tồn kho
+                  </span>
+                </div>
+                <div className="alert-grid">
+                  {d.inventory_cost_pending > 0 && canFinance(profile) && (
+                    <Link
+                      to="/vehicles?cost_pending=true"
+                      className="alert-card alert-warning"
+                    >
+                      <div className="alert-icon">
+                        <Clock3 size={20} />
+                      </div>
+                      <div className="alert-content">
+                        <strong>
+                          {d.inventory_cost_pending} xe chưa có giá mua
+                        </strong>
+                        <span>
+                          Cần cập nhật giá nhập để mở khóa bán và tính lợi nhuận
+                        </span>
+                      </div>
+                      <ArrowRight size={16} />
+                    </Link>
+                  )}
+                  {(d.overdue_sales_count ?? 0) > 0 && (
+                    <Link
+                      to="/receivables?payment_status=OVERDUE"
+                      className="alert-card alert-danger"
+                    >
+                      <div className="alert-icon">
+                        <AlertCircle size={20} />
+                      </div>
+                      <div className="alert-content">
+                        <strong>
+                          {d.overdue_sales_count} khoản nợ quá hạn (
+                          {compactMoney(d.total_overdue_debt ?? 0)})
+                        </strong>
+                        <span>
+                          Khách hàng đã quá hạn hẹn trả tiền, cần liên hệ thu
+                          hồi
+                        </span>
+                      </div>
+                      <ArrowRight size={16} />
+                    </Link>
+                  )}
+                  {(d.unpaid_sales_count ?? 0) > 0 && (
+                    <Link
+                      to="/receivables?payment_status=DEBT_ONLY"
+                      className="alert-card alert-info"
+                    >
+                      <div className="alert-icon">
+                        <CreditCard size={20} />
+                      </div>
+                      <div className="alert-content">
+                        <strong>
+                          {d.unpaid_sales_count} giao dịch còn nợ (
+                          {compactMoney(d.total_receivables ?? 0)})
+                        </strong>
+                        <span>
+                          Khoản nợ chưa thanh toán đủ, bấm để theo dõi và thu nợ
+                        </span>
+                      </div>
+                      <ArrowRight size={16} />
+                    </Link>
+                  )}
+                  {(d.old_inventory_count ?? 0) > 0 && (
+                    <Link
+                      to="/vehicles?status=AVAILABLE&sort=longest_stock&min_days=61"
+                      className="alert-card alert-neutral"
+                    >
+                      <div className="alert-icon">
+                        <CalendarDays size={20} />
+                      </div>
+                      <div className="alert-content">
+                        <strong>
+                          {d.old_inventory_count} xe tồn kho &gt; 60 ngày
+                        </strong>
+                        <span>
+                          Xe tồn kho lâu ngày, cân nhắc giảm giá hoặc xúc tiến
+                          bán
+                        </span>
+                      </div>
+                      <ArrowRight size={16} />
+                    </Link>
+                  )}
+                </div>
+              </section>
+            )}
+
+            {/* Quick actions */}
             <div className="quick-actions">
               <span>Thao tác nhanh</span>
               {canOperate(profile) && (
                 <>
-                  <Link to="/vehicles/new">
-                    <Plus size={17} /> Nhập xe
+                  <Link to="/acquisitions/new">
+                    <ArrowDownLeft size={17} /> Thu xe
                   </Link>
                   <Link to="/sell">
                     <ArrowUpRight size={17} /> Bán xe
                   </Link>
+                  <Link to="/receivables">
+                    <CreditCard size={17} /> Công nợ
+                  </Link>
                 </>
               )}
               {canManage(profile) && (
-                <Link to="/expenses">
-                  <ArrowDownLeft size={17} /> Thêm chi phí
+                <>
+                  <Link to="/reconciliation">
+                    <Scale size={17} /> Đối soát cuối ngày
+                  </Link>
+                  <Link to="/expenses">
+                    <Plus size={17} /> Thêm chi phí
+                  </Link>
+                </>
+              )}
+              {canOperate(profile) && (
+                <Link to="/import-vehicles">
+                  <FileSpreadsheet size={17} /> Nhập xe từ file
                 </Link>
               )}
               <Link to="/vehicles">
                 <Bike size={17} /> Tìm trong kho
               </Link>
             </div>
+
             {d.inventory_indicator && d.inventory_indicator !== "NORMAL" && (
               <p className="notice">
                 {d.inventory_indicator === "LOW"
@@ -168,6 +354,56 @@ export default function DashboardPage() {
                 </Link>
               </p>
             )}
+
+            {/* ═══ RECENT VEHICLES (XE VỪA THAO TÁC) ═══ */}
+            {recentVehicles.length > 0 && (
+              <Card className="recent-vehicles-card">
+                <div className="section-heading">
+                  <div
+                    className="row"
+                    style={{ gap: "8px", alignItems: "center" }}
+                  >
+                    <Clock3 size={18} />
+                    <h2>Xe vừa thao tác</h2>
+                  </div>
+                  <span className="muted small">Mở nhanh chỉ với 1 chạm</span>
+                </div>
+                <div className="recent-vehicles-grid">
+                  {recentVehicles.slice(0, 6).map((item) => (
+                    <Link
+                      key={item.id}
+                      to={`/vehicles/${item.id}`}
+                      className="recent-vehicle-chip"
+                    >
+                      <span className="recent-chip-icon">
+                        <Bike size={18} />
+                      </span>
+                      <div className="recent-chip-content">
+                        <div className="row between" style={{ gap: "6px" }}>
+                          <strong>
+                            {item.brand} {item.model}
+                          </strong>
+                          <Badge status={item.status} />
+                        </div>
+                        <div className="recent-chip-sub">
+                          <span>
+                            {item.license_plate ||
+                              item.frame_number ||
+                              item.internal_code}
+                          </span>
+                          <span>·</span>
+                          <span className="time">
+                            {formatRelativeTime(item.updated_at)}
+                          </span>
+                        </div>
+                      </div>
+                    </Link>
+                  ))}
+                </div>
+              </Card>
+            )}
+
+            {/* ═══ MAIN GRID ═══ */}
             <div className="dashboard-main-grid">
               {canManage(profile) ? (
                 <Card className="revenue-card">
@@ -216,6 +452,10 @@ export default function DashboardPage() {
                   <span>{d.sold_today}</span>
                   <p>xe đã giao đến khách hàng</p>
                 </div>
+                <div className="today-line">
+                  <span>Thu vào hôm nay</span>
+                  <strong>{d.acquired_today ?? 0} xe</strong>
+                </div>
                 {canManage(profile) && (
                   <div className="today-line">
                     <span>Doanh thu hôm nay</span>
@@ -231,6 +471,10 @@ export default function DashboardPage() {
                 <div className="today-line">
                   <span>Bán trong tháng này</span>
                   <strong>{d.sold_month} xe</strong>
+                </div>
+                <div className="today-line">
+                  <span>Thu vào tháng này</span>
+                  <strong>{d.acquired_month ?? 0} xe</strong>
                 </div>
                 {canManage(profile) && (
                   <div className="today-line">
@@ -249,7 +493,46 @@ export default function DashboardPage() {
                 </Link>
               </Card>
             </div>
+
+            {/* ═══ SECONDARY: Recent acquisitions + sales ═══ */}
             <div className="dashboard-secondary-grid">
+              <Card>
+                <div className="section-heading">
+                  <div>
+                    <h2>Xe vừa thu vào</h2>
+                    <p className="muted small">Các xe thu mua gần đây nhất</p>
+                  </div>
+                  <Link className="text-link" to="/acquisitions">
+                    Xem tất cả <ArrowRight size={15} />
+                  </Link>
+                </div>
+                {d.recent_acquisitions?.length ? (
+                  <div className="compact-list">
+                    {d.recent_acquisitions.map((a) => (
+                      <Link
+                        className="compact-row"
+                        key={a.id}
+                        to={"/vehicles/" + a.vehicle_id}
+                      >
+                        <div>
+                          <strong>
+                            {a.brand} {a.model}
+                          </strong>
+                          <small>
+                            {a.frame_number} · {dateLabel(a.acquisition_date)}
+                          </small>
+                        </div>
+                        {canFinance(profile) && a.purchase_price != null && (
+                          <strong>{money(a.purchase_price)}</strong>
+                        )}
+                      </Link>
+                    ))}
+                  </div>
+                ) : (
+                  <EmptyState title="Sẵn sàng đón chiếc xe đầu tiên" />
+                )}
+              </Card>
+
               <Card className="table-card">
                 <div className="section-heading padded">
                   <div>
@@ -293,6 +576,10 @@ export default function DashboardPage() {
                   />
                 )}
               </Card>
+            </div>
+
+            {/* ═══ AGING + LONGEST + PROFITABLE ═══ */}
+            <div className="dashboard-secondary-grid">
               <Card>
                 <div className="section-heading">
                   <div>
@@ -323,7 +610,7 @@ export default function DashboardPage() {
                           <strong>
                             {v.brand} {v.model}
                           </strong>
-                          <small>{v.internal_code}</small>
+                          <small>{v.frame_number || v.internal_code}</small>
                         </div>
                         <span className="age-badge">
                           {v.days_in_inventory ?? daysInStock(v.purchase_date)}{" "}
@@ -335,37 +622,6 @@ export default function DashboardPage() {
                     <p className="muted small">Kho xe hiện chưa có dữ liệu.</p>
                   )}
                 </div>
-              </Card>
-            </div>
-            <div className="dashboard-secondary-grid">
-              <Card>
-                <div className="section-heading">
-                  <h2>Xe vừa nhập</h2>
-                  <Link className="text-link" to="/vehicles">
-                    Mở kho xe
-                  </Link>
-                </div>
-                {d.recent_vehicles?.length ? (
-                  d.recent_vehicles.map((v) => (
-                    <Link
-                      className="compact-row"
-                      key={v.id}
-                      to={"/vehicles/" + v.id}
-                    >
-                      <div>
-                        <strong>
-                          {v.brand} {v.model}
-                        </strong>
-                        <small>
-                          {v.internal_code} · {dateLabel(v.purchase_date)}
-                        </small>
-                      </div>
-                      <Badge status={v.status} />
-                    </Link>
-                  ))
-                ) : (
-                  <EmptyState title="Sẵn sàng đón chiếc xe đầu tiên" />
-                )}
               </Card>
               <Card>
                 <div className="section-heading">
@@ -406,6 +662,8 @@ export default function DashboardPage() {
                 )}
               </Card>
             </div>
+
+            {/* ═══ RECENT EXPENSES ═══ */}
             {canManage(profile) && (
               <Card>
                 <div className="section-heading">
@@ -443,22 +701,39 @@ function Metric({
   detail,
   icon,
   featured = false,
+  to,
 }: {
   label: string;
   value: string;
   detail: string;
   icon: React.ReactNode;
   featured?: boolean;
+  to?: string;
 }) {
-  return (
-    <Card className={`metric ${featured ? "featured" : ""}`}>
+  const content = (
+    <>
       <div className="metric-label">
         <span>{label}</span>
         {icon}
       </div>
       <strong className="metric-value">{value}</strong>
       <p>{detail}</p>
-    </Card>
+    </>
+  );
+
+  if (to) {
+    return (
+      <Link
+        to={to}
+        className={`metric-link card metric ${featured ? "featured" : ""}`}
+      >
+        {content}
+      </Link>
+    );
+  }
+
+  return (
+    <Card className={`metric ${featured ? "featured" : ""}`}>{content}</Card>
   );
 }
 function RevenueChart({

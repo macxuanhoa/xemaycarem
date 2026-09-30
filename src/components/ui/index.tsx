@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import {
   ArrowLeft,
   ArrowRight,
@@ -33,11 +33,17 @@ export function PageHeader({
 export function Card({
   children,
   className = "",
+  style,
 }: {
   children: ReactNode;
   className?: string;
+  style?: React.CSSProperties;
 }) {
-  return <section className={`card ${className}`}>{children}</section>;
+  return (
+    <section className={`card ${className}`} style={style}>
+      {children}
+    </section>
+  );
 }
 export function Field({
   label,
@@ -86,6 +92,11 @@ export const statusLabels: Record<string, string> = {
   MANAGER: "Quản lý",
   STAFF: "Nhân viên",
   VIEWER: "Chỉ xem",
+  PAID: "Đã thanh toán đủ",
+  PARTIALLY_PAID: "Trả một phần",
+  UNPAID: "Chưa thanh toán",
+  OVERDUE: "Quá hạn",
+  DEBT: "Còn nợ",
 };
 export function Badge({ status }: { status: string }) {
   return (
@@ -128,20 +139,53 @@ export function DateRange({
   value: DateFilter;
   onChange: (v: DateFilter) => void;
 }) {
-  const presets = ["today", "yesterday", "week", "month", "last-month"];
-  const selected =
-    presets.find((key) => {
-      const range = datePreset(key);
-      return range.from === value.from && range.to === value.to;
-    }) ?? "custom";
+  const presets = ["today", "yesterday", "week", "month", "last-month"] as const;
+  const [draft, setDraft] = useState(value);
+  const [isCustom, setIsCustom] = useState(false);
+  const { from, to } = value;
+
+  useEffect(() => {
+    setDraft({ from, to });
+  }, [from, to]);
+
+  const matchedPreset = presets.find((key) => {
+    const range = datePreset(key);
+    return range.from === draft.from && range.to === draft.to;
+  });
+
+  const selected = isCustom || !matchedPreset ? "custom" : matchedPreset;
+
+  const handlePresetChange = (presetKey: string) => {
+    if (presetKey === "custom") {
+      setIsCustom(true);
+      return;
+    }
+    setIsCustom(false);
+    const nextRange = datePreset(presetKey);
+    setDraft(nextRange);
+    onChange(nextRange);
+  };
+
+  const handleInputChange = (field: "from" | "to", nextVal: string) => {
+    setIsCustom(true);
+    const nextDraft = { ...draft, [field]: nextVal };
+    setDraft(nextDraft);
+    if (
+      nextDraft.from &&
+      nextDraft.to &&
+      nextDraft.from <= nextDraft.to &&
+      (nextDraft.from !== value.from || nextDraft.to !== value.to)
+    ) {
+      onChange(nextDraft);
+    }
+  };
+
   return (
     <div className="date-range">
       <select
         aria-label="Khoảng thời gian"
         value={selected}
-        onChange={(e) =>
-          e.target.value !== "custom" && onChange(datePreset(e.target.value))
-        }
+        onChange={(e) => handlePresetChange(e.target.value)}
       >
         <option value="today">Hôm nay</option>
         <option value="yesterday">Hôm qua</option>
@@ -153,17 +197,15 @@ export function DateRange({
       <input
         aria-label="Từ ngày"
         type="date"
-        value={value.from}
-        max={value.to}
-        onChange={(e) => onChange({ ...value, from: e.target.value })}
+        value={draft.from}
+        onChange={(e) => handleInputChange("from", e.target.value)}
       />
       <span>—</span>
       <input
         aria-label="Đến ngày"
         type="date"
-        value={value.to}
-        min={value.from}
-        onChange={(e) => onChange({ ...value, to: e.target.value })}
+        value={draft.to}
+        onChange={(e) => handleInputChange("to", e.target.value)}
       />
     </div>
   );

@@ -2,14 +2,23 @@ export type Role = "OWNER" | "MANAGER" | "STAFF" | "VIEWER";
 export type Profile = {
   id: string;
   full_name: string;
+  username: string;
   role: Role;
   active: boolean;
   can_view_financials: boolean;
+  must_change_password: boolean;
+  disabled_until?: string | null;
+  allowed_from?: string;
+  allowed_until?: string;
+  working_days?: readonly number[];
+  deleted_at?: string | null;
+  disable_reason?: string | null;
   created_at?: string;
   updated_at?: string;
 };
 export type Paged<T> = { items: T[]; total: number };
 export type VehicleStatus = "IN_STOCK" | "RESERVED" | "SOLD" | "CANCELLED";
+export type AcquisitionStatus = "COMPLETED" | "CANCELLED";
 export type VehicleImage = {
   id: string;
   vehicle_id: string;
@@ -73,6 +82,25 @@ export type Vehicle = {
   sales?: Sale[];
   activity?: Activity[];
 };
+export type Acquisition = {
+  id: string;
+  vehicle_id: string;
+  frame_number: string;
+  license_plate?: string;
+  brand: string;
+  model: string;
+  internal_code?: string;
+  vehicle_name?: string;
+  acquisition_date: string;
+  purchase_price?: number | null;
+  seller_name: string;
+  seller_phone: string;
+  status: AcquisitionStatus;
+  notes: string;
+  creator_name?: string;
+  created_by: string;
+  created_at: string;
+};
 export type Payment = {
   id: string;
   sale_id: string;
@@ -83,20 +111,30 @@ export type Payment = {
   notes: string;
   status?: "ACTIVE" | "VOIDED";
   created_at?: string;
+  creator_name?: string;
 };
+export type DebtStatus =
+  "PAID" | "PARTIALLY_PAID" | "UNPAID" | "OVERDUE" | "CANCELLED";
+
 export type Sale = {
   id: string;
   sale_code: string;
   vehicle_id: string;
+  vehicle_name?: string;
   internal_code?: string;
   brand?: string;
   model?: string;
   license_plate?: string;
+  frame_number?: string;
   customer_name: string;
   customer_phone: string;
   sale_price: number;
   sale_date: string;
+  due_date?: string | null;
+  debt_status?: DebtStatus;
+  is_overdue?: boolean;
   sold_by: string;
+  employee_name?: string;
   status: "COMPLETED" | "CANCELLED";
   notes: string;
   purchase_cost_snapshot?: number;
@@ -115,6 +153,10 @@ export type DashboardData = {
   reserved: number;
   sold_today: number;
   sold_month: number;
+  acquired_today: number;
+  acquired_month: number;
+  acquisitions_count: number;
+  acquisition_cost: number | null;
   inventory_cost: number | null;
   inventory_cost_pending: number;
   inventory_indicator?: "LOW" | "NORMAL" | "HIGH";
@@ -126,11 +168,124 @@ export type DashboardData = {
   gross_profit: number | null;
   sales_count: number;
   business_expenses: number | null;
+  unpaid_sales_count?: number;
+  total_receivables?: number;
+  overdue_sales_count?: number;
+  total_overdue_debt?: number;
+  old_inventory_count?: number;
   recent_sales: Sale[];
   recent_vehicles: Vehicle[];
+  recent_acquisitions: Acquisition[];
   recent_expenses: Expense[];
   aging: { bucket: string; count: number }[];
   longest_stock: Vehicle[];
   top_profitable: Sale[] | null;
   daily_sales: { date: string; revenue: number; count: number }[];
+};
+
+export type ReceivablesSummary = {
+  items: Sale[];
+  total: number;
+  total_receivable: number;
+  total_overdue: number;
+  overdue_count: number;
+  unpaid_count: number;
+};
+
+export type DailyReconciliationPayment = Payment & {
+  sale_code: string;
+  customer_name: string;
+  customer_phone: string;
+  sale_date: string;
+  sale_price: number;
+  vehicle_name: string;
+  internal_code: string;
+  license_plate: string;
+  is_prior_debt: boolean;
+};
+
+export type DailyReconciliation = {
+  date: string;
+  sales_count: number;
+  sales_revenue: number;
+  today_sales_collected: number;
+  debt_collected_today: number;
+  total_collected: number;
+  cash_collected: number;
+  bank_transfer_collected: number;
+  other_collected: number;
+  new_debt_created: number;
+  business_expenses: number;
+  vehicle_expenses: number;
+  total_expenses: number;
+  net_cash_movement: number;
+  payments: DailyReconciliationPayment[];
+  sales: Sale[];
+  expenses: Expense[];
+};
+
+export type GlobalSearchResult = {
+  vehicles: Array<{
+    id: string;
+    internal_code: string;
+    brand: string;
+    model: string;
+    license_plate: string;
+    frame_number: string;
+    engine_number: string;
+    asking_price: number;
+    status: VehicleStatus;
+  }>;
+  customers: Array<{
+    customer_name: string;
+    customer_phone: string;
+    purchases_count: number;
+    total_spent: number;
+    latest_sale_date: string;
+  }>;
+  sales: Array<{
+    id: string;
+    sale_code: string;
+    customer_name: string;
+    customer_phone: string;
+    vehicle_name: string;
+    internal_code: string;
+    license_plate: string;
+    sale_date: string;
+    sale_price: number;
+    remaining_amount: number;
+    status: "COMPLETED" | "CANCELLED";
+  }>;
+};
+
+export type CustomerSummary = {
+  customer_name: string;
+  customer_phone: string;
+  purchases_count: number;
+  total_spent: number;
+  total_paid: number;
+  total_debt: number;
+  first_purchase_date: string;
+  latest_purchase_date: string;
+  sales?: Sale[];
+  identity_warning?: boolean;
+  customer_names?: string[];
+};
+
+export type ImportVehicleRow = {
+  frame_number: string;
+  brand: string;
+  model: string;
+  variant?: string;
+  year?: number | null;
+  color?: string;
+  engine_number?: string;
+  license_plate?: string;
+  odometer?: number;
+  purchase_date?: string;
+  purchase_price?: number;
+  asking_price?: number;
+  supplier_name?: string;
+  supplier_phone?: string;
+  notes?: string;
 };

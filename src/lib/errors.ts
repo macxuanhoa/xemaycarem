@@ -19,6 +19,12 @@ export function friendlyError(error: unknown): string {
     return "Ngày bán không được trước ngày phát sinh chi phí của xe.";
   if (/PURCHASE_AFTER_EXPENSE/i.test(value))
     return "Ngày nhập xe không được sau ngày chi phí đã ghi nhận.";
+  if (/PAYMENT_REQUEST_CONFLICT/i.test(value))
+    return "Lần thu tiền này có thông tin khác với lần gửi trước. Kiểm tra lịch sử thanh toán trước khi lập khoản thu mới.";
+  if (/PASSWORD_CHANGE_REQUIRED/i.test(value))
+    return "Bạn cần đổi mật khẩu trước khi sử dụng các chức năng của cửa hàng.";
+  if (/FINANCIAL_ACCESS_DENIED/i.test(value))
+    return "Bạn chưa được cấp quyền xem hoặc sửa giá vốn. Liên hệ chủ cửa hàng.";
   if (
     /permission|access_denied|not authorized|forbidden|disabled|inactive|42501/i.test(
       value,

@@ -7,15 +7,15 @@ export default defineConfig({
   expect: { timeout: 10000 },
   reporter: [["list"], ["html", { open: "never" }]],
   use: {
-    baseURL: "http://127.0.0.1:4174",
+    baseURL: "http://127.0.0.1:4184",
     viewport: { width: 1440, height: 960 },
     screenshot: "only-on-failure",
-    trace: "retain-on-failure",
+    trace: "off",
     serviceWorkers: "block",
   },
   webServer: {
-    command: "npm run dev -- --port 4174 --strictPort",
-    url: "http://127.0.0.1:4174",
+    command: "npm run dev -- --port 4184 --strictPort",
+    url: "http://127.0.0.1:4184",
     reuseExistingServer: false,
     timeout: 60000,
     env: {

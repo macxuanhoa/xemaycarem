@@ -1,9 +1,17 @@
 import assert from 'node:assert/strict'
 import { randomUUID } from 'node:crypto'
 import { createDatabase, asUser, rpc } from './db-harness.mjs'
+import { runMigrationTests } from '../tests/db/migration.test.mjs'
+import { runBusinessRisksTests } from '../tests/db/business-risks.test.mjs'
+import { runOperationalTests } from '../tests/db/operational-features.test.mjs'
+import { runAuthSecurityTests } from '../tests/db/auth-security.test.mjs'
 
 const engine = process.argv.includes('--pglite') ? 'pglite' : 'postgres'
 console.log(`Database integration suite: ${engine} (disposable database; no cloud credentials)`)
+await runMigrationTests({ engine })
+await runBusinessRisksTests(null, { engine })
+await runOperationalTests(null, { engine })
+await runAuthSecurityTests({ engine })
 const db = await createDatabase({ engine })
 let passed = 0
 const users = Object.fromEntries(['owner', 'manager', 'financialManager', 'staff', 'viewer', 'disabled'].map((role) => [role, randomUUID()]))

@@ -45,3 +45,6 @@ secure_password_change = true
 
 [functions.manage-users]
 verify_jwt = true
+
+[functions.ai-assist]
+verify_jwt = true

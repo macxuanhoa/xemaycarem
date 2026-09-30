@@ -1,7 +1,7 @@
-import { useDeferredValue, useState } from "react";
+import { useDeferredValue, useEffect, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useForm } from "react-hook-form";
+import { useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { CirclePlus, Pencil, Search, X } from "lucide-react";
@@ -56,6 +56,9 @@ export function ExpensesPage() {
   const deferredSearch = useDeferredValue(search);
   const [editing, setEditing] = useState<ExpenseRecord | null>(null);
   const [adding, setAdding] = useState(params.get("new") === "1");
+  useEffect(() => {
+    if (params.get("new") === "1") setAdding(true);
+  }, [params]);
   const query = useQuery({
     queryKey: ["expenses", kind, range, selectedVehicle, deferredSearch, page],
     queryFn: () =>
@@ -323,7 +326,12 @@ function ExpenseEditor({
     queryKey: ["expense-vehicle-picker", deferredSearch],
     queryFn: () =>
       api.call<Paged<Vehicle>>("list_vehicles", {
-        p_filters: { search: deferredSearch, limit: 30, offset: 0 },
+        p_filters: {
+          search: deferredSearch,
+          status: "AVAILABLE",
+          limit: 30,
+          offset: 0,
+        },
       }),
     enabled: kind === "vehicle" && !initialVehicle,
   });
@@ -337,6 +345,24 @@ function ExpenseEditor({
       expense_date: expense?.expense_date ?? today(),
     },
   });
+  const selectedVehicleId = useWatch({
+    control: form.control,
+    name: "vehicle_id",
+  });
+  const selectedChoice = vehicleChoices.data?.items.find(
+    (vehicle) => vehicle.id === selectedVehicleId,
+  );
+  const vehicleLocked =
+    kind === "vehicle" &&
+    !!initialVehicle &&
+    !!currentVehicle.data &&
+    !["IN_STOCK", "RESERVED"].includes(currentVehicle.data.status);
+  const vehicleUnavailable =
+    kind === "vehicle" &&
+    !!initialVehicle &&
+    (currentVehicle.isPending || currentVehicle.isError || vehicleLocked);
+  const choicesLoading =
+    vehicleChoices.isFetching || vehicleSearch !== deferredSearch;
   const save = useMutation({
     mutationFn: (values: ExpenseValues) => {
       const data: Record<string, unknown> = {
@@ -391,7 +417,12 @@ function ExpenseEditor({
       <form
         className="stack"
         onSubmit={form.handleSubmit((values) => {
-          if (kind === "vehicle" && !values.vehicle_id) {
+          if (vehicleUnavailable || save.isPending || cancel.isPending) return;
+          if (
+            kind === "vehicle" &&
+            (!values.vehicle_id ||
+              (!initialVehicle && (!selectedChoice || choicesLoading)))
+          ) {
             form.setError("vehicle_id", {
               message: "Chọn xe cần ghi nhận chi phí.",
             });
@@ -415,6 +446,8 @@ function ExpenseEditor({
                 {currentVehicle.data?.brand} {currentVehicle.data?.model}
                 {currentVehicle.data?.status === "SOLD" &&
                   " — Xe đã bán: các khoản chi đã khóa để giữ nguyên giá vốn giao dịch."}
+                {currentVehicle.data?.status === "CANCELLED" &&
+                  " — Xe đã hủy: không thể thêm, sửa hoặc hủy chi phí."}
               </p>
             )
           ) : (
@@ -422,7 +455,12 @@ function ExpenseEditor({
               <Field label="Tìm xe">
                 <input
                   value={vehicleSearch}
-                  onChange={(event) => setVehicleSearch(event.target.value)}
+                  disabled={save.isPending}
+                  onChange={(event) => {
+                    setVehicleSearch(event.target.value);
+                    form.setValue("vehicle_id", "", { shouldDirty: true });
+                    form.clearErrors("vehicle_id");
+                  }}
                   placeholder="Mã xe, biển số, hãng…"
                 />
               </Field>
@@ -430,11 +468,20 @@ function ExpenseEditor({
                 label="Chọn xe *"
                 error={form.formState.errors.vehicle_id?.message}
               >
-                <select {...form.register("vehicle_id")}>
+                <select
+                  aria-label="Chọn xe *"
+                  {...form.register("vehicle_id")}
+                  value={selectedChoice?.id ?? ""}
+                  disabled={
+                    choicesLoading || vehicleChoices.isError || save.isPending
+                  }
+                >
                   <option value="">
-                    {vehicleChoices.isPending
+                    {vehicleChoices.isPending || choicesLoading
                       ? "Đang tải danh sách…"
-                      : "Chọn một xe"}
+                      : vehicleChoices.data?.items.length === 0
+                        ? "Không có xe phù hợp"
+                        : "Chọn một xe"}
                   </option>
                   {vehicleChoices.data?.items.map((vehicle) => (
                     <option value={vehicle.id} key={vehicle.id}>
@@ -452,58 +499,66 @@ function ExpenseEditor({
               </Field>
             </div>
           ))}
-        <div className="form-grid">
+        <fieldset
+          className="plain-fieldset stack"
+          disabled={vehicleUnavailable || save.isPending || cancel.isPending}
+        >
+          <div className="form-grid">
+            <Field
+              label="Phân loại *"
+              error={form.formState.errors.type?.message}
+            >
+              <select {...form.register("type")}>
+                {Object.entries(labels).map(([value, label]) => (
+                  <option value={value} key={value}>
+                    {label}
+                  </option>
+                ))}
+              </select>
+            </Field>
+            <Field
+              label="Số tiền (₫) *"
+              error={form.formState.errors.amount?.message}
+            >
+              <input
+                type="number"
+                inputMode="numeric"
+                min="1"
+                step="1"
+                {...form.register("amount", { valueAsNumber: true })}
+              />
+            </Field>
+            <Field
+              label="Ngày chi *"
+              error={form.formState.errors.expense_date?.message}
+            >
+              <input type="date" {...form.register("expense_date")} />
+            </Field>
+          </div>
           <Field
-            label="Phân loại *"
-            error={form.formState.errors.type?.message}
+            label="Nội dung chi phí *"
+            error={form.formState.errors.description?.message}
           >
-            <select {...form.register("type")}>
-              {Object.entries(labels).map(([value, label]) => (
-                <option value={value} key={value}>
-                  {label}
-                </option>
-              ))}
-            </select>
-          </Field>
-          <Field
-            label="Số tiền (₫) *"
-            error={form.formState.errors.amount?.message}
-          >
-            <input
-              type="number"
-              inputMode="numeric"
-              min="1"
-              step="1"
-              {...form.register("amount", { valueAsNumber: true })}
+            <textarea
+              rows={2}
+              placeholder={
+                kind === "vehicle"
+                  ? "Ví dụ: thay lốp trước, vận chuyển xe về kho…"
+                  : "Ví dụ: tiền thuê mặt bằng tháng này…"
+              }
+              {...form.register("description")}
             />
           </Field>
-          <Field
-            label="Ngày chi *"
-            error={form.formState.errors.expense_date?.message}
-          >
-            <input type="date" {...form.register("expense_date")} />
-          </Field>
-        </div>
-        <Field
-          label="Nội dung chi phí *"
-          error={form.formState.errors.description?.message}
-        >
-          <textarea
-            rows={2}
-            placeholder={
-              kind === "vehicle"
-                ? "Ví dụ: thay lốp trước, vận chuyển xe về kho…"
-                : "Ví dụ: tiền thuê mặt bằng tháng này…"
-            }
-            {...form.register("description")}
-          />
-        </Field>
+        </fieldset>
         {save.isError && <ErrorState error={save.error} />}
         <div className="form-actions">
           <Button type="button" variant="secondary" onClick={onClose}>
             Đóng
           </Button>
-          <Button type="submit" disabled={save.isPending || cancel.isPending}>
+          <Button
+            type="submit"
+            disabled={vehicleUnavailable || save.isPending || cancel.isPending}
+          >
             {save.isPending
               ? "Đang lưu…"
               : expense
@@ -515,7 +570,11 @@ function ExpenseEditor({
       {expense && (
         <div className="cancel-section">
           {!showCancel ? (
-            <Button variant="danger" onClick={() => setShowCancel(true)}>
+            <Button
+              variant="danger"
+              disabled={vehicleUnavailable || save.isPending}
+              onClick={() => setShowCancel(true)}
+            >
               Hủy khoản chi này
             </Button>
           ) : (
@@ -523,7 +582,13 @@ function ExpenseEditor({
               className="stack"
               onSubmit={(event) => {
                 event.preventDefault();
-                if (reason.trim().length >= 5) cancel.mutate();
+                if (
+                  !vehicleUnavailable &&
+                  !save.isPending &&
+                  !cancel.isPending &&
+                  reason.trim().length >= 5
+                )
+                  cancel.mutate();
               }}
             >
               <p className="muted">
@@ -535,6 +600,9 @@ function ExpenseEditor({
                   minLength={5}
                   maxLength={1000}
                   required
+                  disabled={
+                    vehicleUnavailable || save.isPending || cancel.isPending
+                  }
                   value={reason}
                   onChange={(event) => setReason(event.target.value)}
                   placeholder="Nhập lý do (ít nhất 5 ký tự)"
@@ -555,6 +623,7 @@ function ExpenseEditor({
                   disabled={
                     cancel.isPending ||
                     save.isPending ||
+                    vehicleUnavailable ||
                     reason.trim().length < 5
                   }
                 >

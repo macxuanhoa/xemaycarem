@@ -20,6 +20,8 @@ export async function createDatabase({ engine = 'pglite' } = {}) {
     CREATE TABLE auth.users (
       id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
       email text UNIQUE,
+      encrypted_password text,
+      email_confirmed_at timestamptz,
       raw_user_meta_data jsonb NOT NULL DEFAULT '{}'::jsonb,
       raw_app_meta_data jsonb NOT NULL DEFAULT '{}'::jsonb,
       created_at timestamptz DEFAULT now(),

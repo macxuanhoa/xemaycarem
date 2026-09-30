@@ -139,7 +139,7 @@ test.beforeEach(async ({ page }) => {
             return (
               (
                 await c.query(
-                  "select id,full_name,role,active,can_view_financials from public.profiles where id=$1",
+                  "select * from public.profiles where id=$1",
                   [userId],
                 )
               ).rows[0] ?? null
@@ -149,7 +149,7 @@ test.beforeEach(async ({ page }) => {
             if (!/^[a-z_]+$/.test(name)) throw new Error("Invalid RPC");
             const signature = (
               await db.query(
-                "select pg_get_function_identity_arguments(p.oid) as args from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='public' and p.proname=$1",
+                "select pg_get_function_arguments(p.oid) as args from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='public' and p.proname=$1",
                 [name],
               )
             ).rows[0]?.args;
@@ -157,11 +157,13 @@ test.beforeEach(async ({ page }) => {
               throw new Error(`RPC missing: ${name}`);
             const types = Object.fromEntries(
               signature
-                .split(", ")
+                .split(/,(?![^(]*\))/)
+                .map((s) => s.trim())
                 .filter(Boolean)
                 .map((pair) => {
-                  const space = pair.indexOf(" ");
-                  return [pair.slice(0, space), pair.slice(space + 1)];
+                  const cleaned = pair.replace(/\s+DEFAULT\s+.*$/i, "").trim();
+                  const space = cleaned.indexOf(" ");
+                  return [cleaned.slice(0, space), cleaned.slice(space + 1)];
                 }),
             );
             const entries = Object.entries(body);
@@ -189,12 +191,12 @@ test.beforeEach(async ({ page }) => {
 });
 async function login(page, role = "owner") {
   await page.goto("/login");
-  await page.getByLabel("Email", { exact: true }).fill(`${role}@example.test`);
+  await page.getByLabel(/Tên đăng nhập|Email/i).fill(`${role}@example.test`);
   await page.getByLabel("Mật khẩu", { exact: true }).fill("Password-Test-2026");
   await page.getByRole("button", { name: "Đăng nhập", exact: true }).click();
   await expect(page.getByRole("heading", { name: /Xin chào/ })).toBeVisible();
   await expect(
-    page.getByText("Xe đang trong kho", { exact: true }),
+    page.getByText(/Tồn kho hiện tại|Xe đang trong kho/),
   ).toBeVisible();
 }
 async function noOverflow(page) {
@@ -213,7 +215,7 @@ test("Owner: login, persistent session, add/edit vehicle, expense, sale, payment
   await login(page);
   await page.reload();
   await expect(
-    page.getByText("Xe đang trong kho", { exact: true }),
+    page.getByText(/Tồn kho hiện tại|Xe đang trong kho/),
   ).toBeVisible();
   await page.screenshot({
     path: "test-results/dashboard-desktop.png",
@@ -222,8 +224,8 @@ test("Owner: login, persistent session, add/edit vehicle, expense, sale, payment
   await page.goto("/vehicles/new");
   await page.getByLabel("Hãng xe *", { exact: true }).fill("Honda");
   await page.getByLabel("Dòng xe *", { exact: true }).fill("SH Kiểm thử UI");
-  await page.getByLabel("Giá mua (₫) *", { exact: true }).fill("80000000");
-  await page.getByLabel("Giá niêm yết (₫) *", { exact: true }).fill("90000000");
+  await page.getByLabel("Giá mua (₫) *", { exact: false }).fill("80000000");
+  await page.getByLabel("Giá niêm yết (₫) *", { exact: false }).fill("90000000");
   await page.getByRole("button", { name: "Lưu xe mới", exact: true }).click();
   await expect(page).toHaveURL(/\/vehicles\/[a-f0-9-]{36}$/);
   const vehicleId = page.url().split("/").at(-1);
@@ -232,7 +234,7 @@ test("Owner: login, persistent session, add/edit vehicle, expense, sale, payment
   await page.getByRole("button", { name: "Lưu thay đổi", exact: true }).click();
   await expect(page).toHaveURL(`/vehicles/${vehicleId}`);
   await page.goto(`/expenses?kind=vehicle&vehicle=${vehicleId}&new=1`);
-  await page.getByLabel("Số tiền (₫) *", { exact: true }).fill("1200000");
+  await page.getByLabel("Số tiền (₫) *", { exact: false }).fill("1200000");
   await page
     .getByLabel("Nội dung chi phí *", { exact: true })
     .fill("Thay phụ tùng kiểm thử");
@@ -243,7 +245,7 @@ test("Owner: login, persistent session, add/edit vehicle, expense, sale, payment
     .getByLabel("Tên khách hàng *", { exact: true })
     .fill("Khách kiểm thử UI");
   await page
-    .getByLabel("Thu tiền lần đầu (₫)", { exact: true })
+    .getByLabel("Thu tiền lần đầu (₫)", { exact: false })
     .fill("20000000");
   await page
     .getByRole("button", { name: "Xác nhận bán xe", exact: true })
@@ -292,9 +294,9 @@ test("Mobile: inventory cards, global search, quick sale, no horizontal overflow
   });
   const plate = `TEST-${ids.OWNER.slice(0, 5)}-0`;
   await page.getByLabel("Tìm xe toàn hệ thống").fill(plate);
+  await expect(page.locator(".palette-result-item").first()).toContainText(plate);
   await page.getByLabel("Tìm xe toàn hệ thống").press("Enter");
-  await expect(page.getByLabel("Tìm kiếm xe")).toHaveValue(plate);
-  await expect(page.locator(".mobile-record")).toHaveCount(1);
+  await expect(page).toHaveURL(`/vehicles/${vehicles[0]}`);
   await page.goto("/sell");
   await expect(
     page.getByRole("heading", { name: "Tạo giao dịch bán xe" }),
@@ -323,7 +325,7 @@ test("Staff: financial fields absent, forbidden routes blocked, disabled user re
   ]);
   await page.reload();
   await expect(
-    page.getByText(/Tài khoản chưa được cấp quyền hoặc đã bị khóa/),
+    page.getByText(/Tài khoản đã bị vô hiệu hóa|Tài khoản chưa được cấp quyền hoặc đã bị khóa/),
   ).toBeVisible();
 });
 
@@ -398,4 +400,241 @@ test("Offline: sale mutation is not submitted and shows a clear message", async 
     ).rows[0].status,
   ).toBe("IN_STOCK");
   await context.setOffline(false);
+});
+
+test("Regression: custom dates keep drafts local until the range is complete and valid", async ({
+  page,
+}) => {
+  const requests = [];
+  page.on("request", (request) => {
+    if (request.url().endsWith("/rest/v1/rpc/dashboard"))
+      requests.push(request.postDataJSON());
+  });
+  await login(page);
+  const preset = page.getByLabel("Khoảng thời gian");
+  const presetResponse = page.waitForResponse((response) =>
+    response.url().endsWith("/rest/v1/rpc/dashboard"),
+  );
+  await preset.selectOption("last-month");
+  await presetResponse;
+  await preset.selectOption("custom");
+  await expect(preset).toHaveValue("custom");
+  const from = page.getByLabel("Từ ngày", { exact: true });
+  const to = page.getByLabel("Đến ngày", { exact: true });
+  const shiftDay = (delta) => {
+    const date = new Date(`${day}T00:00:00Z`);
+    date.setUTCDate(date.getUTCDate() + delta);
+    return date.toISOString().slice(0, 10);
+  };
+  const validRange = { p_from: shiftDay(-9), p_to: shiftDay(-2) };
+  const requestCount = requests.length;
+  await from.fill("");
+  await to.fill(validRange.p_to);
+  await expect(from).toHaveValue("");
+  await expect(preset).toHaveValue("custom");
+  await from.fill(day);
+  await expect(from).toHaveValue(day);
+  // Let React render the invalid draft before asserting that no RPC escaped.
+  await page.evaluate(
+    () =>
+      new Promise((resolve) =>
+        requestAnimationFrame(() => requestAnimationFrame(resolve)),
+      ),
+  );
+  expect(requests).toHaveLength(requestCount);
+  const validRequest = page.waitForRequest((request) => {
+    if (!request.url().endsWith("/rest/v1/rpc/dashboard")) return false;
+    const body = request.postDataJSON();
+    return body.p_from === validRange.p_from && body.p_to === validRange.p_to;
+  });
+  await from.fill(validRange.p_from);
+  await validRequest;
+  await expect(preset).toHaveValue("custom");
+  await expect(
+    page.getByText(/Tồn kho hiện tại|Xe đang trong kho/),
+  ).toBeVisible();
+  expect(
+    requests.every(({ p_from, p_to }) => p_from && p_to && p_from <= p_to),
+  ).toBe(true);
+});
+
+test("Regression: global inventory search resets page two to the first matching result", async ({
+  page,
+}) => {
+  const connection = await db.connection();
+  try {
+    for (let i = 0; i < 21; i++)
+      await asUser(connection, ids.OWNER, (client) =>
+        rpc(client, "save_vehicle", "$1::jsonb", [
+          JSON.stringify({
+            brand: "Honda",
+            model: `Pagination ${ids.OWNER.slice(0, 5)} ${i}`,
+            purchase_date: day,
+            purchase_price: 30000000,
+            asking_price: 35000000,
+          }),
+        ]),
+      );
+  } finally {
+    await connection.close();
+  }
+  await login(page);
+  await page.goto("/vehicles");
+  await page.getByRole("button", { name: "Trang sau", exact: true }).click();
+  await expect(page.getByText("Trang 2", { exact: true })).toBeVisible();
+  const plate = `TEST-${ids.OWNER.slice(0, 5)}-0`;
+  const searchRequest = page.waitForRequest((request) => {
+    if (!request.url().endsWith("/rest/v1/rpc/list_vehicles")) return false;
+    const filters = request.postDataJSON().p_filters;
+    return filters.search === plate && filters.offset === 0;
+  });
+  await page.getByLabel("Tìm kiếm xe").fill(plate);
+  await searchRequest;
+  await expect(page.getByLabel("Tìm kiếm xe")).toHaveValue(plate);
+  await expect(page.locator(".desktop-table tbody tr")).toHaveCount(1);
+  await expect(page.locator(".desktop-table tbody tr")).toContainText(plate);
+  await expect(page.getByText("Trang 1", { exact: true })).toBeVisible();
+});
+
+test("Regression: loading a new route keeps the navigation shell visible", async ({
+  page,
+}) => {
+  await login(page);
+  let releaseModule;
+  let signalModule;
+  const moduleHeld = new Promise((resolve) => {
+    releaseModule = resolve;
+  });
+  const moduleRequested = new Promise((resolve) => {
+    signalModule = resolve;
+  });
+  await page.route(
+    "**/src/features/reports/ReportsPage.tsx*",
+    async (route) => {
+      signalModule();
+      await moduleHeld;
+      await route.continue();
+    },
+  );
+  try {
+    await page
+      .locator(".sidebar")
+      .getByRole("link", { name: "Báo cáo", exact: true })
+      .click();
+    await moduleRequested;
+    await expect(page.locator(".sidebar")).toBeVisible();
+    await expect(page.locator(".topbar")).toBeVisible();
+    await expect(page.getByLabel("Tìm xe toàn hệ thống")).toBeVisible();
+    await expect(page.locator("main").getByRole("status")).toBeVisible();
+  } finally {
+    releaseModule();
+  }
+  await expect(
+    page.getByRole("heading", { name: "Báo cáo", exact: true }),
+  ).toBeVisible();
+});
+
+test("Regression: mobile drawer contains focus, closes with Escape and restores scrolling", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await login(page);
+  const opener = page.getByRole("button", { name: "Mở menu", exact: true });
+  const sidebar = page.locator(".sidebar");
+  const originalOverflow = await page.evaluate(
+    () => getComputedStyle(document.body).overflow,
+  );
+  await expect(opener).toHaveAttribute("aria-expanded", "false");
+  await opener.focus();
+  for (let i = 0; i < 18; i++) {
+    await page.keyboard.press("Tab");
+    expect(
+      await sidebar.evaluate((element) =>
+        element.contains(document.activeElement),
+      ),
+    ).toBe(false);
+  }
+  await opener.click();
+  await expect(opener).toHaveAttribute("aria-expanded", "true");
+  await expect
+    .poll(() =>
+      sidebar.evaluate((element) => element.contains(document.activeElement)),
+    )
+    .toBe(true);
+  expect(
+    await page.evaluate(() => getComputedStyle(document.body).overflow),
+  ).toBe("hidden");
+  for (let i = 0; i < 14; i++) {
+    await page.keyboard.press("Tab");
+    expect(
+      await sidebar.evaluate((element) =>
+        element.contains(document.activeElement),
+      ),
+    ).toBe(true);
+  }
+  await page.keyboard.press("Shift+Tab");
+  expect(
+    await sidebar.evaluate((element) =>
+      element.contains(document.activeElement),
+    ),
+  ).toBe(true);
+  await page.keyboard.press("Escape");
+  await expect(opener).toHaveAttribute("aria-expanded", "false");
+  await expect(opener).toBeFocused();
+  expect(
+    await page.evaluate(() => getComputedStyle(document.body).overflow),
+  ).toBe(originalOverflow);
+  await opener.click();
+  await sidebar.getByRole("link", { name: /Tồn kho|Kho xe/ }).click();
+  await expect(
+    page.getByRole("heading", { name: /Tồn kho|Kho xe/ }),
+  ).toBeVisible();
+  await expect(opener).toHaveAttribute("aria-expanded", "false");
+  expect(
+    await page.evaluate(() => getComputedStyle(document.body).overflow),
+  ).toBe(originalOverflow);
+  await noOverflow(page);
+});
+
+test("Regression: changing the expense vehicle search clears the previous vehicle before saving", async ({
+  page,
+}) => {
+  await login(page);
+  await page.goto("/expenses?kind=vehicle&new=1");
+  const picker = page.getByLabel("Chọn xe *", { exact: true });
+  await expect(picker.locator(`option[value="${vehicles[0]}"]`)).toHaveCount(1);
+  await picker.selectOption(vehicles[0]);
+  const nextPlate = `TEST-${ids.OWNER.slice(0, 5)}-1`;
+  await page.getByRole("textbox", { name: "Tìm xe", exact: true }).fill(nextPlate);
+  await expect(picker.locator(`option[value="${vehicles[1]}"]`)).toHaveCount(1);
+  await expect(picker).toBeEnabled();
+  await expect(picker).toHaveValue("");
+  const description = `Chi phí đổi lựa chọn ${ids.OWNER.slice(0, 5)}`;
+  await page.getByLabel("Số tiền (₫) *", { exact: false }).fill("150000");
+  await page
+    .getByLabel("Nội dung chi phí *", { exact: true })
+    .fill(description);
+  const expenseRequests = [];
+  page.on("request", (request) => {
+    if (request.url().endsWith("/rest/v1/rpc/save_expense"))
+      expenseRequests.push(request.postDataJSON());
+  });
+  await page.getByRole("button", { name: "Lưu chi phí", exact: true }).click();
+  await expect(
+    page.getByText("Chọn xe cần ghi nhận chi phí.", { exact: true }),
+  ).toBeVisible();
+  expect(expenseRequests).toHaveLength(0);
+  await picker.selectOption(vehicles[1]);
+  await page.getByRole("button", { name: "Lưu chi phí", exact: true }).click();
+  await expect(
+    page.getByText(description, { exact: true }).first(),
+  ).toBeVisible();
+  expect(
+    (
+      await db.query(
+        "select vehicle_id from public.vehicle_expenses where description=$1",
+        [description],
+      )
+    ).rows,
+  ).toEqual([{ vehicle_id: vehicles[1] }]);
 });

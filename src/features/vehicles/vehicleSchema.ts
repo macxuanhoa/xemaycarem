@@ -1,19 +1,21 @@
 import { z } from "zod";
+import { dateValue, moneyValue } from "@/lib/validation";
 
-export const moneyValue = z
-  .number({ error: "Nhập số tiền hợp lệ." })
-  .int("Số tiền phải là số nguyên đồng.")
-  .min(0, "Số tiền không được âm.")
-  .max(1_000_000_000_000, "Số tiền vượt giới hạn cho phép.");
-export const dateValue = z
-  .string()
-  .regex(/^\d{4}-\d{2}-\d{2}$/, "Chọn ngày hợp lệ.")
-  .refine((value) => {
-    const date = new Date(`${value}T00:00:00Z`);
-    return (
-      !Number.isNaN(date.getTime()) && date.toISOString().slice(0, 10) === value
-    );
-  }, "Ngày không hợp lệ.");
+// Re-export validation primitives
+export { moneyValue, dateValue };
+
+// Re-export acquisition schema for backward compatibility
+export {
+  acquisitionSchema,
+  type AcquisitionFormValues,
+} from "@/features/acquisitions/acquisitionSchema";
+
+// Re-export expense labels for backward compatibility
+export {
+  vehicleExpenseLabels,
+  businessExpenseLabels,
+} from "@/features/expenses/expenseSchema";
+
 export const vehicleSchema = z.object({
   brand: z.string().trim().min(1, "Nhập hãng xe.").max(80),
   model: z.string().trim().min(1, "Nhập dòng xe.").max(120),
@@ -41,32 +43,18 @@ export const vehicleSchema = z.object({
   status: z.enum(["IN_STOCK", "RESERVED", "CANCELLED"]),
   notes: z.string().trim().max(5000),
 });
+
 export type VehicleFormValues = z.infer<typeof vehicleSchema>;
 
-export const vehicleExpenseLabels: Record<string, string> = {
-  REPAIR: "Sửa chữa",
-  TRANSPORT: "Vận chuyển",
-  PAPERWORK: "Giấy tờ",
-  PARTS: "Phụ tùng",
-  CLEANING: "Vệ sinh",
-  INSPECTION: "Kiểm định",
-  OTHER: "Khác",
-};
-export const businessExpenseLabels: Record<string, string> = {
-  RENT: "Mặt bằng",
-  ELECTRICITY: "Điện nước",
-  SALARY: "Lương",
-  MARKETING: "Quảng cáo",
-  OFFICE: "Văn phòng",
-  TRANSPORT: "Vận chuyển",
-  OTHER: "Khác",
-};
 export const paymentLabels: Record<string, string> = {
   CASH: "Tiền mặt",
   BANK_TRANSFER: "Chuyển khoản",
   OTHER: "Khác",
 };
+
 export const actionLabels: Record<string, string> = {
+  CREATE_ACQUISITION: "Thu xe vào kho",
+  CANCEL_ACQUISITION: "Hủy thu xe",
   CREATE_VEHICLE: "Nhập xe vào kho",
   UPDATE_VEHICLE: "Cập nhật thông tin xe",
   ADD_EXPENSE: "Thêm chi phí",
@@ -77,6 +65,7 @@ export const actionLabels: Record<string, string> = {
   CANCEL_SALE: "Hủy giao dịch bán",
   CREATE_PAYMENT: "Ghi nhận thanh toán",
   ADD_PAYMENT: "Ghi nhận thanh toán",
+  VOID_PAYMENT: "Hoàn thanh toán",
   ADD_IMAGE: "Thêm ảnh xe",
   REMOVE_IMAGE: "Gỡ ảnh xe",
 };

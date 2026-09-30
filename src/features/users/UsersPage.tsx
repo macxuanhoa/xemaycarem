@@ -1,6 +1,16 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Plus, Users } from "lucide-react";
+import {
+  Plus,
+  Users,
+  Key,
+  Clock,
+  Calendar,
+  Trash2,
+  RotateCcw,
+  Lock,
+  Unlock,
+} from "lucide-react";
 import {
   Badge,
   Button,
@@ -15,15 +25,27 @@ import { useAuth } from "@/features/auth/AuthProvider";
 import { api } from "@/lib/api";
 import { roleLabels } from "@/lib/permissions";
 import type { Profile, Role } from "@/types";
+import { CreateUserModal } from "./components/CreateUserModal";
+import { EditScheduleModal } from "./components/EditScheduleModal";
+import { ResetPasswordModal } from "./components/ResetPasswordModal";
+import { DisableUserModal } from "./components/DisableUserModal";
+import { DeleteUserModal } from "./components/DeleteUserModal";
+
 export default function UsersPage() {
   const client = useQueryClient();
   const { profile } = useAuth();
   const [adding, setAdding] = useState(false),
-    [notice, setNotice] = useState("");
+    [notice, setNotice] = useState(""),
+    [editingSchedule, setEditingSchedule] = useState<Profile | null>(null),
+    [resettingPassword, setResettingPassword] = useState<Profile | null>(null),
+    [disablingUser, setDisablingUser] = useState<Profile | null>(null),
+    [deletingUser, setDeletingUser] = useState<Profile | null>(null);
+
   const q = useQuery({
     queryKey: ["profiles"],
     queryFn: () => api.call<Profile[]>("list_profiles"),
   });
+
   const mutation = useMutation({
     mutationFn: ({ id, data }: { id: string; data: Partial<Profile> }) =>
       api.call("update_profile", { p_id: id, p_data: data }),
@@ -32,6 +54,7 @@ export default function UsersPage() {
       setNotice("Đã cập nhật quyền tài khoản.");
     },
   });
+
   return (
     <div className="stack">
       <PageHeader
@@ -49,16 +72,17 @@ export default function UsersPage() {
           {notice}
         </p>
       )}
-      {mutation.error && <ErrorState error={mutation.error} />}
+      {!!mutation.error && <ErrorState error={mutation.error} />}
       <div className="notice row">
         <Users size={20} />
         <span>
           Nhân viên và người chỉ xem không được truy cập giá mua, lợi nhuận hoặc
-          quản trị hệ thống.
+          quản trị hệ thống. Múi giờ cửa hàng: <strong>Asia/Ho_Chi_Minh</strong>.
         </span>
       </div>
+
       {adding && (
-        <CreateUser
+        <CreateUserModal
           onDone={() => {
             setAdding(false);
             setNotice(
@@ -68,172 +92,248 @@ export default function UsersPage() {
           }}
         />
       )}
+
+      {editingSchedule && (
+        <EditScheduleModal
+          user={editingSchedule}
+          onDone={() => {
+            setEditingSchedule(null);
+            setNotice("Đã cập nhật giờ và lịch làm việc.");
+            void client.invalidateQueries({ queryKey: ["profiles"] });
+          }}
+        />
+      )}
+
+      {resettingPassword && (
+        <ResetPasswordModal
+          user={resettingPassword}
+          onDone={() => {
+            setResettingPassword(null);
+            setNotice("Đã đặt lại mật khẩu tạm thời thành công.");
+            void client.invalidateQueries({ queryKey: ["profiles"] });
+          }}
+        />
+      )}
+
+      {disablingUser && (
+        <DisableUserModal
+          user={disablingUser}
+          onDone={() => {
+            setDisablingUser(null);
+            setNotice("Đã cập nhật trạng thái hoạt động của tài khoản.");
+            void client.invalidateQueries({ queryKey: ["profiles"] });
+          }}
+        />
+      )}
+
+      {deletingUser && (
+        <DeleteUserModal
+          user={deletingUser}
+          onDone={() => {
+            setDeletingUser(null);
+            setNotice("Thao tác tài khoản hoàn tất.");
+            void client.invalidateQueries({ queryKey: ["profiles"] });
+          }}
+        />
+      )}
+
       {q.isPending ? (
         <Loading />
       ) : q.error ? (
         <ErrorState error={q.error} />
       ) : (
         <div className="user-grid">
-          {q.data?.map((p) => (
-            <Card key={p.id}>
-              <div className="row between">
-                <div className="row">
-                  <span className="avatar large">
-                    {p.full_name.split(" ").at(-1)?.[0]}
-                  </span>
-                  <div>
-                    <h3>{p.full_name}</h3>
-                    <small className="muted">
-                      {p.id === profile?.id
-                        ? "Tài khoản của bạn"
-                        : roleLabels[p.role]}
-                    </small>
+          {q.data?.map((p) => {
+            const isSelf = p.id === profile?.id;
+            const isOwnerAcc = p.role === "OWNER";
+            const isLocked =
+              p.disabled_until && new Date(p.disabled_until) > new Date();
+
+            return (
+              <Card key={p.id}>
+                <div className="row between">
+                  <div className="row">
+                    <span className="avatar large">
+                      {p.full_name.split(" ").at(-1)?.[0]}
+                    </span>
+                    <div>
+                      <h3>{p.full_name}</h3>
+                      <small className="muted">
+                        @{p.username} · {isSelf ? "Tài khoản của bạn" : roleLabels[p.role]}
+                      </small>
+                      {p.deleted_at && (
+                        <div>
+                          <span className="badge badge-cancelled">Đã vô hiệu hóa</span>
+                        </div>
+                      )}
+                      {isLocked && (
+                        <div>
+                          <span className="badge badge-cancelled">
+                            Khóa tạm đến{" "}
+                            {new Date(p.disabled_until!).toLocaleTimeString("vi-VN", {
+                              hour: "2-digit",
+                              minute: "2-digit",
+                              day: "2-digit",
+                              month: "2-digit",
+                            })}
+                          </span>
+                        </div>
+                      )}
+                      {p.must_change_password && (
+                        <div>
+                          <span className="badge badge-pending">Cần đổi mật khẩu</span>
+                        </div>
+                      )}
+                    </div>
                   </div>
-                </div>
-                <span
-                  className={`badge ${p.active ? "badge-active" : "badge-cancelled"}`}
-                >
-                  {p.active ? "Hoạt động" : "Đã khóa"}
-                </span>
-              </div>
-              <div className="stack">
-                <Field label="Vai trò">
-                  <select
-                    aria-label={`Vai trò ${p.full_name}`}
-                    value={p.role}
-                    disabled={mutation.isPending}
-                    onChange={(e) =>
-                      mutation.mutate({
-                        id: p.id,
-                        data: { role: e.target.value as Role },
-                      })
-                    }
+                  <span
+                    className={`badge ${p.active && !p.deleted_at && !isLocked ? "badge-active" : "badge-cancelled"}`}
                   >
-                    {Object.entries(roleLabels).map(([k, v]) => (
-                      <option key={k} value={k}>
-                        {v}
-                      </option>
-                    ))}
-                  </select>
-                </Field>
-                {p.role === "MANAGER" && (
-                  <label className="checkbox">
-                    <input
-                      type="checkbox"
-                      checked={p.can_view_financials}
-                      disabled={mutation.isPending}
+                    {p.active && !p.deleted_at && !isLocked
+                      ? "Hoạt động"
+                      : "Tạm dừng"}
+                  </span>
+                </div>
+
+                <div className="stack" style={{ marginTop: "16px" }}>
+                  <Field label="Vai trò">
+                    <select
+                      aria-label={`Vai trò ${p.full_name}`}
+                      value={p.role}
+                      disabled={mutation.isPending || isOwnerAcc || p.deleted_at !== null}
                       onChange={(e) =>
                         mutation.mutate({
                           id: p.id,
-                          data: { can_view_financials: e.target.checked },
+                          data: { role: e.target.value as Role },
                         })
                       }
-                    />
-                    Cho phép xem giá mua và lợi nhuận
-                  </label>
-                )}
-                <div className="row between">
-                  <Badge status={p.role} />
-                  <Button
-                    variant={p.active ? "danger" : "secondary"}
-                    disabled={mutation.isPending}
-                    onClick={() =>
-                      mutation.mutate({ id: p.id, data: { active: !p.active } })
-                    }
-                  >
-                    {p.active ? "Khóa tài khoản" : "Mở khóa"}
-                  </Button>
+                    >
+                      {Object.entries(roleLabels).map(([k, v]) => (
+                        <option
+                          key={k}
+                          value={k}
+                          disabled={k === "OWNER" && !isOwnerAcc}
+                        >
+                          {v}
+                        </option>
+                      ))}
+                    </select>
+                  </Field>
+
+                  {p.role === "MANAGER" && (
+                    <label className="checkbox">
+                      <input
+                        type="checkbox"
+                        checked={p.can_view_financials}
+                        disabled={mutation.isPending || p.deleted_at !== null}
+                        onChange={(e) =>
+                          mutation.mutate({
+                            id: p.id,
+                            data: { can_view_financials: e.target.checked },
+                          })
+                        }
+                      />
+                      Cho phép xem giá mua và lợi nhuận
+                    </label>
+                  )}
+
+                  {!isOwnerAcc && (
+                    <>
+                      <div className="row between small">
+                        <span className="row" style={{ gap: "4px" }}>
+                          <Clock size={14} /> Giờ làm việc:
+                        </span>
+                        <span className="muted">
+                          {p.allowed_from?.slice(0, 5) || "00:00"} -{" "}
+                          {p.allowed_until?.slice(0, 5) || "23:59"}
+                        </span>
+                      </div>
+
+                      <div className="row between small">
+                        <span className="row" style={{ gap: "4px" }}>
+                          <Calendar size={14} /> Ngày làm việc:
+                        </span>
+                        <span className="muted">
+                          {p.working_days && p.working_days.length > 0
+                            ? p.working_days
+                                .map((d) => {
+                                  const days = ["T2", "T3", "T4", "T5", "T6", "T7", "CN"];
+                                  return days[d - 1] || `T${d}`;
+                                })
+                                .join(", ")
+                            : "Tất cả các ngày"}
+                        </span>
+                      </div>
+                    </>
+                  )}
+
+                  <div className="row between" style={{ marginTop: "12px" }}>
+                    <Badge status={p.role} />
+                    <div className="row" style={{ gap: "6px" }}>
+                      {!isSelf && !isOwnerAcc && (
+                        <>
+                          <Button
+                            variant="secondary"
+                            disabled={mutation.isPending}
+                            onClick={() => setResettingPassword(p)}
+                            title="Đặt lại mật khẩu tạm"
+                          >
+                            <Key size={16} />
+                          </Button>
+
+                          <Button
+                            variant="secondary"
+                            disabled={mutation.isPending}
+                            onClick={() => setEditingSchedule(p)}
+                            title="Cài đặt lịch & giờ làm việc"
+                          >
+                            <Clock size={16} />
+                          </Button>
+
+                          <Button
+                            variant="secondary"
+                            disabled={mutation.isPending}
+                            onClick={() => setDisablingUser(p)}
+                            title={isLocked ? "Mở khóa tạm" : "Khóa tạm thời"}
+                          >
+                            {isLocked ? <Unlock size={16} /> : <Lock size={16} />}
+                          </Button>
+
+                          {p.deleted_at ? (
+                            <Button
+                              variant="secondary"
+                              disabled={mutation.isPending}
+                              onClick={() => {
+                                mutation.mutate({
+                                  id: p.id,
+                                  data: { deleted_at: null, active: true },
+                                });
+                              }}
+                              title="Khôi phục tài khoản"
+                            >
+                              <RotateCcw size={16} />
+                            </Button>
+                          ) : (
+                            <Button
+                              variant="danger"
+                              disabled={mutation.isPending}
+                              onClick={() => setDeletingUser(p)}
+                              title="Vô hiệu hóa hoặc xóa"
+                            >
+                              <Trash2 size={16} />
+                            </Button>
+                          )}
+                        </>
+                      )}
+                    </div>
+                  </div>
                 </div>
-              </div>
-            </Card>
-          ))}
+              </Card>
+            );
+          })}
         </div>
       )}
       {q.data?.length === 0 && <EmptyState title="Chưa có tài khoản" />}
     </div>
-  );
-}
-function CreateUser({ onDone }: { onDone: () => void }) {
-  const [form, setForm] = useState({
-    full_name: "",
-    email: "",
-    password: "",
-    role: "STAFF",
-    can_view_financials: false,
-  });
-  const m = useMutation({
-    mutationFn: () => api.createUser(form),
-    onSuccess: onDone,
-  });
-  return (
-    <Card>
-      <h2>Tạo tài khoản nhân viên</h2>
-      <form
-        className="stack"
-        onSubmit={(e) => {
-          e.preventDefault();
-          m.mutate();
-        }}
-      >
-        <div className="form-grid">
-          <Field label="Họ và tên">
-            <input
-              required
-              maxLength={120}
-              value={form.full_name}
-              onChange={(e) => setForm({ ...form, full_name: e.target.value })}
-            />
-          </Field>
-          <Field label="Email">
-            <input
-              type="email"
-              required
-              value={form.email}
-              onChange={(e) => setForm({ ...form, email: e.target.value })}
-            />
-          </Field>
-          <Field label="Mật khẩu ban đầu (tối thiểu 12 ký tự)">
-            <input
-              type="password"
-              autoComplete="new-password"
-              required
-              minLength={12}
-              value={form.password}
-              onChange={(e) => setForm({ ...form, password: e.target.value })}
-            />
-          </Field>
-          <Field label="Vai trò">
-            <select
-              value={form.role}
-              onChange={(e) => setForm({ ...form, role: e.target.value })}
-            >
-              {Object.entries(roleLabels).map(([k, v]) => (
-                <option key={k} value={k}>
-                  {v}
-                </option>
-              ))}
-            </select>
-          </Field>
-        </div>
-        {form.role === "MANAGER" && (
-          <label className="checkbox">
-            <input
-              type="checkbox"
-              checked={form.can_view_financials}
-              onChange={(e) =>
-                setForm({ ...form, can_view_financials: e.target.checked })
-              }
-            />
-            Cho phép xem giá mua và lợi nhuận
-          </label>
-        )}
-        {m.error && <ErrorState error={m.error} />}
-        <div>
-          <Button type="submit" disabled={m.isPending}>
-            {m.isPending ? "Đang tạo…" : "Tạo tài khoản"}
-          </Button>
-        </div>
-      </form>
-    </Card>
   );
 }

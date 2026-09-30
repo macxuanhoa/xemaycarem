@@ -8,6 +8,8 @@ dist/
 playwright-report/
 test-results/
 .supabase/
+# Supabase CLI linkage and local metadata can contain project/connection details.
+supabase/.temp/
 .sites-runtime/
 .openai/
 coverage/

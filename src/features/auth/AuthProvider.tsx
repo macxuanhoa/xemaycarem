@@ -39,6 +39,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const { data, error: sessionError } = await supabase.auth.getSession();
       if (version !== refreshVersion.current) return;
       if (sessionError) throw sessionError;
+      const sessionUserId = data.session?.user.id ?? null;
+      const verifiedUserId = identity.current?.split(":", 1)[0] ?? null;
+      if (verifiedUserId && sessionUserId !== verifiedUserId) {
+        identity.current = null;
+        setProfile(null);
+        client.clear();
+      }
       setUser(data.session?.user ?? null);
       if (!data.session) {
         if (identity.current) client.clear();
@@ -55,20 +62,67 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
       const { data: row, error: profileError } = await supabase
         .from("profiles")
-        .select("id,full_name,role,active,can_view_financials")
+        .select(
+          "id,full_name,username,role,active,can_view_financials,must_change_password,disabled_until,allowed_from,allowed_until,working_days,deleted_at",
+        )
         .eq("id", data.session.user.id)
         .maybeSingle();
       if (version !== refreshVersion.current) return;
       if (profileError) throw profileError;
-      if (!row?.active) {
+
+      // Check if profile exists
+      if (!row) {
         identity.current = null;
         setProfile(null);
         client.clear();
         throw new AppError(
-          "Tài khoản chưa được cấp quyền hoặc đã bị khóa. Vui lòng liên hệ chủ cửa hàng.",
+          "Không tìm thấy hồ sơ người dùng. Vui lòng liên hệ chủ cửa hàng.",
         );
       }
-      const nextIdentity = `${row.id}:${row.role}:${row.can_view_financials}`;
+
+      // Check soft-deleted
+      if (row.deleted_at) {
+        identity.current = null;
+        setProfile(null);
+        client.clear();
+        throw new AppError(
+          "Tài khoản đã bị vô hiệu hóa hoặc xóa khỏi hệ thống.",
+        );
+      }
+
+      // Check master active flag
+      if (!row.active) {
+        identity.current = null;
+        setProfile(null);
+        client.clear();
+        throw new AppError(
+          "Tài khoản đã bị vô hiệu hóa. Vui lòng liên hệ chủ cửa hàng.",
+        );
+      }
+
+      // Check authoritative server access evaluation
+      const { data: accessData, error: accessErr } =
+        await supabase.rpc("check_user_access");
+      if (accessErr) {
+        throw new AppError(
+          "Không thể kiểm tra quyền truy cập. Vui lòng thử lại khi có kết nối.",
+        );
+      }
+      if (!accessData || typeof accessData.allowed !== "boolean") {
+        throw new AppError(
+          "Không thể xác nhận quyền truy cập. Vui lòng thử lại.",
+        );
+      }
+      if (!accessData.allowed) {
+        identity.current = null;
+        setProfile(null);
+        client.clear();
+        throw new AppError(
+          accessData.message || "Tài khoản không được phép truy cập.",
+        );
+      }
+
+      const nextIdentity = `${row.id}:${row.role}:${row.can_view_financials}:${row.must_change_password}:${row.disabled_until}:${row.deleted_at}:${row.active}`;
       if (identity.current && identity.current !== nextIdentity) client.clear();
       identity.current = nextIdentity;
       setProfile(row as Profile);
@@ -77,19 +131,30 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (version !== refreshVersion.current) return;
       setError(e);
       setProfile(null);
+      identity.current = null;
+      client.clear();
     } finally {
       if (version === refreshVersion.current) setLoading(false);
     }
   }, [client]);
   useEffect(() => {
     void refresh();
-    const { data } = supabase?.auth.onAuthStateChange((event) => {
+    const { data } = supabase?.auth.onAuthStateChange((event, session) => {
+      refreshVersion.current += 1;
       if (event === "SIGNED_OUT") {
-        refreshVersion.current += 1;
         identity.current = null;
         client.clear();
         setUser(null);
         setProfile(null);
+      } else if (event === "SIGNED_IN") {
+        const nextUserId = session?.user.id ?? null;
+        const verifiedUserId = identity.current?.split(":", 1)[0] ?? null;
+        if (!nextUserId || nextUserId !== verifiedUserId) {
+          identity.current = null;
+          client.clear();
+          setProfile(null);
+          setLoading(true);
+        }
       }
       setTimeout(() => void refresh(), 0);
     }) ?? { data: null };

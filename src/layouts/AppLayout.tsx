@@ -1,11 +1,18 @@
-import { useEffect, useState, type FormEvent } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api";
-import { NavLink, Outlet, Link, useNavigate } from "react-router-dom";
 import {
-  ArrowUpRight,
+  NavLink,
+  Outlet,
+  Link,
+  useLocation,
+  useNavigationType,
+} from "react-router-dom";
+import {
+  ArrowDownLeft,
   ChartNoAxesCombined,
   ClipboardList,
+  CreditCard,
   House,
   LogOut,
   Menu,
@@ -13,19 +20,29 @@ import {
   Package,
   Plus,
   Receipt,
-  Search,
+  Scale,
   Settings,
   ShieldCheck,
   Users,
   WifiOff,
   X,
+  Zap,
 } from "lucide-react";
 import { useAuth } from "@/features/auth/AuthProvider";
 import { canManage, canOperate, isOwner, roleLabels } from "@/lib/permissions";
+import { Loading } from "@/components/ui";
+import { useMobileDrawer } from "@/lib/useMobileDrawer";
+import { GlobalSearchPalette } from "@/components/search/GlobalSearchPalette";
+import { QuickActionsModal } from "@/components/QuickActionsModal";
+
 const mainNav = [
-  { to: "/", label: "Tổng quan", icon: House },
-  { to: "/vehicles", label: "Kho xe", icon: Bike },
-  { to: "/sales", label: "Bán hàng", icon: Receipt },
+  { to: "/", label: "Dashboard", icon: House },
+  { to: "/acquisitions", label: "Thu vào", icon: ArrowDownLeft },
+  { to: "/vehicles", label: "Tồn kho", icon: Bike },
+  { to: "/sales", label: "Bán ra", icon: Receipt },
+  { to: "/receivables", label: "Công nợ", icon: CreditCard },
+  { to: "/customers", label: "Khách hàng", icon: Users },
+  { to: "/reconciliation", label: "Đối soát", icon: Scale },
   { to: "/expenses", label: "Chi phí", icon: ClipboardList },
   { to: "/reports", label: "Báo cáo", icon: ChartNoAxesCombined },
 ];
@@ -35,10 +52,21 @@ export default function AppLayout() {
     queryKey: ["settings"],
     queryFn: () => api.call<{ store_name: string }>("get_settings"),
   });
-  const [open, setOpen] = useState(false),
-    [online, setOnline] = useState(navigator.onLine),
-    [search, setSearch] = useState("");
-  const navigate = useNavigate();
+  const drawer = useMobileDrawer();
+  const [online, setOnline] = useState(navigator.onLine);
+  const [quickActionsOpen, setQuickActionsOpen] = useState(false);
+  const { pathname, state } = useLocation();
+  const navigationType = useNavigationType();
+
+  useEffect(() => {
+    if (
+      pathname === "/vehicles" &&
+      (navigationType === "POP" || state?.restoreInventory)
+    )
+      return;
+    window.scrollTo({ top: 0, behavior: "instant" });
+  }, [pathname, navigationType, state]);
+
   useEffect(() => {
     const update = () => setOnline(navigator.onLine);
     window.addEventListener("online", update);
@@ -48,27 +76,37 @@ export default function AppLayout() {
       window.removeEventListener("offline", update);
     };
   }, []);
-  function onSearch(e: FormEvent) {
-    e.preventDefault();
-    navigate("/vehicles?q=" + encodeURIComponent(search));
-    setSearch("");
-  }
   const visibleNav = mainNav.filter(
-    (n) => !["/reports", "/expenses"].includes(n.to) || canManage(profile),
+    (n) =>
+      !["/reports", "/expenses", "/reconciliation"].includes(n.to) ||
+      canManage(profile),
   );
   return (
     <div className="app-shell">
-      {open && (
+      <a className="skip-link" href="#main-content" inert={drawer.active}>
+        Đến nội dung chính
+      </a>
+      {drawer.active && (
         <button
           className="sidebar-overlay"
-          onClick={() => setOpen(false)}
-          aria-label="Đóng menu"
+          onClick={drawer.close}
+          tabIndex={-1}
+          aria-hidden="true"
         />
       )}
-      <aside className={`sidebar ${open ? "open" : ""}`}>
-        <Link to="/" className="brand" onClick={() => setOpen(false)}>
+      <aside
+        id="main-navigation"
+        ref={drawer.panelRef}
+        className={`sidebar ${drawer.active ? "open" : ""}`}
+        inert={drawer.mobile && !drawer.active}
+        aria-hidden={drawer.mobile && !drawer.active ? true : undefined}
+        role={drawer.active ? "dialog" : undefined}
+        aria-modal={drawer.active ? true : undefined}
+        aria-label="Điều hướng cửa hàng"
+      >
+        <Link to="/" className="brand" onClick={drawer.close}>
           <span className="brand-icon">
-            <Bike size={26} />
+            <img src="/logo.jpg" alt="Logo Cà Rém" className="brand-logo-img" />
           </span>
           <span>
             Xe CRM<small>QUẢN LÝ CỬA HÀNG XE</small>
@@ -77,19 +115,14 @@ export default function AppLayout() {
         <button
           className="mobile-menu-close"
           aria-label="Đóng menu"
-          onClick={() => setOpen(false)}
+          onClick={drawer.close}
         >
           <X />
         </button>
         <p className="nav-caption">KHÔNG GIAN LÀM VIỆC</p>
-        <nav>
+        <nav aria-label="Chính">
           {visibleNav.map(({ to, label, icon: Icon }) => (
-            <NavLink
-              key={to}
-              to={to}
-              end={to === "/"}
-              onClick={() => setOpen(false)}
-            >
+            <NavLink key={to} to={to} end={to === "/"} onClick={drawer.close}>
               <Icon size={20} />
               <span>{label}</span>
             </NavLink>
@@ -99,12 +132,12 @@ export default function AppLayout() {
           {isOwner(profile) && (
             <>
               <p className="nav-caption">QUẢN TRỊ</p>
-              <nav>
-                <NavLink to="/users" onClick={() => setOpen(false)}>
+              <nav aria-label="Quản trị">
+                <NavLink to="/users" onClick={drawer.close}>
                   <Users size={20} />
                   Nhân sự
                 </NavLink>
-                <NavLink to="/audit" onClick={() => setOpen(false)}>
+                <NavLink to="/audit" onClick={drawer.close}>
                   <ShieldCheck size={20} />
                   Lịch sử thao tác
                 </NavLink>
@@ -112,7 +145,7 @@ export default function AppLayout() {
             </>
           )}
           <nav>
-            <NavLink to="/settings" onClick={() => setOpen(false)}>
+            <NavLink to="/settings" onClick={drawer.close}>
               <Settings size={20} />
               Cài đặt
             </NavLink>
@@ -125,31 +158,35 @@ export default function AppLayout() {
               <strong>{settings.data?.store_name ?? "Cửa hàng của bạn"}</strong>
               <small>{roleLabels[profile!.role]}</small>
             </div>
-            <span className="connection-dot" />
+            <span
+              className={`connection-dot ${online ? "" : "offline"}`}
+              title={online ? "Đã kết nối" : "Mất kết nối"}
+            />
           </div>
         </div>
       </aside>
-      <div className="workspace">
+      <div className="workspace" inert={drawer.active}>
         <header className="topbar">
           <button
             className="mobile-menu"
             aria-label="Mở menu"
-            onClick={() => setOpen(true)}
+            aria-expanded={drawer.active}
+            aria-controls="main-navigation"
+            onClick={(event) => drawer.show(event.currentTarget)}
           >
             <Menu size={22} />
           </button>
-          <form className="global-search" onSubmit={onSearch}>
-            <Search size={19} />
-            <input
-              aria-label="Tìm xe toàn hệ thống"
-              placeholder="Tìm mã xe, biển số, số điện thoại…"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-            />
-            <button type="submit" aria-label="Tìm xe">
-              <ArrowUpRight size={17} />
-            </button>
-          </form>
+          <GlobalSearchPalette />
+          <button
+            type="button"
+            className="header-quick-action-btn"
+            onClick={() => setQuickActionsOpen(true)}
+            title="Thao tác nhanh"
+            aria-label="Mở bảng thao tác nhanh"
+          >
+            <Zap size={16} />
+            <span>Thao tác</span>
+          </button>
           <div className="topbar-right">
             <span className="workday">
               {new Intl.DateTimeFormat("vi-VN", {
@@ -185,8 +222,10 @@ export default function AppLayout() {
             hãy kết nối mạng để tiếp tục.
           </div>
         )}
-        <main className="main-content">
-          <Outlet />
+        <main className="main-content" id="main-content" tabIndex={-1}>
+          <Suspense key={pathname} fallback={<Loading />}>
+            <Outlet />
+          </Suspense>
         </main>
         <footer className="workspace-footer">
           <span>Xe CRM · Mọi hoạt động, một nơi quản lý.</span>
@@ -195,26 +234,53 @@ export default function AppLayout() {
           </span>
         </footer>
       </div>
-      <nav className="bottom-nav">
+      <nav
+        className="bottom-nav"
+        aria-label="Điều hướng nhanh"
+        inert={drawer.active}
+      >
         <NavLink to="/" end>
           <House size={21} />
           Tổng quan
         </NavLink>
-        <NavLink to="/vehicles">
-          <Bike size={21} />
-          Kho xe
-        </NavLink>
         {canOperate(profile) && (
-          <NavLink to="/sell">
+          <NavLink to="/acquisitions/new">
             <Plus size={22} />
-            Bán xe
+            Thu xe
           </NavLink>
         )}
-        <button onClick={() => setOpen(true)}>
+        <NavLink to="/vehicles">
+          <Bike size={21} />
+          Tồn kho
+        </NavLink>
+        <button
+          type="button"
+          onClick={() => setQuickActionsOpen(true)}
+          aria-label="Thao tác nhanh"
+        >
+          <Zap size={21} />
+          Thao tác
+        </button>
+        <button
+          aria-expanded={drawer.active}
+          aria-controls="main-navigation"
+          onClick={(event) => drawer.show(event.currentTarget)}
+        >
           <Menu size={21} />
           Thêm
         </button>
       </nav>
+
+      <QuickActionsModal
+        open={quickActionsOpen}
+        onClose={() => setQuickActionsOpen(false)}
+        onOpenSearch={() => {
+          const input = document.querySelector<HTMLInputElement>(
+            '.global-search input[type="search"]',
+          );
+          input?.focus();
+        }}
+      />
     </div>
   );
 }

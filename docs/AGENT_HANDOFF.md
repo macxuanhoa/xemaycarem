@@ -17,7 +17,7 @@ No production database, Auth configuration, Edge Function, backup, or business r
 - `docs/AUTH_BACKUP_METADATA.md` is preserved locally but excluded from the checkpoint because it contains personal account metadata.
 - `supabase/.temp/` is ignored and excluded. `.env` was absent and no Supabase CLI/access token was available.
 - No push is planned.
-- Checkpoint commit hash: pending.
+- Checkpoint commit hash: c3bfe1db87fba48595a46dde0a47bd4398a9f4ad.
 
 ## Target, migration ledger, and recovery
 
@@ -50,3 +50,4 @@ A fresh `npm run build` passed. The HTML entry loads a 736.97 kB JavaScript entr
 8. Keep AI isolated; do not deploy/configure it without approved server-side secrets and production authorization review.
 
 See `docs/PRODUCTION_RELEASE.md` for the migration inventory and release matrix.
+

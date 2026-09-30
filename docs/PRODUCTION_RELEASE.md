@@ -11,7 +11,7 @@ The cached link metadata matches the reference written in `docs/AUTH_RECOVERY_AU
 ## Checkpoint and data safety
 
 - Local branch: `codex/xe-crm-release-checkpoint`.
-- Checkpoint commit: pending in this document; see `docs/AGENT_HANDOFF.md` for the hash after commit.
+- Checkpoint commit: c3bfe1db87fba48595a46dde0a47bd4398a9f4ad.
 - Starting worktree was already dirty. No earlier snapshot exists to attribute individual edits to the previous implementation turn. No files were reset or discarded.
 - `.env` was absent. `.gitignore` now excludes `supabase/.temp/`; no CLI link metadata is staged.
 - `docs/AUTH_BACKUP_METADATA.md` remains local and is excluded from the checkpoint because it contains personal account metadata.
@@ -92,4 +92,5 @@ Local gates recorded in `docs/VERIFICATION.md` remain separate from production r
 ## Next safe action
 
 Make Supabase CLI access available using the approved local authentication flow without sharing tokens in chat. Then verify the live project ref and query `migration list --linked` read-only. In parallel, verify backup/PITR and restore point in the Dashboard. Reconcile all local/remote versions, including the deliberately omitted unsafe version 018, and prepare an exact reviewed migration plan before considering any production mutation. Stop if identity, ledger, or recovery evidence does not match.
+
 

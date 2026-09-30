@@ -1,0 +1,13 @@
+node_modules/
+dist/
+.env
+.env.*
+!.env.example
+*.local
+*.tsbuildinfo
+playwright-report/
+test-results/
+.supabase/
+.sites-runtime/
+.openai/
+coverage/

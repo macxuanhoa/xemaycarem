@@ -1,6 +1,14 @@
-import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
-import { Download, FileBarChart, LockKeyhole } from "lucide-react";
+import { useEffect, useState } from "react";
+import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  Banknote,
+  Download,
+  FileBarChart,
+  LockKeyhole,
+  Scale,
+  TrendingUp,
+  Wallet,
+} from "lucide-react";
 import {
   Badge,
   Button,
@@ -18,7 +26,7 @@ import { api } from "@/lib/api";
 import { canFinance } from "@/lib/permissions";
 import { dateLabel, monthRange, money } from "@/lib/format";
 import { downloadCsv } from "@/lib/csv";
-import type { Paged } from "@/types";
+import type { DashboardData, Paged } from "@/types";
 type ReportRow = Record<string, string | number | null>;
 const labels: Record<string, string> = {
   internal_code: "Mã xe",
@@ -102,21 +110,54 @@ const preferred = [
   "days_in_inventory",
 ];
 export default function ReportsPage() {
+  const pageSize = 6;
   const { profile } = useAuth();
+  const client = useQueryClient();
   const [kind, setKind] = useState("sales"),
     [range, setRange] = useState(monthRange),
     [page, setPage] = useState(1),
     [exporting, setExporting] = useState(false),
     [exportError, setExportError] = useState<unknown>(null);
-  const filters = { ...range, offset: (page - 1) * 25, limit: 25 };
   const q = useQuery({
-    queryKey: ["report", kind, filters],
+    queryKey: ["report", kind, range, page],
+    placeholderData: keepPreviousData,
     queryFn: () =>
       api.call<Paged<ReportRow>>("report", {
         p_kind: kind,
-        p_filters: filters,
+        p_filters: {
+          ...range,
+          offset: (page - 1) * pageSize,
+          limit: pageSize,
+        },
       }),
   });
+
+  useEffect(() => {
+    if (q.data && page * pageSize < q.data.total) {
+      void client.prefetchQuery({
+        queryKey: ["report", kind, range, page + 1],
+        queryFn: () =>
+          api.call<Paged<ReportRow>>("report", {
+            p_kind: kind,
+            p_filters: {
+              ...range,
+              offset: page * pageSize,
+              limit: pageSize,
+            },
+          }),
+      });
+    }
+  }, [q.data, page, kind, range, client]);
+  const dashboardQuery = useQuery({
+    queryKey: ["report-pnl-summary", range],
+    queryFn: () =>
+      api.call<DashboardData>("dashboard", {
+        p_from: range.from,
+        p_to: range.to,
+      }),
+    enabled: canFinance(profile),
+  });
+  const pnl = dashboardQuery.data;
   const types = [
     ["acquisitions", "Thu vào"],
     ["sales", "Bán ra"],
@@ -144,7 +185,7 @@ export default function ReportsPage() {
         if (!data.items.length) break;
       }
       downloadCsv(
-        `xe-crm-${kind}-${range.from}-${range.to}.csv`,
+        `carem-${kind}-${range.from}-${range.to}.csv`,
         all.map((row) =>
           Object.fromEntries(
             Object.entries(row)
@@ -178,6 +219,80 @@ export default function ReportsPage() {
           </Button>
         }
       />
+      {canFinance(profile) && pnl && (
+        <div className="executive-kpi-grid">
+          <div className="executive-metric-card">
+            <div className="executive-metric-header">
+              <span className="executive-metric-title">Doanh thu bán xe</span>
+              <span className="executive-metric-icon indigo">
+                <Wallet size={18} />
+              </span>
+            </div>
+            <strong className="executive-metric-val price">
+              {money(pnl.revenue)}
+            </strong>
+            <span className="executive-metric-sub">
+              <strong>{pnl.sales_count}</strong> xe chốt bán trong kỳ
+            </span>
+          </div>
+
+          <div className="executive-metric-card">
+            <div className="executive-metric-header">
+              <span className="executive-metric-title">Lợi nhuận gộp từ xe</span>
+              <span className="executive-metric-icon emerald">
+                <TrendingUp size={18} />
+              </span>
+            </div>
+            <strong className="executive-metric-val price" style={{ color: "#16a34a" }}>
+              {money(pnl.gross_profit)}
+            </strong>
+            <span className="executive-metric-sub">
+              Doanh thu trừ giá vốn chốt
+            </span>
+          </div>
+
+          <div className="executive-metric-card">
+            <div className="executive-metric-header">
+              <span className="executive-metric-title">Chi phí vận hành tiệm</span>
+              <span className="executive-metric-icon slate">
+                <Banknote size={18} />
+              </span>
+            </div>
+            <strong className="executive-metric-val price" style={{ color: "#dc2626" }}>
+              {money(pnl.business_expenses ?? 0)}
+            </strong>
+            <span className="executive-metric-sub">
+              Mặt bằng, điện nước, vận hành
+            </span>
+          </div>
+
+          <div
+            className="executive-metric-card"
+            style={{
+              background: "linear-gradient(135deg, #064e3b 0%, #047857 100%)",
+              color: "#ffffff",
+            }}
+          >
+            <div className="executive-metric-header">
+              <span className="executive-metric-title" style={{ color: "#a7f3d0" }}>
+                Lợi nhuận ròng thực tế
+              </span>
+              <span
+                className="executive-metric-icon"
+                style={{ background: "rgba(255,255,255,0.2)", color: "#ffffff" }}
+              >
+                <Scale size={18} />
+              </span>
+            </div>
+            <strong className="executive-metric-val price" style={{ color: "#ffffff" }}>
+              {money((pnl.gross_profit ?? 0) - (pnl.business_expenses ?? 0))}
+            </strong>
+            <span className="executive-metric-sub" style={{ color: "#d1fae5" }}>
+              Lãi gộp xe − Chi phí vận hành
+            </span>
+          </div>
+        </div>
+      )}
       <Card>
         <div className="section-heading">
           <div className="row">
@@ -227,6 +342,9 @@ export default function ReportsPage() {
       )}
       {exportError != null && <ErrorState error={exportError} />}
       <Card className="table-card">
+        {q.isFetching && !q.isPending && (
+          <div className="table-updating-bar" role="progressbar" aria-label="Đang cập nhật danh sách" />
+        )}
         {q.isPending ? (
           <Loading />
         ) : q.error ? (
@@ -238,7 +356,7 @@ export default function ReportsPage() {
           />
         ) : (
           <>
-            <div className="table-wrap">
+            <div className={`table-wrap ${q.isFetching && !q.isPending ? "is-updating" : ""}`}>
               <table className="data-table">
                 <thead>
                   <tr>
@@ -274,7 +392,7 @@ export default function ReportsPage() {
             <Pagination
               page={page}
               total={q.data.total}
-              pageSize={25}
+              pageSize={pageSize}
               onChange={setPage}
             />
           </>

@@ -2,15 +2,18 @@ import { useEffect, useState, type ReactNode } from "react";
 import {
   ArrowLeft,
   ArrowRight,
+  Calendar,
+  ChevronDown,
   Inbox,
   LoaderCircle,
   TriangleAlert,
 } from "lucide-react";
 import { Button } from "./button";
+import { DatePicker } from "./DatePicker";
 import { friendlyError } from "@/lib/errors";
 import { datePreset } from "@/lib/format";
 import type { DateFilter } from "@/types";
-export { Button };
+export { Button, DatePicker };
 export function PageHeader({
   title,
   description,
@@ -82,7 +85,7 @@ export function EmptyState({
   );
 }
 export const statusLabels: Record<string, string> = {
-  IN_STOCK: "Trong kho",
+  IN_STOCK: "Sẵn sàng bán",
   RESERVED: "Giữ chỗ",
   SOLD: "Đã bán",
   CANCELLED: "Đã hủy",
@@ -91,12 +94,17 @@ export const statusLabels: Record<string, string> = {
   OWNER: "Chủ cửa hàng",
   MANAGER: "Quản lý",
   STAFF: "Nhân viên",
-  VIEWER: "Chỉ xem",
   PAID: "Đã thanh toán đủ",
   PARTIALLY_PAID: "Trả một phần",
   UNPAID: "Chưa thanh toán",
   OVERDUE: "Quá hạn",
   DEBT: "Còn nợ",
+  QUEUED: "Đang chờ gửi",
+  PROCESSING: "Đang gửi",
+  SENT: "Đã gửi",
+  DELIVERED: "Đã nhận",
+  FAILED: "Gửi thất bại",
+  SKIPPED: "Đã bỏ qua",
 };
 export function Badge({ status }: { status: string }) {
   return (
@@ -139,113 +147,268 @@ export function DateRange({
   value: DateFilter;
   onChange: (v: DateFilter) => void;
 }) {
-  const presets = ["today", "yesterday", "week", "month", "last-month"] as const;
-  const [draft, setDraft] = useState(value);
-  const [isCustom, setIsCustom] = useState(false);
+  const quickPresets = [
+    { id: "today", label: "Hôm nay" },
+    { id: "yesterday", label: "Hôm qua" },
+    { id: "week", label: "Tuần này" },
+    { id: "month", label: "Tháng này" },
+    { id: "last-month", label: "Tháng trước" },
+  ] as const;
+
+  const findMatchingPreset = (fromVal?: string, toVal?: string): string => {
+    if (!fromVal || !toVal) return "custom";
+    const m = datePreset("month");
+    if (fromVal === m.from && toVal === m.to) return "month";
+    const t = datePreset("today");
+    if (fromVal === t.from && toVal === t.to) return "today";
+    const w = datePreset("week");
+    if (fromVal === w.from && toVal === w.to) return "week";
+    const lm = datePreset("last-month");
+    if (fromVal === lm.from && toVal === lm.to) return "last-month";
+    const y = datePreset("yesterday");
+    if (fromVal === y.from && toVal === y.to) return "yesterday";
+    return "custom";
+  };
+
+  // Sanitize initial value: guarantee start <= end
+  const initialFrom =
+    value.from && value.to && value.from > value.to ? value.to : value.from;
+  const initialTo =
+    value.from && value.to && value.from > value.to ? value.from : value.to;
+
+  const [draft, setDraft] = useState({ from: initialFrom, to: initialTo });
+  const [activePreset, setActivePreset] = useState<string>(() =>
+    findMatchingPreset(initialFrom, initialTo),
+  );
   const { from, to } = value;
 
   useEffect(() => {
-    setDraft({ from, to });
-  }, [from, to]);
+    let safeFrom = from;
+    let safeTo = to;
+    if (safeFrom && safeTo && safeFrom > safeTo) {
+      [safeFrom, safeTo] = [safeTo, safeFrom];
+      onChange({ from: safeFrom, to: safeTo });
+    }
+    setDraft({ from: safeFrom, to: safeTo });
 
-  const matchedPreset = presets.find((key) => {
-    const range = datePreset(key);
-    return range.from === draft.from && range.to === draft.to;
-  });
-
-  const selected = isCustom || !matchedPreset ? "custom" : matchedPreset;
+    setActivePreset((prev) => {
+      if (prev !== "custom") {
+        const current = datePreset(prev);
+        if (current.from === safeFrom && current.to === safeTo) {
+          return prev;
+        }
+      }
+      return findMatchingPreset(safeFrom, safeTo);
+    });
+  }, [from, to, onChange]);
 
   const handlePresetChange = (presetKey: string) => {
     if (presetKey === "custom") {
-      setIsCustom(true);
+      setActivePreset("custom");
       return;
     }
-    setIsCustom(false);
+    setActivePreset(presetKey);
     const nextRange = datePreset(presetKey);
     setDraft(nextRange);
     onChange(nextRange);
   };
 
-  const handleInputChange = (field: "from" | "to", nextVal: string) => {
-    setIsCustom(true);
-    const nextDraft = { ...draft, [field]: nextVal };
-    setDraft(nextDraft);
-    if (
-      nextDraft.from &&
-      nextDraft.to &&
-      nextDraft.from <= nextDraft.to &&
-      (nextDraft.from !== value.from || nextDraft.to !== value.to)
-    ) {
-      onChange(nextDraft);
+  const handleDateChange = (field: "from" | "to", newIso: string) => {
+    setActivePreset("custom");
+    if (newIso === "") {
+      // An erased field must not leave a stale boundary behind in the draft.
+      setDraft((d) => ({ ...d, [field]: "" }));
+      return;
     }
+    if (!newIso || !/^\d{4}-\d{2}-\d{2}$/.test(newIso)) return;
+    const nextFrom = field === "from" ? newIso : draft.from;
+    const nextTo = field === "to" ? newIso : draft.to;
+    if (!nextFrom || !nextTo) {
+      // Incomplete ranges stay local until both boundaries are provided.
+      setDraft({ from: nextFrom, to: nextTo });
+      return;
+    }
+    // Intelligently swap if user inputs/picks start > end
+    const nextRange =
+      nextFrom > nextTo ? { from: nextTo, to: nextFrom } : { from: nextFrom, to: nextTo };
+    setDraft(nextRange);
+    onChange(nextRange);
   };
 
   return (
-    <div className="date-range">
-      <select
-        aria-label="Khoảng thời gian"
-        value={selected}
-        onChange={(e) => handlePresetChange(e.target.value)}
+    <div className="date-range-cluster">
+      {/* 1-Click Segmented Time Chips */}
+      <div
+        className="date-segmented-bar"
+        role="group"
+        aria-label="Lọc thời gian"
       >
-        <option value="today">Hôm nay</option>
-        <option value="yesterday">Hôm qua</option>
-        <option value="week">Tuần này</option>
-        <option value="month">Tháng này</option>
-        <option value="last-month">Tháng trước</option>
-        <option value="custom">Tùy chọn</option>
-      </select>
-      <input
-        aria-label="Từ ngày"
-        type="date"
-        value={draft.from}
-        onChange={(e) => handleInputChange("from", e.target.value)}
-      />
-      <span>—</span>
-      <input
-        aria-label="Đến ngày"
-        type="date"
-        value={draft.to}
-        onChange={(e) => handleInputChange("to", e.target.value)}
-      />
+        {quickPresets.map((p) => {
+          const isActive = activePreset === p.id;
+          return (
+            <button
+              key={p.id}
+              type="button"
+              className={`date-seg-btn ${isActive ? "active" : ""}`}
+              aria-pressed={isActive}
+              onClick={() => handlePresetChange(p.id)}
+            >
+              {p.label}
+            </button>
+          );
+        })}
+        <button
+          type="button"
+          className={`date-seg-btn date-seg-btn-custom ${activePreset === "custom" ? "active" : ""}`}
+          aria-pressed={activePreset === "custom"}
+          onClick={() => handlePresetChange("custom")}
+        >
+          <span>Tùy chọn ngày</span>
+          <ChevronDown size={13} className="date-seg-icon" aria-hidden="true" />
+        </button>
+      </div>
+
+      {activePreset === "custom" && (
+        <div
+          className="date-inputs-pill custom-active"
+          role="region"
+          aria-label="Khoảng ngày tùy chọn"
+        >
+          <Calendar size={13} className="date-input-icon" aria-hidden="true" />
+          <DatePicker
+            value={draft.from}
+            onChange={(val) => handleDateChange("from", val)}
+            aria-label="Từ ngày (DD/MM/YYYY)"
+            className="date-range-picker"
+          />
+          <span className="date-sep" aria-hidden="true">
+            →
+          </span>
+          <DatePicker
+            value={draft.to}
+            onChange={(val) => handleDateChange("to", val)}
+            aria-label="Đến ngày (DD/MM/YYYY)"
+            className="date-range-picker"
+            align="right"
+          />
+        </div>
+      )}
     </div>
   );
+}
+/** Builds the clickable page button list, collapsing long ranges with "…". */
+function pageWindow(
+  current: number,
+  count: number,
+): (number | "gap")[] {
+  if (count <= 7) {
+    return Array.from({ length: count }, (_, index) => index + 1);
+  }
+  if (current <= 4) {
+    return [1, 2, 3, 4, 5, "gap", count];
+  }
+  if (current >= count - 3) {
+    return [1, "gap", count - 4, count - 3, count - 2, count - 1, count];
+  }
+  return [1, "gap", current - 1, current, current + 1, "gap", count];
 }
 export function Pagination({
   page,
   total,
   pageSize,
   onChange,
+  view,
+  onViewChange,
+  showSizes = false,
+  sizeOptions = [6, 12, 24],
+  onPrefetchPage,
 }: {
   page: number;
   total: number;
   pageSize: number;
   onChange: (page: number) => void;
+  /** Current display mode: "ALL" shows every row, a number paginates. */
+  view?: "ALL" | number;
+  /** When provided, renders the segmented control (hidden by default). */
+  onViewChange?: (view: "ALL" | number) => void;
+  showSizes?: boolean;
+  sizeOptions?: number[];
+  /** Optional callback to prefetch page data on hover/focus */
+  onPrefetchPage?: (page: number) => void;
 }) {
+  const size = view === "ALL" ? Math.max(total, 1) : pageSize;
+  const pageCount = Math.max(1, Math.ceil(total / Math.max(size, 1)));
+  const currentPage = Math.min(Math.max(1, page), pageCount);
+  const pages = pageWindow(currentPage, pageCount);
   return (
     <div className="pagination">
-      <span>
+      <span className="pagination-info">
         {total
-          ? `${Math.min((page - 1) * pageSize + 1, total)}–${Math.min(page * pageSize, total)} / ${total} kết quả`
+          ? `Hiển thị ${Math.min((currentPage - 1) * size + 1, total)}–${Math.min(currentPage * size, total)} trong ${total} kết quả (Trang ${currentPage}/${pageCount})`
           : "0 kết quả"}
       </span>
-      <div className="row">
-        <Button
-          aria-label="Trang trước"
-          variant="secondary"
-          disabled={page <= 1}
-          onClick={() => onChange(page - 1)}
-        >
-          <ArrowLeft size={16} />
-        </Button>
-        <span>Trang {page}</span>
-        <Button
-          aria-label="Trang sau"
-          variant="secondary"
-          disabled={page * pageSize >= total}
-          onClick={() => onChange(page + 1)}
-        >
-          <ArrowRight size={16} />
-        </Button>
+      <div className="pagination-controls">
+        {showSizes && onViewChange && (
+          <div
+            className="pagination-sizes"
+            role="group"
+            aria-label="Chế độ hiển thị kết quả"
+          >
+            {(["ALL", ...sizeOptions] as const).map((option) => (
+              <button
+                key={String(option)}
+                type="button"
+                className={`pagination-size${view === option ? " active" : ""}`}
+                aria-pressed={view === option}
+                onClick={() => onViewChange(option)}
+              >
+                {option === "ALL" ? "Tất cả" : option}
+              </button>
+            ))}
+          </div>
+        )}
+        <div className="row pagination-buttons-row">
+          <Button
+            aria-label="Trang trước"
+            variant="secondary"
+            disabled={currentPage <= 1}
+            onClick={() => onChange(currentPage - 1)}
+            onMouseEnter={() => currentPage > 1 && onPrefetchPage?.(currentPage - 1)}
+            onFocus={() => currentPage > 1 && onPrefetchPage?.(currentPage - 1)}
+          >
+            <ArrowLeft size={16} />
+          </Button>
+          {pages.map((entry, index) =>
+            entry === "gap" ? (
+              <span key={`gap-${index}`} className="pagination-gap" aria-hidden="true">
+                …
+              </span>
+            ) : (
+              <button
+                key={entry}
+                type="button"
+                className={`pagination-page${entry === currentPage ? " active" : ""}`}
+                aria-current={entry === currentPage ? "page" : undefined}
+                aria-label={`Xem trang ${entry}`}
+                onClick={() => onChange(entry)}
+                onMouseEnter={() => onPrefetchPage?.(entry)}
+                onFocus={() => onPrefetchPage?.(entry)}
+              >
+                {entry}
+              </button>
+            ),
+          )}
+          <Button
+            aria-label="Trang sau"
+            variant="secondary"
+            disabled={currentPage >= pageCount}
+            onClick={() => onChange(currentPage + 1)}
+            onMouseEnter={() => currentPage < pageCount && onPrefetchPage?.(currentPage + 1)}
+            onFocus={() => currentPage < pageCount && onPrefetchPage?.(currentPage + 1)}
+          >
+            <ArrowRight size={16} />
+          </Button>
+        </div>
       </div>
     </div>
   );

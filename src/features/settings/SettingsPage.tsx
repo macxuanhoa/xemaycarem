@@ -13,7 +13,9 @@ import { useAuth } from "@/features/auth/AuthProvider";
 import { api } from "@/lib/api";
 import { supabase } from "@/lib/supabase";
 import { AppError } from "@/lib/errors";
+import { toast } from "@/lib/toast";
 import { isOwner, roleLabels } from "@/lib/permissions";
+import { AnnouncementManager } from "./AnnouncementManager";
 interface InstallPrompt extends Event {
   prompt: () => Promise<void>;
   userChoice: Promise<{ outcome: string }>;
@@ -24,14 +26,22 @@ type Settings = {
   address?: string;
   low_stock_threshold?: number;
   high_stock_threshold?: number;
+  customer_messaging_enabled?: boolean;
+  sale_thank_you_enabled?: boolean;
+  primary_message_channel?: "DISABLED" | "ZALO_ZNS" | "SMS";
+  fallback_channel?: "DISABLED" | "ZALO_ZNS" | "SMS";
+  support_phone?: string;
 };
 export default function SettingsPage() {
   const { profile, user, refresh } = useAuth();
   const [name, setName] = useState(profile?.full_name ?? ""),
     [password, setPassword] = useState(""),
     [currentPassword, setCurrentPassword] = useState(""),
-    [prompt, setPrompt] = useState<InstallPrompt | null>(null),
-    [message, setMessage] = useState("");
+    [prompt, setPrompt] = useState<InstallPrompt | null>(null);
+  const [activeTab, setActiveTab] = useState<
+    "PROFILE" | "STORE" | "MESSAGES" | "DEVICE"
+  >("PROFILE");
+
   const client = useQueryClient();
   useEffect(() => {
     const handle = (event: Event) => {
@@ -49,7 +59,9 @@ export default function SettingsPage() {
       }),
     onSuccess: () => {
       void refresh();
-      setMessage("Đã lưu tên hiển thị.");
+      toast.success("Đã lưu thông tin", {
+        description: "Tên hiển thị đã được cập nhật.",
+      });
     },
   });
   const passwordMutation = useMutation({
@@ -69,7 +81,7 @@ export default function SettingsPage() {
     onSuccess: () => {
       setPassword("");
       setCurrentPassword("");
-      setMessage("Đã cập nhật mật khẩu.");
+      toast.success("Đã cập nhật mật khẩu.");
     },
   });
   const settings = useQuery({
@@ -77,23 +89,64 @@ export default function SettingsPage() {
     queryFn: () => api.call<Settings>("get_settings"),
     enabled: isOwner(profile),
   });
+
+  const showStore = isOwner(profile) && activeTab === "STORE";
+  const showMessages = isOwner(profile) && activeTab === "MESSAGES";
+
   return (
-    <div className="stack">
+    <div className="stack settings-shell">
       <PageHeader
         title="Cài đặt"
         description="Thông tin cá nhân và không gian làm việc của cửa hàng."
       />
-      {message && (
-        <p className="notice" role="status">
-          {message}
-        </p>
-      )}
-      <div className="detail-grid">
-        <div className="stack">
+
+      {/* CATEGORY TAB BAR */}
+      <div
+        className="settings-tabs-nav"
+        role="tablist"
+        aria-label="Danh mục cài đặt"
+      >
+        <button
+          type="button"
+          className={`settings-nav-item ${activeTab === "PROFILE" ? "active" : ""}`}
+          onClick={() => setActiveTab("PROFILE")}
+        >
+          <span>Hồ sơ &amp; Đổi mật khẩu</span>
+        </button>
+        {isOwner(profile) && (
+          <button
+            type="button"
+            className={`settings-nav-item ${activeTab === "STORE" ? "active" : ""}`}
+            onClick={() => setActiveTab("STORE")}
+          >
+            <span>Thông tin cửa hàng</span>
+          </button>
+        )}
+        {isOwner(profile) && (
+          <button
+            type="button"
+            className={`settings-nav-item ${activeTab === "MESSAGES" ? "active" : ""}`}
+            onClick={() => setActiveTab("MESSAGES")}
+          >
+            <span>Tin nhắn &amp; Bảng tin</span>
+          </button>
+        )}
+        <button
+          type="button"
+          className={`settings-nav-item ${activeTab === "DEVICE" ? "active" : ""}`}
+          onClick={() => setActiveTab("DEVICE")}
+        >
+          <span>Ứng dụng &amp; Dữ liệu</span>
+        </button>
+      </div>
+
+      {activeTab === "PROFILE" && (
+        <div className="settings-balance-grid">
           <Card>
             <h2>Hồ sơ của bạn</h2>
-            <p className="muted small">
-              Quyền hiện tại: {roleLabels[profile!.role]}
+            <p className="muted small" style={{ marginBottom: "16px" }}>
+              Quyền hạn trong hệ thống:{" "}
+              <strong>{roleLabels[profile!.role]}</strong>
             </p>
             <form
               className="stack"
@@ -120,8 +173,13 @@ export default function SettingsPage() {
               </div>
             </form>
           </Card>
+
           <Card>
             <h2>Đổi mật khẩu</h2>
+            <p className="muted small" style={{ marginBottom: "16px" }}>
+              Đặt mật khẩu an toàn với tối thiểu 12 ký tự để bảo vệ tài khoản
+              cửa hàng.
+            </p>
             <form
               className="stack"
               onSubmit={(e) => {
@@ -159,30 +217,38 @@ export default function SettingsPage() {
               </div>
             </form>
           </Card>
-          {isOwner(profile) &&
-            (settings.isPending ? (
-              <Loading />
-            ) : settings.error ? (
-              <ErrorState error={settings.error} />
-            ) : (
-              settings.data && (
-                <StoreSettings
-                  settings={settings.data}
-                  onDone={() => {
-                    void client.invalidateQueries({ queryKey: ["settings"] });
-                    setMessage("Đã lưu cài đặt cửa hàng.");
-                  }}
-                />
-              )
-            ))}
         </div>
-        <div className="stack">
+      )}
+
+      {showStore &&
+        (settings.isPending ? (
+          <Loading />
+        ) : settings.error ? (
+          <ErrorState error={settings.error} />
+        ) : (
+          settings.data && (
+            <StoreSettings
+              settings={settings.data}
+              onDone={() => {
+                void client.invalidateQueries({ queryKey: ["settings"] });
+                toast.success("Đã lưu cài đặt cửa hàng.");
+              }}
+            />
+          )
+        ))}
+
+      {showMessages && <AnnouncementManager />}
+
+      {activeTab === "DEVICE" && (
+        <div className="settings-balance-grid">
           <Card className="install-card">
             <span className="install-icon">
               <Download size={24} />
             </span>
             <h2>Luôn sẵn sàng trên thiết bị</h2>
-            <p className="muted">Cài Xe CRM để mở nhanh như một ứng dụng.</p>
+            <p className="muted">
+              Cài Cà Rem để mở nhanh như một ứng dụng độc lập.
+            </p>
             {prompt && (
               <Button
                 onClick={async () => {
@@ -191,7 +257,7 @@ export default function SettingsPage() {
                   setPrompt(null);
                 }}
               >
-                Cài đặt Xe CRM
+                Cài đặt Cà Rem
               </Button>
             )}
             <div className="install-step">
@@ -215,19 +281,21 @@ export default function SettingsPage() {
               </div>
             </div>
           </Card>
+
           <Card>
-            <div className="row">
-              <ShieldCheck size={21} />
-              <h3>Dữ liệu của cửa hàng</h3>
+            <div className="row" style={{ gap: "8px", alignItems: "center" }}>
+              <ShieldCheck size={21} style={{ color: "#16a34a" }} />
+              <h3>Dữ liệu &amp; An ninh</h3>
             </div>
-            <p className="muted small">
-              Dữ liệu được lưu tại Supabase. Ứng dụng cần kết nối mạng để ghi
-              nhận nghiệp vụ; dữ liệu tài chính không được lưu vào bộ nhớ ngoại
-              tuyến.
+            <p className="muted small" style={{ marginTop: "10px" }}>
+              Dữ liệu cửa hàng được đồng bộ và lưu trữ bảo mật trên Supabase. Hệ
+              thống yêu cầu kết nối mạng để ghi nhận giao dịch; dữ liệu tài
+              chính không được lưu vào bộ nhớ ngoại tuyến để phòng ngừa gian
+              lận.
             </p>
           </Card>
         </div>
-      </div>
+      )}
     </div>
   );
 }
@@ -246,6 +314,10 @@ function StoreSettings({
   return (
     <Card>
       <h2>Thông tin cửa hàng</h2>
+      <p className="muted small" style={{ marginBottom: "18px" }}>
+        Cấu hình thương hiệu cửa hàng, địa chỉ liên hệ và ngưỡng cảnh báo tồn
+        kho xe.
+      </p>
       <form
         className="stack"
         onSubmit={(e) => {
@@ -261,46 +333,175 @@ function StoreSettings({
             onChange={(e) => setData({ ...data, store_name: e.target.value })}
           />
         </Field>
-        <Field label="Điện thoại">
-          <input
-            value={data.phone ?? ""}
-            onChange={(e) => setData({ ...data, phone: e.target.value })}
-          />
-        </Field>
-        <Field label="Địa chỉ">
-          <input
-            value={data.address ?? ""}
-            onChange={(e) => setData({ ...data, address: e.target.value })}
-          />
-        </Field>
+
         <div className="form-grid">
-          <Field label="Ngưỡng tồn kho thấp">
+          <Field label="Điện thoại">
             <input
-              type="number"
-              min="0"
-              value={data.low_stock_threshold ?? 5}
-              onChange={(e) =>
-                setData({
-                  ...data,
-                  low_stock_threshold: Number(e.target.value),
-                })
-              }
+              value={data.phone ?? ""}
+              onChange={(e) => setData({ ...data, phone: e.target.value })}
+              placeholder="VD: 0912 345 678"
             />
           </Field>
-          <Field label="Ngưỡng tồn kho cao">
+          <Field label="Địa chỉ">
             <input
-              type="number"
-              min={data.low_stock_threshold ?? 0}
-              value={data.high_stock_threshold ?? 100}
-              onChange={(e) =>
-                setData({
-                  ...data,
-                  high_stock_threshold: Number(e.target.value),
-                })
-              }
+              value={data.address ?? ""}
+              onChange={(e) => setData({ ...data, address: e.target.value })}
+              placeholder="Địa chỉ showroom xe máy"
             />
           </Field>
         </div>
+
+        <div
+          style={{
+            borderTop: "1px solid var(--line, #e2e8f0)",
+            paddingTop: "18px",
+          }}
+        >
+          <h3 style={{ marginBottom: "6px" }}>Cảnh báo tồn kho</h3>
+          <p className="muted small" style={{ marginBottom: "14px" }}>
+            Hệ thống sẽ gửi cảnh báo tới quản lý khi số lượng xe sẵn sàng bán
+            chạm các ngưỡng này.
+          </p>
+          <div className="form-grid">
+            <Field label="Ngưỡng tồn kho thấp">
+              <input
+                type="number"
+                min="0"
+                value={data.low_stock_threshold ?? 5}
+                onChange={(e) =>
+                  setData({
+                    ...data,
+                    low_stock_threshold: Number(e.target.value),
+                  })
+                }
+              />
+            </Field>
+            <Field label="Ngưỡng tồn kho cao">
+              <input
+                type="number"
+                min={data.low_stock_threshold ?? 0}
+                value={data.high_stock_threshold ?? 100}
+                onChange={(e) =>
+                  setData({
+                    ...data,
+                    high_stock_threshold: Number(e.target.value),
+                  })
+                }
+              />
+            </Field>
+          </div>
+        </div>
+
+        <div
+          style={{
+            borderTop: "1px solid var(--line, #e2e8f0)",
+            paddingTop: "18px",
+          }}
+        >
+          <h3 style={{ marginBottom: "6px" }}>Khách hàng &amp; Tin nhắn</h3>
+          <p className="muted small" style={{ marginBottom: "14px" }}>
+            Kênh gửi chưa được cấu hình. Khi được bật, lời cảm ơn chỉ được tạo
+            sau khi giao dịch bán xe hoàn tất.
+          </p>
+
+          <div className="settings-field-group">
+            <label className="settings-switch-card">
+              <div className="settings-switch-content">
+                <span className="settings-switch-title">
+                  Bật tính năng nhắn tin khách hàng
+                </span>
+                <span className="settings-switch-desc">
+                  Kích hoạt thông báo tự động cho khách mua xe.
+                </span>
+              </div>
+              <input
+                type="checkbox"
+                checked={data.customer_messaging_enabled ?? false}
+                onChange={(e) =>
+                  setData({
+                    ...data,
+                    customer_messaging_enabled: e.target.checked,
+                  })
+                }
+              />
+            </label>
+
+            <label className="settings-switch-card">
+              <div className="settings-switch-content">
+                <span className="settings-switch-title">
+                  Tự động gửi lời cảm ơn sau khi bán
+                </span>
+                <span className="settings-switch-desc">
+                  Tự động kích hoạt thông điệp tri ân ngay khi hợp đồng bán hoàn
+                  tất.
+                </span>
+              </div>
+              <input
+                type="checkbox"
+                checked={data.sale_thank_you_enabled ?? false}
+                onChange={(e) =>
+                  setData({
+                    ...data,
+                    sale_thank_you_enabled: e.target.checked,
+                  })
+                }
+              />
+            </label>
+
+            <div className="form-grid">
+              <Field label="Kênh ưu tiên">
+                <select
+                  value={data.primary_message_channel ?? "DISABLED"}
+                  onChange={(e) =>
+                    setData({
+                      ...data,
+                      primary_message_channel: e.target
+                        .value as Settings["primary_message_channel"],
+                    })
+                  }
+                >
+                  <option value="DISABLED">Tắt</option>
+                  <option value="ZALO_ZNS">Zalo ZNS</option>
+                  <option value="SMS">SMS</option>
+                </select>
+              </Field>
+
+              <Field label="Kênh dự phòng">
+                <select
+                  value={data.fallback_channel ?? "DISABLED"}
+                  onChange={(e) =>
+                    setData({
+                      ...data,
+                      fallback_channel: e.target
+                        .value as Settings["fallback_channel"],
+                    })
+                  }
+                >
+                  <option value="DISABLED">Không dùng</option>
+                  <option value="ZALO_ZNS">Zalo ZNS</option>
+                  <option value="SMS">SMS</option>
+                </select>
+              </Field>
+            </div>
+
+            <Field label="Số điện thoại hỗ trợ">
+              <input
+                maxLength={40}
+                value={data.support_phone ?? ""}
+                onChange={(e) =>
+                  setData({ ...data, support_phone: e.target.value })
+                }
+                placeholder="Hotline chăm sóc khách hàng"
+              />
+            </Field>
+
+            <p className="muted small">
+              Nhà cung cấp: Chưa cấu hình. Không có tin nhắn thật nào được gửi
+              trong giai đoạn này.
+            </p>
+          </div>
+        </div>
+
         {m.error && <ErrorState error={m.error} />}
         <div>
           <Button type="submit" disabled={m.isPending}>

@@ -5,7 +5,7 @@ import { api } from "@/lib/api";
 import { today } from "@/lib/format";
 import { canManage } from "@/lib/permissions";
 import { useAuth } from "@/features/auth/AuthProvider";
-import { Button, ErrorState, Field } from "@/components/ui";
+import { Button, DatePicker, ErrorState, Field } from "@/components/ui";
 import { MoneyInput } from "@/components/ui/MoneyInput";
 import { VEHICLE_EXPENSE_CHIPS } from "@/components/ui/QuickChips";
 import {
@@ -21,6 +21,7 @@ interface QuickExpenseModalProps {
   vehicleId: string;
   vehicleName: string;
   vehicleCode?: string;
+  purchaseDate?: string;
   isOpen: boolean;
   onClose: () => void;
   onSuccess?: () => void;
@@ -43,6 +44,7 @@ function QuickExpenseEditor({
   vehicleId,
   vehicleName,
   vehicleCode,
+  purchaseDate,
   onClose,
   onSuccess,
   initialDraft,
@@ -93,6 +95,13 @@ function QuickExpenseEditor({
       }
       if (!vehicleExpenseLabels[type])
         throw new Error("Phân loại chi phí không hợp lệ.");
+      if (purchaseDate && expenseDate < purchaseDate) {
+        setFieldErrors((old) => ({
+          ...old,
+          expense_date: `Ngày chi không được trước ngày mua xe (${purchaseDate}).`,
+        }));
+        throw new Error(`Ngày chi không được trước ngày mua xe (${purchaseDate}).`);
+      }
       await api.call("save_expense", {
         p_kind: "vehicle",
         p_data: parsed.data,
@@ -240,11 +249,16 @@ function QuickExpenseEditor({
                 />
               </Field>
               <Field label="Ngày chi" error={fieldErrors.expense_date}>
-                <input
-                  type="date"
+                <DatePicker
+                  min={purchaseDate}
+                  max={today()}
                   value={expenseDate}
-                  onChange={(event) => setExpenseDate(event.target.value)}
+                  onChange={(val) => {
+                    setExpenseDate(val);
+                    setFieldErrors((old) => ({ ...old, expense_date: "" }));
+                  }}
                   required
+                  aria-label="Ngày chi"
                 />
               </Field>
               {saveMutation.isError && (

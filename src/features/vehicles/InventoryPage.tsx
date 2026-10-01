@@ -30,6 +30,7 @@ import {
   EmptyState,
   ErrorState,
   Field,
+  DatePicker,
   Loading,
   PageHeader,
   Pagination,
@@ -39,13 +40,22 @@ import { useDebouncedValue } from "@/lib/useDebouncedValue";
 import { QuickExpenseModal } from "@/features/expenses/QuickExpenseModal";
 import { VehicleActionsSheet } from "./VehicleActionsSheet";
 
-const pageSize = 20;
+const pageSize = 6;
 const statusOptions = [
-  { value: "", label: "Tất cả xe" },
-  { value: "IN_STOCK", label: "Đang tồn kho" },
+  { value: "", label: "Tất cả" },
+  { value: "AVAILABLE", label: "Tại cửa hàng" },
+  { value: "IN_STOCK", label: "Sẵn sàng bán" },
   { value: "RESERVED", label: "Giữ chỗ" },
   { value: "SOLD", label: "Đã bán" },
   { value: "CANCELLED", label: "Đã hủy" },
+];
+const quickPresets: Array<{ id: string; label: string; filters: Record<string, string> }> = [
+  { id: "old", label: "Tồn kho lâu > 60 ngày", filters: { sort: "longest_stock", status: "IN_STOCK", min_days: "61" } },
+  { id: "cost_pending", label: "Chờ giá nhập", filters: { cost_pending: "true" } },
+];
+const inventoryFilterKeys = [
+  "brand", "year", "min_price", "max_price", "date_from", "date_to",
+  "cost_pending", "min_days", "status", "sort", "page",
 ];
 
 export function InventoryPage() {
@@ -129,6 +139,26 @@ export function InventoryPage() {
       }),
     placeholderData: keepPreviousData,
   });
+
+  useEffect(() => {
+    if (query.data && page * pageSize < query.data.total) {
+      void client.prefetchQuery({
+        queryKey: ["vehicles", deferredSearch, status, sort, filters, page + 1],
+        queryFn: () =>
+          api.call<Paged<Vehicle>>("list_vehicles", {
+            p_filters: {
+              ...filters,
+              search: deferredSearch,
+              status,
+              sort,
+              offset: page * pageSize,
+              limit: pageSize,
+            },
+          }),
+      });
+    }
+  }, [query.data, page, deferredSearch, status, sort, filters, client]);
+
   useEffect(() => {
     if (!query.isSuccess || query.isPlaceholderData) return;
     if (navigationType !== "POP" && !location.state?.restoreInventory) return;
@@ -163,6 +193,12 @@ export function InventoryPage() {
   }, [scrollKey]);
   function filter(key: keyof typeof filters, value: string) {
     updateParams({ [key]: value });
+  }
+  function applyPreset(preset: (typeof quickPresets)[number], isActive: boolean) {
+    updateParams({
+      ...Object.fromEntries(inventoryFilterKeys.map((key) => [key, ""])),
+      ...(isActive ? {} : preset.filters),
+    });
   }
   const vehicles = query.data?.items ?? [];
   return (
@@ -207,14 +243,36 @@ export function InventoryPage() {
               setSort(e.target.value);
             }}
           >
-            <option value="newest">Mới nhập trước</option>
-            <option value="oldest">Cũ nhất trước</option>
+            <option value="newest">Mới nhất</option>
+            <option value="oldest">Cũ nhất</option>
             <option value="longest_stock">Tồn kho lâu nhất</option>
-            <option value="highest_price">Giá niêm yết cao nhất</option>
-            {canFinance(profile) && (
-              <option value="highest_cost">Giá vốn cao nhất</option>
-            )}
           </select>
+        </div>
+        {/* Quick Presets — high-value operational shortcuts only */}
+        <div className="quick-presets" aria-label="Lọc nhanh">
+          <span className="quick-presets-label">Lọc nhanh</span>
+          {quickPresets.map((preset) => {
+            const isActive = Object.entries(preset.filters).every(
+              ([key, value]) => params.get(key) === value,
+            );
+            return (
+              <button
+                key={preset.id}
+                type="button"
+                className={isActive ? "quick-pill quick-pill-active" : "quick-pill"}
+                aria-pressed={isActive}
+                onClick={() => {
+                  if (isActive) {
+                    applyPreset(preset, true);
+                  } else {
+                    applyPreset(preset, false);
+                  }
+                }}
+              >
+                {preset.label}
+              </button>
+            );
+          })}
         </div>
         {expanded && (
           <div className="form-grid filter-grid">
@@ -234,7 +292,7 @@ export function InventoryPage() {
                 onChange={(e) => filter("year", e.target.value)}
               />
             </Field>
-            <Field label="Giá niêm yết từ (₫)">
+            <Field label="Giá bán dự kiến từ (₫)">
               <input
                 type="number"
                 min="0"
@@ -243,7 +301,7 @@ export function InventoryPage() {
                 onChange={(e) => filter("min_price", e.target.value)}
               />
             </Field>
-            <Field label="Giá niêm yết đến (₫)">
+            <Field label="Giá bán dự kiến đến (₫)">
               <input
                 type="number"
                 min="0"
@@ -253,18 +311,33 @@ export function InventoryPage() {
               />
             </Field>
             <Field label="Nhập kho từ ngày">
-              <input
-                type="date"
+              <DatePicker
+                aria-label="Nhập kho từ ngày"
                 value={filters.date_from}
-                onChange={(e) => filter("date_from", e.target.value)}
+                onChange={(value) => {
+                  let nextFrom = value;
+                  let nextTo = filters.date_to;
+                  if (nextFrom && nextTo && nextFrom > nextTo) {
+                    [nextFrom, nextTo] = [nextTo, nextFrom];
+                    filter("date_to", nextTo);
+                  }
+                  filter("date_from", nextFrom);
+                }}
               />
             </Field>
             <Field label="Nhập kho đến ngày">
-              <input
-                type="date"
-                min={filters.date_from}
+              <DatePicker
+                aria-label="Nhập kho đến ngày"
                 value={filters.date_to}
-                onChange={(e) => filter("date_to", e.target.value)}
+                onChange={(value) => {
+                  let nextTo = value;
+                  let nextFrom = filters.date_from;
+                  if (nextFrom && nextTo && nextFrom > nextTo) {
+                    [nextFrom, nextTo] = [nextTo, nextFrom];
+                    filter("date_from", nextFrom);
+                  }
+                  filter("date_to", nextTo);
+                }}
               />
             </Field>
             <Button
@@ -281,6 +354,7 @@ export function InventoryPage() {
                   min_days: "",
                   q: "",
                   status: "",
+                  page: "",
                 });
               }}
             >
@@ -304,7 +378,7 @@ export function InventoryPage() {
           ))}
         </div>
       </Card>
-      {filters.min_days && (
+      {filters.min_days && !quickPresets.some((preset) => preset.id === "old" && Object.entries(preset.filters).every(([key, value]) => params.get(key) === value)) && (
         <p className="notice">
           Đang xem xe tồn kho từ {filters.min_days} ngày.{" "}
           <button
@@ -316,26 +390,21 @@ export function InventoryPage() {
           </button>
         </p>
       )}
-      {filters.cost_pending === "true" && (
+      {filters.cost_pending === "true" && !quickPresets.some((preset) => preset.id === "cost_pending" && Object.entries(preset.filters).every(([key, value]) => params.get(key) === value)) && (
         <p className="notice">
-          Đang xem xe chờ bổ sung giá thu.{" "}
+          Đang xem xe chưa có giá mua.{" "}
           <button
             type="button"
             className="text-link"
             onClick={() => filter("cost_pending", "")}
           >
-            Bỏ lọc giá thu
+            Bỏ lọc chờ giá mua
           </button>
         </p>
       )}
       {message && (
         <p className="notice" role="status">
           {message}
-        </p>
-      )}
-      {query.isFetching && !query.isPending && (
-        <p className="muted small" role="status">
-          Đang cập nhật danh sách…
         </p>
       )}
       {query.isPending ? (
@@ -357,7 +426,10 @@ export function InventoryPage() {
       ) : (
         <>
           <Card className="table-card">
-            <div className="table-wrap desktop-table">
+            {query.isFetching && !query.isPending && (
+              <div className="table-updating-bar" role="progressbar" aria-label="Đang cập nhật danh sách" />
+            )}
+            <div className={`table-wrap desktop-table ${query.isFetching && !query.isPending ? "is-updating" : ""}`}>
               <table className="data-table">
                 <thead>
                   <tr>
@@ -369,7 +441,7 @@ export function InventoryPage() {
                     {canFinance(profile) && (
                       <th className="numeric">Giá vốn</th>
                     )}
-                    <th className="numeric">Giá niêm yết</th>
+                    <th className="numeric">Giá bán dự kiến</th>
                     <th />
                   </tr>
                 </thead>
@@ -392,11 +464,16 @@ export function InventoryPage() {
                             <strong>
                               {vehicle.brand} {vehicle.model}
                             </strong>
-                            <small>
-                              {[vehicle.variant, vehicle.year, vehicle.color]
-                                .filter(Boolean)
-                                .join(" · ") || "Chưa bổ sung phiên bản"}
-                            </small>
+                            {[vehicle.year, vehicle.color, vehicle.variant]
+                              .filter(Boolean)
+                              .length > 0 && (
+                              <small>
+                                {[vehicle.year, vehicle.color, vehicle.variant]
+                                  .filter(Boolean)
+                                  .join(" · ")}
+                              </small>
+                            )}
+                            <small className="vehicle-code">{vehicle.internal_code}</small>
                           </span>
                         </Link>
                       </td>
@@ -407,7 +484,6 @@ export function InventoryPage() {
                       </td>
                       <td>
                         {vehicle.license_plate || "—"}
-                        <small>{vehicle.internal_code}</small>
                       </td>
                       <td>
                         <Badge status={vehicle.status} />
@@ -416,9 +492,9 @@ export function InventoryPage() {
                         {dateLabel(vehicle.purchase_date)}
                         {["IN_STOCK", "RESERVED"].includes(vehicle.status) && (
                           <small>
-                            {vehicle.days_in_inventory ??
-                              daysInStock(vehicle.purchase_date)}{" "}
-                            ngày
+                            {(vehicle.days_in_inventory ?? daysInStock(vehicle.purchase_date)) === 0
+                              ? "Hôm nay"
+                              : `${vehicle.days_in_inventory ?? daysInStock(vehicle.purchase_date)} ngày`}
                           </small>
                         )}
                       </td>
@@ -466,17 +542,27 @@ export function InventoryPage() {
                       </strong>
                       <Badge status={vehicle.status} />
                     </div>
-                    <span className="muted">
-                      {vehicle.frame_number || vehicle.internal_code}
-                    </span>
-                    <span className="muted">
-                      {vehicle.license_plate || "Chưa có biển số"} ·{" "}
-                      {vehicle.year || ""}
-                    </span>
+                    {[vehicle.year, vehicle.color, vehicle.variant].filter(Boolean).length > 0 && (
+                      <span className="muted">
+                        {[vehicle.year, vehicle.color, vehicle.variant]
+                          .filter(Boolean)
+                          .join(" · ")}
+                      </span>
+                    )}
+                    <span className="muted">Mã xe: {vehicle.internal_code}</span>
+                    <span className="muted">Số khung: {vehicle.frame_number || "—"}</span>
+                    <span className="muted">Biển số: {vehicle.license_plate || "—"}</span>
                     <div className="row between">
                       <span>
                         {["IN_STOCK", "RESERVED"].includes(vehicle.status)
-                          ? `${daysInStock(vehicle.purchase_date)} ngày trong kho`
+                          ? <>
+                              {dateLabel(vehicle.purchase_date)}
+                              <small>
+                                {(vehicle.days_in_inventory ?? daysInStock(vehicle.purchase_date)) === 0
+                                  ? "Hôm nay"
+                                  : `${vehicle.days_in_inventory ?? daysInStock(vehicle.purchase_date)} ngày`}
+                              </small>
+                            </>
                           : dateLabel(vehicle.purchase_date)}
                       </span>
                       <strong className="price">

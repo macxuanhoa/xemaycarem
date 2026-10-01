@@ -1,10 +1,11 @@
-import { useDeferredValue, useState } from "react";
+import { useEffect, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
-import { useQuery } from "@tanstack/react-query";
+import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowRight, CirclePlus, Search } from "lucide-react";
 import { api } from "@/lib/api";
 import { canFinance, canOperate } from "@/lib/permissions";
 import { dateLabel, money, today } from "@/lib/format";
+import { useDebouncedValue } from "@/lib/useDebouncedValue";
 import { useAuth } from "@/features/auth/AuthProvider";
 import {
   Badge,
@@ -18,31 +19,54 @@ import {
 } from "@/components/ui";
 import type { Acquisition, Paged } from "@/types";
 
-const pageSize = 20;
+const pageSize = 6;
 
 export function AcquisitionsPage() {
   const { profile } = useAuth();
+  const client = useQueryClient();
   const [params] = useSearchParams();
-  const [range, setRange] = useState({
-    from: params.get("from") || `${today().slice(0, 7)}-01`,
-    to: params.get("to") || today(),
+  const rawFrom = params.get("from") || `${today().slice(0, 7)}-01`;
+  const rawTo = params.get("to") || today();
+  const [range, setRange] = useState(() => {
+    if (rawFrom && rawTo && rawFrom > rawTo) {
+      return { from: rawTo, to: rawFrom };
+    }
+    return { from: rawFrom, to: rawTo };
   });
-  const [search, setSearch] = useState("");
-  const deferredSearch = useDeferredValue(search);
+  const [search, setSearch] = useState(() => params.get("search") || params.get("q") || "");
+  const debouncedSearch = useDebouncedValue(search, 300);
   const [page, setPage] = useState(1);
 
   const query = useQuery({
-    queryKey: ["acquisitions", range, deferredSearch, page],
+    queryKey: ["acquisitions", range, debouncedSearch, page],
+    placeholderData: keepPreviousData,
     queryFn: () =>
       api.call<Paged<Acquisition>>("list_acquisitions", {
         p_filters: {
           ...range,
-          search: deferredSearch,
+          search: debouncedSearch,
           offset: (page - 1) * pageSize,
           limit: pageSize,
         },
       }),
   });
+
+  useEffect(() => {
+    if (query.data && page * pageSize < query.data.total) {
+      void client.prefetchQuery({
+        queryKey: ["acquisitions", range, debouncedSearch, page + 1],
+        queryFn: () =>
+          api.call<Paged<Acquisition>>("list_acquisitions", {
+            p_filters: {
+              ...range,
+              search: debouncedSearch,
+              offset: page * pageSize,
+              limit: pageSize,
+            },
+          }),
+      });
+    }
+  }, [query.data, page, range, debouncedSearch, client]);
 
   const items = query.data?.items ?? [];
 
@@ -62,7 +86,7 @@ export function AcquisitionsPage() {
       <Card>
         <div className="row filter-row">
           <label className="search-field">
-            <Search size={19} />
+            <Search size={19} aria-hidden="true" />
             <input
               aria-label="Tìm kiếm xe thu vào"
               placeholder="Tìm số khung, biển số, hãng, dòng xe, người bán…"
@@ -89,11 +113,18 @@ export function AcquisitionsPage() {
       ) : !items.length ? (
         <EmptyState
           title="Chưa có dữ liệu thu xe trong khoảng thời gian này"
-          description="Thay đổi bộ lọc ngày hoặc tạo giao dịch thu xe mới."
+          description={
+            debouncedSearch
+              ? "Thay đổi từ khóa tìm kiếm, khoảng ngày hoặc tạo giao dịch thu xe mới."
+              : "Thay đổi bộ lọc ngày hoặc tạo giao dịch thu xe mới."
+          }
         />
       ) : (
         <Card className="table-card">
-          <div className="table-wrap desktop-table">
+          {query.isFetching && !query.isPending && (
+            <div className="table-updating-bar" role="progressbar" aria-label="Đang cập nhật danh sách" />
+          )}
+          <div className={`table-wrap desktop-table ${query.isFetching && !query.isPending ? "is-updating" : ""}`}>
             <table className="data-table">
               <thead>
                 <tr>
@@ -103,7 +134,7 @@ export function AcquisitionsPage() {
                   <th>Người bán</th>
                   {canFinance(profile) && <th className="numeric">Giá thu</th>}
                   <th>Trạng thái</th>
-                  <th />
+                  <th aria-label="Thao tác" />
                 </tr>
               </thead>
               <tbody>
@@ -118,18 +149,22 @@ export function AcquisitionsPage() {
                           {acq.brand} {acq.model}
                         </strong>
                       </Link>
-                      <small>{acq.internal_code || "—"}</small>
+                      <small className="muted">{acq.internal_code || "—"}</small>
                     </td>
                     <td>
-                      <div>
+                      <div className="table-meta-row">
+                        <span className="table-sublabel">Khung:</span>
                         <code>{acq.frame_number}</code>
                       </div>
-                      <small>{acq.license_plate || "Chưa có biển số"}</small>
+                      <small className="table-meta-row">
+                        <span className="table-sublabel">BS:</span>
+                        <span>{acq.license_plate || "Chưa có biển số"}</span>
+                      </small>
                     </td>
                     <td>{dateLabel(acq.acquisition_date)}</td>
                     <td>
                       <div>{acq.seller_name || "—"}</div>
-                      <small>{acq.seller_phone || "—"}</small>
+                      <small className="muted">{acq.seller_phone || "—"}</small>
                     </td>
                     {canFinance(profile) && (
                       <td className="numeric price">
@@ -144,7 +179,8 @@ export function AcquisitionsPage() {
                     <td>
                       <Link
                         className="icon-button"
-                        aria-label={`Xem xe ${acq.brand} ${acq.model}`}
+                        aria-label={`Xem chi tiết xe ${acq.brand} ${acq.model}`}
+                        title={`Xem chi tiết xe ${acq.brand} ${acq.model}`}
                         to={`/vehicles/${acq.vehicle_id}`}
                       >
                         <ArrowRight size={18} />
@@ -169,9 +205,13 @@ export function AcquisitionsPage() {
                   </strong>
                   <Badge status={acq.status} />
                 </div>
-                <span className="muted">
-                  {acq.frame_number} · {acq.license_plate || "Chưa có biển số"}
-                </span>
+                <div className="mobile-meta-subline">
+                  <span className="table-sublabel">Khung:</span>
+                  <code className="mobile-code">{acq.frame_number}</code>
+                  <span className="bullet-sep" aria-hidden="true">·</span>
+                  <span className="table-sublabel">BS:</span>
+                  <span>{acq.license_plate || "Chưa có biển số"}</span>
+                </div>
                 <div className="row between">
                   <span>{dateLabel(acq.acquisition_date)}</span>
                   {canFinance(profile) && acq.purchase_price != null && (
@@ -181,7 +221,8 @@ export function AcquisitionsPage() {
                   )}
                 </div>
                 <small className="muted">
-                  Người bán: {acq.seller_name || "—"} · Nhập bởi:{" "}
+                  Người bán: {acq.seller_name || "—"}
+                  {acq.seller_phone ? ` (${acq.seller_phone})` : ""} · Nhập bởi:{" "}
                   {acq.creator_name || "—"}
                 </small>
               </Link>

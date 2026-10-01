@@ -277,7 +277,7 @@ export default function AssistPage() {
   return (
     <div className="stack">
       <PageHeader
-        title="Hỏi Xe CRM / Chuẩn bị bản nháp"
+        title="Hỏi Cà Rem / Chuẩn bị bản nháp"
         description="Đọc dữ liệu theo quyền của bạn. Bản nháp cần kiểm tra trong biểu mẫu trước khi lưu."
       />
       <Card>

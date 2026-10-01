@@ -7,6 +7,8 @@ import AppLayout from "@/layouts/AppLayout";
 import LoginPage, { PasswordPage } from "@/features/auth/LoginPage";
 import ChangePasswordPage from "@/features/auth/ChangePasswordPage";
 import { PwaUpdate } from "@/components/PwaUpdate";
+import { Toaster } from "@/components/ui/Toaster";
+import { ConfirmDialogHost } from "@/components/ui/ConfirmDialog";
 const DashboardPage = lazy(() => import("@/features/dashboard/DashboardPage"));
 const AcquisitionsPage = lazy(() =>
   import("@/features/acquisitions/AcquisitionPages").then((m) => ({
@@ -65,11 +67,6 @@ const CustomersPage = lazy(() =>
     default: m.CustomersPage,
   })),
 );
-const ReconciliationPage = lazy(() =>
-  import("@/features/reports/ReconciliationPage").then((m) => ({
-    default: m.ReconciliationPage,
-  })),
-);
 const ImportVehiclesPage = lazy(() =>
   import("@/features/vehicles/ImportVehiclesPage").then((m) => ({
     default: m.ImportVehiclesPage,
@@ -77,6 +74,9 @@ const ImportVehiclesPage = lazy(() =>
 );
 const CapturePage = lazy(() => import("@/features/capture/CapturePage"));
 const AssistPage = lazy(() => import("@/features/assistant/AssistPage"));
+const CopilotPage = lazy(() => import("@/features/copilot/CopilotPage"));
+const DocsPage = lazy(() => import("@/features/docs/DocsPage"));
+const ShowroomPage = lazy(() => import("@/features/showroom/ShowroomPage"));
 function Protected({
   access = "read",
 }: {
@@ -155,9 +155,12 @@ export default function App() {
   return (
     <ErrorBoundary>
       <PwaUpdate />
+      <Toaster />
+      <ConfirmDialogHost />
       <Suspense fallback={<Loading />}>
         <Routes>
           <Route path="/login" element={<LoginPage />} />
+          <Route path="/showroom" element={<ShowroomPage />} />
           {import.meta.env.VITE_ENABLE_PASSWORD_RESET === "true" && (
             <Route path="/forgot-password" element={<PasswordPage />} />
           )}
@@ -176,6 +179,9 @@ export default function App() {
               <Route path="sales/:id" element={<SaleDetailPage />} />
               <Route path="capture" element={<CapturePage />} />
               <Route path="assist" element={<AssistPage />} />
+              <Route path="copilot" element={<CopilotPage />} />
+              <Route path="docs" element={<DocsPage />} />
+              <Route path="docs/:slug" element={<DocsPage />} />
               <Route path="receivables" element={<ReceivablesPage />} />
               <Route path="customers" element={<CustomersPage />} />
               <Route path="settings" element={<SettingsPage />} />
@@ -194,7 +200,7 @@ export default function App() {
                 />
               </Route>
               <Route element={<Protected access="manage" />}>
-                <Route path="reconciliation" element={<ReconciliationPage />} />
+                <Route path="reconciliation" element={<Navigate to="/expenses" replace />} />
                 <Route path="expenses" element={<ExpensesPage />} />
                 <Route path="reports" element={<ReportsPage />} />
               </Route>

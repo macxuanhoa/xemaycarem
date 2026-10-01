@@ -31,6 +31,7 @@ import { addRecentVehicle } from "@/lib/recentVehicles";
 import { QuickExpenseModal } from "@/features/expenses/QuickExpenseModal";
 import { VehicleImageUpload } from "./VehicleImageUpload";
 import { VehicleQr } from "./VehicleQr";
+import { IdentityDocumentPanel } from "@/components/IdentityDocumentPanel";
 
 export function VehicleDetailPage() {
   const { id } = useParams();
@@ -42,6 +43,14 @@ export function VehicleDetailPage() {
   const query = useQuery({
     queryKey: ["vehicle", id],
     queryFn: () => api.call<Vehicle>("get_vehicle", { p_id: id }),
+  });
+
+  // Resolve the acquisition (người bán) behind this vehicle for its CCCD panel.
+  const acquisitionQuery = useQuery({
+    queryKey: ["vehicle-acquisition", id],
+    queryFn: () =>
+      api.call<string | null>("get_acquisition_for_vehicle", { p_vehicle_id: id }),
+    enabled: canManage(profile) && !!id,
   });
 
   useEffect(() => {
@@ -98,11 +107,16 @@ export function VehicleDetailPage() {
                 <CirclePlus size={16} /> + Chi phí
               </Button>
             )}
-            {canOperate(profile) && vehicle.status !== "SOLD" && (
-              <Link className="button secondary" to={`/vehicles/${id}/edit`}>
-                <Pencil size={16} /> Chỉnh sửa
-              </Link>
-            )}
+            {canOperate(profile) &&
+              vehicle.status !== "SOLD" &&
+              (vehicle.status !== "CANCELLED" || canManage(profile)) && (
+                <Link className="button secondary" to={`/vehicles/${id}/edit`}>
+                  <Pencil size={16} />{" "}
+                  {vehicle.status === "CANCELLED"
+                    ? "Khôi phục / Sửa"
+                    : "Chỉnh sửa"}
+                </Link>
+              )}
             {canOperate(profile) && available && !vehicle.cost_pending && (
               <Link className="button primary" to={`/vehicles/${id}/sell`}>
                 <ShoppingBag size={17} /> Bán xe này
@@ -240,6 +254,14 @@ export function VehicleDetailPage() {
               </div>
             )}
           </Card>
+          {canManage(profile) && acquisitionQuery.data && (
+            <IdentityDocumentPanel
+              subjectType="acquisition"
+              subjectId={acquisitionQuery.data}
+              title="CCCD người bán"
+              personLabel="Người bán"
+            />
+          )}
           {canManage(profile) && (
             <Card>
               <div className="row between">
@@ -320,7 +342,7 @@ export function VehicleDetailPage() {
           <Card>
             <h2 className="section-title">Giá trị xe</h2>
             <div className="price-hero">
-              <span className="muted">Giá niêm yết</span>
+              <span className="muted">Giá bán dự kiến</span>
               <strong>{money(vehicle.asking_price)}</strong>
             </div>
             {financial && (
@@ -415,6 +437,7 @@ export function VehicleDetailPage() {
         vehicleId={vehicle.id}
         vehicleName={`${vehicle.brand} ${vehicle.model}`}
         vehicleCode={vehicle.internal_code}
+        purchaseDate={vehicle.purchase_date}
         isOpen={expenseOpen}
         onClose={() => setExpenseOpen(false)}
         onSuccess={() => setMessage("Đã lưu chi phí cho xe.")}

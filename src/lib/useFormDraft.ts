@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { FieldValues, UseFormReturn } from "react-hook-form";
 import { clearFormDraft, readFormDraft, saveFormDraft } from "./formDrafts";
+import { confirmAction } from "@/components/ui/ConfirmDialog";
 
 export function useFormDraft<T extends FieldValues>(
   kind: string,
@@ -42,6 +43,7 @@ export function useFormDraft<T extends FieldValues>(
         event.returnValue = "";
       }
     };
+    let allowNavigation: string | null = null;
     const leaving = (event: MouseEvent) => {
       if (
         !dirtyRef.current ||
@@ -69,15 +71,28 @@ export function useFormDraft<T extends FieldValues>(
         destination.search === window.location.search
       )
         return;
+      // A confirmed dialog re-triggers this click; let that one through untouched.
+      if (allowNavigation === destination.href) {
+        allowNavigation = null;
+        return;
+      }
       const persisted = saveFormDraft(kind, userId, form.getValues());
-      if (
-        (financialRef.current || !persisted) &&
-        !window.confirm(
-          "Bạn có thay đổi chưa lưu. Thông tin bản nháp được giữ nếu có thể, nhưng giá tiền sẽ cần nhập lại. Bỏ thay đổi và rời trang?",
-        )
-      ) {
+      if (financialRef.current || !persisted) {
         event.preventDefault();
         event.stopPropagation();
+        void confirmAction({
+          title: "Bạn có thay đổi chưa lưu",
+          description:
+            "Thông tin bản nháp được giữ nếu có thể, nhưng giá tiền sẽ cần nhập lại. Bỏ thay đổi và rời trang?",
+          confirmLabel: "Bỏ thay đổi và rời trang",
+          cancelLabel: "Ở lại trang",
+          tone: "danger",
+        }).then((confirmed) => {
+          if (confirmed) {
+            allowNavigation = destination.href;
+            anchor.click();
+          }
+        });
       }
     };
     window.addEventListener("beforeunload", unload);

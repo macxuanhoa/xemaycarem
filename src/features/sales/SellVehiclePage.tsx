@@ -3,7 +3,7 @@ import { useDebouncedValue } from "@/lib/useDebouncedValue";
 import { useFormDraft } from "@/lib/useFormDraft";
 import { MoneyInput } from "@/components/ui/MoneyInput";
 import { Link, useNavigate, useParams } from "react-router-dom";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { ArrowLeft, ArrowRight, Bike, Search, ShoppingBag } from "lucide-react";
@@ -15,6 +15,7 @@ import {
   Badge,
   Button,
   Card,
+  DatePicker,
   EmptyState,
   ErrorState,
   Field,
@@ -26,7 +27,7 @@ import type { Paged, Vehicle } from "@/types";
 import { paymentLabels } from "@/features/vehicles/vehicleSchema";
 import { saleSchema, type SaleFormValues } from "./saleSchema";
 
-const pageSize = 20;
+const pageSize = 6;
 
 export function SellVehiclePage() {
   const { id } = useParams();
@@ -43,6 +44,7 @@ export function SellVehiclePage() {
 
   const inventory = useQuery({
     queryKey: ["sell-vehicle-picker", deferredSearch, page],
+    placeholderData: keepPreviousData,
     queryFn: () =>
       api.call<Paged<Vehicle>>("list_vehicles", {
         p_filters: {
@@ -80,6 +82,12 @@ export function SellVehiclePage() {
             />
           </label>
         </Card>
+        {inventory.data?.items.some((item) => item.cost_pending) && (
+          <p className="notice">
+            <strong>Lưu ý:</strong> Một số xe chưa có giá nhập và không thể bán.
+            Liên hệ người có quyền tài chính để cập nhật giá nhập.
+          </p>
+        )}
         {inventory.isPending ? (
           <Loading />
         ) : inventory.isError ? (
@@ -93,7 +101,10 @@ export function SellVehiclePage() {
             description="Nhập thêm xe hoặc thử từ khóa khác."
           />
         ) : (
-          <Card>
+          <Card className="table-card">
+            {inventory.isFetching && !inventory.isPending && (
+              <div className="table-updating-bar" role="progressbar" aria-label="Đang cập nhật danh sách" />
+            )}
             {inventory.data.items.map((item) => (
               <div key={item.id} className="compact-row">
                 <div className="vehicle-cell">
@@ -112,13 +123,24 @@ export function SellVehiclePage() {
                 </div>
                 <div className="row">
                   <span className="price">{money(item.asking_price)}</span>
-                  <Link
-                    className="button secondary"
-                    to={`/vehicles/${item.id}/${item.cost_pending ? "edit" : "sell"}`}
-                  >
-                    {item.cost_pending ? "Chờ giá nhập" : "Chọn xe"}
-                    <ArrowRight size={16} />
-                  </Link>
+                  {item.cost_pending ? (
+                    <button
+                      type="button"
+                      className="button secondary"
+                      disabled
+                      title="Xe này chưa có giá nhập, không thể bán"
+                    >
+                      Chờ giá nhập
+                    </button>
+                  ) : (
+                    <Link
+                      className="button secondary"
+                      to={`/vehicles/${item.id}/sell`}
+                    >
+                      Chọn xe
+                      <ArrowRight size={16} />
+                    </Link>
+                  )}
                 </div>
               </div>
             ))}
@@ -191,6 +213,10 @@ function SaleEditor({ vehicle }: { vehicle: Vehicle }) {
       }),
     onSuccess: async (saleId) => {
       draftState.complete();
+      // The sale is already committed. Messaging runs in the background and can never fail the sale UX.
+      void api.call<{ id?: string; status?: string }>("get_sale_communication", { p_sale_id: saleId })
+        .then((job) => job.id && job.status === "QUEUED" ? api.processMessage(job.id) : undefined)
+        .catch(() => undefined);
       await client.invalidateQueries();
       navigate(`/sales/${saleId}`);
     },
@@ -263,7 +289,19 @@ function SaleEditor({ vehicle }: { vehicle: Vehicle }) {
                 />
               </Field>
               <Field label="Ngày bán *" error={error("sale_date")}>
-                <input type="date" {...form.register("sale_date")} />
+                <DatePicker
+                  aria-label="Ngày bán *"
+                  value={form.watch("sale_date")}
+                  onChange={(val) =>
+                    form.setValue("sale_date", val, {
+                      shouldDirty: true,
+                      shouldValidate: !!error("sale_date"),
+                    })
+                  }
+                  onBlur={() => void form.trigger("sale_date")}
+                  max={today()}
+                  required
+                />
               </Field>
               <Field
                 label="Thu tiền lần đầu (₫)"
@@ -293,23 +331,42 @@ function SaleEditor({ vehicle }: { vehicle: Vehicle }) {
                 label="Hạn thanh toán (nếu còn nợ)"
                 error={error("due_date")}
               >
-                <input
-                  type="date"
+                <DatePicker
+                  aria-label="Hạn thanh toán (nếu còn nợ)"
+                  value={form.watch("due_date")}
                   min={form.watch("sale_date")}
-                  {...form.register("due_date")}
+                  onChange={(val) =>
+                    form.setValue("due_date", val, {
+                      shouldDirty: true,
+                      shouldValidate: !!error("due_date"),
+                    })
+                  }
+                  onBlur={() => void form.trigger("due_date")}
                 />
+                {Number.isFinite(price) &&
+                  Number.isFinite(paid) &&
+                  price > paid &&
+                  !form.watch("due_date") && (
+                    <small
+                      className="muted"
+                      style={{ display: "block", marginTop: "4px" }}
+                    >
+                      Khách còn nợ {money(price - paid)}. Nên hẹn ngày thanh toán để quản lý công nợ.
+                    </small>
+                  )}
               </Field>
             </div>
             <Button
               type="button"
               variant="ghost"
-              onClick={() =>
+              onClick={() => {
                 form.setValue(
                   "initial_payment",
                   Number.isFinite(price) ? price : 0,
                   { shouldValidate: true, shouldDirty: true },
-                )
-              }
+                );
+                form.setValue("due_date", "", { shouldDirty: true });
+              }}
             >
               Đã thu đủ tiền
             </Button>

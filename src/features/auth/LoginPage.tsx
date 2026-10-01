@@ -8,6 +8,7 @@ import {
   LockKeyhole,
   Bike,
   ShieldCheck,
+  Store,
 } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -81,10 +82,10 @@ export default function LoginPage() {
       <div className="login-story">
         <Link to="/" className="brand">
           <span className="brand-icon">
-            <img src="/logo.jpg" alt="Logo Cà Rém" className="brand-logo-img" />
+            <img src="/logo.jpg" alt="Logo Cà Rem" className="brand-logo-img" />
           </span>
           <span>
-            Xe CRM<small>VẬN HÀNH CỬA HÀNG</small>
+            Cà Rem<small>VẬN HÀNH CỬA HÀNG</small>
           </span>
         </Link>
         <div className="login-story-content">
@@ -209,9 +210,22 @@ export default function LoginPage() {
             <ShieldCheck size={17} />
             <span>Hệ thống nội bộ. Tài khoản do chủ cửa hàng cấp.</span>
           </div>
+          <div className="login-showroom-prompt">
+            <div className="showroom-prompt-header">
+              <Store size={18} className="showroom-icon-red" />
+              <div>
+                <strong>Xem kho xe tại Showroom</strong>
+                <p>Khách hàng quan tâm có thể xem giá và đặt lịch lái thử trực tiếp</p>
+              </div>
+            </div>
+            <Link to="/showroom" className="login-showroom-action-btn">
+              <span>Đến Showroom Cà Rem</span>
+              <ArrowRight size={15} />
+            </Link>
+          </div>
         </div>
         <p className="login-bottom">
-          Công việc gọn gàng. Kinh doanh vững vàng.
+          Xe Máy Cà Rem Hội An • Hotline: 0914.92.92.92
         </p>
       </div>
     </main>

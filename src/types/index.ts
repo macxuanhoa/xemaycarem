@@ -1,4 +1,4 @@
-export type Role = "OWNER" | "MANAGER" | "STAFF" | "VIEWER";
+export type Role = "OWNER" | "MANAGER" | "STAFF";
 export type Profile = {
   id: string;
   full_name: string;
@@ -82,6 +82,22 @@ export type Vehicle = {
   sales?: Sale[];
   activity?: Activity[];
 };
+export type IdentitySubject = "acquisition" | "sale";
+// CCCD hồ sơ pháp lý. Sensitive: chỉ OWNER/MANAGER được cấp từ server.
+export type IdentityDocument = {
+  id: string;
+  acquisition_id?: string | null;
+  sale_id?: string | null;
+  full_name: string;
+  id_number: string;
+  dob?: string | null;
+  issued_date?: string | null;
+  place_of_issue: string;
+  address: string;
+  front_image_path?: string | null;
+  back_image_path?: string | null;
+  updated_at?: string;
+};
 export type Acquisition = {
   id: string;
   vehicle_id: string;
@@ -148,6 +164,24 @@ export type Sale = {
   created_at: string;
 };
 export type DateFilter = { from: string; to: string };
+
+export type AnnouncementType = "INFO" | "SUCCESS" | "WARNING" | "CRITICAL";
+export type AnnouncementDisplay = "STATIC" | "SCROLLING";
+export type AnnouncementAudience = "ALL" | Role;
+export type Announcement = {
+  id: string;
+  title: string | null;
+  message: string;
+  type: AnnouncementType;
+  display_mode: AnnouncementDisplay;
+  audience?: AnnouncementAudience;
+  is_active?: boolean;
+  starts_at: string | null;
+  ends_at: string | null;
+  dismissible: boolean;
+  created_at?: string;
+  updated_at?: string;
+};
 export type DashboardData = {
   in_stock: number;
   reserved: number;
@@ -288,4 +322,78 @@ export type ImportVehicleRow = {
   supplier_name?: string;
   supplier_phone?: string;
   notes?: string;
+};
+
+/**
+ * AI copilot. Every answer is a list of facts plus the exact evidence rows the
+ * server read under this user's session, so each claim can be reopened.
+ */
+export type CopilotCitationType =
+  | "vehicle"
+  | "sale"
+  | "expense"
+  | "debt"
+  | "metric"
+  | "audit"
+  | "profile"
+  | "document"
+  | "settings";
+
+export type CopilotCitation = {
+  id: string;
+  type: CopilotCitationType;
+  label: string;
+  detail: string | null;
+  route: string;
+};
+
+export type CopilotFact = {
+  label: string;
+  value: number | string;
+  display: string;
+  citation: string;
+};
+
+export type CopilotMode = "deterministic" | "llm";
+
+export type CopilotAnswer = {
+  kind: "copilot";
+  mode: CopilotMode;
+  available: boolean;
+  coverage: "data" | "documents" | "both" | "none";
+  period: string | null;
+  facts: CopilotFact[];
+  citations: CopilotCitation[];
+  doc_excerpts: {
+    id: string;
+    title: string;
+    section: string | null;
+    excerpt: string;
+  }[];
+  answer_markdown: string;
+  citation_ids?: string[];
+  suggestions: { label: string; route: string }[];
+  insufficient: boolean;
+  warnings: string[];
+};
+
+export type KnowledgeAudience = "ALL" | "STAFF" | "MANAGER" | "OWNER";
+
+export type KnowledgeIndexItem = {
+  slug: string;
+  title: string;
+  section: string | null;
+  audience: KnowledgeAudience;
+  source_path: string | null;
+};
+
+export type KnowledgeArticle = KnowledgeIndexItem & {
+  body_md: string;
+  updated_at: string;
+};
+
+export type KnowledgeSearchHit = KnowledgeIndexItem & {
+  id: string;
+  rank: number;
+  excerpt: string;
 };

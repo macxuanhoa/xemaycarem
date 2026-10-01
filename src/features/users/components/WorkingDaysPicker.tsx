@@ -19,7 +19,7 @@ export function WorkingDaysPicker({
     if (value.includes(day)) {
       onChange(value.filter((d) => d !== day));
     } else {
-      onChange([...value, day].sort());
+      onChange([...value, day].sort((a, b) => a - b));
     }
   };
 

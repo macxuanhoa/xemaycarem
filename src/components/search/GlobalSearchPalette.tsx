@@ -41,10 +41,7 @@ export function GlobalSearchPalette() {
         ]
       : []),
     ...(canManage(profile)
-      ? [
-          { label: "Chi phí", to: "/expenses" },
-          { label: "Đối soát", to: "/reconciliation" },
-        ]
+      ? [{ label: "Chi phí", to: "/expenses" }]
       : []),
     { label: "Công nợ", to: "/receivables" },
     { label: "Khách hàng", to: "/customers" },
@@ -196,9 +193,21 @@ export function GlobalSearchPalette() {
           {query.trim().length >= 2 ? (
             <div className="search-palette-section">
               <div className="search-palette-heading" role="status">
-                {query.trim() !== debouncedQuery || search.isFetching
-                  ? "Đang tìm…"
-                  : "KẾT QUẢ TÌM KIẾM"}
+                {query.trim() !== debouncedQuery || search.isFetching ? (
+                  <div className="row" style={{ gap: "8px", alignItems: "center" }}>
+                    <div className="search-loading-spinner" style={{
+                      width: "14px",
+                      height: "14px",
+                      border: "2px solid #e2e8f0",
+                      borderTop: "2px solid var(--primary, #4f46e5)",
+                      borderRadius: "50%",
+                      animation: "spin 0.8s linear infinite"
+                    }} />
+                    <span>Đang tìm…</span>
+                  </div>
+                ) : (
+                  "KẾT QUẢ TÌM KIẾM"
+                )}
               </div>
               {search.error && (
                 <ErrorState

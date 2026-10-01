@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useDebouncedValue } from "@/lib/useDebouncedValue";
 import { useDialog } from "@/lib/useDialog";
 import { Link, useSearchParams } from "react-router-dom";
-import { useQuery } from "@tanstack/react-query";
+import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   ArrowRight,
   Bike,
@@ -26,9 +26,10 @@ import {
 } from "@/components/ui";
 import type { CustomerSummary, Paged } from "@/types";
 
-const pageSize = 20;
+const pageSize = 6;
 
 export function CustomersPage() {
+  const client = useQueryClient();
   const [searchParams, setSearchParams] = useSearchParams();
   const initialPhone =
     searchParams.get("phone") || searchParams.get("search") || "";
@@ -44,6 +45,7 @@ export function CustomersPage() {
   }, [searchParams]);
   const query = useQuery({
     queryKey: ["customers", deferredSearch, page],
+    placeholderData: keepPreviousData,
     queryFn: () =>
       api.call<Paged<CustomerSummary>>("list_customers", {
         p_filters: {
@@ -54,6 +56,22 @@ export function CustomersPage() {
       }),
   });
 
+  useEffect(() => {
+    if (query.data && page * pageSize < query.data.total) {
+      void client.prefetchQuery({
+        queryKey: ["customers", deferredSearch, page + 1],
+        queryFn: () =>
+          api.call<Paged<CustomerSummary>>("list_customers", {
+            p_filters: {
+              search: deferredSearch,
+              offset: page * pageSize,
+              limit: pageSize,
+            },
+          }),
+      });
+    }
+  }, [query.data, page, deferredSearch, client]);
+
   const detailQuery = useQuery({
     queryKey: ["customer-history", selectedPhone],
     queryFn: () =>
@@ -62,10 +80,17 @@ export function CustomersPage() {
       }),
     enabled: !!selectedPhone,
   });
+  const communicationQuery = useQuery({
+    queryKey: ["customer-communications", selectedPhone],
+    queryFn: () => api.call<Array<{ id: string; channel: string; message_type: string; status: string; created_at: string; message_preview: string }>>("list_customer_communications", { p_phone: selectedPhone! }),
+    enabled: !!selectedPhone,
+  });
 
   const handleSelectCustomer = (phone: string) => {
-    setSelectedPhone(phone);
-    setSearchParams({ phone });
+    const trimmed = phone.trim();
+    if (!trimmed) return;
+    setSelectedPhone(trimmed);
+    setSearchParams({ phone: trimmed });
   };
 
   const handleCloseDetail = () => {
@@ -112,7 +137,10 @@ export function CustomersPage() {
         />
       ) : (
         <Card className="table-card">
-          <div className="table-wrap desktop-table">
+          {query.isFetching && !query.isPending && (
+            <div className="table-updating-bar" role="progressbar" aria-label="Đang cập nhật danh sách" />
+          )}
+          <div className={`table-wrap desktop-table ${query.isFetching && !query.isPending ? "is-updating" : ""}`}>
             <table className="data-table">
               <thead>
                 <tr>
@@ -179,7 +207,16 @@ export function CustomersPage() {
                       <Button
                         variant="secondary"
                         className="small"
-                        onClick={() => handleSelectCustomer(c.customer_phone)}
+                        disabled={!c.customer_phone}
+                        title={
+                          !c.customer_phone
+                            ? "Khách chưa có số điện thoại để tra cứu lịch sử"
+                            : "Xem chi tiết lịch sử mua xe"
+                        }
+                        onClick={() =>
+                          c.customer_phone &&
+                          handleSelectCustomer(c.customer_phone)
+                        }
                       >
                         <History size={14} /> Chi tiết
                       </Button>
@@ -195,7 +232,11 @@ export function CustomersPage() {
               <div
                 key={c.customer_phone || c.customer_name}
                 className="mobile-record"
-                onClick={() => handleSelectCustomer(c.customer_phone)}
+                style={{ cursor: c.customer_phone ? "pointer" : "default" }}
+                onClick={() =>
+                  c.customer_phone &&
+                  handleSelectCustomer(c.customer_phone)
+                }
               >
                 <div className="row between">
                   <strong>{c.customer_name}</strong>
@@ -249,7 +290,11 @@ export function CustomersPage() {
 
       {/* Customer Purchase History Modal */}
       {selectedPhone && (
-        <div className="modal-backdrop" onClick={handleCloseDetail}>
+        <div
+          className="modal-backdrop"
+          onClick={handleCloseDetail}
+          role="presentation"
+        >
           <div
             className="modal-card"
             ref={dialogRef}
@@ -447,6 +492,21 @@ export function CustomersPage() {
                     </div>
                   ))}
                 </div>
+                <h3>Lịch sử liên hệ</h3>
+                {communicationQuery.isPending ? <Loading /> : communicationQuery.data?.length ? (
+                  <div className="compact-list">
+                    {communicationQuery.data.map((item) => (
+                      <div key={item.id} className="card" style={{ padding: "12px" }}>
+                        <div className="row between">
+                          <strong>{dateLabel(item.created_at)}</strong>
+                          <Badge status={item.status} />
+                        </div>
+                        <small className="muted">{item.channel === "ZALO_ZNS" ? "Zalo" : item.channel} · {item.message_type === "THANK_YOU" ? "Cảm ơn sau mua xe" : item.message_type}</small>
+                        <p className="small">{item.message_preview}</p>
+                      </div>
+                    ))}
+                  </div>
+                ) : <p className="muted">Chưa có lịch sử liên hệ.</p>}
               </div>
             ) : null}
           </div>

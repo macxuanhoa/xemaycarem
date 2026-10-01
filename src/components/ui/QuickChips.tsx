@@ -46,9 +46,9 @@ export function QuickChips({
 export const BRAND_CHIPS = [
   { value: "Honda", label: "Honda" },
   { value: "Yamaha", label: "Yamaha" },
-  { value: "Piaggio", label: "Piaggio / Vespa" },
   { value: "Suzuki", label: "Suzuki" },
   { value: "SYM", label: "SYM" },
+  { value: "Piaggio", label: "Piaggio / Vespa" },
 ];
 
 export const COLOR_CHIPS = [

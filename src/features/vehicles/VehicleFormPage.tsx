@@ -7,11 +7,13 @@ import { ArrowLeft } from "lucide-react";
 import { api } from "@/lib/api";
 import { AppError } from "@/lib/errors";
 import { today } from "@/lib/format";
-import { canFinance, canManage, canOperate } from "@/lib/permissions";
+import { useDebouncedValue } from "@/lib/useDebouncedValue";
+import { canFinance, canManage, canCreateVehicle, canEditVehicle } from "@/lib/permissions";
 import { useAuth } from "@/features/auth/AuthProvider";
 import {
   Button,
   Card,
+  DatePicker,
   EmptyState,
   ErrorState,
   Field,
@@ -42,8 +44,15 @@ export function VehicleFormPage() {
     enabled: !!id,
   });
 
-  if (!canOperate(profile))
-    return <EmptyState title="Bạn không có quyền thay đổi thông tin xe." />;
+  const isEditing = !!id;
+  const hasPermission = isEditing ? canEditVehicle(profile) : canCreateVehicle(profile);
+
+  if (!hasPermission)
+    return (
+      <EmptyState
+        title={isEditing ? "Bạn không có quyền chỉnh sửa thông tin xe." : "Bạn không có quyền tạo xe mới."}
+      />
+    );
   if (id && query.isPending) return <Loading />;
   if (id && query.isError)
     return (
@@ -55,6 +64,18 @@ export function VehicleFormPage() {
         <EmptyState
           title="Xe đã bán"
           description="Thông tin giá vốn và giao dịch được giữ nguyên để bảo toàn lịch sử."
+        />
+        <Link className="button secondary" to={`/vehicles/${id}`}>
+          Về chi tiết xe
+        </Link>
+      </div>
+    );
+  if (query.data?.status === "CANCELLED" && !canManage(profile))
+    return (
+      <div className="stack">
+        <EmptyState
+          title="Xe đã hủy"
+          description="Chỉ quản lý hoặc chủ cửa hàng mới có quyền chỉnh sửa hoặc khôi phục xe này."
         />
         <Link className="button secondary" to={`/vehicles/${id}`}>
           Về chi tiết xe
@@ -113,6 +134,25 @@ function VehicleEditor({ vehicle }: { vehicle?: Vehicle }) {
     form,
   );
   const brand = form.watch("brand");
+  const rawFrame = form.watch("frame_number").trim();
+  const checkedFrame = useDebouncedValue(rawFrame, 450);
+  const duplicateQuery = useQuery({
+    queryKey: ["vehicle-frame-check", profile?.id, checkedFrame],
+    queryFn: () =>
+      api.call<Paged<Vehicle>>("list_vehicles", {
+        p_filters: { search: checkedFrame, limit: 100 },
+      }),
+    enabled: checkedFrame.length > 0 && checkedFrame === rawFrame,
+  });
+  const duplicate =
+    checkedFrame === rawFrame && rawFrame.length > 0
+      ? duplicateQuery.data?.items.find(
+          (item) =>
+            item.id !== vehicle?.id &&
+            item.frame_number?.trim().toUpperCase() === rawFrame.toUpperCase(),
+        )
+      : undefined;
+
   const catalog = useQuery({
     queryKey: ["vehicle-form-suggestions", profile?.id],
     queryFn: () =>
@@ -136,6 +176,10 @@ function VehicleEditor({ vehicle }: { vehicle?: Vehicle }) {
     mutationFn: async (values: VehicleFormValues) => {
       if (financial && values.purchase_price === undefined)
         throw new AppError("Vui lòng nhập giá mua xe.");
+      if (duplicate)
+        throw new AppError(
+          `Số khung đã tồn tại trên xe khác: ${duplicate.brand} ${duplicate.model} (${duplicate.internal_code}).`,
+        );
       const data: Record<string, unknown> = {
         ...values,
         year: values.year ?? null,
@@ -226,7 +270,10 @@ function VehicleEditor({ vehicle }: { vehicle?: Vehicle }) {
           className="plain-fieldset stack"
         >
           <Card>
-            <h2 className="section-title">Thông tin xe</h2>
+            <div className="section-heading">
+              <h2 className="section-title" style={{ margin: 0 }}>1. Thông tin cơ bản</h2>
+              <span className="muted small">Bắt buộc: Hãng, Dòng xe</span>
+            </div>
             <div className="form-grid">
               <Field label="Hãng xe *" error={error("brand")}>
                 <AutocompleteInput
@@ -283,6 +330,21 @@ function VehicleEditor({ vehicle }: { vehicle?: Vehicle }) {
               </Field>
               <Field label="Số khung" error={error("frame_number")}>
                 <input {...form.register("frame_number")} />
+                {duplicate && (
+                  <p
+                    className="notice danger"
+                    style={{
+                      marginTop: "6px",
+                      fontSize: "12px",
+                      background: "#fef2f2",
+                      borderColor: "#fecdd3",
+                      color: "#9c493d",
+                    }}
+                  >
+                    Số khung này đã tồn tại trên xe: {duplicate.brand}{" "}
+                    {duplicate.model} ({duplicate.internal_code})
+                  </p>
+                )}
               </Field>
               <Field label="Số máy" error={error("engine_number")}>
                 <input {...form.register("engine_number")} />
@@ -298,7 +360,7 @@ function VehicleEditor({ vehicle }: { vehicle?: Vehicle }) {
               </Field>
               <Field label="Trạng thái">
                 <select {...form.register("status")}>
-                  <option value="IN_STOCK">Đang tồn kho</option>
+                  <option value="IN_STOCK">Sẵn sàng bán</option>
                   <option value="RESERVED">Giữ chỗ</option>
                   {canManage(profile) && (
                     <option value="CANCELLED">Đã hủy</option>
@@ -320,7 +382,10 @@ function VehicleEditor({ vehicle }: { vehicle?: Vehicle }) {
             />
           </Card>
           <Card>
-            <h2 className="section-title">Thông tin nhập kho</h2>
+            <div className="section-heading">
+              <h2 className="section-title" style={{ margin: 0 }}>2. Giá cả & Nhập kho</h2>
+              <span className="muted small">Bắt buộc: Ngày nhập, Giá niêm yết</span>
+            </div>
             {!financial && (
               <p className="notice">
                 Chủ cửa hàng hoặc người có quyền tài chính sẽ bổ sung giá nhập
@@ -329,7 +394,19 @@ function VehicleEditor({ vehicle }: { vehicle?: Vehicle }) {
             )}
             <div className="form-grid">
               <Field label="Ngày nhập kho *" error={error("purchase_date")}>
-                <input type="date" {...form.register("purchase_date")} />
+                <DatePicker
+                  aria-label="Ngày nhập kho *"
+                  value={form.watch("purchase_date")}
+                  onChange={(val) =>
+                    form.setValue("purchase_date", val, {
+                      shouldDirty: true,
+                      shouldValidate: !!error("purchase_date"),
+                    })
+                  }
+                  onBlur={() => void form.trigger("purchase_date")}
+                  max={today()}
+                  required
+                />
               </Field>
               {financial && (
                 <Field label="Giá mua (₫) *" error={error("purchase_price")}>
@@ -364,6 +441,16 @@ function VehicleEditor({ vehicle }: { vehicle?: Vehicle }) {
                   required
                   showShortcuts={false}
                 />
+                {financial &&
+                  typeof form.watch("purchase_price") === "number" &&
+                  (form.watch("purchase_price") ?? 0) > 0 &&
+                  typeof form.watch("asking_price") === "number" &&
+                  form.watch("asking_price") > 0 &&
+                  form.watch("asking_price") <= (form.watch("purchase_price") ?? 0) && (
+                    <p className="notice" style={{ marginTop: "4px", fontSize: "12px" }}>
+                      Lưu ý: Giá niêm yết bán đang thấp hơn hoặc bằng giá mua vào.
+                    </p>
+                  )}
               </Field>
               <Field label="Tên nhà cung cấp" error={error("supplier_name")}>
                 <input {...form.register("supplier_name")} />
@@ -384,7 +471,10 @@ function VehicleEditor({ vehicle }: { vehicle?: Vehicle }) {
             </Field>
           </Card>
           <Card>
-            <h2 className="section-title">Hình ảnh xe</h2>
+            <div className="section-heading">
+              <h2 className="section-title" style={{ margin: 0 }}>3. Hình ảnh xe</h2>
+              <span className="muted small">Tùy chọn - tối đa 20 MB/ảnh</span>
+            </div>
             <p className="muted">
               Chọn nhiều ảnh JPG, PNG, WebP tối đa 20 MB mỗi ảnh. Ảnh được nén
               trước khi tải.

@@ -3,13 +3,20 @@ import { useEffect, useRef, useState } from "react";
 const mobileQuery = "(max-width: 760px)";
 
 export function useMobileDrawer() {
-  const [mobile, setMobile] = useState(() => window.matchMedia(mobileQuery).matches);
+  const [mobile, setMobile] = useState(
+    () =>
+      typeof window !== "undefined" &&
+      typeof window.matchMedia === "function" &&
+      window.matchMedia(mobileQuery).matches,
+  );
   const [open, setOpen] = useState(false);
   const panelRef = useRef<HTMLElement>(null);
   const triggerRef = useRef<HTMLButtonElement | null>(null);
   const active = mobile && open;
 
   useEffect(() => {
+    if (typeof window === "undefined" || typeof window.matchMedia !== "function")
+      return;
     const media = window.matchMedia(mobileQuery);
     const update = () => {
       setMobile(media.matches);

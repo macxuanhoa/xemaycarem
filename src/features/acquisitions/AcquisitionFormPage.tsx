@@ -1,17 +1,28 @@
-import { useRef } from "react";
+import { useRef, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { ArrowLeft } from "lucide-react";
+import {
+  ArrowLeft,
+  AlertTriangle,
+  CheckCircle2,
+  ChevronDown,
+  Clock,
+  LoaderCircle,
+  Plus,
+  X,
+} from "lucide-react";
 import { api } from "@/lib/api";
 import { AppError } from "@/lib/errors";
 import { canFinance, canOperate } from "@/lib/permissions";
-import { today } from "@/lib/format";
+import { dateLabel, money, today } from "@/lib/format";
+import { formatVndApproxText, formatVndWords } from "@/lib/moneyHelper";
 import { useAuth } from "@/features/auth/AuthProvider";
 import {
   Button,
   Card,
+  DatePicker,
   EmptyState,
   ErrorState,
   Field,
@@ -29,6 +40,7 @@ import { useDebouncedValue } from "@/lib/useDebouncedValue";
 import { vehicleSuggestions } from "@/lib/vehicleSuggestions";
 import { useFormDraft } from "@/lib/useFormDraft";
 import { draftFields } from "@/lib/formDrafts";
+import { useDialog } from "@/lib/useDialog";
 import type { Paged, Vehicle } from "@/types";
 import {
   acquisitionSchema,
@@ -49,6 +61,11 @@ function AcquisitionEditor() {
   const client = useQueryClient();
   const financial = canFinance(profile);
   const advancedRef = useRef<HTMLDetailsElement>(null);
+  const [moreOpen, setMoreOpen] = useState(false);
+  const [pendingConfirmation, setPendingConfirmation] =
+    useState<AcquisitionFormValues | null>(null);
+  const [isDraftRestored, setIsDraftRestored] = useState(false);
+
   const form = useForm<AcquisitionFormValues>({
     resolver: zodResolver(acquisitionSchema),
     mode: "onBlur",
@@ -61,10 +78,10 @@ function AcquisitionEditor() {
       variant: "",
       year: undefined,
       color: "",
-      odometer: 0,
+      odometer: undefined,
       acquisition_date: today(),
       purchase_price: undefined,
-      asking_price: 0,
+      asking_price: undefined,
       seller_name: "",
       seller_phone: "",
       notes: "",
@@ -75,10 +92,13 @@ function AcquisitionEditor() {
       ),
     },
   });
+
   const draft = useFormDraft("acquisition", profile?.id, form);
   const brand = form.watch("brand");
-  const frame = form.watch("frame_number").trim();
+  const rawFrame = form.watch("frame_number");
+  const frame = (rawFrame || "").trim().toUpperCase();
   const checkedFrame = useDebouncedValue(frame, 450);
+
   const catalog = useQuery({
     queryKey: ["vehicle-form-suggestions", profile?.id],
     queryFn: () =>
@@ -87,6 +107,7 @@ function AcquisitionEditor() {
       }),
     staleTime: 5 * 60 * 1000,
   });
+
   const duplicateQuery = useQuery({
     queryKey: ["vehicle-frame-check", profile?.id, checkedFrame],
     queryFn: () =>
@@ -95,14 +116,18 @@ function AcquisitionEditor() {
       }),
     enabled: checkedFrame.length > 0 && checkedFrame === frame,
   });
+
   const duplicate =
     checkedFrame === frame
       ? duplicateQuery.data?.items.find(
-          (vehicle) => vehicle.frame_number?.trim() === frame,
+          (vehicle) =>
+            vehicle.frame_number?.trim().toUpperCase() === frame.toUpperCase(),
         )
       : undefined;
+
   const suggestions = (field: "brand" | "model" | "variant" | "color") =>
     vehicleSuggestions(catalog.data?.items ?? [], field, profile?.id, brand);
+
   const setText = (
     field: "brand" | "model" | "variant" | "color",
     value: string,
@@ -114,18 +139,28 @@ function AcquisitionEditor() {
 
   const mutation = useMutation({
     mutationFn: async (values: AcquisitionFormValues) => {
-      if (financial && values.purchase_price === undefined)
+      if (
+        financial &&
+        (values.purchase_price === undefined || values.purchase_price === null)
+      ) {
         throw new AppError("Vui lòng nhập giá thu xe.");
-      if (duplicate)
-        throw new AppError("Số khung đã tồn tại. Hãy mở xe đã có để tiếp tục.");
+      }
+      if (duplicate) {
+        throw new AppError(
+          "Số khung đã tồn tại. Hãy mở xe đã có để tiếp tục.",
+        );
+      }
       const data: Record<string, unknown> = {
         ...values,
         year: values.year ?? null,
+        odometer: values.odometer ?? null,
+        asking_price: values.asking_price ?? 0,
       };
       if (!financial) delete data.purchase_price;
       return api.call<string>("acquire_vehicle", { p_data: data });
     },
     onSuccess: async (vehicleId, values) => {
+      setPendingConfirmation(null);
       draft.complete();
       saveRecentValue("brand", values.brand, profile?.id);
       saveRecentValue(
@@ -141,8 +176,50 @@ function AcquisitionEditor() {
       });
     },
   });
+
+  const confirmDialogRef = useDialog(
+    !!pendingConfirmation,
+    () => {
+      if (!mutation.isPending) setPendingConfirmation(null);
+    },
+    mutation.isPending,
+  );
+
   const error = (key: keyof AcquisitionFormValues) =>
     form.formState.errors[key]?.message;
+
+  const handleValidSubmit = (values: AcquisitionFormValues) => {
+    const normalized: AcquisitionFormValues = {
+      ...values,
+      frame_number: values.frame_number.trim().toUpperCase(),
+      engine_number: values.engine_number.trim().toUpperCase(),
+      license_plate: values.license_plate.trim().toUpperCase(),
+      brand: values.brand.trim(),
+      model: values.model.trim(),
+      variant: values.variant.trim(),
+      color: values.color.trim(),
+      seller_name: values.seller_name.trim(),
+      seller_phone: values.seller_phone.trim(),
+      notes: values.notes.trim(),
+    };
+    setPendingConfirmation(normalized);
+  };
+
+  const handleValidationErrors = (errors: Record<string, unknown>) => {
+    if (
+      [
+        "variant",
+        "year",
+        "color",
+        "odometer",
+        "asking_price",
+        "notes",
+      ].some((field) => field in errors)
+    ) {
+      setMoreOpen(true);
+      if (advancedRef.current) advancedRef.current.open = true;
+    }
+  };
 
   return (
     <div className="stack">
@@ -160,50 +237,55 @@ function AcquisitionEditor() {
         </p>
       )}
       {draft.draft && (
-        <div className="notice draft-notice">
-          <p>
-            Có bản nháp thu xe chưa hoàn tất. Giá tiền cần nhập lại trước khi
-            xác nhận.
-          </p>
-          <div className="row">
-            <Button variant="secondary" onClick={draft.resume}>
+        <div className="notice draft-notice" role="alert">
+          <div className="row" style={{ gap: "8px", alignItems: "center" }}>
+            <Clock size={16} />
+            <p>
+              Có bản nháp thu xe chưa hoàn tất trên thiết bị này. Vì lý do bảo
+              mật, giá thu cần nhập lại trước khi xác nhận.
+            </p>
+          </div>
+          <div className="row" style={{ marginTop: "10px" }}>
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={() => {
+                draft.resume();
+                setIsDraftRestored(true);
+              }}
+            >
               Tiếp tục bản nháp
             </Button>
-            <Button variant="ghost" onClick={draft.discard}>
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={() => {
+                draft.discard();
+                setIsDraftRestored(false);
+              }}
+            >
               Bỏ bản nháp
             </Button>
           </div>
         </div>
       )}
+
       <form
         className="stack"
         onSubmit={form.handleSubmit(
-          (values) => mutation.mutate(values),
-          (errors) => {
-            if (
-              [
-                "engine_number",
-                "variant",
-                "year",
-                "color",
-                "odometer",
-                "asking_price",
-                "notes",
-              ].some((field) => field in errors) &&
-              advancedRef.current
-            )
-              advancedRef.current.open = true;
-          },
+          handleValidSubmit,
+          handleValidationErrors,
         )}
       >
         <fieldset
           disabled={mutation.isPending}
           className="plain-fieldset stack"
         >
+          {/* Card 1: Thông tin xe & định giá */}
           <Card>
-            <h2 className="section-title">Thông tin thu xe</h2>
+            <h2 className="section-title">1. Thông tin xe</h2>
             {!financial && (
-              <p className="notice">
+              <p className="notice" style={{ marginBottom: "16px" }}>
                 Người có quyền tài chính sẽ bổ sung giá thu trước khi bán xe.
               </p>
             )}
@@ -214,17 +296,106 @@ function AcquisitionEditor() {
                   autoCapitalize="characters"
                   enterKeyHint="next"
                   {...form.register("frame_number")}
-                  placeholder="Số khung là mã nhận dạng duy nhất"
+                  onBlur={() => {
+                    const val = form.getValues("frame_number");
+                    if (val) {
+                      form.setValue(
+                        "frame_number",
+                        val.trim().toUpperCase(),
+                        { shouldValidate: true },
+                      );
+                    }
+                    void form.trigger("frame_number");
+                  }}
+                  placeholder="Nhập số khung xe (bắt buộc)"
+                />
+                {checkedFrame.length >= 3 &&
+                  !duplicateQuery.isFetching &&
+                  !duplicate && (
+                    <span className="inline-check-feedback positive">
+                      <CheckCircle2 size={13} /> Số khung chưa có trong hệ thống
+                    </span>
+                  )}
+                {duplicateQuery.isFetching && (
+                  <span className="inline-check-feedback muted">
+                    <LoaderCircle size={13} className="spin" /> Đang kiểm tra số
+                    khung…
+                  </span>
+                )}
+                {duplicate && (
+                  <div
+                    className="notice danger"
+                    role="alert"
+                    style={{
+                      background: "#fef2f2",
+                      borderColor: "#fecdd3",
+                      color: "#9c493d",
+                      marginTop: "8px",
+                    }}
+                  >
+                    <div
+                      className="row"
+                      style={{ gap: "8px", alignItems: "center" }}
+                    >
+                      <AlertTriangle size={18} />
+                      <strong>Số khung đã tồn tại trong hệ thống</strong>
+                    </div>
+                    <div style={{ marginTop: "6px" }}>
+                      <strong>
+                        {duplicate.brand} {duplicate.model}
+                      </strong>{" "}
+                      · {duplicate.license_plate || duplicate.internal_code}
+                    </div>
+                    <div style={{ marginTop: "6px" }}>
+                      <Link
+                        to={`/vehicles/${duplicate.id}`}
+                        className="text-link"
+                      >
+                        Xem chi tiết xe đã có →
+                      </Link>
+                    </div>
+                  </div>
+                )}
+              </Field>
+
+              <Field label="Số máy" error={error("engine_number")}>
+                <input
+                  autoCapitalize="characters"
+                  enterKeyHint="next"
+                  {...form.register("engine_number")}
+                  onBlur={() => {
+                    const val = form.getValues("engine_number");
+                    if (val) {
+                      form.setValue(
+                        "engine_number",
+                        val.trim().toUpperCase(),
+                        { shouldValidate: !!error("engine_number") },
+                      );
+                    }
+                  }}
+                  placeholder="Nhập số máy (nếu có)"
                 />
               </Field>
+
               <Field label="Biển số (nếu có)" error={error("license_plate")}>
                 <input
                   autoCapitalize="characters"
                   enterKeyHint="next"
                   {...form.register("license_plate")}
+                  onBlur={() => {
+                    const val = form.getValues("license_plate");
+                    if (val) {
+                      form.setValue(
+                        "license_plate",
+                        val.trim().toUpperCase(),
+                        { shouldValidate: !!error("license_plate") },
+                      );
+                    }
+                  }}
                   placeholder="59-A1 123.45"
                 />
               </Field>
+
               <Field label="Hãng xe *" error={error("brand")}>
                 <AutocompleteInput
                   aria-label="Hãng xe *"
@@ -236,6 +407,7 @@ function AcquisitionEditor() {
                   enterKeyHint="next"
                 />
               </Field>
+
               <Field label="Dòng xe *" error={error("model")}>
                 <AutocompleteInput
                   aria-label="Dòng xe *"
@@ -243,10 +415,11 @@ function AcquisitionEditor() {
                   onChange={(value) => setText("model", value)}
                   onBlur={() => void form.trigger("model")}
                   suggestions={suggestions("model")}
-                  placeholder="Ví dụ: SH 160i"
+                  placeholder="Ví dụ: SH 160i, Vision…"
                   enterKeyHint="next"
                 />
               </Field>
+
               {financial && (
                 <Field label="Giá thu (₫) *" error={error("purchase_price")}>
                   <MoneyInput
@@ -265,11 +438,50 @@ function AcquisitionEditor() {
                   />
                 </Field>
               )}
+
               <Field label="Ngày thu xe *" error={error("acquisition_date")}>
-                <input type="date" {...form.register("acquisition_date")} />
+                <DatePicker
+                  aria-label="Ngày thu xe *"
+                  value={form.watch("acquisition_date")}
+                  onChange={(value) => {
+                    form.setValue("acquisition_date", value, {
+                      shouldDirty: true,
+                      shouldValidate: !!error("acquisition_date"),
+                    });
+                  }}
+                  onBlur={() => void form.trigger("acquisition_date")}
+                  max={today()}
+                  required
+                />
               </Field>
+            </div>
+
+            <QuickChips
+              label="Chọn nhanh hãng xe"
+              options={BRAND_CHIPS}
+              selected={brand}
+              onSelect={(value) => setText("brand", value)}
+            />
+          </Card>
+
+          {/* Card 2: Thông tin người bán */}
+          <Card>
+            <h2 className="section-title">2. Thông tin người bán</h2>
+            <div className="form-grid">
               <Field label="Tên người bán" error={error("seller_name")}>
-                <input enterKeyHint="next" {...form.register("seller_name")} />
+                <input
+                  enterKeyHint="next"
+                  {...form.register("seller_name")}
+                  onBlur={() => {
+                    const val = form.getValues("seller_name");
+                    if (val) {
+                      form.setValue("seller_name", val.trim(), {
+                        shouldValidate: !!error("seller_name"),
+                      });
+                    }
+                  }}
+                  placeholder="Họ và tên người bán"
+                />
               </Field>
               <Field
                 label="Số điện thoại người bán"
@@ -279,51 +491,60 @@ function AcquisitionEditor() {
                   type="tel"
                   enterKeyHint="done"
                   {...form.register("seller_phone")}
+                  onBlur={() => {
+                    const val = form.getValues("seller_phone");
+                    if (val) {
+                      form.setValue("seller_phone", val.trim(), {
+                        shouldValidate: !!error("seller_phone"),
+                      });
+                    }
+                  }}
+                  placeholder="09xx xxx xxx"
                 />
               </Field>
             </div>
-            <QuickChips
-              label="Chọn hãng nhanh"
-              options={BRAND_CHIPS}
-              selected={brand}
-              onSelect={(value) => setText("brand", value)}
-            />
-            {duplicate && (
-              <div className="notice" role="alert">
-                Số khung đã tồn tại: {duplicate.brand} {duplicate.model} ·{" "}
-                {duplicate.license_plate || duplicate.internal_code}.{" "}
-                <Link to={`/vehicles/${duplicate.id}`}>Xem xe đã có</Link>
-              </div>
-            )}
           </Card>
+
+          {/* Card 3: Thông tin bổ sung */}
           <Card>
-            <details ref={advancedRef} className="advanced-fields">
-              <summary>
-                + Thông tin khác (số máy, màu, phiên bản, ghi chú…)
+            <details
+              ref={advancedRef}
+              className="advanced-fields-box"
+              open={moreOpen}
+              onToggle={(e) => setMoreOpen(e.currentTarget.open)}
+            >
+              <summary className="advanced-summary">
+                {moreOpen ? (
+                  <span className="advanced-summary-content">
+                    <ChevronDown size={16} /> Thu gọn thông tin thêm
+                  </span>
+                ) : (
+                  <span className="advanced-summary-content">
+                    <Plus size={16} /> Thêm thông tin (phiên bản, năm sản xuất,
+                    màu sắc, số km, giá bán dự kiến, ghi chú)
+                  </span>
+                )}
               </summary>
-              <div className="form-grid">
-                <Field label="Số máy" error={error("engine_number")}>
-                  <input
-                    autoCapitalize="characters"
-                    {...form.register("engine_number")}
-                  />
-                </Field>
+              <div className="form-grid" style={{ marginTop: "16px" }}>
                 <Field label="Phiên bản" error={error("variant")}>
                   <AutocompleteInput
                     aria-label="Phiên bản"
                     value={form.watch("variant")}
                     onChange={(value) => setText("variant", value)}
                     suggestions={suggestions("variant")}
-                    placeholder="ABS, Cao cấp…"
+                    placeholder="ABS, Cao cấp, Đặc biệt…"
                   />
                 </Field>
                 <Field label="Năm sản xuất" error={error("year")}>
                   <input
                     type="number"
                     inputMode="numeric"
+                    placeholder="Ví dụ: 2024"
                     {...form.register("year", {
                       setValueAs: (value) =>
-                        value === "" ? undefined : Number(value),
+                        value === "" || value == null
+                          ? undefined
+                          : Number(value),
                     })}
                   />
                 </Field>
@@ -333,6 +554,7 @@ function AcquisitionEditor() {
                     value={form.watch("color")}
                     onChange={(value) => setText("color", value)}
                     suggestions={suggestions("color")}
+                    placeholder="Ví dụ: Đỏ đen, Trắng…"
                   />
                 </Field>
                 <Field label="Số km đã đi" error={error("odometer")}>
@@ -340,56 +562,251 @@ function AcquisitionEditor() {
                     type="number"
                     inputMode="numeric"
                     min="0"
+                    max="10000000"
                     step="1"
-                    {...form.register("odometer", { valueAsNumber: true })}
+                    placeholder="12.500"
+                    {...form.register("odometer", {
+                      setValueAs: (value) =>
+                        value === "" || value == null
+                          ? undefined
+                          : Number(value),
+                    })}
                   />
                 </Field>
-                <Field label="Giá niêm yết (₫)" error={error("asking_price")}>
+                <Field
+                  label="Giá bán dự kiến (₫)"
+                  error={error("asking_price")}
+                >
                   <MoneyInput
-                    aria-label="Giá niêm yết (₫)"
+                    aria-label="Giá bán dự kiến (₫)"
+                    placeholder="Ví dụ: 95tr hoặc 95.000.000"
                     value={form.watch("asking_price")}
                     onChange={(value) =>
-                      form.setValue("asking_price", value ?? Number.NaN, {
+                      form.setValue("asking_price", value, {
                         shouldDirty: true,
                         shouldValidate: !!error("asking_price"),
                       })
                     }
+                    onBlur={() => void form.trigger("asking_price")}
                     showShortcuts={false}
                   />
                 </Field>
               </div>
+
               <QuickChips
-                label="Chọn màu nhanh"
+                label="Chọn nhanh màu xe"
                 options={COLOR_CHIPS}
                 selected={form.watch("color")}
                 onSelect={(value) => setText("color", value)}
               />
+
               <Field label="Ghi chú" error={error("notes")}>
                 <textarea
                   rows={3}
                   {...form.register("notes")}
-                  placeholder="Tình trạng xe, hồ sơ, phụ kiện đi kèm…"
+                  placeholder="Tình trạng xe, giấy tờ, phụ kiện, trầy xước, lỗi cần sửa…"
                 />
               </Field>
             </details>
           </Card>
         </fieldset>
-        {draft.saved && (
-          <p className="muted small" role="status">
-            Đã giữ bản nháp thông tin trên thiết bị này. Giá tiền cần nhập lại
-            khi tiếp tục bản nháp.
-          </p>
-        )}
+
         {mutation.isError && <ErrorState error={mutation.error} />}
-        <div className="form-actions mobile-sticky-actions">
-          <Link className="button secondary" to="/acquisitions">
-            Quay lại
-          </Link>
-          <Button type="submit" disabled={mutation.isPending || !!duplicate}>
-            {mutation.isPending ? "Đang lưu…" : "Xác nhận thu xe"}
-          </Button>
+
+        <div className="form-actions form-actions-acquisition mobile-sticky-actions">
+          <div className="form-actions-status">
+            {isDraftRestored &&
+            financial &&
+            (form.watch("purchase_price") === undefined ||
+              form.watch("purchase_price") === null ||
+              form.watch("purchase_price") === ("" as unknown as number)) ? (
+              <div
+                className="draft-status-subtle"
+                role="status"
+                aria-live="polite"
+              >
+                <CheckCircle2
+                  size={14}
+                  className="status-icon positive"
+                  aria-hidden="true"
+                />
+                <span className="status-text">Đã khôi phục bản nháp</span>
+                <span className="status-reentry-hint">
+                  Giá thu cần nhập lại.
+                </span>
+              </div>
+            ) : draft.saved ? (
+              <div
+                className="draft-status-subtle"
+                role="status"
+                aria-live="polite"
+              >
+                <CheckCircle2
+                  size={14}
+                  className="status-icon positive"
+                  aria-hidden="true"
+                />
+                <span className="status-text">Đã lưu bản nháp</span>
+              </div>
+            ) : null}
+          </div>
+
+          <div className="form-actions-buttons">
+            <Link className="button secondary" to="/acquisitions">
+              Quay lại
+            </Link>
+            <Button
+              type="submit"
+              disabled={
+                mutation.isPending || !!duplicate || duplicateQuery.isFetching
+              }
+            >
+              {mutation.isPending
+                ? "Đang lưu…"
+                : duplicateQuery.isFetching
+                  ? "Đang kiểm tra số khung…"
+                  : "Thu xe & tạo phiếu"}
+            </Button>
+          </div>
         </div>
       </form>
+
+      {/* Confirmation Dialog before financial submission */}
+      {pendingConfirmation && (
+        <div
+          className="modal-backdrop"
+          onClick={() => {
+            if (!mutation.isPending) setPendingConfirmation(null);
+          }}
+          role="presentation"
+        >
+          <div
+            ref={confirmDialogRef}
+            className="modal-card acquisition-confirm-modal"
+            onClick={(e) => e.stopPropagation()}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="confirm-modal-title"
+          >
+            <div className="modal-header">
+              <div>
+                <h3 id="confirm-modal-title">Xác nhận thu xe</h3>
+                <p className="modal-subtitle">
+                  Kiểm tra thông tin trước khi lưu xe vào kho và lập phiếu thu:
+                </p>
+              </div>
+              <button
+                type="button"
+                className="icon-button"
+                onClick={() => setPendingConfirmation(null)}
+                disabled={mutation.isPending}
+                aria-label="Đóng"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="confirm-summary-list">
+              <div className="confirm-summary-row">
+                <span className="confirm-label">Hãng & Dòng xe:</span>
+                <strong className="confirm-value">
+                  {pendingConfirmation.brand} {pendingConfirmation.model}
+                  {pendingConfirmation.variant
+                    ? ` (${pendingConfirmation.variant})`
+                    : ""}
+                </strong>
+              </div>
+              <div className="confirm-summary-row">
+                <span className="confirm-label">Biển số:</span>
+                <span className="confirm-value">
+                  {pendingConfirmation.license_plate || "Chưa có"}
+                </span>
+              </div>
+              <div className="confirm-summary-row">
+                <span className="confirm-label">Số khung:</span>
+                <code className="confirm-code">
+                  {pendingConfirmation.frame_number}
+                </code>
+              </div>
+              <div className="confirm-summary-row">
+                <span className="confirm-label">Số máy:</span>
+                <span className="confirm-value">
+                  {pendingConfirmation.engine_number ? (
+                    <code className="confirm-code">
+                      {pendingConfirmation.engine_number}
+                    </code>
+                  ) : (
+                    "Chưa có"
+                  )}
+                </span>
+              </div>
+              {financial && (
+                <div className="confirm-summary-row highlight-price">
+                  <span className="confirm-label">Giá thu xe:</span>
+                  <div className="confirm-price-col">
+                    <strong className="price-big">
+                      {money(pendingConfirmation.purchase_price)}
+                    </strong>
+                    <span className="price-words">
+                      {formatVndApproxText(
+                        pendingConfirmation.purchase_price,
+                      )}{" "}
+                      (
+                      {formatVndWords(
+                        pendingConfirmation.purchase_price,
+                      )}
+                      )
+                    </span>
+                  </div>
+                </div>
+              )}
+              <div className="confirm-summary-row">
+                <span className="confirm-label">Người bán:</span>
+                <span className="confirm-value">
+                  {pendingConfirmation.seller_name || "—"}
+                  {pendingConfirmation.seller_phone
+                    ? ` · ${pendingConfirmation.seller_phone}`
+                    : ""}
+                </span>
+              </div>
+              <div className="confirm-summary-row">
+                <span className="confirm-label">Ngày thu xe:</span>
+                <span className="confirm-value">
+                  {dateLabel(pendingConfirmation.acquisition_date)}
+                </span>
+              </div>
+              {pendingConfirmation.asking_price ? (
+                <div className="confirm-summary-row">
+                  <span className="confirm-label">Giá bán dự kiến:</span>
+                  <span className="confirm-value">
+                    {money(pendingConfirmation.asking_price)}
+                  </span>
+                </div>
+              ) : null}
+            </div>
+
+            {mutation.isError && <ErrorState error={mutation.error} />}
+
+            <div className="modal-footer-actions">
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={() => setPendingConfirmation(null)}
+                disabled={mutation.isPending}
+              >
+                Quay lại chỉnh sửa
+              </Button>
+              <Button
+                type="button"
+                onClick={() => mutation.mutate(pendingConfirmation)}
+                disabled={mutation.isPending}
+              >
+                {mutation.isPending ? "Đang xử lý…" : "Xác nhận thu xe"}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

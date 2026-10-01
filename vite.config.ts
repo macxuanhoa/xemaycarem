@@ -11,15 +11,15 @@ export default defineConfig({
       registerType: "prompt",
       includeAssets: ["logo.jpg", "avtcarem.jpg", "icon-192.png", "icon-512.png", "icon-maskable.png"],
       manifest: {
-        name: "Quản Lý Cửa Hàng Xe",
-        short_name: "Xe CRM",
-        description: "Quản lý kho xe và hoạt động cửa hàng",
+        name: "Cà Rem - Quản Lý Cửa Hàng Xe",
+        short_name: "Cà Rem",
+        description: "Quản lý kho xe máy và hoạt động cửa hàng Cà Rem",
         lang: "vi",
         start_url: "/",
         scope: "/",
         display: "standalone",
-        background_color: "#f5f6f3",
-        theme_color: "#102b27",
+        background_color: "#f7f7f9",
+        theme_color: "#12090c",
         icons: [
           { src: "/icon-192.png", sizes: "192x192", type: "image/png" },
           {

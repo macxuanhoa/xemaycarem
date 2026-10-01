@@ -12,6 +12,7 @@ import {
   Badge,
   Button,
   Card,
+  DatePicker,
   EmptyState,
   ErrorState,
   Field,
@@ -20,6 +21,7 @@ import {
 } from "@/components/ui";
 import type { Payment, Sale } from "@/types";
 import { CustomerReceipt } from "./CustomerReceipt";
+import { IdentityDocumentPanel } from "@/components/IdentityDocumentPanel";
 import { MoneyInput } from "@/components/ui/MoneyInput";
 import { paymentLabels } from "@/features/vehicles/vehicleSchema";
 import { paymentSchema, type PaymentFormValues } from "./saleSchema";
@@ -29,6 +31,7 @@ type SaleRecord = Sale & {
   vehicle_name?: string;
   cancellation_reason?: string;
 };
+type CommunicationJob = { id?: string; channel?: string; status?: string; attempt_count?: number; last_error_code?: string; last_error_message_safe?: string };
 
 export function SaleDetailPage() {
   const { id } = useParams();
@@ -42,6 +45,20 @@ export function SaleDetailPage() {
   const query = useQuery({
     queryKey: ["sale", id],
     queryFn: () => api.call<SaleRecord>("get_sale", { p_id: id }),
+  });
+  const communication = useQuery({
+    queryKey: ["sale-communication", id],
+    queryFn: () => api.call<CommunicationJob>("get_sale_communication", { p_sale_id: id }),
+    enabled: !!id,
+    refetchInterval: (q) => q.state.data?.status === "QUEUED" || q.state.data?.status === "PROCESSING" ? 3000 : false,
+  });
+  const retryMessage = useMutation({
+    mutationFn: async () => {
+      await api.call("retry_sale_thank_you", { p_sale_id: id });
+      const job = await api.call<CommunicationJob>("get_sale_communication", { p_sale_id: id });
+      if (job.id) await api.processMessage(job.id);
+    },
+    onSuccess: async () => { await client.invalidateQueries({ queryKey: ["sale-communication", id] }); },
   });
 
   const cancel = useMutation({
@@ -88,6 +105,26 @@ export function SaleDetailPage() {
           payment={receipt === "sale" ? undefined : receipt}
           onClose={() => setReceipt(null)}
         />
+      )}
+      {sale.status === "COMPLETED" && (
+        <Card className="row between">
+          <div>
+            <h2 className="section-title">Lời cảm ơn khách hàng</h2>
+            <p className="muted small">
+              {communication.data?.status === "SENT" ? `Đã gửi qua ${communication.data.channel === "ZALO_ZNS" ? "Zalo" : communication.data.channel}` :
+                communication.data?.status === "DELIVERED" ? "Nhà cung cấp xác nhận đã nhận tin" :
+                communication.data?.status === "QUEUED" ? "Đang chờ xử lý" :
+                communication.data?.status === "PROCESSING" ? "Đang gửi" :
+                communication.data?.status === "SKIPPED" && communication.data.last_error_code === "PROVIDER_NOT_CONFIGURED" ? "Chưa cấu hình nhà cung cấp tin nhắn" :
+                communication.data?.status === "FAILED" ? `Gửi thất bại${communication.data.last_error_message_safe ? `: ${communication.data.last_error_message_safe}` : ""}` :
+                communication.data?.status === "SKIPPED" ? "Chưa cấu hình kênh nhắn tin hoặc số điện thoại không hợp lệ" : "Chưa gửi"}
+            </p>
+          </div>
+          {canManage(profile) && communication.data?.status === "FAILED" && communication.data.last_error_code !== "PROVIDER_NOT_CONFIGURED" && communication.data?.channel !== "DISABLED" && (
+            <Button variant="secondary" disabled={retryMessage.isPending} onClick={() => retryMessage.mutate()}>Thử gửi lại</Button>
+          )}
+          {retryMessage.error && <ErrorState error={retryMessage.error} />}
+        </Card>
       )}
       {sale.status === "CANCELLED" && (
         <p className="notice">
@@ -147,6 +184,14 @@ export function SaleDetailPage() {
               </div>
             )}
           </Card>
+          {canManage(profile) && (
+            <IdentityDocumentPanel
+              subjectType="sale"
+              subjectId={sale.id}
+              title="CCCD khách mua"
+              personLabel="Khách mua"
+            />
+          )}
           <Card>
             <div className="row between">
               <h2 className="section-title">Lịch sử thanh toán</h2>
@@ -360,7 +405,6 @@ export function PaymentEditor({
           "sales",
           "receivables",
           "dashboard",
-          "daily-reconciliation",
           "customers",
           "customer-history",
           "audit",
@@ -412,7 +456,19 @@ export function PaymentEditor({
           label="Ngày thanh toán *"
           error={form.formState.errors.payment_date?.message}
         >
-          <input type="date" {...form.register("payment_date")} />
+          <DatePicker
+            aria-label="Ngày thanh toán *"
+            value={form.watch("payment_date")}
+            onChange={(val) =>
+              form.setValue("payment_date", val, {
+                shouldDirty: true,
+                shouldValidate: !!form.formState.errors.payment_date,
+              })
+            }
+            onBlur={() => void form.trigger("payment_date")}
+            max={today()}
+            required
+          />
         </Field>
         <Field
           label="Mã tham chiếu"

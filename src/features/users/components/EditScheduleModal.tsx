@@ -44,6 +44,11 @@ export function EditScheduleModal({
         className="stack"
         onSubmit={(e) => {
           e.preventDefault();
+          setError("");
+          if (!form.working_days.length) {
+            setError("Vui lòng chọn ít nhất một ngày làm việc trong tuần.");
+            return;
+          }
           m.mutate();
         }}
       >
@@ -51,19 +56,27 @@ export function EditScheduleModal({
           <Field label="Giờ bắt đầu làm việc">
             <input
               type="time"
-              value={form.allowed_from.slice(0, 5)}
-              onChange={(e) =>
-                setForm({ ...form, allowed_from: e.target.value + ":00" })
-              }
+              value={form.allowed_from ? form.allowed_from.slice(0, 5) : "00:00"}
+              onChange={(e) => {
+                const val = e.target.value.trim();
+                setForm({
+                  ...form,
+                  allowed_from: val ? (val.length === 5 ? val + ":00" : val) : "00:00:00",
+                });
+              }}
             />
           </Field>
           <Field label="Giờ kết thúc làm việc">
             <input
               type="time"
-              value={form.allowed_until.slice(0, 5)}
-              onChange={(e) =>
-                setForm({ ...form, allowed_until: e.target.value + ":00" })
-              }
+              value={form.allowed_until ? form.allowed_until.slice(0, 5) : "23:59"}
+              onChange={(e) => {
+                const val = e.target.value.trim();
+                setForm({
+                  ...form,
+                  allowed_until: val ? (val.length === 5 ? val + ":00" : val) : "23:59:59",
+                });
+              }}
             />
           </Field>
         </div>

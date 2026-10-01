@@ -1,7 +1,7 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { useDebouncedValue } from "@/lib/useDebouncedValue";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   ArrowRight,
   Calendar,
@@ -14,12 +14,13 @@ import {
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { canOperate } from "@/lib/permissions";
-import { dateLabel, money, today } from "@/lib/format";
+import { dateLabel, money, shiftDate, today } from "@/lib/format";
 import { useAuth } from "@/features/auth/AuthProvider";
 import {
   Badge,
   Button,
   Card,
+  DatePicker,
   DateRange,
   EmptyState,
   ErrorState,
@@ -31,9 +32,13 @@ import {
 import type { ReceivablesSummary, Sale } from "@/types";
 import { PaymentEditor } from "./SaleDetailPage";
 
-const pageSize = 20;
+const pageSize = 6;
 
-export function ReceivablesPage() {
+export function ReceivablesPage({
+  hideHeader = false,
+}: {
+  hideHeader?: boolean;
+} = {}) {
   const { profile } = useAuth();
   const client = useQueryClient();
   const [params, setParams] = useSearchParams();
@@ -52,7 +57,15 @@ export function ReceivablesPage() {
   const [dueDateInput, setDueDateInput] = useState("");
 
   const query = useQuery({
-    queryKey: ["receivables", deferredSearch, paymentStatus, sort, range, page],
+    queryKey: [
+      "receivables",
+      deferredSearch,
+      paymentStatus,
+      sort,
+      range,
+      page,
+    ],
+    placeholderData: keepPreviousData,
     queryFn: () =>
       api.call<ReceivablesSummary>("list_receivables", {
         p_filters: {
@@ -66,6 +79,33 @@ export function ReceivablesPage() {
         },
       }),
   });
+
+  useEffect(() => {
+    if (query.data && page * pageSize < query.data.total) {
+      void client.prefetchQuery({
+        queryKey: [
+          "receivables",
+          deferredSearch,
+          paymentStatus,
+          sort,
+          range,
+          page + 1,
+        ],
+        queryFn: () =>
+          api.call<ReceivablesSummary>("list_receivables", {
+            p_filters: {
+              search: deferredSearch,
+              payment_status: paymentStatus,
+              sort,
+              from: range.from || undefined,
+              to: range.to || undefined,
+              offset: page * pageSize,
+              limit: pageSize,
+            },
+          }),
+      });
+    }
+  }, [query.data, page, deferredSearch, paymentStatus, sort, range, client]);
 
   const dueDateMutation = useMutation({
     mutationFn: ({ saleId, dueDate }: { saleId: string; dueDate: string }) =>
@@ -91,112 +131,167 @@ export function ReceivablesPage() {
 
   const data = query.data;
 
+  const filterPills = [
+    { key: "DEBT_ONLY", label: "Tất cả còn nợ" },
+    { key: "OVERDUE", label: "Quá hạn thanh toán" },
+    { key: "PARTIALLY_PAID", label: "Đã trả một phần" },
+    { key: "UNPAID", label: "Chưa trả" },
+    { key: "PAID", label: "Đã thanh toán đủ" },
+    { key: "ALL", label: "Toàn bộ" },
+  ];
+
   return (
     <div className="stack">
-      <PageHeader
-        title="Công nợ khách hàng"
-        description="Theo dõi các khoản tiền bán xe chưa thu, quản lý hạn thanh toán và thu hồi nợ."
-      />
+      {!hideHeader && (
+        <PageHeader
+          title="Công nợ khách hàng"
+          description="Theo dõi các khoản tiền bán xe chưa thu, quản lý hạn thanh toán và thu hồi nợ."
+        />
+      )}
 
       {data && (
-        <div className="kpi-grid">
-          <Card className="metric-card">
-            <span className="metric-title">Tổng công nợ phải thu</span>
-            <strong
-              className="metric-value price"
-              style={{ color: "var(--color-danger, #dc2626)" }}
-            >
+        <div className="executive-kpi-grid">
+          <div className="executive-metric-card">
+            <div className="executive-metric-header">
+              <span className="executive-metric-title">Tổng công nợ</span>
+              <span className="executive-metric-icon indigo">
+                <CreditCard size={18} />
+              </span>
+            </div>
+            <strong className="executive-metric-val price" style={{ color: "#4f46e5" }}>
               {money(data.total_receivable)}
             </strong>
-            <span className="metric-sub">
-              {data.unpaid_count} giao dịch còn nợ
+            <span className="executive-metric-sub">
+              <strong>{data.unpaid_count}</strong> giao dịch đang còn nợ
             </span>
-          </Card>
-          <Card className="metric-card">
-            <span className="metric-title">Nợ đã quá hạn</span>
+          </div>
+
+          <div className="executive-metric-card">
+            <div className="executive-metric-header">
+              <span className="executive-metric-title">Nợ đã quá hạn</span>
+              <span className="executive-metric-icon rose">
+                <Clock size={18} />
+              </span>
+            </div>
             <strong
-              className="metric-value"
-              style={{ color: "var(--color-danger, #b91c1c)" }}
+              className="executive-metric-val"
+              style={{ color: data.total_overdue > 0 ? "#dc2626" : "inherit" }}
             >
               {money(data.total_overdue)}
             </strong>
-            <span className="metric-sub">
-              {data.overdue_count} khách đã quá hạn
+            <span className="executive-metric-sub">
+              <strong style={{ color: data.overdue_count > 0 ? "#dc2626" : "inherit" }}>
+                {data.overdue_count}
+              </strong>{" "}
+              khách đã trễ hạn hẹn trả
             </span>
-          </Card>
-          <Card className="metric-card">
-            <span className="metric-title">Khoản nợ cần liên hệ</span>
-            <div className="row" style={{ alignItems: "center", gap: "8px" }}>
-              <CheckCircle2
-                size={20}
-                style={{ color: "var(--color-success, #16a34a)" }}
-              />
-              <strong className="metric-value">
-                {data.overdue_count === 0
-                  ? "Tốt"
-                  : `${data.overdue_count} quá hạn`}
-              </strong>
+          </div>
+
+          <div className="executive-metric-card">
+            <div className="executive-metric-header">
+              <span className="executive-metric-title">Nợ trong hạn hẹn</span>
+              <span className="executive-metric-icon amber">
+                <Calendar size={18} />
+              </span>
             </div>
-            <span className="metric-sub">
-              {data.overdue_count > 0
-                ? "Cần liên hệ nhắc khách"
-                : "Không có khoản nợ quá hạn"}
+            <strong className="executive-metric-val">
+              {money(Math.max(0, data.total_receivable - data.total_overdue))}
+            </strong>
+            <span className="executive-metric-sub">
+              <strong>{Math.max(0, data.unpaid_count - data.overdue_count)}</strong> khoản nợ đang đúng hạn
             </span>
-          </Card>
+          </div>
+
+          <div className="executive-metric-card">
+            <div className="executive-metric-header">
+              <span className="executive-metric-title">Tình trạng nợ</span>
+              <span className={`executive-metric-icon ${data.overdue_count === 0 ? "emerald" : "rose"}`}>
+                <CheckCircle2 size={18} />
+              </span>
+            </div>
+            <strong
+              className="executive-metric-val"
+              style={{
+                fontSize: "20px",
+                color: data.overdue_count === 0 ? "#16a34a" : "#dc2626",
+              }}
+            >
+              {data.overdue_count === 0 ? "Đảm bảo an toàn" : `${data.overdue_count} khoản quá hạn`}
+            </strong>
+            <span className="executive-metric-sub">
+              {data.overdue_count > 0 ? "Cần liên hệ đôn đốc khách" : "100% nợ đang trong hạn"}
+            </span>
+          </div>
         </div>
       )}
 
       <Card>
-        <div className="row filter-row">
-          <label className="search-field">
-            <Search size={19} />
-            <input
-              aria-label="Tìm công nợ"
-              value={search}
-              onChange={(e) => {
-                setSearch(e.target.value);
+        <div className="receivables-filter-container">
+          <div className="filter-pills-bar" role="group" aria-label="Bộ lọc trạng thái nợ">
+            {filterPills.map((p) => (
+              <button
+                key={p.key}
+                type="button"
+                aria-pressed={paymentStatus === p.key}
+                className={`filter-pill ${paymentStatus === p.key ? "active" : ""}`}
+                onClick={() => {
+                  setPaymentStatus(p.key);
+                  setPage(1);
+                }}
+              >
+                <span>{p.label}</span>
+              </button>
+            ))}
+          </div>
+
+          <div className="receivables-filter-controls">
+            <div className="receivables-search-wrap">
+              <Search size={18} className="search-icon" />
+              <input
+                aria-label="Tìm công nợ"
+                value={search}
+                onChange={(e) => {
+                  setSearch(e.target.value);
+                  setPage(1);
+                }}
+                placeholder="Tên khách, SĐT, mã xe, biển số, mã giao dịch…"
+              />
+              {search && (
+                <button
+                  type="button"
+                  className="receivables-clear-btn"
+                  onClick={() => setSearch("")}
+                  aria-label="Xóa tìm kiếm"
+                >
+                  <Search size={14} style={{ display: "none" }} />
+                  ✕
+                </button>
+              )}
+            </div>
+
+            <Field label="Sắp xếp">
+              <select
+                value={sort}
+                onChange={(e) => {
+                  setSort(e.target.value);
+                  setPage(1);
+                }}
+              >
+                <option value="highest_debt">Tiền nợ cao nhất</option>
+                <option value="due_date">Hạn thanh toán gần nhất</option>
+                <option value="newest">Ngày bán mới nhất</option>
+                <option value="oldest">Ngày bán cũ nhất</option>
+              </select>
+            </Field>
+
+            <DateRange
+              value={range}
+              onChange={(val) => {
+                setRange(val);
                 setPage(1);
               }}
-              placeholder="Tên khách, SĐT, mã xe, biển số, mã giao dịch…"
             />
-          </label>
-          <Field label="Trạng thái">
-            <select
-              value={paymentStatus}
-              onChange={(e) => {
-                setPaymentStatus(e.target.value);
-                setPage(1);
-              }}
-            >
-              <option value="DEBT_ONLY">Tất cả còn nợ</option>
-              <option value="OVERDUE">Quá hạn thanh toán</option>
-              <option value="PARTIALLY_PAID">Đã trả một phần</option>
-              <option value="UNPAID">Chưa trả đồng nào</option>
-              <option value="PAID">Đã thanh toán đủ</option>
-              <option value="ALL">Toàn bộ giao dịch</option>
-            </select>
-          </Field>
-          <Field label="Sắp xếp">
-            <select
-              value={sort}
-              onChange={(e) => {
-                setSort(e.target.value);
-                setPage(1);
-              }}
-            >
-              <option value="highest_debt">Tiền nợ cao nhất</option>
-              <option value="due_date">Hạn thanh toán gần nhất</option>
-              <option value="newest">Ngày bán mới nhất</option>
-              <option value="oldest">Ngày bán cũ nhất</option>
-            </select>
-          </Field>
-          <DateRange
-            value={range}
-            onChange={(val) => {
-              setRange(val);
-              setPage(1);
-            }}
-          />
+          </div>
         </div>
       </Card>
 
@@ -211,7 +306,10 @@ export function ReceivablesPage() {
         />
       ) : (
         <Card className="table-card">
-          <div className="table-wrap desktop-table">
+          {query.isFetching && !query.isPending && (
+            <div className="table-updating-bar" role="progressbar" aria-label="Đang cập nhật danh sách" />
+          )}
+          <div className={`table-wrap desktop-table ${query.isFetching && !query.isPending ? "is-updating" : ""}`}>
             <table className="data-table">
               <thead>
                 <tr>
@@ -488,8 +586,16 @@ export function ReceivablesPage() {
 
       {/* Due Date Modal */}
       {editingDueDateSale && (
-        <div className="modal-backdrop">
-          <Card className="modal-card">
+        <div
+          className="modal-backdrop"
+          onClick={() => setEditingDueDateSale(null)}
+          role="presentation"
+        >
+          <div
+            className="modal-card"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <Card>
             <h3>Hẹn ngày thanh toán</h3>
             <p className="muted small">
               Giao dịch: <strong>{editingDueDateSale.sale_code}</strong> ·
@@ -513,13 +619,34 @@ export function ReceivablesPage() {
                     : undefined
                 }
               >
-                <input
-                  type="date"
+                <div style={{ display: "flex", gap: "6px", flexWrap: "wrap", marginBottom: "8px" }}>
+                  {[
+                    { label: "+3 ngày", days: 3 },
+                    { label: "+7 ngày (1 tuần)", days: 7 },
+                    { label: "+15 ngày", days: 15 },
+                    { label: "+30 ngày (1 tháng)", days: 30 },
+                  ].map((preset) => {
+                    const target = shiftDate(today(), preset.days);
+                    return (
+                      <button
+                        key={preset.label}
+                        type="button"
+                        className="filter-pill"
+                        style={{ fontSize: "11.5px", padding: "4px 10px" }}
+                        onClick={() => setDueDateInput(target)}
+                      >
+                        {preset.label}
+                      </button>
+                    );
+                  })}
+                </div>
+                <DatePicker
                   autoFocus
                   required
                   min={editingDueDateSale.sale_date}
                   value={dueDateInput}
-                  onChange={(e) => setDueDateInput(e.target.value)}
+                  onChange={setDueDateInput}
+                  aria-label="Hạn trả tiền *"
                 />
               </Field>
               <div className="form-actions">
@@ -535,31 +662,41 @@ export function ReceivablesPage() {
                 </Button>
               </div>
             </form>
-          </Card>
+            </Card>
+          </div>
         </div>
       )}
 
       {/* Existing Payment Modal */}
       {payingSale && (
-        <div className="modal-backdrop">
-          <Card className="modal-card">
-            <div className="row between" style={{ marginBottom: "12px" }}>
-              <div>
-                <h3>Thu thêm tiền công nợ</h3>
-                <p className="muted small">
-                  {payingSale.sale_code} · {payingSale.customer_name} (
-                  {payingSale.brand} {payingSale.model})
-                </p>
+        <div
+          className="modal-backdrop"
+          onClick={() => setPayingSale(null)}
+          role="presentation"
+        >
+          <div
+            className="modal-card"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <Card>
+              <div className="row between" style={{ marginBottom: "12px" }}>
+                <div>
+                  <h3>Thu thêm tiền công nợ</h3>
+                  <p className="muted small">
+                    {payingSale.sale_code} · {payingSale.customer_name} (
+                    {payingSale.brand} {payingSale.model})
+                  </p>
+                </div>
               </div>
-            </div>
-            <PaymentEditor
-              sale={payingSale}
-              onClose={() => {
-                setPayingSale(null);
-                void client.invalidateQueries({ queryKey: ["receivables"] });
-              }}
-            />
-          </Card>
+              <PaymentEditor
+                sale={payingSale}
+                onClose={() => {
+                  setPayingSale(null);
+                  void client.invalidateQueries({ queryKey: ["receivables"] });
+                }}
+              />
+            </Card>
+          </div>
         </div>
       )}
     </div>

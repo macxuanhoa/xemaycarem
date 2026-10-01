@@ -1,15 +1,13 @@
 import { useState } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import {
-  Plus,
-  Users,
-  Key,
-  Clock,
   Calendar,
-  Trash2,
-  RotateCcw,
-  Lock,
-  Unlock,
+  Clock,
+  Eye,
+  Plus,
+  Search,
+  SlidersHorizontal,
+  Users,
 } from "lucide-react";
 import {
   Badge,
@@ -17,43 +15,54 @@ import {
   Card,
   EmptyState,
   ErrorState,
-  Field,
   Loading,
   PageHeader,
 } from "@/components/ui";
 import { useAuth } from "@/features/auth/AuthProvider";
 import { api } from "@/lib/api";
-import { roleLabels } from "@/lib/permissions";
-import type { Profile, Role } from "@/types";
+import type { Profile } from "@/types";
 import { CreateUserModal } from "./components/CreateUserModal";
-import { EditScheduleModal } from "./components/EditScheduleModal";
-import { ResetPasswordModal } from "./components/ResetPasswordModal";
-import { DisableUserModal } from "./components/DisableUserModal";
-import { DeleteUserModal } from "./components/DeleteUserModal";
+import { StaffSettingsModal } from "./components/StaffSettingsModal";
 
 export default function UsersPage() {
-  const client = useQueryClient();
   const { profile } = useAuth();
-  const [adding, setAdding] = useState(false),
-    [notice, setNotice] = useState(""),
-    [editingSchedule, setEditingSchedule] = useState<Profile | null>(null),
-    [resettingPassword, setResettingPassword] = useState<Profile | null>(null),
-    [disablingUser, setDisablingUser] = useState<Profile | null>(null),
-    [deletingUser, setDeletingUser] = useState<Profile | null>(null);
+  const [adding, setAdding] = useState(false);
+  const [notice, setNotice] = useState("");
+  const [selectedStaff, setSelectedStaff] = useState<Profile | null>(null);
+  const [search, setSearch] = useState("");
+  const [roleFilter, setRoleFilter] = useState("ALL");
 
   const q = useQuery({
     queryKey: ["profiles"],
     queryFn: () => api.call<Profile[]>("list_profiles"),
   });
 
-  const mutation = useMutation({
-    mutationFn: ({ id, data }: { id: string; data: Partial<Profile> }) =>
-      api.call("update_profile", { p_id: id, p_data: data }),
-    onSuccess: () => {
-      void client.invalidateQueries({ queryKey: ["profiles"] });
-      setNotice("Đã cập nhật quyền tài khoản.");
-    },
+  const totalStaff = q.data?.length ?? 0;
+  const activeStaff =
+    q.data?.filter(
+      (p) =>
+        p.active &&
+        !p.deleted_at &&
+        !(p.disabled_until && new Date(p.disabled_until) > new Date()),
+    ).length ?? 0;
+  const managerCount = q.data?.filter((p) => p.role === "MANAGER").length ?? 0;
+  const staffCount = q.data?.filter((p) => p.role === "STAFF").length ?? 0;
+
+  const filteredStaff = q.data?.filter((p) => {
+    const matchesSearch =
+      !search ||
+      p.full_name.toLowerCase().includes(search.toLowerCase()) ||
+      p.username.toLowerCase().includes(search.toLowerCase());
+    const matchesRole = roleFilter === "ALL" || p.role === roleFilter;
+    return matchesSearch && matchesRole;
   });
+
+  const rolePills = [
+    { key: "ALL", label: "Tất cả" },
+    { key: "OWNER", label: "Chủ cửa hàng" },
+    { key: "MANAGER", label: "Quản lý" },
+    { key: "STAFF", label: "Nhân viên" },
+  ];
 
   return (
     <div className="stack">
@@ -61,26 +70,104 @@ export default function UsersPage() {
         title="Nhân sự"
         description="Mỗi người một tài khoản. Mỗi vai trò một quyền hạn rõ ràng."
         actions={
-          <Button onClick={() => setAdding(!adding)}>
+          <Button onClick={() => setAdding(true)}>
             <Plus size={18} />
             Thêm tài khoản
           </Button>
         }
       />
+
       {notice && (
         <p className="notice" role="status">
           {notice}
         </p>
       )}
-      {!!mutation.error && <ErrorState error={mutation.error} />}
-      <div className="notice row">
-        <Users size={20} />
-        <span>
-          Nhân viên và người chỉ xem không được truy cập giá mua, lợi nhuận hoặc
-          quản trị hệ thống. Múi giờ cửa hàng: <strong>Asia/Ho_Chi_Minh</strong>.
-        </span>
+
+      {/* STATS HUD */}
+      <div className="staff-stats-grid">
+        <div className="staff-stat-card">
+          <div className="staff-stat-icon indigo">
+            <Users size={20} />
+          </div>
+          <div>
+            <div className="staff-stat-num">{totalStaff}</div>
+            <div className="staff-stat-label">
+              Tổng số tài khoản ({managerCount} Quản lý, {staffCount} Nhân viên)
+            </div>
+          </div>
+        </div>
+
+        <div className="staff-stat-card">
+          <div className="staff-stat-icon emerald">
+            <Clock size={20} />
+          </div>
+          <div>
+            <div className="staff-stat-num">{activeStaff}</div>
+            <div className="staff-stat-label">
+              Đang hoạt động ({totalStaff - activeStaff} tạm dừng / khóa)
+            </div>
+          </div>
+        </div>
+
+        <div className="staff-stat-card">
+          <div className="staff-stat-icon amber">
+            <SlidersHorizontal size={20} />
+          </div>
+          <div>
+            <div className="staff-stat-num" style={{ fontSize: "16px", marginTop: "2px" }}>
+              Asia/Ho_Chi_Minh
+            </div>
+            <div className="staff-stat-label">
+              Múi giờ chuẩn · Giới hạn truy cập giá vốn
+            </div>
+          </div>
+        </div>
       </div>
 
+      {/* SEARCH & ROLE FILTER BAR */}
+      <Card>
+        <div className="staff-toolbar">
+          <div className="receivables-search-wrap" style={{ flex: "1 1 260px" }}>
+            <Search size={18} className="search-icon" />
+            <input
+              aria-label="Tìm nhân sự"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Tìm theo họ tên, tên đăng nhập (@username)…"
+            />
+            {search && (
+              <button
+                type="button"
+                className="receivables-clear-btn"
+                onClick={() => setSearch("")}
+                aria-label="Xóa tìm kiếm"
+              >
+                ✕
+              </button>
+            )}
+          </div>
+
+          <div className="filter-pills-bar" role="tablist" aria-label="Lọc theo vai trò">
+            {rolePills.map((pill) => (
+              <button
+                key={pill.key}
+                type="button"
+                className={`filter-pill ${roleFilter === pill.key ? "active" : ""}`}
+                onClick={() => setRoleFilter(pill.key)}
+              >
+                <span>{pill.label}</span>
+                {pill.key !== "ALL" && (
+                  <span className="filter-pill-count">
+                    {q.data?.filter((u) => u.role === pill.key).length ?? 0}
+                  </span>
+                )}
+              </button>
+            ))}
+          </div>
+        </div>
+      </Card>
+
+      {/* POPUP MODAL 1: CREATE USER */}
       {adding && (
         <CreateUserModal
           onDone={() => {
@@ -88,52 +175,18 @@ export default function UsersPage() {
             setNotice(
               "Tài khoản đã được tạo. Chuyển mật khẩu ban đầu cho nhân viên qua kênh bảo mật.",
             );
-            void client.invalidateQueries({ queryKey: ["profiles"] });
           }}
         />
       )}
 
-      {editingSchedule && (
-        <EditScheduleModal
-          user={editingSchedule}
-          onDone={() => {
-            setEditingSchedule(null);
-            setNotice("Đã cập nhật giờ và lịch làm việc.");
-            void client.invalidateQueries({ queryKey: ["profiles"] });
-          }}
-        />
-      )}
-
-      {resettingPassword && (
-        <ResetPasswordModal
-          user={resettingPassword}
-          onDone={() => {
-            setResettingPassword(null);
-            setNotice("Đã đặt lại mật khẩu tạm thời thành công.");
-            void client.invalidateQueries({ queryKey: ["profiles"] });
-          }}
-        />
-      )}
-
-      {disablingUser && (
-        <DisableUserModal
-          user={disablingUser}
-          onDone={() => {
-            setDisablingUser(null);
-            setNotice("Đã cập nhật trạng thái hoạt động của tài khoản.");
-            void client.invalidateQueries({ queryKey: ["profiles"] });
-          }}
-        />
-      )}
-
-      {deletingUser && (
-        <DeleteUserModal
-          user={deletingUser}
-          onDone={() => {
-            setDeletingUser(null);
-            setNotice("Thao tác tài khoản hoàn tất.");
-            void client.invalidateQueries({ queryKey: ["profiles"] });
-          }}
+      {/* POPUP MODAL 2: UNIFIED STAFF SETTINGS */}
+      {selectedStaff && (
+        <StaffSettingsModal
+          user={selectedStaff}
+          isSelf={selectedStaff.id === profile?.id}
+          isOwnerAcc={selectedStaff.role === "OWNER"}
+          onClose={() => setSelectedStaff(null)}
+          onUpdated={(msg) => setNotice(msg)}
         />
       )}
 
@@ -141,119 +194,67 @@ export default function UsersPage() {
         <Loading />
       ) : q.error ? (
         <ErrorState error={q.error} />
+      ) : !filteredStaff?.length ? (
+        <EmptyState
+          title={search || roleFilter !== "ALL" ? "Không tìm thấy tài khoản phù hợp" : "Chưa có tài khoản"}
+          description={
+            search || roleFilter !== "ALL"
+              ? "Hãy thử thay đổi từ khóa tìm kiếm hoặc bỏ chọn bộ lọc vai trò."
+              : undefined
+          }
+        />
       ) : (
         <div className="user-grid">
-          {q.data?.map((p) => {
+          {filteredStaff.map((p) => {
             const isSelf = p.id === profile?.id;
             const isOwnerAcc = p.role === "OWNER";
             const isLocked =
               p.disabled_until && new Date(p.disabled_until) > new Date();
 
             return (
-              <Card key={p.id}>
-                <div className="row between">
-                  <div className="row">
-                    <span className="avatar large">
+              <Card key={p.id} className={`user-staff-card ${isSelf ? "self-account" : ""}`}>
+                <div className="user-card-top">
+                  <div className="row" style={{ gap: "12px", alignItems: "center" }}>
+                    <span className="avatar large user-staff-avatar">
                       {p.full_name.split(" ").at(-1)?.[0]}
                     </span>
-                    <div>
-                      <h3>{p.full_name}</h3>
-                      <small className="muted">
-                        @{p.username} · {isSelf ? "Tài khoản của bạn" : roleLabels[p.role]}
-                      </small>
-                      {p.deleted_at && (
-                        <div>
-                          <span className="badge badge-cancelled">Đã vô hiệu hóa</span>
-                        </div>
-                      )}
-                      {isLocked && (
-                        <div>
-                          <span className="badge badge-cancelled">
-                            Khóa tạm đến{" "}
-                            {new Date(p.disabled_until!).toLocaleTimeString("vi-VN", {
-                              hour: "2-digit",
-                              minute: "2-digit",
-                              day: "2-digit",
-                              month: "2-digit",
-                            })}
-                          </span>
-                        </div>
-                      )}
-                      {p.must_change_password && (
-                        <div>
-                          <span className="badge badge-pending">Cần đổi mật khẩu</span>
-                        </div>
-                      )}
+                    <div className="user-staff-info">
+                      <h3 className="user-staff-name">{p.full_name}</h3>
+                      <span className="user-staff-handle">
+                        @{p.username} {isSelf && "· Tài khoản của bạn"}
+                      </span>
                     </div>
                   </div>
+
                   <span
                     className={`badge ${p.active && !p.deleted_at && !isLocked ? "badge-active" : "badge-cancelled"}`}
                   >
                     {p.active && !p.deleted_at && !isLocked
                       ? "Hoạt động"
-                      : "Tạm dừng"}
+                      : isLocked
+                        ? "Khóa tạm"
+                        : "Tạm dừng"}
                   </span>
                 </div>
 
-                <div className="stack" style={{ marginTop: "16px" }}>
-                  <Field label="Vai trò">
-                    <select
-                      aria-label={`Vai trò ${p.full_name}`}
-                      value={p.role}
-                      disabled={mutation.isPending || isOwnerAcc || p.deleted_at !== null}
-                      onChange={(e) =>
-                        mutation.mutate({
-                          id: p.id,
-                          data: { role: e.target.value as Role },
-                        })
-                      }
-                    >
-                      {Object.entries(roleLabels).map(([k, v]) => (
-                        <option
-                          key={k}
-                          value={k}
-                          disabled={k === "OWNER" && !isOwnerAcc}
-                        >
-                          {v}
-                        </option>
-                      ))}
-                    </select>
-                  </Field>
-
-                  {p.role === "MANAGER" && (
-                    <label className="checkbox">
-                      <input
-                        type="checkbox"
-                        checked={p.can_view_financials}
-                        disabled={mutation.isPending || p.deleted_at !== null}
-                        onChange={(e) =>
-                          mutation.mutate({
-                            id: p.id,
-                            data: { can_view_financials: e.target.checked },
-                          })
-                        }
-                      />
-                      Cho phép xem giá mua và lợi nhuận
-                    </label>
-                  )}
+                <div className="user-card-chips">
+                  <div className="user-chip-item">
+                    <Badge status={p.role} />
+                  </div>
 
                   {!isOwnerAcc && (
                     <>
-                      <div className="row between small">
-                        <span className="row" style={{ gap: "4px" }}>
-                          <Clock size={14} /> Giờ làm việc:
-                        </span>
-                        <span className="muted">
+                      <div className="user-chip-item" title="Khung giờ được phép đăng nhập">
+                        <Clock size={13} />
+                        <span>
                           {p.allowed_from?.slice(0, 5) || "00:00"} -{" "}
                           {p.allowed_until?.slice(0, 5) || "23:59"}
                         </span>
                       </div>
 
-                      <div className="row between small">
-                        <span className="row" style={{ gap: "4px" }}>
-                          <Calendar size={14} /> Ngày làm việc:
-                        </span>
-                        <span className="muted">
+                      <div className="user-chip-item" title="Lịch ngày làm việc">
+                        <Calendar size={13} />
+                        <span>
                           {p.working_days && p.working_days.length > 0
                             ? p.working_days
                                 .map((d) => {
@@ -267,72 +268,36 @@ export default function UsersPage() {
                     </>
                   )}
 
-                  <div className="row between" style={{ marginTop: "12px" }}>
-                    <Badge status={p.role} />
-                    <div className="row" style={{ gap: "6px" }}>
-                      {!isSelf && !isOwnerAcc && (
-                        <>
-                          <Button
-                            variant="secondary"
-                            disabled={mutation.isPending}
-                            onClick={() => setResettingPassword(p)}
-                            title="Đặt lại mật khẩu tạm"
-                          >
-                            <Key size={16} />
-                          </Button>
-
-                          <Button
-                            variant="secondary"
-                            disabled={mutation.isPending}
-                            onClick={() => setEditingSchedule(p)}
-                            title="Cài đặt lịch & giờ làm việc"
-                          >
-                            <Clock size={16} />
-                          </Button>
-
-                          <Button
-                            variant="secondary"
-                            disabled={mutation.isPending}
-                            onClick={() => setDisablingUser(p)}
-                            title={isLocked ? "Mở khóa tạm" : "Khóa tạm thời"}
-                          >
-                            {isLocked ? <Unlock size={16} /> : <Lock size={16} />}
-                          </Button>
-
-                          {p.deleted_at ? (
-                            <Button
-                              variant="secondary"
-                              disabled={mutation.isPending}
-                              onClick={() => {
-                                mutation.mutate({
-                                  id: p.id,
-                                  data: { deleted_at: null, active: true },
-                                });
-                              }}
-                              title="Khôi phục tài khoản"
-                            >
-                              <RotateCcw size={16} />
-                            </Button>
-                          ) : (
-                            <Button
-                              variant="danger"
-                              disabled={mutation.isPending}
-                              onClick={() => setDeletingUser(p)}
-                              title="Vô hiệu hóa hoặc xóa"
-                            >
-                              <Trash2 size={16} />
-                            </Button>
-                          )}
-                        </>
-                      )}
+                  {p.role === "MANAGER" && p.can_view_financials && (
+                    <div className="user-chip-item user-chip-accent" title="Quyền xem giá vốn & lợi nhuận">
+                      <Eye size={13} />
+                      <span>Xem giá vốn</span>
                     </div>
-                  </div>
+                  )}
+
+                  {p.must_change_password && (
+                    <div className="user-chip-item user-chip-warning">
+                      <span>Cần đổi MK</span>
+                    </div>
+                  )}
+                </div>
+
+                <div className="user-card-footer">
+                  <Button
+                    variant="secondary"
+                    className="user-configure-btn"
+                    onClick={() => setSelectedStaff(p)}
+                  >
+                    <SlidersHorizontal size={15} />
+                    <span>{isSelf ? "Xem thiết lập tài khoản" : "Thiết lập nhân sự"}</span>
+                  </Button>
                 </div>
               </Card>
             );
           })}
         </div>
       )}
+
       {q.data?.length === 0 && <EmptyState title="Chưa có tài khoản" />}
     </div>
   );

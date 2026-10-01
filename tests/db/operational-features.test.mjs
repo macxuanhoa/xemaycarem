@@ -5,7 +5,7 @@ import { createDatabase, asUser, rpc } from '../../scripts/db-harness.mjs'
 // Only the repository's disposable database harness is used. No URLs or cloud keys.
 export async function runOperationalTests(externalDb, { engine = 'postgres' } = {}) {
   const db = externalDb ?? await createDatabase({ engine })
-  const users = Object.fromEntries(['owner', 'manager', 'financialManager', 'staff', 'viewer', 'disabled'].map(name => [name, randomUUID()]))
+  const users = Object.fromEntries(['owner', 'manager', 'financialManager', 'staff', 'disabled'].map(name => [name, randomUUID()]))
   const run = (name, operation) => asUser(db, users[name], operation)
   const call = (name, fn, input) => run(name, client => rpc(client, fn, '$1::jsonb', [JSON.stringify(input)]))
   const read = (name, fn, args = '', values = []) => run(name, client => rpc(client, fn, args, values))
@@ -43,7 +43,7 @@ export async function runOperationalTests(externalDb, { engine = 'postgres' } = 
     await call('staff', 'add_payment', { sale_id: historySale.id, amount: 15_000_000, payment_method: 'OTHER', payment_date: day })
 
     await test('receivables execute with unpaid, partial, paid and voided-payment cases', async () => {
-      const data = await call('viewer', 'list_receivables', { payment_status: 'ALL' })
+      const data = await call('staff', 'list_receivables', { payment_status: 'ALL' })
       assert.equal(data.total, 5)
       assert.equal(data.items.find(s => s.id === unpaid.id).debt_status, 'OVERDUE')
       assert.equal(data.items.find(s => s.id === partial.id).debt_status, 'PARTIALLY_PAID')
@@ -69,12 +69,12 @@ export async function runOperationalTests(externalDb, { engine = 'postgres' } = 
       await deny(() => call('staff', 'list_receivables', { from: day, to: yesterday }), /INVALID_DATE_RANGE/)
       await deny(() => call('staff', 'list_receivables', { payment_status: 'UNKNOWN' }), /INVALID_PAYMENT_STATUS/)
     })
-    await test('due-date changes are audited, constrained and rejected for viewer/cancelled sale', async () => {
+    await test('due-date changes are audited, constrained and rejected for inactive users/cancelled sale', async () => {
       const changed = await read('staff', 'update_sale_due_date', '$1::uuid, $2::date', [partial.id, day])
       assert.equal(changed.due_date, day)
       assert.equal(changed.is_overdue, false)
       await deny(() => read('staff', 'update_sale_due_date', '$1::uuid, $2::date', [partial.id, yesterday]), /INVALID_DUE_DATE/)
-      await deny(() => read('viewer', 'update_sale_due_date', '$1::uuid, $2::date', [partial.id, day]))
+      await deny(() => read('disabled', 'update_sale_due_date', '$1::uuid, $2::date', [partial.id, day]))
       await deny(() => read('staff', 'update_sale_due_date', '$1::uuid, $2::date', [cancelled.id, day]), /SALE_NOT_ACTIVE/)
       assert.equal(Number((await row("SELECT count(*) AS n FROM public.audit_logs WHERE entity_id=$1 AND action='UPDATE_SALE_DUE_DATE'", [partial.id])).n), 1)
     })
@@ -113,7 +113,7 @@ export async function runOperationalTests(externalDb, { engine = 'postgres' } = 
       assert.equal(data.expenses.length, 2)
     })
     await test('reconciliation enforces roles and business date regardless of database timezone', async () => {
-      for (const user of ['staff', 'viewer', 'disabled']) await deny(() => read(user, 'daily_reconciliation', '$1::date', [day]))
+      for (const user of ['staff', 'disabled']) await deny(() => read(user, 'daily_reconciliation', '$1::date', [day]))
       await deny(() => read('owner', 'daily_reconciliation', '$1::date', [tomorrow]), /FUTURE_DATE/)
       await db.exec("SET timezone = 'America/Los_Angeles'")
       assert.equal((await read('owner', 'daily_reconciliation')).date, day)
@@ -147,7 +147,7 @@ export async function runOperationalTests(externalDb, { engine = 'postgres' } = 
       assert.equal(data.items[0].purchases_count, 2)
       assert.equal(data.items[0].identity_warning, true)
       assert.equal(data.items[0].customer_names.length, 2)
-      const history = await read('viewer', 'get_customer_history', '$1::text', ['090-000-1234'])
+      const history = await read('staff', 'get_customer_history', '$1::text', ['090-000-1234'])
       assert.equal(history.total_spent, 190_000_000)
       assert.equal(history.total_paid, 55_000_000)
       assert.equal(history.total_debt, 135_000_000)
@@ -160,7 +160,7 @@ export async function runOperationalTests(externalDb, { engine = 'postgres' } = 
       const data = await call('staff', 'list_customers', { search: 'Nguyễn Kiểm Thử', limit: 1 })
       assert.equal(data.total, 2)
       assert.equal(data.items.length, 1)
-      await deny(() => read('viewer', 'get_customer_history', '$1::text', ['0009999999']), /CUSTOMER_NOT_FOUND/)
+      await deny(() => read('staff', 'get_customer_history', '$1::text', ['0009999999']), /CUSTOMER_NOT_FOUND/)
     })
     await test('global search executes all result groups and finds code/plate/frame/engine/brand/model/name/phone', async () => {
       const record = await read('staff', 'get_vehicle', '$1::uuid', [partial.vehicleId])
@@ -168,15 +168,15 @@ export async function runOperationalTests(externalDb, { engine = 'postgres' } = 
         const data = await read('staff', 'global_search', '$1::text, $2::integer', [record[field], 30])
         assert.ok(data.vehicles.some(v => v.id === record.id), `Missing ${field} search`)
       }
-      const byName = await read('viewer', 'global_search', '$1::text, $2::integer', ['Nguyễn Kiểm Thử', 10])
+      const byName = await read('staff', 'global_search', '$1::text, $2::integer', ['Nguyễn Kiểm Thử', 10])
       assert.ok(byName.sales.some(s => s.id === partial.id))
       assert.equal(byName.customers.length, 2)
-      const byPhone = await read('viewer', 'global_search', '$1::text, $2::integer', ['+84 90 000 1234', 10])
+      const byPhone = await read('staff', 'global_search', '$1::text, $2::integer', ['+84 90 000 1234', 10])
       assert.equal(byPhone.customers.length, 1)
       assert.equal(byPhone.sales.length, 2)
     })
     await test('search limits and all restricted-cost fields are excluded even for OWNER', async () => {
-      for (const user of ['owner', 'manager', 'staff', 'viewer']) {
+      for (const user of ['owner', 'manager', 'staff']) {
         const data = await read(user, 'global_search', '$1::text, $2::integer', ['Honda', 1])
         assert.ok(data.vehicles.length <= 1 && data.customers.length <= 1 && data.sales.length <= 1)
         assert.doesNotMatch(JSON.stringify(data), /purchase_price|cost_snapshot|gross_profit|supplier_name|"notes"/)
@@ -249,8 +249,8 @@ export async function runOperationalTests(externalDb, { engine = 'postgres' } = 
       }
       await deny(() => call('owner', 'import_vehicles', batch), /DUPLICATE_IMPORT_VEHICLE/)
     })
-    await test('viewer/inactive cannot import and nonfinancial staff cannot set purchase cost', async () => {
-      for (const user of ['viewer', 'disabled']) {
+    await test('inactive users cannot import and nonfinancial staff cannot set purchase cost', async () => {
+      for (const user of ['disabled']) {
         await deny(() => call(user, 'validate_import_vehicles', [importRow()]))
         await deny(() => call(user, 'import_vehicles', [importRow()]))
       }
@@ -275,10 +275,10 @@ export async function runOperationalTests(externalDb, { engine = 'postgres' } = 
       await deny(() => call('owner', 'add_payment', input), /PAYMENT_REQUEST_CONFLICT/)
       assert.equal((await read('staff', 'get_sale', '$1::uuid', [partial.id])).remaining_amount, 60_000_000)
     })
-    await test('overpayment/cancellation guards survive retry enhancement and viewer cannot collect', async () => {
+    await test('overpayment/cancellation guards survive retry enhancement and inactive users cannot collect', async () => {
       await deny(() => call('staff', 'add_payment', { request_id: randomUUID(), sale_id: partial.id, amount: 60_000_001, payment_method: 'CASH', payment_date: day }), /PAYMENT_EXCEEDS_BALANCE/)
       await deny(() => call('staff', 'add_payment', { request_id: randomUUID(), sale_id: cancelled.id, amount: 1, payment_method: 'CASH', payment_date: day }), /SALE_CANCELLED/)
-      await deny(() => call('viewer', 'add_payment', { sale_id: partial.id, amount: 1, payment_method: 'CASH', payment_date: day }))
+      await deny(() => call('disabled', 'add_payment', { sale_id: partial.id, amount: 1, payment_method: 'CASH', payment_date: day }))
       await call('staff', 'add_payment', { request_id: randomUUID(), sale_id: partial.id, amount: 60_000_000, payment_method: 'BANK_TRANSFER', payment_date: day })
       assert.equal((await read('staff', 'get_sale', '$1::uuid', [partial.id])).remaining_amount, 0)
     })
@@ -286,12 +286,137 @@ export async function runOperationalTests(externalDb, { engine = 'postgres' } = 
       for (const fn of ['list_receivables', 'list_customers']) await deny(() => call('disabled', fn, {}))
       await deny(() => read('disabled', 'get_customer_history', '$1::text', ['0900001234']))
       await deny(() => asUser(db, null, client => rpc(client, 'list_receivables', "'{}'::jsonb"), 'anon'))
-      for (const name of ['owner', 'manager', 'staff', 'viewer']) {
+      for (const name of ['owner', 'manager', 'staff']) {
         for (const table of ['sales', 'payments', 'vehicles', 'acquisitions']) {
           await deny(() => run(name, client => client.exec(`UPDATE public.${table} SET created_at=now()`)))
           await deny(() => run(name, client => client.exec(`DELETE FROM public.${table}`)))
         }
       }
+    })
+    await test('completed sale queues one idempotent thank-you and mock worker records history without financial data', async () => {
+      await read('owner', 'save_settings', '$1::jsonb', [JSON.stringify({ customer_messaging_enabled: true, sale_thank_you_enabled: true, primary_message_channel: 'SMS' })])
+      const vehicleId = await vehicle()
+      const saleId = await call('staff', 'sell_vehicle', { vehicle_id: vehicleId, customer_name: 'Khách tin nhắn', customer_phone: '0912345678', sale_price: 80_000_000, sale_date: day, initial_payment: 0 })
+      const job = await read('staff', 'get_sale_communication', '$1::uuid', [saleId])
+      assert.equal(job.status, 'QUEUED')
+      assert.equal(job.channel, 'SMS')
+      assert.equal(job.recipient_phone, '+84912345678')
+      assert.ok(!JSON.stringify(job.template_variables).includes('sale_price'))
+      assert.equal((await read('staff', 'list_customer_communications', '$1::text', ['0912345678'])).length, 1)
+      const claimed = await read('staff', 'claim_message', '$1::uuid', [job.id])
+      assert.equal(claimed.status, 'PROCESSING')
+      const temporary = await read('staff', 'fail_message', '$1::uuid,$2::text,$3::text,$4::boolean', [job.id, 'NETWORK_TIMEOUT', 'Nhà cung cấp tạm thời không phản hồi.', false])
+      assert.equal(temporary.status, 'QUEUED')
+      assert.ok(new Date(temporary.next_attempt_at) > new Date())
+      assert.equal((await read('staff', 'get_sale', '$1::uuid', [saleId])).status, 'COMPLETED')
+      await db.query('UPDATE public.message_outbox SET next_attempt_at=now() WHERE id=$1', [job.id])
+      assert.equal((await read('staff', 'claim_message', '$1::uuid', [job.id])).attempt_count, 2)
+      const sent = await read('staff', 'finish_mock_message', '$1::uuid,$2::text', [job.id, 'mock_test_123'])
+      assert.equal(sent.status, 'SENT')
+      const history = await read('staff', 'list_customer_communications', '$1::text', ['+84912345678'])
+      assert.equal(history.length, 1)
+      assert.equal(history[0].status, 'SENT')
+      assert.equal(history[0].provider, 'MOCK')
+      assert.ok(!JSON.stringify(history[0]).includes('sale_price'))
+      await assert.rejects(db.query(`INSERT INTO public.message_outbox(event_type,channel,sale_id,status) VALUES('SALE_THANK_YOU','SMS',$1,'QUEUED')`, [saleId]), /unique|duplicate/i)
+      await assert.rejects(run('staff', client => client.query('SELECT * FROM public.message_outbox')), /permission denied|row-level security/i)
+      await assert.rejects(run('staff', client => client.query('UPDATE public.message_outbox SET status=\'CANCELLED\'')), /permission denied|row-level security/i)
+      await assert.rejects(run('staff', client => client.query('SELECT * FROM public.customer_communications')), /permission denied|row-level security/i)
+      await deny(() => read('staff', 'save_settings', '$1::jsonb', [JSON.stringify({ customer_messaging_enabled: false })]))
+      await read('owner', 'save_settings', '$1::jsonb', [JSON.stringify({ customer_messaging_enabled: false, sale_thank_you_enabled: false })])
+    })
+    await test('failed sale creates no message; outbox storage failure cannot roll back sale; disabled/missing phone skip safely', async () => {
+      const invalidVehicle = await vehicle()
+      await deny(() => call('staff', 'sell_vehicle', { vehicle_id: invalidVehicle, customer_name: 'Sai dữ liệu', customer_phone: '0912345678', sale_price: 1, initial_payment: 2, sale_date: day }), /INVALID_PAYMENT/)
+      assert.equal(Number((await row('SELECT count(*) AS n FROM public.message_outbox WHERE sale_id IN (SELECT id FROM public.sales WHERE vehicle_id=$1)', [invalidVehicle])).n), 0)
+      const isolatedVehicle = await vehicle()
+      await db.exec(`CREATE FUNCTION private.reject_message_outbox() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'simulated outbox outage'; END $$; CREATE TRIGGER reject_message_outbox BEFORE INSERT ON public.message_outbox FOR EACH ROW EXECUTE FUNCTION private.reject_message_outbox();`)
+      let isolatedSale
+      try {
+        isolatedSale = await call('staff', 'sell_vehicle', { vehicle_id: isolatedVehicle, customer_name: 'Bán vẫn thành công', customer_phone: '0912345678', sale_price: 80_000_000, sale_date: day, initial_payment: 0 })
+      } finally {
+        await db.exec('DROP TRIGGER reject_message_outbox ON public.message_outbox; DROP FUNCTION private.reject_message_outbox()')
+      }
+      assert.equal((await read('staff', 'get_sale', '$1::uuid', [isolatedSale])).status, 'COMPLETED')
+      assert.equal((await read('staff', 'get_sale_communication', '$1::uuid', [isolatedSale])).id, undefined)
+      const skippedSale = await call('staff', 'sell_vehicle', { vehicle_id: await vehicle(), customer_name: 'Không có số', customer_phone: '', sale_price: 80_000_000, sale_date: day, initial_payment: 0 })
+      assert.equal((await read('staff', 'get_sale_communication', '$1::uuid', [skippedSale])).status, 'SKIPPED')
+    })
+    await test('OWNER/MANAGER retry reuses the same failed idempotent job after the bounded automatic attempts', async () => {
+      await read('owner', 'save_settings', '$1::jsonb', [JSON.stringify({ customer_messaging_enabled: true, sale_thank_you_enabled: true, primary_message_channel: 'SMS' })])
+      const saleId = await call('staff', 'sell_vehicle', { vehicle_id: await vehicle(), customer_name: 'Thử lại tin nhắn', customer_phone: '0934567890', sale_price: 80_000_000, sale_date: day, initial_payment: 0 })
+      const job = await read('staff', 'get_sale_communication', '$1::uuid', [saleId])
+      for (let attempt = 1; attempt <= 3; attempt++) {
+        const claimed = await read('staff', 'claim_message', '$1::uuid', [job.id])
+        assert.equal(claimed.attempt_count, attempt)
+        const state = await read('staff', 'fail_message', '$1::uuid,$2::text,$3::text,$4::boolean', [job.id, 'NETWORK_TIMEOUT', 'Tạm thời không kết nối được.', false])
+        assert.equal(state.status, attempt === 3 ? 'FAILED' : 'QUEUED')
+        if (attempt < 3) await db.query('UPDATE public.message_outbox SET next_attempt_at=now() WHERE id=$1', [job.id])
+      }
+      await deny(() => read('staff', 'retry_sale_thank_you', '$1::uuid', [saleId]), /ACCESS_DENIED/)
+      const retry = await read('owner', 'retry_sale_thank_you', '$1::uuid', [saleId])
+      assert.equal(retry.id, job.id)
+      assert.equal(retry.attempt_count, 0)
+      assert.equal((await read('staff', 'get_sale', '$1::uuid', [saleId])).status, 'COMPLETED')
+      await read('owner', 'save_settings', '$1::jsonb', [JSON.stringify({ customer_messaging_enabled: false, sale_thank_you_enabled: false })])
+    })
+    await test('not-configured provider fails safely after commit and OWNER retry reuses the same job', async () => {
+      await read('owner', 'save_settings', '$1::jsonb', [JSON.stringify({ customer_messaging_enabled: true, sale_thank_you_enabled: true, primary_message_channel: 'ZALO_ZNS' })])
+      const saleId = await call('staff', 'sell_vehicle', { vehicle_id: await vehicle(), customer_name: 'Thiếu nhà cung cấp', customer_phone: '0987654321', sale_price: 80_000_000, sale_date: day, initial_payment: 0 })
+      const job = await read('staff', 'get_sale_communication', '$1::uuid', [saleId])
+      const claimed = await read('staff', 'claim_message', '$1::uuid', [job.id])
+      const skipped = await read('staff', 'skip_message', '$1::uuid,$2::text,$3::text', [claimed.id, 'PROVIDER_NOT_CONFIGURED', 'Chưa cấu hình nhà cung cấp tin nhắn.'])
+      assert.equal(skipped.status, 'SKIPPED')
+      assert.equal(skipped.last_error_code, 'PROVIDER_NOT_CONFIGURED')
+      assert.equal((await read('staff', 'get_sale', '$1::uuid', [saleId])).status, 'COMPLETED')
+      await deny(() => read('staff', 'retry_sale_thank_you', '$1::uuid', [saleId]), /ACCESS_DENIED/)
+      await deny(() => read('owner', 'retry_sale_thank_you', '$1::uuid', [saleId]), /MESSAGE_PROVIDER_NOT_CONFIGURED/)
+      assert.equal((await read('staff', 'get_sale_communication', '$1::uuid', [saleId])).attempt_count, 1)
+      await read('owner', 'save_settings', '$1::jsonb', [JSON.stringify({ customer_messaging_enabled: false, sale_thank_you_enabled: false })])
+    })
+    const hour = 3_600_000
+    const activeFor = async (user) => (await read(user, 'list_active_announcements')).map(a => a.id)
+    await test('only OWNER can manage announcements; others can only read targeted notices', async () => {
+      await deny(() => call('staff', 'save_announcement', { message: 'Không có quyền' }), /ACCESS_DENIED/)
+      await deny(() => call('manager', 'save_announcement', { message: 'Không có quyền' }), /ACCESS_DENIED/)
+      await deny(() => read('staff', 'list_announcements'), /ACCESS_DENIED/)
+      await deny(() => read('staff', 'delete_announcement', '$1::uuid', [randomUUID()]), /ACCESS_DENIED/)
+      await deny(() => read('manager', 'set_announcement_active', '$1::uuid,$2::boolean', [randomUUID(), true]), /ACCESS_DENIED/)
+    })
+    await test('active store-wide announcement is visible to every role immediately', async () => {
+      const saved = await call('owner', 'save_announcement', { message: 'Cửa hàng nghỉ Tết từ 27/01 đến 02/02.', type: 'INFO', is_active: true })
+      assert.equal(saved.is_active, true)
+      for (const user of ['staff', 'manager', 'owner']) assert.ok((await activeFor(user)).includes(saved.id))
+      await read('owner', 'delete_announcement', '$1::uuid', [saved.id])
+    })
+    await test('audience targets a single role and scheduling controls the window', async () => {
+      const staffOnly = await call('owner', 'save_announcement', { message: 'Họp nhân viên lúc 8h.', audience: 'STAFF', is_active: true })
+      assert.ok((await activeFor('staff')).includes(staffOnly.id))
+      assert.ok(!(await activeFor('manager')).includes(staffOnly.id))
+      const future = await call('owner', 'save_announcement', { message: 'Chưa tới lịch.', is_active: true, starts_at: new Date(Date.now() + 6 * hour).toISOString() })
+      assert.ok(!(await activeFor('owner')).includes(future.id))
+      const expired = await call('owner', 'save_announcement', { message: 'Đã qua lịch.', is_active: true, ends_at: new Date(Date.now() - hour).toISOString() })
+      assert.ok(!(await activeFor('owner')).includes(expired.id))
+      for (const id of [staffOnly.id, future.id, expired.id]) await read('owner', 'delete_announcement', '$1::uuid', [id])
+    })
+    await test('invalid schedule and empty message are rejected', async () => {
+      await deny(() => call('owner', 'save_announcement', { message: 'Lỗi ngày', is_active: true, starts_at: new Date(Date.now() + 6 * hour).toISOString(), ends_at: new Date(Date.now() + 2 * hour).toISOString() }), /INVALID_DATE_RANGE/)
+      await deny(() => call('owner', 'save_announcement', { message: '   ' }), /INVALID_ANNOUNCEMENT_MESSAGE/)
+    })
+    await test('critical outranks lower types, activation toggles visibility, changes are audited', async () => {
+      const info = await call('owner', 'save_announcement', { message: 'Nhắc quy trình.', type: 'INFO', is_active: true })
+      const critical = await call('owner', 'save_announcement', { message: 'Bảo trì hệ thống.', type: 'CRITICAL', is_active: true })
+      const list = await read('staff', 'list_active_announcements')
+      assert.ok(list.findIndex(a => a.id === critical.id) < list.findIndex(a => a.id === info.id))
+      const toggled = await read('owner', 'set_announcement_active', '$1::uuid,$2::boolean', [critical.id, false])
+      assert.equal(toggled.is_active, false)
+      assert.ok(!(await activeFor('staff')).includes(critical.id))
+      await read('owner', 'set_announcement_active', '$1::uuid,$2::boolean', [critical.id, true])
+      assert.ok((await activeFor('staff')).includes(critical.id))
+      await read('owner', 'delete_announcement', '$1::uuid', [info.id])
+      await read('owner', 'delete_announcement', '$1::uuid', [critical.id])
+      const actions = (await db.query("SELECT action FROM public.audit_logs WHERE entity_type='system_announcements'")).rows.map(r => r.action)
+      for (const action of ['ANNOUNCEMENT_CREATE', 'ANNOUNCEMENT_ACTIVATE', 'ANNOUNCEMENT_DEACTIVATE', 'ANNOUNCEMENT_DELETE']) assert.ok(actions.includes(action), `missing audit ${action}`)
     })
     if (db.connection) {
       await test('concurrent keyed retries record once; competing payments cannot exceed debt', async () => {

@@ -1,4 +1,4 @@
-import { mkdtemp, readdir, readFile, realpath } from 'node:fs/promises'
+import { mkdtemp, readdir, readFile, realpath, rm } from 'node:fs/promises'
 import { dirname, join, resolve } from 'node:path'
 import { tmpdir } from 'node:os'
 import { createServer } from 'node:net'
@@ -103,7 +103,17 @@ async function nativeDatabase() {
         await connection.connect()
         return { query: (sql, values) => connection.query(sql, values), exec: (sql) => connection.query(sql), close: () => connection.end() }
       },
-      close: async () => { await client.end(); await cluster.stop() },
+      close: async () => {
+        await client.end()
+        try {
+          await cluster.stop()
+        } catch (error) {
+          // On Windows, embedded-postgres can return before taskkill releases file handles.
+          if (error?.code !== 'EBUSY') throw error
+          await new Promise((resolve) => setTimeout(resolve, 250))
+          await rm(databaseDir, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 })
+        }
+      },
     }
   } catch (error) {
     await cluster.stop().catch(() => {})

@@ -98,8 +98,8 @@ BEGIN
   VALUES(
     new.id,
     left(coalesce(nullif(btrim(new.raw_user_meta_data->>'full_name'),''),'Người dùng mới'),120),
-    'VIEWER',
-    false,
+    'STAFF',
+    true,
     -- Generate username from email if available, otherwise from full_name
     coalesce(
       lower(regexp_replace(new.email, '@.*$', '', 'g')),
@@ -120,7 +120,7 @@ END $$;
 CREATE OR REPLACE FUNCTION public.update_profile(p_id uuid,p_data jsonb) RETURNS void
 LANGUAGE plpgsql SECURITY DEFINER SET search_path='' AS $$
 DECLARE
-  v_actor uuid:=private.require_role(array['OWNER','MANAGER','STAFF','VIEWER']::public.user_role[]);
+  v_actor uuid:=private.require_role(array['OWNER','MANAGER','STAFF']::public.user_role[]);
   v_old public.profiles; v_new public.profiles; v_role public.user_role; v_active boolean; v_fin boolean;
   v_username text;
 BEGIN

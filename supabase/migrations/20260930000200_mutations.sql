@@ -213,7 +213,7 @@ end $$;
 create function public.update_profile(p_id uuid,p_data jsonb) returns void
 language plpgsql security definer set search_path='' as $$
 declare
-  v_actor uuid:=private.require_role(array['OWNER','MANAGER','STAFF','VIEWER']::public.user_role[]);
+  v_actor uuid:=private.require_role(array['OWNER','MANAGER','STAFF']::public.user_role[]);
   v_old public.profiles; v_new public.profiles; v_role public.user_role; v_active boolean; v_fin boolean;
 begin
   -- Serialize all role/status transitions so simultaneous demotions cannot remove every owner.

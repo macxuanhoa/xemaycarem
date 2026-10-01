@@ -18,7 +18,7 @@ CREATE INDEX IF NOT EXISTS sales_customer_phone_normalized
 create or replace function public.list_vehicles(p_filters jsonb default '{}') returns jsonb
 language plpgsql stable security definer set search_path='' as $$
 declare
-  v_actor uuid:=private.require_role(array['OWNER','MANAGER','STAFF','VIEWER']::public.user_role[]);
+  v_actor uuid:=private.require_role(array['OWNER','MANAGER','STAFF']::public.user_role[]);
   v_search text:=left(coalesce(p_filters->>'search',''),200);
   v_sort text:=coalesce(p_filters->>'sort','newest');
   v_limit integer:=least(100,greatest(1,coalesce((p_filters->>'limit')::integer,25)));
@@ -57,7 +57,7 @@ end $$;
 CREATE OR REPLACE FUNCTION public.list_receivables(p_filters jsonb DEFAULT '{}') RETURNS jsonb
 LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = '' AS $$
 DECLARE
-  v_actor uuid := private.require_role(ARRAY['OWNER','MANAGER','STAFF','VIEWER']::public.user_role[]);
+  v_actor uuid := private.require_role(ARRAY['OWNER','MANAGER','STAFF']::public.user_role[]);
   v_search text := left(btrim(coalesce(p_filters->>'search', '')), 200);
   v_status text := coalesce(p_filters->>'payment_status', 'DEBT_ONLY');
   v_from date := coalesce(nullif(p_filters->>'from', ''), nullif(p_filters->>'date_from', ''))::date;
@@ -119,7 +119,7 @@ END $$;
 CREATE OR REPLACE FUNCTION public.list_customers(p_filters jsonb DEFAULT '{}') RETURNS jsonb
 LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = '' AS $$
 DECLARE
-  v_actor uuid := private.require_role(ARRAY['OWNER','MANAGER','STAFF','VIEWER']::public.user_role[]);
+  v_actor uuid := private.require_role(ARRAY['OWNER','MANAGER','STAFF']::public.user_role[]);
   v_search text := left(btrim(coalesce(p_filters->>'search', '')), 100);
   v_phone_search text := private.normalize_customer_phone(v_search);
   v_limit integer := least(100, greatest(1, coalesce((p_filters->>'limit')::integer, 25)));
@@ -159,7 +159,7 @@ END $$;
 CREATE OR REPLACE FUNCTION public.get_customer_history(p_phone text) RETURNS jsonb
 LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = '' AS $$
 DECLARE
-  v_actor uuid := private.require_role(ARRAY['OWNER','MANAGER','STAFF','VIEWER']::public.user_role[]);
+  v_actor uuid := private.require_role(ARRAY['OWNER','MANAGER','STAFF']::public.user_role[]);
   v_phone text := private.normalize_customer_phone(p_phone);
   v_summary jsonb;
   v_sales jsonb;
@@ -191,7 +191,7 @@ END $$;
 CREATE OR REPLACE FUNCTION public.global_search(p_query text, p_limit integer DEFAULT 10) RETURNS jsonb
 LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = '' AS $$
 DECLARE
-  v_actor uuid := private.require_role(ARRAY['OWNER','MANAGER','STAFF','VIEWER']::public.user_role[]);
+  v_actor uuid := private.require_role(ARRAY['OWNER','MANAGER','STAFF']::public.user_role[]);
   v_query text := left(btrim(coalesce(p_query, '')), 100);
   v_phone text := private.normalize_customer_phone(v_query);
   v_limit integer := least(30, greatest(1, coalesce(p_limit, 10)));
@@ -229,7 +229,7 @@ CREATE OR REPLACE FUNCTION public.dashboard(
 ) RETURNS jsonb
 LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = '' AS $$
 DECLARE
-  v_actor uuid := private.require_role(ARRAY['OWNER','MANAGER','STAFF','VIEWER']::public.user_role[]);
+  v_actor uuid := private.require_role(ARRAY['OWNER','MANAGER','STAFF']::public.user_role[]);
   v_fin boolean := private.can_financials();
   v_manage boolean := private.current_role() IN ('OWNER','MANAGER');
   v_today date := private.today();
@@ -403,7 +403,7 @@ END $$;
 CREATE OR REPLACE FUNCTION public.get_sale(p_id uuid) RETURNS jsonb
 LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = '' AS $$
 DECLARE
-  v_actor uuid := private.require_role(ARRAY['OWNER','MANAGER','STAFF','VIEWER']::public.user_role[]);
+  v_actor uuid := private.require_role(ARRAY['OWNER','MANAGER','STAFF']::public.user_role[]);
   v_sale public.sales;
   v_payments jsonb;
   v_employee text;

@@ -61,10 +61,10 @@ describe('Auth Recovery & Account Control Matrix (Comprehensive Section 39 Tests
       );
     });
 
-    it('STAFF, MANAGER, and VIEWER username login resolves to internal email alias', () => {
+    it('STAFF and MANAGER username login resolves to internal email alias', () => {
       expect(resolveLoginEmail('nguyenb', [staffProfile])).toBe('nguyenb@internal.xecrm.app');
       expect(resolveLoginEmail('manager_trinh')).toBe('manager_trinh@internal.xecrm.app');
-      expect(resolveLoginEmail('viewer_mai')).toBe('viewer_mai@internal.xecrm.app');
+      expect(resolveLoginEmail('nhanvien_mai')).toBe('nhanvien_mai@internal.xecrm.app');
     });
 
     it('Username normalization strips surrounding whitespace and forces lowercase', () => {
@@ -253,14 +253,6 @@ describe('Auth Recovery & Account Control Matrix (Comprehensive Section 39 Tests
       expect(canFinance(staff)).toBe(false); // enforced
       expect(canManage(staff)).toBe(false);
       expect(canOperate(staff)).toBe(true);
-    });
-
-    it('VIEWER is strictly read-only and cannot perform operations', () => {
-      const viewer = createProfile({ role: 'VIEWER' });
-      expect(isOwner(viewer)).toBe(false);
-      expect(canFinance(viewer)).toBe(false);
-      expect(canManage(viewer)).toBe(false);
-      expect(canOperate(viewer)).toBe(false);
     });
   });
 

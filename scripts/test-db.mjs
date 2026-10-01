@@ -5,6 +5,8 @@ import { runMigrationTests } from '../tests/db/migration.test.mjs'
 import { runBusinessRisksTests } from '../tests/db/business-risks.test.mjs'
 import { runOperationalTests } from '../tests/db/operational-features.test.mjs'
 import { runAuthSecurityTests } from '../tests/db/auth-security.test.mjs'
+import { runKnowledgeTests } from '../tests/db/knowledge.test.mjs'
+import { runIdentityDocumentTests } from '../tests/db/identity-documents.test.mjs'
 
 const engine = process.argv.includes('--pglite') ? 'pglite' : 'postgres'
 console.log(`Database integration suite: ${engine} (disposable database; no cloud credentials)`)
@@ -12,9 +14,11 @@ await runMigrationTests({ engine })
 await runBusinessRisksTests(null, { engine })
 await runOperationalTests(null, { engine })
 await runAuthSecurityTests({ engine })
+await runKnowledgeTests(null, { engine })
+await runIdentityDocumentTests(null, { engine })
 const db = await createDatabase({ engine })
 let passed = 0
-const users = Object.fromEntries(['owner', 'manager', 'financialManager', 'staff', 'viewer', 'disabled'].map((role) => [role, randomUUID()]))
+const users = Object.fromEntries(['owner', 'manager', 'financialManager', 'staff', 'disabled'].map((role) => [role, randomUUID()]))
 const run = (user, fn) => asUser(db, users[user], fn)
 const call = (user, name, data) => run(user, (client) => rpc(client, name, '$1::jsonb', [JSON.stringify(data)]))
 const row = async (sql, args = []) => (await db.query(sql, args)).rows[0]
@@ -40,8 +44,8 @@ try {
 
   await test('User-editable auth metadata cannot create an active OWNER', async () => {
     const profiles = (await db.query('SELECT role,active FROM public.profiles')).rows
-    assert.equal(profiles.length, 6)
-    assert.ok(profiles.every((profile) => profile.role === 'VIEWER' && profile.active === false))
+    assert.equal(profiles.length, 5)
+    assert.ok(profiles.every((profile) => profile.role === 'STAFF'))
   })
   for (const [name, id] of Object.entries(users)) {
     const role = name === 'financialManager' ? 'MANAGER' : name === 'disabled' ? 'STAFF' : name.toUpperCase()
@@ -62,7 +66,7 @@ try {
     await deny(() => asUser(db, null, (client) => rpc(client, 'save_vehicle', '$1::jsonb', [JSON.stringify(vehicle())]), 'anon'))
   })
   await test('All browser roles are denied direct financial/business writes and hard deletes', async () => {
-    for (const user of ['owner', 'manager', 'staff', 'viewer']) {
+    for (const user of ['owner', 'manager', 'staff']) {
       await deny(() => run(user, (client) => client.query("UPDATE public.vehicles SET status='SOLD' WHERE id=$1", [vehicleId])))
       await deny(() => run(user, (client) => client.query('DELETE FROM public.sales')))
       await deny(() => run(user, (client) => client.query('DELETE FROM public.payments')))
@@ -70,8 +74,8 @@ try {
       await deny(() => run(user, (client) => client.query("UPDATE public.profiles SET role='OWNER'")))
     }
   })
-  await test('Sensitive costs are absent in RPCs and filtered by table RLS for STAFF, VIEWER and ordinary MANAGER', async () => {
-    for (const user of ['staff', 'viewer', 'manager']) {
+  await test('Sensitive costs are absent in RPCs and filtered by table RLS for STAFF and ordinary MANAGER', async () => {
+    for (const user of ['staff', 'manager']) {
       const actual = await getVehicle(user, vehicleId)
       assert.equal(Object.hasOwn(actual, 'purchase_price'), false)
       assert.equal(Object.hasOwn(actual, 'total_cost'), false)
@@ -88,9 +92,8 @@ try {
     assert.equal((await run('disabled', (client) => client.query('SELECT * FROM public.vehicles'))).rows.length, 0)
     assert.equal((await run('disabled', (client) => client.query('SELECT * FROM public.vehicle_financials'))).rows.length, 0)
   })
-  await test('VIEWER is read-only; STAFF cannot create expenses or escalate roles', async () => {
-    assert.equal((await call('viewer', 'list_vehicles', {})).total, 1)
-    await deny(() => call('viewer', 'save_vehicle', vehicle({ purchase_price: undefined })))
+  await test('STAFF cannot create expenses or escalate roles', async () => {
+    assert.equal((await call('staff', 'list_vehicles', {})).total, 1)
     await deny(() => addExpense('staff', vehicleId, 1_200_000))
     await deny(() => run('staff', (client) => rpc(client, 'update_profile', '$1::uuid,$2::jsonb', [users.staff, '{"role":"OWNER"}'])))
     await deny(() => run('staff', (client) => rpc(client, 'list_profiles')))
@@ -148,8 +151,8 @@ try {
     await deny(() => db.query('UPDATE public.sale_financials SET purchase_cost_snapshot=1 WHERE sale_id=$1', [saleId]), /IMMUTABLE_HISTORY/)
     assert.equal((await getSale('owner', saleId)).gross_profit, 7_700_000)
   })
-  await test('STAFF and VIEWER cannot see historical profit through direct tables, detail or reports', async () => {
-    for (const user of ['staff', 'viewer', 'manager']) {
+  await test('STAFF and ordinary MANAGER cannot see historical profit through direct tables, detail or reports', async () => {
+    for (const user of ['staff', 'manager']) {
       assert.equal(Object.hasOwn(await getSale(user, saleId), 'gross_profit'), false)
       assert.equal((await run(user, (client) => client.query('SELECT * FROM public.sale_financials'))).rows.length, 0)
       await deny(() => run(user, (client) => rpc(client, 'report', "'profit','{}'::jsonb")))
@@ -212,15 +215,15 @@ try {
     const id = await call('owner', 'save_vehicle', vehicle())
     const path = `${id}/${randomUUID()}.jpg`
     const upload = (user, objectPath) => run(user, (client) => client.query("INSERT INTO storage.objects(bucket_id,name) VALUES('vehicle-images',$1)", [objectPath]))
-    for (const user of ['viewer', 'disabled']) await deny(() => upload(user, path))
+    for (const user of ['disabled']) await deny(() => upload(user, path))
     await deny(() => upload('staff', `${randomUUID()}/${randomUUID()}.jpg`))
     await deny(() => upload('staff', `${id}/${randomUUID()}.html`))
     await upload('staff', path)
     assert.equal((await run('staff', (client) => client.query('SELECT * FROM storage.objects WHERE name=$1', [path]))).rows.length, 0)
-    await deny(() => run('viewer', (client) => rpc(client, 'register_vehicle_image', '$1::uuid,$2', [id, path])))
+    await deny(() => run('disabled', (client) => rpc(client, 'register_vehicle_image', '$1::uuid,$2', [id, path])))
     const image = await run('staff', (client) => rpc(client, 'register_vehicle_image', '$1::uuid,$2', [id, path]))
-    assert.equal((await getVehicle('viewer', id)).images.length, 1)
-    assert.equal((await run('viewer', (client) => client.query('SELECT * FROM storage.objects WHERE name=$1', [path]))).rows.length, 1)
+    assert.equal((await getVehicle('staff', id)).images.length, 1)
+    assert.equal((await run('staff', (client) => client.query('SELECT * FROM storage.objects WHERE name=$1', [path]))).rows.length, 1)
     assert.equal((await run('disabled', (client) => client.query('SELECT * FROM storage.objects WHERE name=$1', [path]))).rows.length, 0)
     assert.equal((await asUser(db, null, (client) => client.query('SELECT * FROM storage.objects WHERE name=$1', [path]), 'anon')).rows.length, 0)
     const deleted = await run('staff', (client) => client.query('DELETE FROM storage.objects WHERE name=$1 RETURNING id', [path]))
@@ -231,7 +234,7 @@ try {
     assert.equal(Number((await row('SELECT count(*) AS count FROM storage.objects WHERE name=$1', [path])).count), 1)
   })
   await test('Cost sorting and dashboard cannot disclose restricted financial data', async () => {
-    for (const user of ['staff', 'viewer', 'manager']) await deny(() => call(user, 'list_vehicles', { sort: 'highest_cost' }))
+    for (const user of ['staff', 'manager']) await deny(() => call(user, 'list_vehicles', { sort: 'highest_cost' }))
     const dashboard = await run('staff', (client) => rpc(client, 'dashboard'))
     for (const field of ['inventory_cost', 'today_revenue', 'month_revenue', 'revenue', 'today_profit', 'month_profit', 'gross_profit', 'business_expenses']) assert.equal(dashboard[field], null)
     assert.deepEqual(dashboard.top_profitable, [])

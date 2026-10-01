@@ -4,9 +4,13 @@ export class AssistError extends Error {
 }
 export type Caller = { rpc: (name: string, parameters?: Record<string, unknown>) => PromiseLike<{ data: unknown; error: unknown }> };
 export type AccessProfile = { role: string; can_view_financials: boolean };
-export const tasks = ['receipt', 'vehicle_document', 'license_plate', 'odometer', 'voice', 'business_question'] as const;
+export const tasks = ['receipt', 'vehicle_document', 'license_plate', 'odometer', 'voice', 'business_question', 'copilot'] as const;
 export type Task = typeof tasks[number];
-export type AssistInput = { task: Task; consent: true; text?: string; vehicle_id?: string; image?: { mime_type: string; base64: string } };
+// 'deterministic' answers come only from authorized read RPCs; 'llm' adds a
+// provider-written summary on top of the same retrieved evidence (OWNER only).
+export const copilotModes = ['deterministic', 'llm'] as const;
+export type CopilotMode = typeof copilotModes[number];
+export type AssistInput = { task: Task; consent: true; text?: string; vehicle_id?: string; mode?: CopilotMode; image?: { mime_type: string; base64: string } };
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const categories = ['REPAIR', 'TRANSPORT', 'PAPERWORK', 'PARTS', 'CLEANING', 'INSPECTION', 'OTHER'];
 const queryKinds = ['inventory', 'acquisitions', 'sales', 'revenue', 'profit', 'aging', 'vehicle_search', 'vehicle_expenses', 'vehicle_history', 'unavailable'];
@@ -22,12 +26,17 @@ function exactKeys(value: Record<string, unknown>, keys: string[]) {
 }
 export function validateInput(value: unknown, profile: AccessProfile): AssistInput {
   const input = object(value);
-  exactKeys(input, ['task', 'consent', 'text', 'vehicle_id', 'image']);
+  exactKeys(input, ['task', 'consent', 'text', 'vehicle_id', 'mode', 'image']);
   if (!tasks.includes(input.task as Task) || input.consent !== true) throw new AssistError(400, 'EXPLICIT_PROCESSING_CONSENT_REQUIRED');
+  if (input.mode !== undefined && !copilotModes.includes(input.mode as CopilotMode)) throw new AssistError(400, 'INVALID_MODE');
+  if (input.task === 'copilot') {
+    if (input.mode !== undefined && input.mode !== 'deterministic' && profile.role !== 'OWNER') throw new AssistError(403, 'LLM_MODE_OWNER_ONLY');
+  }
   if (input.vehicle_id !== undefined && (typeof input.vehicle_id !== 'string' || !uuid.test(input.vehicle_id))) throw new AssistError(400, 'INVALID_VEHICLE_ID');
   if (['receipt'].includes(String(input.task)) && !canManage(profile)) throw new AssistError(403, 'ACCESS_DENIED');
   if (['vehicle_document', 'voice'].includes(String(input.task)) && !canOperate(profile)) throw new AssistError(403, 'ACCESS_DENIED');
-  if (['voice', 'business_question'].includes(String(input.task))) {
+  if (input.task === 'copilot' && !canOperate(profile)) throw new AssistError(403, 'ACCESS_DENIED');
+  if (['voice', 'business_question', 'copilot'].includes(String(input.task))) {
     if (typeof input.text !== 'string' || !input.text.trim() || input.text.length > 2000 || input.image !== undefined) throw new AssistError(400, 'INVALID_TEXT');
   } else {
     if (input.text !== undefined) throw new AssistError(400, 'INVALID_INPUT');
@@ -57,6 +66,8 @@ function schema(properties: Record<string, unknown>) {
   return { type: 'object', properties, required: Object.keys(properties), additionalProperties: false };
 }
 export function outputSchema(task: Task) {
+  // The copilot never asks a model for a draft; it answers from retrieved evidence.
+  if (task === 'copilot') throw new AssistError(400, 'INVALID_INPUT');
   if (task === 'receipt') return schema({ amount: nullableMoney, date: nullableDate, merchant: nullableText, description: nullableText, expense_type: category });
   if (task === 'vehicle_document') return schema({ frame_number: nullableText, engine_number: nullableText, license_plate: nullableText,
     brand: nullableText, model: nullableText, color: nullableText, year: { type: ['integer', 'null'], minimum: 1900, maximum: 2100 } });
@@ -135,4 +146,45 @@ export async function readBusinessFacts(plan: Record<string, unknown>, caller: C
   const selected = fields[String(plan.kind)];
   if (!selected || selected.some((key) => record[key] === undefined || record[key] === null)) throw new AssistError(503, 'DATA_UNAVAILABLE');
   return { available: true, month, ...Object.fromEntries(selected.map((key) => [key, record[key]])) };
+}
+
+/** Strict provider schema for the OWNER-only copilot summary: prose plus citation ids, nothing else. */
+export function copilotSchema(allowedIds: string[]) {
+  return {
+    type: 'object',
+    properties: {
+      answer_markdown: { type: 'string' },
+      citation_ids: { type: 'array', items: allowedIds.length ? { type: 'string', enum: allowedIds } : { type: 'string' }, maxItems: 20 },
+      insufficient: { type: 'boolean' },
+    },
+    required: ['answer_markdown', 'citation_ids', 'insufficient'],
+    additionalProperties: false,
+  };
+}
+
+export type GroundedAnswer = { answer_markdown: string; citation_ids: string[]; insufficient: boolean };
+
+/**
+ * Reject a provider summary that cites unknown evidence, keeps an external link
+ * or is not grounded at all. Citation ids must already exist in the retrieved
+ * set, so every claim still points at a button the user can reopen.
+ */
+export function validateGroundedAnswer(value: unknown, allowedIds: string[]): GroundedAnswer {
+  const result = object(value);
+  exactKeys(result, ['answer_markdown', 'citation_ids', 'insufficient']);
+  const known = new Set(allowedIds);
+  const raw = typeof result.answer_markdown === 'string' ? result.answer_markdown.trim() : '';
+  if (!raw || raw.length > 4000) throw new AssistError(502, 'INVALID_AI_RESULT');
+  const cleaned = raw
+    .replace(/\[([^\]]{1,160})\]\(([^)\s]{1,240})\)/g, (match, text: string, href: string) => (href.startsWith('/') && !href.startsWith('//') ? match : text))
+    .replace(/https?:\/\/\S+/gi, '')
+    .trim();
+  if (!cleaned || cleaned.length > 4000) throw new AssistError(502, 'INVALID_AI_RESULT');
+  const ids = Array.isArray(result.citation_ids) ? result.citation_ids : [];
+  if (ids.length > 20 || ids.some((id) => typeof id !== 'string' || !known.has(id))) throw new AssistError(502, 'INVALID_AI_RESULT');
+  const markers = [...cleaned.matchAll(/\[([a-z]{1,3}\d{1,3})\]/g)].map((marker) => marker[1]);
+  if (markers.some((marker) => !known.has(marker))) throw new AssistError(502, 'INVALID_AI_RESULT');
+  const insufficient = result.insufficient === true;
+  if (!insufficient && !ids.length && !markers.length) throw new AssistError(502, 'INVALID_AI_RESULT');
+  return { answer_markdown: cleaned, citation_ids: ids as string[], insufficient };
 }

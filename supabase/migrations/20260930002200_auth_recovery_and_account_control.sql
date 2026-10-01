@@ -300,8 +300,8 @@ BEGIN
   ) VALUES (
     new.id,
     left(coalesce(nullif(btrim(new.raw_user_meta_data->>'full_name'),''), 'Người dùng mới'), 120),
-    'VIEWER',
-    false, -- Non-owner provisioning is inactive by default
+    'STAFF',
+    true, -- Provisioned accounts are active by default
     v_username,
     false,
     NULL, '00:00:00', '23:59:59', ARRAY[1,2,3,4,5,6,7], NULL, NULL
@@ -317,7 +317,7 @@ END $$;
 CREATE OR REPLACE FUNCTION public.update_profile(p_id UUID, p_data JSONb) RETURNS void
 LANGUAGE plpgsql SECURITY DEFINER SET search_path='' AS $$
 DECLARE
-  v_actor uuid := private.require_role(array['OWNER','MANAGER','STAFF','VIEWER']::public.user_role[]);
+  v_actor uuid := private.require_role(array['OWNER','MANAGER','STAFF']::public.user_role[]);
   v_actor_role public.user_role := private.current_role();
   v_old public.profiles;
   v_new public.profiles;

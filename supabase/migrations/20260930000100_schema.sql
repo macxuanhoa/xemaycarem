@@ -3,7 +3,7 @@ create schema if not exists private;
 revoke all on schema private from public, anon, authenticated;
 grant usage on schema private to authenticated;
 
-create type public.user_role as enum ('OWNER','MANAGER','STAFF','VIEWER');
+create type public.user_role as enum ('OWNER','MANAGER','STAFF');
 create type public.vehicle_status as enum ('IN_STOCK','RESERVED','SOLD','CANCELLED');
 create type public.record_status as enum ('ACTIVE','CANCELLED');
 create type public.sale_status as enum ('COMPLETED','CANCELLED');
@@ -15,8 +15,8 @@ create type public.business_expense_category as enum ('RENT','ELECTRICITY','SALA
 create table public.profiles (
   id uuid primary key references auth.users(id) on delete restrict,
   full_name text not null check (char_length(btrim(full_name)) between 1 and 120),
-  role public.user_role not null default 'VIEWER',
-  active boolean not null default false,
+  role public.user_role not null default 'STAFF',
+  active boolean not null default true,
   can_view_financials boolean not null default false,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
@@ -231,11 +231,11 @@ create trigger immutable_activity before update or delete on public.vehicle_acti
 create trigger immutable_sale_snapshot before update or delete on public.sale_financials for each row execute function private.immutable_history();
 
 -- Public signup is disabled in config. Even if enabled accidentally, new accounts
--- are inert VIEWERs; user-editable auth metadata never grants a business role.
+-- default to the lowest operational role (STAFF); user-editable auth metadata never grants OWNER or MANAGER.
 create function private.new_auth_user() returns trigger language plpgsql security definer set search_path='' as $$
 begin
   insert into public.profiles(id,full_name,role,active)
-  values(new.id,left(coalesce(nullif(btrim(new.raw_user_meta_data->>'full_name'),''),'Người dùng mới'),120),'VIEWER',false);
+  values(new.id,left(coalesce(nullif(btrim(new.raw_user_meta_data->>'full_name'),''),'Người dùng mới'),120),'STAFF',true);
   return new;
 end $$;
 create trigger on_auth_user_created after insert on auth.users for each row execute function private.new_auth_user();

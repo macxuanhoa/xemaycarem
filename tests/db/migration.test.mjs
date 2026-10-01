@@ -33,6 +33,9 @@ export async function runMigrationTests({ engine = 'postgres' } = {}) {
       'audit_logs',
       'vehicle_activity',
       'system_settings',
+      'message_outbox',
+      'customer_communications',
+      'knowledge_base',
     ]
 
     const tablesResult = await db.query(
@@ -53,7 +56,7 @@ export async function runMigrationTests({ engine = 'postgres' } = {}) {
         assert.equal(row.relrowsecurity, true, `Table '${row.relname}' must have RLS enabled`)
       }
     }
-    console.log(`✓ Row Level Security is explicitly ENABLED on all 12 public tables`)
+    console.log(`✓ Row Level Security is explicitly ENABLED on all ${expectedTables.length} expected public tables`)
 
     // 3. Expected primary keys and foreign keys exist
     const pks = await db.query(`
@@ -148,6 +151,16 @@ export async function runMigrationTests({ engine = 'postgres' } = {}) {
       'dashboard',
       'register_vehicle_image',
       'remove_vehicle_image',
+      'get_sale_communication',
+      'list_customer_communications',
+      'retry_sale_thank_you',
+      'search_knowledge',
+      'list_knowledge',
+      'get_knowledge_article',
+      'claim_message',
+      'finish_mock_message',
+      'fail_message',
+      'skip_message',
     ]
 
     const procResult = await db.query(`

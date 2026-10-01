@@ -11,16 +11,41 @@ const url = Deno.env.get('SUPABASE_URL');
 const anonKey = Deno.env.get('SUPABASE_ANON_KEY') ?? Deno.env.get('SUPABASE_PUBLISHABLE_KEY');
 const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? Deno.env.get('SUPABASE_SECRET_KEY');
 
+// CORS origin policy. Production deployments MUST set ALLOWED_ORIGINS to a
+// comma-separated list of exact browser origins (no trailing slashes), e.g.
+//   https://carem.example,http://127.0.0.1:5173
+// Requests from any other origin receive no Access-Control-Allow-Origin header,
+// so the browser blocks the response. When unset (local development only) the
+// Supabase SDK default headers are used; authentication and OWNER checks still
+// apply to every POST.
+const allowedOrigins = (Deno.env.get('ALLOWED_ORIGINS') ?? '')
+  .split(',')
+  .map((value) => value.trim().replace(/\/+$/, ''))
+  .filter(Boolean);
+
+function corsFor(request: Request): Record<string, string> {
+  if (allowedOrigins.length === 0) return corsHeaders;
+  const origin = request.headers.get('Origin');
+  if (!origin || !allowedOrigins.includes(origin)) return {};
+  return {
+    'Access-Control-Allow-Origin': origin,
+    'Vary': 'Origin',
+    'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+    'Access-Control-Allow-Methods': 'POST, OPTIONS',
+    'Access-Control-Max-Age': '300',
+  };
+}
+
 Deno.serve(async (request: Request) => {
   // Handle preflight OPTIONS request before any auth or business logic
   if (request.method === 'OPTIONS') {
-    return new Response('ok', { status: 200, headers: corsHeaders });
+    return new Response('ok', { status: 200, headers: corsFor(request) });
   }
 
   const response = (status: number, body: Record<string, unknown>) => new Response(JSON.stringify(body), {
     status,
     headers: {
-      ...corsHeaders,
+      ...corsFor(request),
       'Content-Type': 'application/json',
       'Cache-Control': 'no-store',
     },
@@ -87,6 +112,41 @@ Deno.serve(async (request: Request) => {
 
     const admin = createClient(url, serviceKey, { auth: { persistSession: false, autoRefreshToken: false } });
 
+    // Helper: Count active OWNER accounts
+    const countActiveOwners = async (): Promise<number> => {
+      const { data, error } = await admin
+        .from('profiles')
+        .select('id')
+        .eq('role', 'OWNER')
+        .eq('active', true)
+        .is('deleted_at', null);
+      if (error) throw error;
+      return data?.length ?? 0;
+    };
+
+    // Helper: Audit log privileged action
+    const auditAction = async (
+      action: string,
+      targetUserId: string,
+      oldData: Record<string, unknown> | null,
+      newData: Record<string, unknown> | null
+    ): Promise<void> => {
+      try {
+        // Insert directly into audit_logs using service role
+        await admin.from('audit_logs').insert({
+          user_id: authData.user.id,
+          action,
+          entity_type: 'profiles',
+          entity_id: targetUserId,
+          old_data: oldData,
+          new_data: newData,
+        });
+      } catch (error) {
+        console.error('Audit logging failed', { action, targetUserId, error });
+        // Audit failure should not block the action itself
+      }
+    };
+
     // 1. CREATE USER (OWNER ONLY)
     if (action === 'create') {
       // Validate username format: 3-30 chars, lowercase, letters/numbers/underscore/dot only
@@ -95,8 +155,8 @@ Deno.serve(async (request: Request) => {
       }
 
       // Prohibit creating OWNER through normal user provisioning
-      if (!['MANAGER', 'STAFF', 'VIEWER'].includes(role)) {
-        return response(400, { error: 'INVALID_ROLE', message: 'Chỉ có thể tạo vai trò Quản lý, Nhân viên hoặc Người xem.' });
+      if (!['MANAGER', 'STAFF'].includes(role)) {
+        return response(400, { error: 'INVALID_ROLE', message: 'Chỉ có thể tạo vai trò Quản lý hoặc Nhân viên.' });
       }
 
       if (fullName.length < 1 || fullName.length > 120) {
@@ -170,6 +230,9 @@ Deno.serve(async (request: Request) => {
         return response(500, { error: 'PROFILE_ACTIVATION_FAILED', message: 'Lỗi kích hoạt hồ sơ tài khoản. Đã hoàn tác an toàn.' });
       }
 
+      // Audit user creation
+      await auditAction('CREATE_USER', newUserId, null, { username, full_name: fullName, role });
+
       return response(201, { id: newUserId, username });
     }
 
@@ -207,12 +270,33 @@ Deno.serve(async (request: Request) => {
         return response(500, { error: 'PASSWORD_REQUIREMENT_FAILED', message: 'Mật khẩu đã thay đổi nhưng chưa hoàn tất kiểm soát truy cập. Vui lòng kiểm tra tài khoản trước khi tiếp tục.' });
       }
 
+      // Audit password reset (without logging the password itself)
+      await auditAction('RESET_TEMP_PASSWORD', userId, null, { must_change_password: true });
+
       return response(200, { success: true, message: 'Đã đặt lại mật khẩu tạm thành công.' });
     }
 
     // 3. DISABLE / LOCK ACCOUNT
     if (action === 'disable') {
       if (!userId) return response(400, { error: 'INVALID_INPUT' });
+
+      // Get current profile for audit
+      const { data: currentProfile, error: fetchError } = await admin
+        .from('profiles')
+        .select('*')
+        .eq('id', userId)
+        .single();
+      if (fetchError || !currentProfile) {
+        return response(404, { error: 'USER_NOT_FOUND', message: 'Không tìm thấy người dùng.' });
+      }
+
+      // Prevent disabling the final active OWNER
+      if (currentProfile.role === 'OWNER' && !disabledUntil) {
+        const activeOwnerCount = await countActiveOwners();
+        if (activeOwnerCount <= 1) {
+          return response(400, { error: 'CANNOT_DISABLE_FINAL_OWNER', message: 'Không thể vô hiệu hóa Chủ cửa hàng cuối cùng. Hệ thống phải có ít nhất một Chủ cửa hàng hoạt động.' });
+        }
+      }
 
       const { error } = await caller.rpc('update_profile', {
         p_id: userId,
@@ -227,12 +311,30 @@ Deno.serve(async (request: Request) => {
         return response(400, { error: 'USER_DISABLE_FAILED', message: error.message });
       }
 
+      // Audit the disable action
+      await auditAction(
+        disabledUntil ? 'TEMP_LOCK_USER' : 'DISABLE_USER',
+        userId,
+        { active: currentProfile.active, disabled_until: currentProfile.disabled_until },
+        { active: disabledUntil ? true : false, disabled_until: disabledUntil || null, disable_reason: disableReason || null }
+      );
+
       return response(200, { success: true });
     }
 
     // 4. RESTORE / ACTIVATE ACCOUNT
     if (action === 'restore') {
       if (!userId) return response(400, { error: 'INVALID_INPUT' });
+
+      // Get current profile for audit
+      const { data: currentProfile, error: fetchError } = await admin
+        .from('profiles')
+        .select('*')
+        .eq('id', userId)
+        .single();
+      if (fetchError || !currentProfile) {
+        return response(404, { error: 'USER_NOT_FOUND', message: 'Không tìm thấy người dùng.' });
+      }
 
       const { error } = await caller.rpc('update_profile', {
         p_id: userId,
@@ -248,12 +350,33 @@ Deno.serve(async (request: Request) => {
         return response(400, { error: 'USER_RESTORE_FAILED', message: error.message });
       }
 
+      // Audit the restore action
+      await auditAction('ENABLE_USER', userId, { active: currentProfile.active, deleted_at: currentProfile.deleted_at }, { active: true, deleted_at: null });
+
       return response(200, { success: true });
     }
 
     // 5. NORMAL DELETE = SOFT DEACTIVATE (Preserves historical attribution)
     if (action === 'delete') {
       if (!userId) return response(400, { error: 'INVALID_INPUT' });
+
+      // Get current profile for audit
+      const { data: currentProfile, error: fetchError } = await admin
+        .from('profiles')
+        .select('*')
+        .eq('id', userId)
+        .single();
+      if (fetchError || !currentProfile) {
+        return response(404, { error: 'USER_NOT_FOUND', message: 'Không tìm thấy người dùng.' });
+      }
+
+      // Prevent deleting the final active OWNER
+      if (currentProfile.role === 'OWNER' && currentProfile.active) {
+        const activeOwnerCount = await countActiveOwners();
+        if (activeOwnerCount <= 1) {
+          return response(400, { error: 'CANNOT_DELETE_FINAL_OWNER', message: 'Không thể xóa Chủ cửa hàng cuối cùng. Hệ thống phải có ít nhất một Chủ cửa hàng hoạt động.' });
+        }
+      }
 
       const { error } = await caller.rpc('update_profile', {
         p_id: userId,
@@ -267,6 +390,9 @@ Deno.serve(async (request: Request) => {
         console.error('Delete (deactivate) failed', error);
         return response(400, { error: 'USER_DELETE_FAILED', message: error.message });
       }
+
+      // Audit the delete action
+      await auditAction('DISABLE_USER', userId, { active: currentProfile.active, deleted_at: currentProfile.deleted_at }, { active: false, deleted_at: new Date().toISOString() });
 
       return response(200, { success: true });
     }
@@ -315,6 +441,16 @@ Deno.serve(async (request: Request) => {
     if (action === 'update_schedule') {
       if (!userId) return response(400, { error: 'INVALID_INPUT' });
 
+      // Get current profile for audit
+      const { data: currentProfile, error: fetchError } = await admin
+        .from('profiles')
+        .select('*')
+        .eq('id', userId)
+        .single();
+      if (fetchError || !currentProfile) {
+        return response(404, { error: 'USER_NOT_FOUND', message: 'Không tìm thấy người dùng.' });
+      }
+
       const { error } = await caller.rpc('update_profile', {
         p_id: userId,
         p_data: {
@@ -327,6 +463,186 @@ Deno.serve(async (request: Request) => {
         console.error('Schedule update failed', error);
         return response(400, { error: 'SCHEDULE_UPDATE_FAILED', message: error.message });
       }
+
+      // Audit the schedule update
+      await auditAction('UPDATE_ACCESS_SCHEDULE', userId, { allowed_from: currentProfile.allowed_from, allowed_until: currentProfile.allowed_until, working_days: currentProfile.working_days }, { allowed_from: allowedFrom, allowed_until: allowedUntil, working_days: workingDays });
+
+      return response(200, { success: true });
+    }
+
+    // 8. CHANGE ROLE (OWNER ONLY)
+    if (action === 'change_role') {
+      if (!userId) return response(400, { error: 'INVALID_INPUT' });
+      if (!['STAFF', 'MANAGER'].includes(role)) {
+        return response(400, { error: 'INVALID_ROLE', message: 'Vai trò không hợp lệ. Chỉ có thể thay đổi thành Nhân viên hoặc Quản lý.' });
+      }
+
+      // Get current profile for audit
+      const { data: currentProfile, error: fetchError } = await admin
+        .from('profiles')
+        .select('*')
+        .eq('id', userId)
+        .single();
+      if (fetchError || !currentProfile) {
+        return response(404, { error: 'USER_NOT_FOUND', message: 'Không tìm thấy người dùng.' });
+      }
+
+      // Prevent demoting the final active OWNER
+      if (currentProfile.role === 'OWNER') {
+        const activeOwnerCount = await countActiveOwners();
+        if (activeOwnerCount <= 1) {
+          return response(400, { error: 'CANNOT_DEMOTE_FINAL_OWNER', message: 'Không thể hạ cấp Chủ cửa hàng cuối cùng. Hệ thống phải có ít nhất một Chủ cửa hàng hoạt động.' });
+        }
+      }
+
+      const { error } = await caller.rpc('update_profile', {
+        p_id: userId,
+        p_data: { role },
+      });
+      if (error) {
+        console.error('Role change failed', error);
+        return response(400, { error: 'ROLE_CHANGE_FAILED', message: error.message });
+      }
+
+      // Audit the role change
+      await auditAction('CHANGE_ROLE', userId, { role: currentProfile.role }, { role });
+
+      return response(200, { success: true });
+    }
+
+    // 9. PROMOTE TO OWNER (OWNER ONLY)
+    if (action === 'promote_to_owner') {
+      if (!userId) return response(400, { error: 'INVALID_INPUT' });
+
+      // Get current profile for audit
+      const { data: currentProfile, error: fetchError } = await admin
+        .from('profiles')
+        .select('*')
+        .eq('id', userId)
+        .single();
+      if (fetchError || !currentProfile) {
+        return response(404, { error: 'USER_NOT_FOUND', message: 'Không tìm thấy người dùng.' });
+      }
+
+      if (!currentProfile.active || currentProfile.deleted_at) {
+        return response(400, { error: 'USER_NOT_ACTIVE', message: 'Chỉ có thể nâng cấp tài khoản đang hoạt động.' });
+      }
+
+      const { error } = await caller.rpc('update_profile', {
+        p_id: userId,
+        p_data: { role: 'OWNER' },
+      });
+      if (error) {
+        console.error('Promote to OWNER failed', error);
+        return response(400, { error: 'PROMOTE_FAILED', message: error.message });
+      }
+
+      // Audit the promotion
+      await auditAction('PROMOTE_TO_OWNER', userId, { role: currentProfile.role }, { role: 'OWNER' });
+
+      return response(200, { success: true });
+    }
+
+    // 10. DEMOTE OWNER (OWNER ONLY)
+    if (action === 'demote_owner') {
+      if (!userId) return response(400, { error: 'INVALID_INPUT' });
+      if (!['STAFF', 'MANAGER'].includes(role)) {
+        return response(400, { error: 'INVALID_ROLE', message: 'Vai trò đích không hợp lệ.' });
+      }
+
+      // Get current profile for audit
+      const { data: currentProfile, error: fetchError } = await admin
+        .from('profiles')
+        .select('*')
+        .eq('id', userId)
+        .single();
+      if (fetchError || !currentProfile) {
+        return response(404, { error: 'USER_NOT_FOUND', message: 'Không tìm thấy người dùng.' });
+      }
+
+      if (currentProfile.role !== 'OWNER') {
+        return response(400, { error: 'NOT_OWNER', message: 'Người dùng không phải là Chủ cửa hàng.' });
+      }
+
+      // Prevent demoting the final active OWNER
+      const activeOwnerCount = await countActiveOwners();
+      if (activeOwnerCount <= 1) {
+        return response(400, { error: 'CANNOT_DEMOTE_FINAL_OWNER', message: 'Không thể hạ cấp Chủ cửa hàng cuối cùng. Hệ thống phải có ít nhất một Chủ cửa hàng hoạt động.' });
+      }
+
+      const { error } = await caller.rpc('update_profile', {
+        p_id: userId,
+        p_data: { role },
+      });
+      if (error) {
+        console.error('Demote OWNER failed', error);
+        return response(400, { error: 'DEMOTE_FAILED', message: error.message });
+      }
+
+      // Audit the demotion
+      await auditAction('DEMOTE_OWNER', userId, { role: 'OWNER' }, { role });
+
+      return response(200, { success: true });
+    }
+
+    // 11. ENABLE USER (OWNER ONLY)
+    if (action === 'enable_user') {
+      if (!userId) return response(400, { error: 'INVALID_INPUT' });
+
+      // Get current profile for audit
+      const { data: currentProfile, error: fetchError } = await admin
+        .from('profiles')
+        .select('*')
+        .eq('id', userId)
+        .single();
+      if (fetchError || !currentProfile) {
+        return response(404, { error: 'USER_NOT_FOUND', message: 'Không tìm thấy người dùng.' });
+      }
+
+      const { error } = await caller.rpc('update_profile', {
+        p_id: userId,
+        p_data: {
+          active: true,
+          disabled_until: null,
+          disable_reason: null,
+        },
+      });
+      if (error) {
+        console.error('Enable user failed', error);
+        return response(400, { error: 'ENABLE_FAILED', message: error.message });
+      }
+
+      // Audit the enable action
+      await auditAction('ENABLE_USER', userId, { active: currentProfile.active, disabled_until: currentProfile.disabled_until }, { active: true, disabled_until: null });
+
+      return response(200, { success: true });
+    }
+
+    // 12. FORCE PASSWORD CHANGE (OWNER ONLY)
+    if (action === 'force_password_change') {
+      if (!userId) return response(400, { error: 'INVALID_INPUT' });
+
+      // Get current profile for audit
+      const { data: currentProfile, error: fetchError } = await admin
+        .from('profiles')
+        .select('*')
+        .eq('id', userId)
+        .single();
+      if (fetchError || !currentProfile) {
+        return response(404, { error: 'USER_NOT_FOUND', message: 'Không tìm thấy người dùng.' });
+      }
+
+      const { error } = await admin.rpc('require_password_change', {
+        p_user_id: userId,
+        p_reset_pending: false,
+      });
+      if (error) {
+        console.error('Force password change failed', error);
+        return response(400, { error: 'FORCE_PASSWORD_CHANGE_FAILED', message: error.message });
+      }
+
+      // Audit the force password change
+      await auditAction('FORCE_PASSWORD_CHANGE', userId, { must_change_password: currentProfile.must_change_password }, { must_change_password: true });
 
       return response(200, { success: true });
     }

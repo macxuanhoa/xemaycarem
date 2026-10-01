@@ -215,7 +215,7 @@ END $$;
 CREATE FUNCTION public.list_acquisitions(p_filters jsonb DEFAULT '{}') RETURNS jsonb
 LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = '' AS $$
 DECLARE
-  v_actor uuid := private.require_role(ARRAY['OWNER','MANAGER','STAFF','VIEWER']::public.user_role[]);
+  v_actor uuid := private.require_role(ARRAY['OWNER','MANAGER','STAFF']::public.user_role[]);
   v_from date := coalesce(nullif(p_filters->>'from', ''), nullif(p_filters->>'date_from', ''))::date;
   v_to date := coalesce(nullif(p_filters->>'to', ''), nullif(p_filters->>'date_to', ''))::date;
   v_search text := left(coalesce(p_filters->>'search', ''), 200);
@@ -338,7 +338,7 @@ CREATE OR REPLACE FUNCTION public.dashboard(
 ) RETURNS jsonb
 LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = '' AS $$
 DECLARE
-  v_actor uuid := private.require_role(ARRAY['OWNER','MANAGER','STAFF','VIEWER']::public.user_role[]);
+  v_actor uuid := private.require_role(ARRAY['OWNER','MANAGER','STAFF']::public.user_role[]);
   v_fin boolean := private.can_financials();
   v_manage boolean := private.current_role() IN ('OWNER','MANAGER');
   v_today date := private.today();

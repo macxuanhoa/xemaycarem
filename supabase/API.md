@@ -24,6 +24,9 @@ All operations require a verified Supabase session and an active profile. Functi
 | save_settings | p_data jsonb | void |
 | register_vehicle_image | p_vehicle_id uuid, p_storage_path text, p_display_order int = 0 | UUID |
 | remove_vehicle_image | p_id uuid | void |
+| search_knowledge | p_query text, p_limit int = 8 (max 20) | Ranked sections: slug,title,section,audience,source_path,rank,excerpt |
+| list_knowledge | none | {items:[slug,title,section,audience,source_path],total} |
+| get_knowledge_article | p_slug text | Article with body_md,audience,source_path,updated_at |
 
 List filters: `offset` (default 0), `limit` (default 25; max 100), `search`. Vehicle filters: `status` (enum value, `ALL`, or `AVAILABLE`/`UNSOLD` for IN_STOCK and RESERVED), `brand`, `year`, `min_price`, `max_price`, `date_from`, `date_to`, `sort` (`newest`, `oldest`, `highest_cost`, `highest_price`, `longest_stock`). Sales/expense/report dates: `from`, `to` (also accept `date_from`, `date_to`). Expense kind: `vehicle` or `business` (default both), with optional `vehicle_id`. Report kind: `sales`, `inventory`, `profit`, `vehicle_expenses`, `business_expenses`.
 
@@ -34,5 +37,11 @@ Vehicle purchase cost is optional only for operational users. Missing cost is st
 Sale creation data: `vehicle_id,customer_name,customer_phone,sale_price,sale_date,initial_payment,payment_method,notes`. Payment data: `sale_id,amount,payment_method,payment_date,reference,notes`. Required VND amounts are exact nonnegative integers, single-entry cap 1,000,000,000,000. Payment amounts must be positive, and total payments may not exceed the sale price. Payments remain immutable; cancelling a sale excludes its retained payments from active collection totals and marks them `VOIDED`, preserving their history. Actual bank/cash refunds are handled outside this V1 app and must be reconciled separately.
 
 Vehicle images use the private `vehicle-images` bucket, JPEG/PNG/WebP/AVIF only, max 8 MiB. Path is `<vehicle UUID>/<random UUID>.<extension>`. Register metadata after successful upload, then generate short-lived signed URLs. Removing metadata soft-deletes it and removes read access through the storage policy. Objects are retained for audit/backup and can be pruned administratively after the retention period.
+
+## Knowledge base and AI copilot
+
+`public.knowledge_base` stores one row per documentation section (`slug` unique, `title`, `section`, `body_md`, `audience` in `ALL`/`STAFF`/`MANAGER`/`OWNER`, `source_path`, generated `tsvector` with a GIN index). Browser roles have `SELECT` only, guarded by the `knowledge_base_read` policy and re-checked inside each `SECURITY DEFINER` function through `private.knowledge_visible(audience)`: OWNER reads every tier, MANAGER reads `ALL`/`STAFF`/`MANAGER`, STAFF reads `ALL`/`STAFF`, and disabled or unauthorized callers are rejected by `private.require_role`. Unknown and unauthorized slugs are indistinguishable (`KNOWLEDGE_NOT_FOUND`).
+
+The corpus is generated from repository documentation by `npm run knowledge:seed` (`scripts/build-knowledge-seed.mjs`), which writes `supabase/migrations/20261001002900_knowledge_seed.sql` as an idempotent upsert plus a prune of stale slugs; edit the Markdown files, never the seed migration. The `ai-assist` copilot reads this corpus through `search_knowledge` together with the existing read RPCs and returns a citation for every figure; see [docs/AI_ASSIST_CONTRACT.md](../docs/AI_ASSIST_CONTRACT.md).
 
 `manage-users` Edge Function accepts POST `{email,password,full_name,role,can_view_financials}` for an OWNER to create a user. Role/status updates use `update_profile` RPC; self-profile updates accept only full_name. The final active OWNER cannot be disabled/demoted. Owner provisioning for the first account is documented separately and requires a trusted SQL session.

@@ -2,7 +2,7 @@
  * Database Business Risks Test Suite
  * Covers real financial, data integrity, authorization, and concurrency risks:
  * 1. Authentication & Inactive User rejection at DB level
- * 2. Role security (OWNER, MANAGER, STAFF, VIEWER, active=false)
+ * 2. Role security (OWNER, MANAGER, STAFF, active=false)
  * 3. Vehicle Inventory (Creation, Unique internal_code, search, filter, cost_pending)
  * 4. Financial Data Separation (vehicles vs vehicle_financials)
  * 5. Vehicle Expenses (Active vs Cancelled, cost basis accumulation)
@@ -34,7 +34,7 @@ export async function runBusinessRisksTests(externalDb, { engine = 'postgres' } 
     }
 
   const users = Object.fromEntries(
-    ['owner', 'manager', 'financialManager', 'staff', 'viewer', 'disabled'].map((role) => [role, randomUUID()])
+    ['owner', 'manager', 'financialManager', 'staff', 'disabled'].map((role) => [role, randomUUID()])
   )
   const run = (user, fn) => asUser(db, users[user], fn)
   const call = (user, name, data) => run(user, (client) => rpc(client, name, '$1::jsonb', [JSON.stringify(data)]))
@@ -103,15 +103,12 @@ export async function runBusinessRisksTests(externalDb, { engine = 'postgres' } 
   const staffFinDirect = await run('staff', (c) => c.query('SELECT * FROM public.vehicle_financials WHERE vehicle_id=$1', [v1Id]))
   assert.equal(staffFinDirect.rows.length, 0, 'STAFF must see 0 rows from direct vehicle_financials')
 
-  const viewerFinDirect = await run('viewer', (c) => c.query('SELECT * FROM public.vehicle_financials WHERE vehicle_id=$1', [v1Id]))
-  assert.equal(viewerFinDirect.rows.length, 0, 'VIEWER must see 0 rows from direct vehicle_financials')
-
   const disabledFinDirect = await run('disabled', (c) => c.query('SELECT * FROM public.vehicle_financials WHERE vehicle_id=$1', [v1Id]))
   assert.equal(disabledFinDirect.rows.length, 0, 'Disabled user must see 0 rows from direct vehicle_financials')
 
   // Inactive user attempting RPC
   await deny(() => call('disabled', 'list_vehicles', {}), /ACCESS_DENIED/)
-  pass('Direct RLS and RPCs strictly deny financial data and access for STAFF, VIEWER, and disabled users')
+  pass('Direct RLS and RPCs strictly deny financial data and access for STAFF and disabled users')
 
   // 4. VEHICLE EXPENSES & COST BASIS Derivation
   const exp1Id = await run('manager', (c) =>
@@ -267,7 +264,7 @@ export async function runBusinessRisksTests(externalDb, { engine = 'postgres' } 
   pass('Audit logs capture all lifecycle transitions and cannot be altered or deleted')
 
   // 10. DIRECT TABLE MANIPULATION REJECTIONS (RLS & Table Privileges)
-  for (const role of ['owner', 'manager', 'staff', 'viewer']) {
+  for (const role of ['owner', 'manager', 'staff']) {
     await deny(() => run(role, (c) => c.query('DELETE FROM public.sales')), /permission denied|row-level security/i)
     await deny(() => run(role, (c) => c.query('DELETE FROM public.payments')), /permission denied|row-level security/i)
     await deny(() => run(role, (c) => c.query('DELETE FROM public.vehicle_expenses')), /permission denied|row-level security/i)

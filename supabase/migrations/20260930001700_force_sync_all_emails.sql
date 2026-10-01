@@ -47,8 +47,8 @@ BEGIN
   VALUES(
     new.id,
     left(coalesce(nullif(btrim(new.raw_user_meta_data->>'full_name'),''),'Người dùng mới'),120),
-    'VIEWER',
-    false,
+    'STAFF',
+    true,
     v_username,
     false,
     NULL,

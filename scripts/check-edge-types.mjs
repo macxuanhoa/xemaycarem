@@ -28,7 +28,7 @@ const originalGetSourceFile = host.getSourceFile.bind(host)
 host.getSourceFile = (file, languageVersion, onError, shouldCreateNewSourceFile) => isShim(file)
   ? ts.createSourceFile(file, shim, languageVersion)
   : originalGetSourceFile(file, languageVersion, onError, shouldCreateNewSourceFile)
-const sourceFiles = ['manage-users/index.ts', 'reset-owner/index.ts', 'ai-assist/index.ts', 'ai-assist/contracts.ts']
+const sourceFiles = ['manage-users/index.ts', 'reset-owner/index.ts', 'ai-assist/index.ts', 'ai-assist/contracts.ts', 'ai-assist/copilot.ts', 'process-message/index.ts']
   .map(file => resolve('supabase/functions', file))
 const program = ts.createProgram([shimPath, ...sourceFiles], options, host)
 const diagnostics = ts.getPreEmitDiagnostics(program)

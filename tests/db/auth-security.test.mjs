@@ -4,7 +4,7 @@ import { asUser, createDatabase, rpc } from '../../scripts/db-harness.mjs'
 
 export async function runAuthSecurityTests({ engine = 'pglite' } = {}) {
   const db = await createDatabase({ engine })
-  const ids = Object.fromEntries(['owner', 'manager', 'finance', 'staff', 'viewer', 'temporary'].map((name) => [name, randomUUID()]))
+  const ids = Object.fromEntries(['owner', 'manager', 'finance', 'staff', 'temporary'].map((name) => [name, randomUUID()]))
   const run = (name, operation) => asUser(db, ids[name], operation)
   const call = (name, functionName, data) => run(name, (client) => rpc(client, functionName, '$1::jsonb', [JSON.stringify(data)]))
   let passed = 0
@@ -17,7 +17,7 @@ export async function runAuthSecurityTests({ engine = 'pglite' } = {}) {
       await db.query('INSERT INTO auth.users(id,email,encrypted_password,raw_user_meta_data) VALUES($1,$2,$3,$4::jsonb)',
         [id, `${name}@example.test`, 'disposable-auth-hash-before', JSON.stringify({ full_name: name })])
     }
-    for (const [name, role] of Object.entries({ owner: 'OWNER', manager: 'MANAGER', finance: 'MANAGER', staff: 'STAFF', viewer: 'VIEWER', temporary: 'STAFF' })) {
+    for (const [name, role] of Object.entries({ owner: 'OWNER', manager: 'MANAGER', finance: 'MANAGER', staff: 'STAFF', temporary: 'STAFF' })) {
       await db.query('UPDATE public.profiles SET role=$1,active=true,can_view_financials=$2,must_change_password=$3 WHERE id=$4',
         [role, name === 'finance', name === 'temporary', ids[name]])
     }
@@ -75,13 +75,13 @@ export async function runAuthSecurityTests({ engine = 'pglite' } = {}) {
       }
     })
     await test('No browser role can read password fingerprints or anonymous completion RPC', async () => {
-      for (const name of ['owner', 'staff', 'viewer']) {
+      for (const name of ['owner', 'staff']) {
         await assert.rejects(run(name, (client) => client.query('SELECT * FROM private.required_password_changes')), /permission denied/)
       }
       await assert.rejects(asUser(db, null, (client) => rpc(client, 'complete_password_change'), 'anon'), /permission denied/)
     })
     await test('Acquisition table costs are private while operational acquisition lists remain masked', async () => {
-      for (const name of ['manager', 'staff', 'viewer']) {
+      for (const name of ['manager', 'staff']) {
         assert.equal((await run(name, (client) => client.query('SELECT purchase_price FROM public.acquisitions'))).rows.length, 0)
         const list = await run(name, (client) => rpc(client, 'list_acquisitions'))
         assert.equal(list.total, 2)
@@ -106,7 +106,7 @@ export async function runAuthSecurityTests({ engine = 'pglite' } = {}) {
       assert.equal(Number(result.rows[0].vehicles_sold_count), 2)
       assert.equal(Number(result.rows[0].vehicle_expenses_count), 2)
       assert.equal(Number(result.rows[0].payments_recorded_count), 2)
-      for (const name of ['manager', 'finance', 'staff', 'viewer']) {
+      for (const name of ['manager', 'finance', 'staff']) {
         assert.equal((await run(name, (client) => client.query('SELECT * FROM public.user_performance_summary'))).rows.length, 0)
       }
     })

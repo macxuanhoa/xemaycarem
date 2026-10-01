@@ -31,7 +31,7 @@ end $$;
 create function public.list_vehicles(p_filters jsonb default '{}') returns jsonb
 language plpgsql stable security definer set search_path='' as $$
 declare
-  v_actor uuid:=private.require_role(array['OWNER','MANAGER','STAFF','VIEWER']::public.user_role[]);
+  v_actor uuid:=private.require_role(array['OWNER','MANAGER','STAFF']::public.user_role[]);
   v_search text:=left(coalesce(p_filters->>'search',''),200);
   v_sort text:=coalesce(p_filters->>'sort','newest');
   v_limit integer:=least(100,greatest(1,coalesce((p_filters->>'limit')::integer,25)));
@@ -67,7 +67,7 @@ end $$;
 create function public.get_sale(p_id uuid) returns jsonb
 language plpgsql stable security definer set search_path='' as $$
 declare
-  v_actor uuid:=private.require_role(array['OWNER','MANAGER','STAFF','VIEWER']::public.user_role[]);
+  v_actor uuid:=private.require_role(array['OWNER','MANAGER','STAFF']::public.user_role[]);
   v_sale public.sales; v_payments jsonb;
 begin
   select * into v_sale from public.sales where id=p_id;
@@ -79,7 +79,7 @@ end $$;
 create function public.get_vehicle(p_id uuid) returns jsonb
 language plpgsql stable security definer set search_path='' as $$
 declare
-  v_actor uuid:=private.require_role(array['OWNER','MANAGER','STAFF','VIEWER']::public.user_role[]);
+  v_actor uuid:=private.require_role(array['OWNER','MANAGER','STAFF']::public.user_role[]);
   v_vehicle public.vehicles; v_images jsonb; v_expenses jsonb:='[]'; v_sales jsonb; v_activity jsonb;
 begin
   select * into v_vehicle from public.vehicles where id=p_id;
@@ -98,7 +98,7 @@ end $$;
 create function public.list_sales(p_filters jsonb default '{}') returns jsonb
 language plpgsql stable security definer set search_path='' as $$
 declare
-  v_actor uuid:=private.require_role(array['OWNER','MANAGER','STAFF','VIEWER']::public.user_role[]);
+  v_actor uuid:=private.require_role(array['OWNER','MANAGER','STAFF']::public.user_role[]);
   v_from date:=coalesce(nullif(p_filters->>'from',''),nullif(p_filters->>'date_from',''))::date;
   v_to date:=coalesce(nullif(p_filters->>'to',''),nullif(p_filters->>'date_to',''))::date;
   v_search text:=left(coalesce(p_filters->>'search',''),200);
@@ -153,7 +153,7 @@ end $$;
 
 create function public.get_settings() returns jsonb
 language plpgsql stable security definer set search_path='' as $$
-declare v_actor uuid:=private.require_role(array['OWNER','MANAGER','STAFF','VIEWER']::public.user_role[]); v_result jsonb;
+declare v_actor uuid:=private.require_role(array['OWNER','MANAGER','STAFF']::public.user_role[]); v_result jsonb;
 begin select to_jsonb(s) into v_result from public.system_settings s where id; return v_result; end $$;
 
 create function public.list_audit(p_filters jsonb default '{}') returns jsonb
@@ -198,7 +198,7 @@ end $$;
 create function public.dashboard(p_from date default date_trunc('month',now() at time zone 'Asia/Ho_Chi_Minh')::date,p_to date default (now() at time zone 'Asia/Ho_Chi_Minh')::date) returns jsonb
 language plpgsql stable security definer set search_path='' as $$
 declare
-  v_actor uuid:=private.require_role(array['OWNER','MANAGER','STAFF','VIEWER']::public.user_role[]);
+  v_actor uuid:=private.require_role(array['OWNER','MANAGER','STAFF']::public.user_role[]);
   v_fin boolean:=private.can_financials(); v_manage boolean:=private.current_role() in ('OWNER','MANAGER');
   v_today date:=private.today(); v_month date:=date_trunc('month',private.today())::date; v_result jsonb; v_part jsonb;
 begin

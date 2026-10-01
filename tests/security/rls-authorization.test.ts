@@ -65,21 +65,6 @@ describe('RLS & Security Role Boundaries (Unit & Security Layer)', () => {
     }
   }
 
-  describe('VIEWER Role Restrictions', () => {
-    const viewer = FICTIONAL_PROFILES.VIEWER
-
-    it('denies all mutations and administrative privileges', () => {
-      expect(authorize({ profile: viewer, action: 'OPERATE_INVENTORY' }).allowed).toBe(false)
-      expect(authorize({ profile: viewer, action: 'ADD_EXPENSE' }).allowed).toBe(false)
-      expect(authorize({ profile: viewer, action: 'CANCEL_SALE' }).allowed).toBe(false)
-      expect(authorize({ profile: viewer, action: 'VIEW_PURCHASE_PRICE' }).allowed).toBe(false)
-      expect(authorize({ profile: viewer, action: 'VIEW_GROSS_PROFIT' }).allowed).toBe(false)
-      expect(authorize({ profile: viewer, action: 'VIEW_AUDIT_LOGS' }).allowed).toBe(false)
-      expect(authorize({ profile: viewer, action: 'MANAGE_SETTINGS' }).allowed).toBe(false)
-      expect(authorize({ profile: viewer, action: 'MANAGE_USERS' }).allowed).toBe(false)
-    })
-  })
-
   describe('STAFF Role Restrictions', () => {
     const staff = FICTIONAL_PROFILES.STAFF
 

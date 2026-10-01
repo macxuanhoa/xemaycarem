@@ -10,6 +10,10 @@ test-results/
 .supabase/
 # Supabase CLI linkage and local metadata can contain project/connection details.
 supabase/.temp/
+supabase/.branches/
+# Quarantine preserves the unsafe historical migration 018 locally but must never be committed or applied.
+supabase/quarantine/
+supabase/migrations/20260930001800_*
 .sites-runtime/
 .openai/
 coverage/

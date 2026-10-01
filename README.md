@@ -6,7 +6,7 @@
 
 ## Cài đặt nhanh
 
-Yêu cầu Node.js 22.12+ và npm. Từ thư mục dự án:
+Yêu cầu Node.js 22.16+ (xem `.node-version`) và npm. Từ thư mục dự án:
 
 ```powershell
 npm ci
@@ -40,7 +40,7 @@ npx supabase db push
 Migration có thứ tự trong `supabase/migrations/`, bao gồm schema, constraints, indexes, RLS, RPC, audit và private Storage bucket. Không cần tạo bảng thủ công. Không chạy `db reset` trên production.
 
 4. Trong Auth URL Configuration, đặt Site URL bằng địa chỉ HTTPS của ứng dụng. Cho phép redirect chính xác `https://YOUR_APP/reset-password`; thêm `http://127.0.0.1:5173/reset-password` chỉ ở môi trường phát triển. Cấu hình SMTP trước khi bật chức năng quên mật khẩu; đặt `VITE_ENABLE_PASSWORD_RESET=true` rồi build lại.
-5. Tạo **tài khoản OWNER đầu tiên** bằng Supabase Dashboard → Authentication → Users → Add user, dùng email của chủ cửa hàng và mật khẩu mạnh. Không chọn gửi lời mời nếu bạn chưa muốn gửi email. Trigger mặc định tạo profile VIEWER bị khóa, không tin role trong user metadata. Trong SQL Editor tin cậy, thay UUID rồi chạy:
+5. Tạo **tài khoản OWNER đầu tiên** bằng Supabase Dashboard → Authentication → Users → Add user, dùng email của chủ cửa hàng và mật khẩu mạnh. Không chọn gửi lời mời nếu bạn chưa muốn gửi email. Trigger mặc định tạo profile STAFF, không tin role trong user metadata. Trong SQL Editor tin cậy, thay UUID rồi chạy:
 
 ```sql
 update public.profiles
@@ -92,7 +92,6 @@ Chi tiết hợp đồng API: [supabase/API.md](supabase/API.md). Mô hình bả
 | OWNER | Toàn bộ nghiệp vụ, giá mua/lợi nhuận, nhân sự, audit, cài đặt, báo cáo |
 | MANAGER | Nhập/sửa/bán xe, thu tiền, chi phí, doanh thu/báo cáo; giá mua và lợi nhuận cần `can_view_financials` |
 | STAFF | Xem kho, nhập/cập nhật thông tin vận hành, bán xe đủ giá vốn, ghi nhận thanh toán; không quản trị/chi phí/báo cáo nhạy cảm |
-| VIEWER | Chỉ đọc thông tin được cho phép |
 
 Tài khoản `active=false` bị từ chối tại database dù session Auth còn tồn tại. Frontend làm mới quyền định kỳ và khi quay lại cửa sổ. Không cho vô hiệu hóa hoặc hạ vai trò OWNER hoạt động cuối cùng.
 
@@ -105,6 +104,18 @@ Tài khoản `active=false` bị từ chối tại database dù session Auth cò
 - Chi phí xe và cửa hàng: thêm, sửa, hủy có lịch sử.
 - Báo cáo bán hàng/tồn kho/lợi nhuận/chi phí, khoảng ngày tùy chọn, CSV UTF-8 chống formula injection.
 - Nhân sự, audit trước/sau thay đổi, hồ sơ và cài đặt cửa hàng.
+- Trợ lý AI (`/copilot`) hỏi đáp có bằng chứng bấm được, và tài liệu cửa hàng (`/docs`) xem ngay trong app.
+
+## Trợ lý AI và tài liệu cửa hàng
+
+Sidebar có mục **TRỢ LÝ AI**, hiện với tài khoản vận hành được (STAFF còn active trở lên):
+
+- **Hỏi AI Cà Rem** (`/copilot`): hỏi tự nhiên về cửa hàng. Server tra cứu bằng đúng JWT/RLS của người đang đăng nhập — số nghiệp vụ qua các RPC đọc đã có (`dashboard`, `list_vehicles`, `list_receivables`, `list_expenses`, `list_audit`, `list_profiles`, `get_settings`) và tài liệu qua `search_knowledge`. Mỗi con số, mỗi đoạn tài liệu đi kèm một mã bằng chứng (`[m2]`, `[d1]`); bấm vào là mở đúng màn hình chứa bằng chứng đó. Chế độ này chỉ đọc: không tạo, không sửa, không lưu giao dịch nào.
+- Mặc định là **tra cứu chắc chắn** (deterministic): câu trả lời chỉ gồm số đã kiểm chứng, chạy được kể cả khi chưa cấu hình nhà cung cấp AI.
+- Chủ cửa hàng bật thêm **“Bật AI viết câu tóm tắt”** (`mode: 'llm'`). AI chỉ được diễn đạt lại đúng bằng chứng đã truy xuất; trích dẫn không khớp, số bịa hoặc link ra ngoài bị loại và tự động rơi về kết quả tra cứu kèm cảnh báo. Tài khoản không phải OWNER bật sẽ nhận `LLM_MODE_OWNER_ONLY`.
+- **Tài liệu cửa hàng** (`/docs`): toàn bộ markdown của dự án được tách theo mục `##` và xem trong app, chỉ hiện phần đúng quyền người đọc (ALL/STAFF/MANAGER/OWNER).
+
+Không có MCP hay “tool tùy tiện” trong ứng dụng: tool của copilot đúng là danh sách RPC đọc mà database đã kiểm tra quyền. Tài liệu cho copilot lấy từ bảng `public.knowledge_base`, sinh tự động từ markdown trong repo — sửa file `.md` rồi chạy `npm run knowledge:seed` (xem [docs/OPERATIONS.md](docs/OPERATIONS.md)). Hợp đồng chi tiết: [docs/AI_ASSIST_CONTRACT.md](docs/AI_ASSIST_CONTRACT.md).
 
 ## Kiểm thử
 
@@ -113,9 +124,12 @@ npm run lint
 npm run typecheck
 npm run test
 npm run test:db
+npm run knowledge:check
 node supabase/tests/seed-smoke.mjs
 npm run build
 ```
+
+`knowledge:check` (đã nằm trong `npm run check`) báo lỗi khi tài liệu `.md` đã sửa mà migration seed chưa sinh lại; khi đó chạy `npm run knowledge:seed`.
 
 `test:db` tạo một PostgreSQL thật tạm thời bằng `embedded-postgres` trên loopback/cổng ngẫu nhiên, chạy tất cả migration và dọn cluster riêng sau khi kết thúc. Không sử dụng hoặc thay đổi database production. Có kiểm thử nhiều kết nối đồng thời, RLS, tài chính, audit, thanh toán, hủy bán, quyền OWNER cuối cùng. Môi trường không chạy được binary có thể dùng `node scripts/test-db.mjs --pglite`; bản này không kiểm chứng concurrency nhiều kết nối.
 
@@ -143,7 +157,7 @@ npm run build
 npm run preview
 ```
 
-Cloudflare Pages: build command `npm run build`, output `dist`, Node 22.12+, đặt `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`, tùy chọn reset trong build environment. Không cần Node backend. `_redirects` hỗ trợ SPA routes; `_headers` có CSP và các header cơ bản. Nếu dùng Supabase custom domain, cập nhật `connect-src`/`img-src` tương ứng. Chỉ upload `dist`, không upload `.env`, source test hoặc server secret.
+Cloudflare Pages: build command `npm run build`, output `dist`, Node 22.16+ (`.node-version`), đặt `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`, tùy chọn reset trong build environment. Không cần Node backend. `_redirects` hỗ trợ SPA routes; `_headers` có CSP và các header cơ bản. Nếu dùng Supabase custom domain, cập nhật `connect-src`/`img-src` tương ứng. Chỉ upload `dist`, không upload `.env`, source test hoặc server secret.
 
 Sau khi có tên miền HTTPS: cập nhật Auth URL và `ALLOWED_ORIGINS`; kiểm tra đăng nhập, nhập xe, ảnh, bán/thu tiền, phân quyền trên điện thoại. Bản build hiện tại không được coi là production đã kết nối khi chưa có cấu hình cloud.
 

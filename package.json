@@ -3,6 +3,9 @@
   "private": true,
   "version": "1.0.0",
   "type": "module",
+  "engines": {
+    "node": ">=22.16.0 <23"
+  },
   "scripts": {
     "dev": "vite --host 127.0.0.1",
     "build": "tsc -b && vite build",
@@ -13,9 +16,11 @@
     "test:db": "node scripts/test-db.mjs",
     "test:e2e": "playwright test",
     "test:seed": "node supabase/tests/seed-smoke.mjs",
+    "knowledge:seed": "node scripts/build-knowledge-seed.mjs",
+    "knowledge:check": "node scripts/build-knowledge-seed.mjs --check",
     "test:pwa": "node scripts/check-pwa.mjs",
     "format": "prettier --write src tests playwright.config.ts vitest.config.ts vite.config.ts",
-    "check": "npm run lint && npm run typecheck && npm run test && npm run test:db && npm run build",
+    "check": "npm run lint && npm run typecheck && npm run test && npm run knowledge:check && npm run test:db && npm run build",
     "db:types": "supabase gen types typescript --local > src/types/database.generated.ts"
   },
   "dependencies": {

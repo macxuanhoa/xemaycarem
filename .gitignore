@@ -17,3 +17,6 @@ supabase/migrations/20260930001800_*
 .sites-runtime/
 .openai/
 coverage/
+
+docs/AUTH_BACKUP_METADATA.md
+supabase/quarantine/**

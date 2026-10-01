@@ -6,7 +6,7 @@ const url = process.env.PWA_TEST_URL ?? "http://127.0.0.1:4173";
 const manifest = JSON.parse(
   await readFile("dist/manifest.webmanifest", "utf8"),
 );
-assert.equal(manifest.name, "Quản Lý Cửa Hàng Xe");
+assert.equal(manifest.name, "Cà Rem - Quản Lý Cửa Hàng Xe");
 assert.equal(manifest.display, "standalone");
 assert.ok(
   manifest.icons.some(

@@ -1,5 +1,5 @@
 /**
- * Fictional test fixtures for Xe Máy Cà Rém CRM automated testing.
+ * Fictional test fixtures for Xe Máy Cà Rem CRM automated testing.
  * IMPORTANT: NEVER use real customer or store data in automated test suites.
  * All phone numbers, identities, and financial records here are strictly fictional.
  */
@@ -52,20 +52,6 @@ export const FICTIONAL_PROFILES = {
     full_name: 'Phạm Văn Bán Hàng (Fictional Staff)',
     username: 'phamvan',
     role: 'STAFF' as const,
-    active: true,
-    can_view_financials: false,
-    must_change_password: false,
-    disabled_until: null,
-    allowed_from: '00:00:00',
-    allowed_until: '23:59:59',
-    working_days: [1,2,3,4,5,6,7],
-    deleted_at: null,
-  },
-  VIEWER: {
-    id: '55555555-5555-4555-8555-555555555555',
-    full_name: 'Hoàng Thị Xem (Fictional Viewer)',
-    username: 'hoangthi',
-    role: 'VIEWER' as const,
     active: true,
     can_view_financials: false,
     must_change_password: false,

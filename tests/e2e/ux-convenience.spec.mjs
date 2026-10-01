@@ -83,6 +83,21 @@ async function installMock(page) {
     const name = url.pathname.split("/").at(-1);
     calls.push({ name, body });
     if (name === "check_user_access") return reply({ allowed: true });
+    if (name === "list_active_announcements") return reply([]);
+    if (name === "list_profiles") return reply([
+      { id: ownerId, full_name: "Chủ kiểm thử", username: "owner", role: "OWNER", active: true, can_view_financials: true, must_change_password: false },
+      { id: "00000000-0000-4000-8000-000000000003", full_name: "Nguyễn Nhân Viên", username: "nhanvien", role: "STAFF", active: true, can_view_financials: false, must_change_password: false, allowed_from: "07:00:00", allowed_until: "20:00:00", working_days: [1, 2, 3, 4, 5, 6] },
+    ]);
+    if (name === "dashboard") return reply({
+      in_stock: 18, reserved: 3, sold_today: 2, sold_month: 24, acquired_today: 1, acquired_month: 27,
+      acquisitions_count: 27, acquisition_cost: 540000000, inventory_cost: 320000000, inventory_cost_pending: 2,
+      today_revenue: 96000000, month_revenue: 1050000000, today_profit: 8000000, month_profit: 95000000,
+      revenue: 1050000000, gross_profit: 95000000, sales_count: 24, business_expenses: 12000000,
+      unpaid_sales_count: 3, total_receivables: 84000000, overdue_sales_count: 1, total_overdue_debt: 12000000,
+      old_inventory_count: 4, recent_sales: [], recent_vehicles: [], recent_acquisitions: [], recent_expenses: [],
+      aging: [{ bucket: "0-30 ngày", count: 8 }, { bucket: "31-60 ngày", count: 6 }], longest_stock: [],
+      top_profitable: [], daily_sales: [{ date: "2026-10-01", revenue: 96000000, count: 2 }],
+    });
     if (name === "get_settings")
       return reply({ store_name: "Cửa hàng kiểm thử" });
     if (name === "list_vehicles") {
@@ -144,7 +159,7 @@ test("Mobile acquisition uses visible save, normalized money and keeps advanced 
     page.getByRole("heading", { name: "Thu xe mới", exact: true }),
   ).toBeVisible();
   const action = page.getByRole("button", {
-    name: "Xác nhận thu xe",
+    name: "Thu xe & tạo phiếu",
     exact: true,
   });
   const bounds = await action.boundingBox();
@@ -159,6 +174,14 @@ test("Mobile acquisition uses visible save, normalized money and keeps advanced 
     .fill("Vision");
   await page.getByLabel("Giá thu (₫) *", { exact: true }).fill("82tr");
   await action.click();
+
+  // Confirmation modal dialog verification
+  await expect(
+    page.getByRole("dialog", { name: "Xác nhận thu xe" }),
+  ).toBeVisible();
+  await expect(page.getByText("NEW-UX-FRAME")).toBeVisible();
+  await page.getByRole("button", { name: "Xác nhận thu xe", exact: true }).click();
+
   await expect(
     page.getByText("Đã thu xe thành công.", { exact: false }),
   ).toBeVisible();
@@ -180,13 +203,13 @@ test("Frame duplicates are reported while typing before the form is submitted", 
   await page
     .getByLabel("Số khung *", { exact: true })
     .fill(seedVehicle.frame_number);
-  await expect(page.getByText(/Số khung đã tồn tại:/)).toBeVisible();
+  await expect(page.getByText(/Số khung đã tồn tại trong hệ thống/)).toBeVisible();
   await expect(
-    page.getByRole("button", { name: "Xác nhận thu xe", exact: true }),
+    page.getByRole("button", { name: "Thu xe & tạo phiếu", exact: true }),
   ).toBeDisabled();
   expect(calls.some((call) => call.name === "acquire_vehicle")).toBe(false);
   await expect(
-    page.getByRole("link", { name: "Xem xe đã có" }),
+    page.getByRole("link", { name: "Xem chi tiết xe đã có" }),
   ).toHaveAttribute("href", `/vehicles/${vehicleId}`);
 });
 
@@ -236,7 +259,7 @@ test("Inventory filters, sort, page and scroll survive opening a vehicle and ret
   const inventoryUrl =
     "/vehicles?q=Honda&status=IN_STOCK&sort=oldest&page=2&brand=Honda";
   await page.goto(inventoryUrl);
-  await expect(page.locator(".desktop-table tbody tr")).toHaveCount(20);
+  await expect(page.locator(".desktop-table tbody tr")).toHaveCount(6);
   await page
     .locator(".desktop-table tbody tr")
     .last()
@@ -253,17 +276,76 @@ test("Inventory filters, sort, page and scroll survive opening a vehicle and ret
   await expect(
     page.getByRole("heading", { name: "Honda Vision", exact: true }),
   ).toBeVisible();
-  await page.getByRole("link", { name: "Tồn kho", exact: true }).last().click();
+  await page.locator(".back-link").click();
   await expect(page).toHaveURL(
     new RegExp(
       `/vehicles\\?q=Honda&status=IN_STOCK&sort=oldest&page=2&brand=Honda$`,
     ),
   );
   await expect(page.getByLabel("Sắp xếp xe")).toHaveValue("oldest");
-  await expect(page.getByText("Trang 2", { exact: true })).toBeVisible();
+  await expect(page.locator(".pagination-page.active")).toHaveText("2");
   await expect
     .poll(() => page.evaluate(() => window.scrollY))
     .toBeGreaterThan(Math.max(0, before - 150));
+});
+
+test("Inventory rows use clear vehicle metadata, status, age and preset wording", async ({ page }) => {
+  page.on("pageerror", (error) => console.log("PAGEERROR", error.stack));
+  page.on("console", (message) => { if (message.type() === "error") console.log("CONSOLEERROR", message.text()); });
+  await installMock(page);
+  await page.goto("/vehicles");
+  const firstRow = page.locator(".desktop-table tbody tr").first();
+  const vehicleCell = firstRow.locator("td").nth(0);
+  const plateCell = firstRow.locator("td").nth(2);
+  await expect(vehicleCell.getByText("XE-UX-1", { exact: true })).toBeVisible();
+  await expect(plateCell).not.toContainText("XE-UX-1");
+  await expect(firstRow.getByText("Hôm nay", { exact: true })).toBeVisible();
+  await expect(firstRow.getByText("Sẵn sàng bán", { exact: true })).toBeVisible();
+  await expect(page.getByText("Chưa bổ sung phiên bản")).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Xe mới nhập" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Đang giữ chỗ" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Tồn kho lâu > 60 ngày" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Chờ giá nhập" })).toBeVisible();
+  await expect(page.getByText("Dữ liệu được phân quyền")).toHaveCount(0);
+  await page.screenshot({ path: "test-results/inventory-audit-desktop.png", fullPage: true });
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.reload();
+  await expect(page.locator(".mobile-record").first()).toBeVisible();
+  const mobileCard = page.locator(".mobile-record").first();
+  await expect(mobileCard.getByText("Mã xe: XE-UX-1", { exact: true })).toBeVisible();
+  await expect(mobileCard.getByText("Hôm nay", { exact: true })).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
+  await page.screenshot({ path: "test-results/inventory-audit-mobile.png", fullPage: true });
+});
+
+test("Temporary visual audit for staff settings and create modal", async ({ page }) => {
+  await installMock(page);
+  await page.goto("/users");
+  await expect(page.getByRole("heading", { name: "Nhân sự", exact: true })).toBeVisible();
+  await page.screenshot({ path: "test-results/users-audit-desktop.png", fullPage: true });
+  await page.getByRole("button", { name: "Thêm tài khoản", exact: true }).click();
+  await expect(page.getByRole("dialog", { name: "Tạo tài khoản nhân viên mới" })).toBeVisible();
+  await page.waitForTimeout(400);
+  await page.screenshot({ path: "test-results/users-create-audit-desktop.png", fullPage: true });
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.reload();
+  await expect(page.getByRole("heading", { name: "Nhân sự", exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Thêm tài khoản", exact: true }).click();
+  await expect(page.getByRole("dialog", { name: "Tạo tài khoản nhân viên mới" })).toBeVisible();
+  await page.waitForTimeout(400);
+  await page.screenshot({ path: "test-results/users-create-audit-mobile.png", fullPage: true });
+});
+
+test("Temporary visual audit for dashboard icon and spacing", async ({ page }) => {
+  await installMock(page);
+  await page.goto("/");
+  await expect(page.getByRole("heading", { name: /Xin chào/ })).toBeVisible();
+  await expect(page.getByText("Tồn kho hiện tại", { exact: true })).toBeVisible();
+  await page.screenshot({ path: "test-results/dashboard-audit-desktop.png", fullPage: true });
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.reload();
+  await expect(page.getByText("Tồn kho hiện tại", { exact: true })).toBeVisible();
+  await page.screenshot({ path: "test-results/dashboard-audit-mobile.png", fullPage: true });
 });
 
 test("Desktop search responds while typing with one debounced request and keyboard-accessible recent vehicles", async ({

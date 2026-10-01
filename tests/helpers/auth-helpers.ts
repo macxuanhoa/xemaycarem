@@ -1,5 +1,5 @@
 /**
- * Authentication and authorization test helpers for Xe Máy Cà Rém CRM.
+ * Authentication and authorization test helpers for Xe Máy Cà Rem CRM.
  */
 
 import { randomUUID } from 'node:crypto'

@@ -41,13 +41,13 @@ describe("User-scoped convenience storage", () => {
       { id: "a", brand: "Honda", model: "Vision", status: "IN_STOCK" },
       "owner",
     );
-    addRecentVehicle({ id: "b", brand: "Yamaha", model: "Grande" }, "viewer");
+    addRecentVehicle({ id: "b", brand: "Yamaha", model: "Grande" }, "staff2");
     expect(getRecentVehicles("owner").map((v) => v.id)).toEqual(["a"]);
-    expect(getRecentVehicles("viewer").map((v) => v.id)).toEqual(["b"]);
+    expect(getRecentVehicles("staff2").map((v) => v.id)).toEqual(["b"]);
     expect(getRecentVehicles()).toEqual([]);
     clearRecentVehicles("owner");
     expect(getRecentVehicles("owner")).toEqual([]);
-    expect(getRecentVehicles("viewer")).toHaveLength(1);
+    expect(getRecentVehicles("staff2")).toHaveLength(1);
   });
 
   it("updates actual visits and keeps only the eight newest unique vehicles", () => {

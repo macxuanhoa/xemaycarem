@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { dateLabel, datePreset, daysInStock, monthRange, today } from '@/lib/format'
+import { dateLabel, datePreset, daysInStock, monthRange, shiftDate, today } from '@/lib/format'
 
 afterEach(() => vi.useRealTimers())
 
@@ -34,6 +34,22 @@ describe('Reporting Calendar & Vietnam Timezone Boundaries (Asia/Ho_Chi_Minh)', 
     expect(datePreset('last-month')).toEqual({ from: '2025-02-01', to: '2025-02-28' })
   })
 
+  it('guarantees date presets always satisfy from <= to across all presets', () => {
+    vi.useFakeTimers().setSystemTime(new Date('2026-10-01T10:00:00Z'))
+    for (const preset of ['today', 'yesterday', 'week', 'month', 'this-month', 'last-month']) {
+      const { from, to } = datePreset(preset)
+      expect(from <= to).toBe(true)
+    }
+  })
+
+  it('shifts date-only strings by days without timezone drift', () => {
+    expect(shiftDate('2026-10-01', -1)).toBe('2026-09-30')
+    expect(shiftDate('2026-10-01', 1)).toBe('2026-10-02')
+    expect(shiftDate('2026-01-01', -1)).toBe('2025-12-31')
+    expect(shiftDate('2024-03-01', -1)).toBe('2024-02-29') // Leap year
+    expect(shiftDate('2025-03-01', -1)).toBe('2025-02-28') // Non-leap year
+  })
+
   it('formats monthRange starting from the 1st of current Vietnam month', () => {
     vi.useFakeTimers().setSystemTime(new Date('2026-09-18T10:00:00Z'))
     expect(monthRange()).toEqual({ from: '2026-09-01', to: '2026-09-18' })
@@ -48,7 +64,9 @@ describe('Reporting Calendar & Vietnam Timezone Boundaries (Asia/Ho_Chi_Minh)', 
     expect(daysInStock('2026-10-05')).toBe(0)
   })
 
-  it('formats dateLabel with Vietnamese 2-digit format DD/MM/YYYY', () => {
+  it('formats dateLabel strictly with Vietnamese 2-digit format DD/MM/YYYY without drift', () => {
+    expect(dateLabel('2026-10-01')).toBe('01/10/2026')
+    expect(dateLabel('2026-02-10')).toBe('10/02/2026')
     expect(dateLabel('2026-09-30')).toBe('30/09/2026')
     expect(dateLabel('2024-02-29')).toBe('29/02/2024')
     expect(dateLabel(null)).toBe('—')

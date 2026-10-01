@@ -1,9 +1,9 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { dateValue, moneyValue, vehicleSchema } from '@/features/vehicles/vehicleSchema'
+import { dateValue, moneyValue, vehicleSchema, acquisitionSchema } from '@/features/vehicles/vehicleSchema'
 import { paymentSchema, saleSchema } from '@/features/sales/saleSchema'
 import { expenseSchema } from '@/features/expenses/ExpensePages'
 import { csvCell } from '@/lib/csv'
-import { datePreset, daysInStock, money, today } from '@/lib/format'
+import { datePreset, daysInStock, money, today, isoToDisplayDate, displayToIsoDate } from '@/lib/format'
 import { canFinance, canManage, canOperate, isOwner } from '@/lib/permissions'
 import type { Profile, Role } from '@/types'
 
@@ -126,6 +126,119 @@ describe('Vehicle form input validation (vehicleSchema)', () => {
     expect(vehicleSchema.safeParse({ ...baseVehicle, odometer: 10_000_001 }).success).toBe(false)
     expect(vehicleSchema.safeParse({ ...baseVehicle, odometer: 0 }).success).toBe(true)
     expect(vehicleSchema.safeParse({ ...baseVehicle, odometer: 99_999 }).success).toBe(true)
+  })
+})
+
+describe('Acquisition form input validation (acquisitionSchema)', () => {
+  const baseAcquisition = {
+    frame_number: 'RLH160-001',
+    engine_number: 'KF160-001',
+    license_plate: '29B1-123.45',
+    brand: 'Honda',
+    model: 'SH 160i',
+    variant: 'ABS',
+    year: 2024,
+    color: 'Trắng',
+    odometer: 1500,
+    acquisition_date: '2026-09-30',
+    purchase_price: 80_000_000,
+    asking_price: 90_000_000,
+    seller_name: 'Nguyễn Văn A',
+    seller_phone: '0901234567',
+    notes: 'Xe mới 99%',
+  }
+
+  it('validates a complete acquisition record', () => {
+    const parsed = acquisitionSchema.parse(baseAcquisition)
+    expect(parsed.frame_number).toBe('RLH160-001')
+    expect(parsed.brand).toBe('Honda')
+    expect(parsed.odometer).toBe(1500)
+    expect(parsed.asking_price).toBe(90_000_000)
+  })
+
+  it('allows optional engine_number and license_plate to be empty', () => {
+    const minimal = {
+      ...baseAcquisition,
+      engine_number: '',
+      license_plate: '',
+    }
+    const parsed = acquisitionSchema.parse(minimal)
+    expect(parsed.engine_number).toBe('')
+    expect(parsed.license_plate).toBe('')
+  })
+
+  it('allows blank/undefined odometer and does not force it to 0', () => {
+    const withoutOdo = { ...baseAcquisition, odometer: undefined }
+    const parsed = acquisitionSchema.parse(withoutOdo)
+    expect(parsed.odometer).toBeUndefined()
+  })
+
+  it('rejects negative odometer or odometer exceeding limit', () => {
+    expect(acquisitionSchema.safeParse({ ...baseAcquisition, odometer: -1 }).success).toBe(false)
+    expect(acquisitionSchema.safeParse({ ...baseAcquisition, odometer: 10_000_001 }).success).toBe(false)
+    expect(acquisitionSchema.safeParse({ ...baseAcquisition, odometer: 0 }).success).toBe(true)
+  })
+
+  it('allows optional asking_price and purchase_price', () => {
+    const noPrices = {
+      ...baseAcquisition,
+      purchase_price: undefined,
+      asking_price: undefined,
+    }
+    const parsed = acquisitionSchema.parse(noPrices)
+    expect(parsed.purchase_price).toBeUndefined()
+    expect(parsed.asking_price).toBeUndefined()
+  })
+
+  it('rejects missing or empty frame_number, brand, model, or acquisition_date', () => {
+    expect(acquisitionSchema.safeParse({ ...baseAcquisition, frame_number: '' }).success).toBe(false)
+    expect(acquisitionSchema.safeParse({ ...baseAcquisition, brand: '' }).success).toBe(false)
+    expect(acquisitionSchema.safeParse({ ...baseAcquisition, model: '' }).success).toBe(false)
+    expect(acquisitionSchema.safeParse({ ...baseAcquisition, acquisition_date: 'invalid' }).success).toBe(false)
+  })
+
+  it('rejects invalid year bounds (<1950 or far future)', () => {
+    expect(acquisitionSchema.safeParse({ ...baseAcquisition, year: 1940 }).success).toBe(false)
+    expect(acquisitionSchema.safeParse({ ...baseAcquisition, year: 2099 }).success).toBe(false)
+    expect(acquisitionSchema.safeParse({ ...baseAcquisition, year: 2024 }).success).toBe(true)
+  })
+})
+
+describe('Vietnamese date display and parsing (DD/MM/YYYY <-> YYYY-MM-DD)', () => {
+  it('converts ISO 2026-10-01 to display 01/10/2026', () => {
+    expect(isoToDisplayDate('2026-10-01')).toBe('01/10/2026')
+    expect(isoToDisplayDate('2026-04-15')).toBe('15/04/2026')
+    expect(isoToDisplayDate(null)).toBe('')
+    expect(isoToDisplayDate(undefined)).toBe('')
+    expect(isoToDisplayDate('')).toBe('')
+  })
+
+  it('converts display 01/10/2026 back to ISO 2026-10-01', () => {
+    expect(displayToIsoDate('01/10/2026')).toBe('2026-10-01')
+    expect(displayToIsoDate('1/10/2026')).toBe('2026-10-01')
+    expect(displayToIsoDate('15/04/2026')).toBe('2026-04-15')
+    expect(displayToIsoDate('01-10-2026')).toBe('2026-10-01')
+    expect(displayToIsoDate('01.10.2026')).toBe('2026-10-01')
+  })
+
+  it('rejects impossible and nonexistent dates without timezone conversion', () => {
+    expect(displayToIsoDate('31/02/2026')).toBe('')
+    expect(displayToIsoDate('29/02/2026')).toBe('')
+    expect(displayToIsoDate('29/02/2024')).toBe('2024-02-29')
+    expect(displayToIsoDate('31/04/2026')).toBe('')
+    expect(displayToIsoDate('99/99/9999')).toBe('')
+    expect(displayToIsoDate('not-a-date')).toBe('')
+    expect(displayToIsoDate('')).toBe('')
+  })
+
+  it('preserves exact date across UTC and timezone boundaries without one-day shifts', () => {
+    vi.useFakeTimers().setSystemTime(new Date('2026-09-30T18:30:00Z'))
+    const vnToday = today()
+    expect(vnToday).toBe('2026-10-01')
+    expect(isoToDisplayDate(vnToday)).toBe('01/10/2026')
+    expect(displayToIsoDate('01/10/2026')).toBe('2026-10-01')
+    expect(displayToIsoDate('01/10/2026')).not.toBe('2026-09-30')
+    expect(displayToIsoDate('01/10/2026')).not.toBe('2026-10-02')
   })
 })
 
@@ -287,7 +400,6 @@ describe('UI access helpers (database authorization is tested separately)', () =
     expect(canFinance(profile('STAFF', true))).toBe(false)
     expect(canOperate(profile('STAFF'))).toBe(true)
     expect(canManage(profile('STAFF'))).toBe(false)
-    expect(canOperate(profile('VIEWER'))).toBe(false)
     expect(isOwner(profile('MANAGER'))).toBe(false)
   })
 

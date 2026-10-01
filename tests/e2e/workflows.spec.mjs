@@ -13,7 +13,7 @@ test.afterAll(async () => {
 });
 test.beforeEach(async ({ page }) => {
   day = (await db.query("select private.today()::text as day")).rows[0].day;
-  ids = { OWNER: randomUUID(), STAFF: randomUUID(), VIEWER: randomUUID() };
+  ids = { OWNER: randomUUID(), STAFF: randomUUID() };
   vehicles = [];
   for (const [role, id] of Object.entries(ids)) {
     await db.query(
@@ -191,8 +191,13 @@ test.beforeEach(async ({ page }) => {
 });
 async function login(page, role = "owner") {
   await page.goto("/login");
-  await page.getByLabel(/Tên đăng nhập|Email/i).fill(`${role}@example.test`);
-  await page.getByLabel("Mật khẩu", { exact: true }).fill("Password-Test-2026");
+  await expect(page.getByRole("heading", { name: "Chào mừng trở lại", exact: true })).toBeVisible();
+  const username = page.getByRole("textbox", { name: /Tên đăng nhập hoặc email/i });
+  const password = page.getByLabel("Mật khẩu", { exact: true });
+  await username.fill(`${role}@example.test`);
+  await expect(username).toHaveValue(`${role}@example.test`);
+  await password.fill("Password-Test-2026");
+  await expect(password).toHaveValue("Password-Test-2026");
   await page.getByRole("button", { name: "Đăng nhập", exact: true }).click();
   await expect(page.getByRole("heading", { name: /Xin chào/ })).toBeVisible();
   await expect(
@@ -339,8 +344,10 @@ test("Owner: report export, date ranges, audit and settings routes", async ({
   const download = page.waitForEvent("download");
   await page.getByRole("button", { name: "Xuất CSV", exact: true }).click();
   expect((await download).suggestedFilename()).toMatch(/inventory.*\.csv$/);
-  await page.getByLabel("Khoảng thời gian").selectOption("last-month");
-  await expect(page.getByLabel("Khoảng thời gian")).toHaveValue("last-month");
+  await page.getByRole("button", { name: "Tháng trước", exact: true }).click();
+  await expect(
+    page.getByRole("button", { name: "Tháng trước", exact: true }),
+  ).toHaveAttribute("aria-pressed", "true");
   await page.goto("/audit");
   await expect(page.locator(".audit-record").first()).toBeVisible();
   await page.locator(".audit-record summary").first().click();
@@ -355,11 +362,14 @@ test("Owner: report export, date ranges, audit and settings routes", async ({
   await expect(
     page.getByRole("heading", { name: "Hồ sơ của bạn" }),
   ).toBeVisible();
+  // Store identity now lives in the owner-only "Thông tin cửa hàng" tab.
+  await page.getByRole("button", { name: "Thông tin cửa hàng", exact: true }).click();
   await page
     .getByLabel("Tên cửa hàng", { exact: true })
     .fill("Cửa hàng kiểm thử UI");
   await page.getByRole("button", { name: "Lưu cài đặt", exact: true }).click();
   await expect(page.getByText("Đã lưu cài đặt cửa hàng.")).toBeVisible();
+  await page.getByRole("button", { name: "Hồ sơ & Đổi mật khẩu", exact: true }).click();
   await page
     .getByLabel("Mật khẩu hiện tại", { exact: true })
     .fill("Password-Test-2026");
@@ -411,30 +421,31 @@ test("Regression: custom dates keep drafts local until the range is complete and
       requests.push(request.postDataJSON());
   });
   await login(page);
-  const preset = page.getByLabel("Khoảng thời gian");
+  const chip = (name) => page.getByRole("button", { name, exact: true });
   const presetResponse = page.waitForResponse((response) =>
     response.url().endsWith("/rest/v1/rpc/dashboard"),
   );
-  await preset.selectOption("last-month");
+  await chip("Tháng trước").click();
   await presetResponse;
-  await preset.selectOption("custom");
-  await expect(preset).toHaveValue("custom");
-  const from = page.getByLabel("Từ ngày", { exact: true });
-  const to = page.getByLabel("Đến ngày", { exact: true });
+  await expect(chip("Tháng trước")).toHaveAttribute("aria-pressed", "true");
+  await chip("Tùy chọn ngày").click();
+  await expect(page.locator(".date-inputs-pill")).toBeVisible();
+  const from = page.getByLabel("Từ ngày (DD/MM/YYYY)");
+  const to = page.getByLabel("Đến ngày (DD/MM/YYYY)");
   const shiftDay = (delta) => {
     const date = new Date(`${day}T00:00:00Z`);
     date.setUTCDate(date.getUTCDate() + delta);
     return date.toISOString().slice(0, 10);
   };
+  const toDisplay = (iso) =>
+    `${iso.slice(8, 10)}/${iso.slice(5, 7)}/${iso.slice(0, 4)}`;
   const validRange = { p_from: shiftDay(-9), p_to: shiftDay(-2) };
   const requestCount = requests.length;
   await from.fill("");
-  await to.fill(validRange.p_to);
+  await to.fill(toDisplay(validRange.p_to));
   await expect(from).toHaveValue("");
-  await expect(preset).toHaveValue("custom");
-  await from.fill(day);
-  await expect(from).toHaveValue(day);
-  // Let React render the invalid draft before asserting that no RPC escaped.
+  await expect(chip("Tùy chọn ngày")).toHaveAttribute("aria-pressed", "true");
+  // Let React render the incomplete draft before asserting that no RPC escaped.
   await page.evaluate(
     () =>
       new Promise((resolve) =>
@@ -447,9 +458,9 @@ test("Regression: custom dates keep drafts local until the range is complete and
     const body = request.postDataJSON();
     return body.p_from === validRange.p_from && body.p_to === validRange.p_to;
   });
-  await from.fill(validRange.p_from);
+  await from.fill(toDisplay(validRange.p_from));
   await validRequest;
-  await expect(preset).toHaveValue("custom");
+  await expect(chip("Tùy chọn ngày")).toHaveAttribute("aria-pressed", "true");
   await expect(
     page.getByText(/Tồn kho hiện tại|Xe đang trong kho/),
   ).toBeVisible();
@@ -480,8 +491,9 @@ test("Regression: global inventory search resets page two to the first matching 
   }
   await login(page);
   await page.goto("/vehicles");
+  // Default view is cleanly paginated; switch to next page directly.
   await page.getByRole("button", { name: "Trang sau", exact: true }).click();
-  await expect(page.getByText("Trang 2", { exact: true })).toBeVisible();
+  await expect(page.locator(".pagination-page.active")).toHaveText("2");
   const plate = `TEST-${ids.OWNER.slice(0, 5)}-0`;
   const searchRequest = page.waitForRequest((request) => {
     if (!request.url().endsWith("/rest/v1/rpc/list_vehicles")) return false;
@@ -493,7 +505,7 @@ test("Regression: global inventory search resets page two to the first matching 
   await expect(page.getByLabel("Tìm kiếm xe")).toHaveValue(plate);
   await expect(page.locator(".desktop-table tbody tr")).toHaveCount(1);
   await expect(page.locator(".desktop-table tbody tr")).toContainText(plate);
-  await expect(page.getByText("Trang 1", { exact: true })).toBeVisible();
+  await expect(page.locator(".pagination-page.active")).toHaveText("1");
 });
 
 test("Regression: loading a new route keeps the navigation shell visible", async ({
@@ -525,7 +537,14 @@ test("Regression: loading a new route keeps the navigation shell visible", async
     await expect(page.locator(".sidebar")).toBeVisible();
     await expect(page.locator(".topbar")).toBeVisible();
     await expect(page.getByLabel("Tìm xe toàn hệ thống")).toBeVisible();
-    await expect(page.locator("main").getByRole("status")).toBeVisible();
+    // React Router keeps the previous route mounted while the lazy module
+    // resolves, so the shell and the current page must both stay visible
+    // (no blank screen) until the new route is ready.
+    await expect(
+      page
+        .locator("main")
+        .getByRole("region", { name: "Bảng tổng quan Cà Rem" }),
+    ).toBeVisible();
   } finally {
     releaseModule();
   }

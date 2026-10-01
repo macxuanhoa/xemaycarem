@@ -60,22 +60,6 @@ describe('Role and Permission Security (Unit: UI and Permission Helpers)', () =>
     })
   })
 
-  describe('VIEWER role', () => {
-    it('is strictly read-only: cannot operate, cannot manage, cannot finance, not owner', () => {
-      const viewer = makeProfile('VIEWER', false, true)
-      expect(isOwner(viewer)).toBe(false)
-      expect(canFinance(viewer)).toBe(false)
-      expect(canManage(viewer)).toBe(false)
-      expect(canOperate(viewer)).toBe(false)
-    })
-
-    it('remains denied even if can_view_financials is set true', () => {
-      const viewerWithFinFlag = makeProfile('VIEWER', true, true)
-      expect(canFinance(viewerWithFinFlag)).toBe(false)
-      expect(canOperate(viewerWithFinFlag)).toBe(false)
-    })
-  })
-
   describe('Inactive accounts (active=false)', () => {
     it('denies ALL permissions for inactive OWNER', () => {
       const inactiveOwner = makeProfile('OWNER', true, false)
@@ -110,11 +94,10 @@ describe('Role and Permission Security (Unit: UI and Permission Helpers)', () =>
   })
 
   describe('Role Labels', () => {
-    it('provides clear Vietnamese human-readable labels for all 4 roles', () => {
+    it('provides clear Vietnamese human-readable labels for all 3 roles', () => {
       expect(roleLabels.OWNER).toBe('Chủ cửa hàng')
       expect(roleLabels.MANAGER).toBe('Quản lý')
       expect(roleLabels.STAFF).toBe('Nhân viên')
-      expect(roleLabels.VIEWER).toBe('Chỉ xem')
     })
   })
 
@@ -124,7 +107,6 @@ describe('Role and Permission Security (Unit: UI and Permission Helpers)', () =>
       expect(canFinance(FICTIONAL_PROFILES.MANAGER_FINANCIAL)).toBe(true)
       expect(canFinance(FICTIONAL_PROFILES.MANAGER_OPERATIONAL)).toBe(false)
       expect(canOperate(FICTIONAL_PROFILES.STAFF)).toBe(true)
-      expect(canOperate(FICTIONAL_PROFILES.VIEWER)).toBe(false)
       expect(canOperate(FICTIONAL_PROFILES.INACTIVE)).toBe(false)
     })
   })

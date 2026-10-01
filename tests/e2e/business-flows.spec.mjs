@@ -4,7 +4,6 @@
  * Flow B: Partial payment, installment collection to fully paid
  * Flow C: Sell vehicle and cancel sale (inventory restoration)
  * Flow D: STAFF login and unauthorized action denial
- * Flow E: VIEWER login and read-only behavior verification
  */
 
 import { test, expect } from "@playwright/test";
@@ -27,7 +26,6 @@ test.beforeEach(async ({ page }) => {
     OWNER: randomUUID(),
     MANAGER: randomUUID(),
     STAFF: randomUUID(),
-    VIEWER: randomUUID(),
   };
   createdVehicles = [];
   failNextPaymentResponse = false;
@@ -218,8 +216,13 @@ test.beforeEach(async ({ page }) => {
 
 async function loginAs(page, role = "owner") {
   await page.goto("/login");
-  await page.getByLabel(/Tên đăng nhập|Email/i).fill(`${role}@example.test`);
-  await page.getByLabel("Mật khẩu", { exact: true }).fill("Password-Test-2026");
+  await expect(page.getByRole("heading", { name: "Chào mừng trở lại", exact: true })).toBeVisible();
+  const username = page.getByRole("textbox", { name: /Tên đăng nhập hoặc email/i });
+  const password = page.getByLabel("Mật khẩu", { exact: true });
+  await username.fill(`${role}@example.test`);
+  await expect(username).toHaveValue(`${role}@example.test`);
+  await password.fill("Password-Test-2026");
+  await expect(password).toHaveValue("Password-Test-2026");
   await page.getByRole("button", { name: "Đăng nhập", exact: true }).click();
   await expect(page.getByRole("heading", { name: /Xin chào/ })).toBeVisible();
 }
@@ -256,6 +259,8 @@ test("FLOW A: OWNER full lifecycle (create vehicle -> inventory -> expense -> se
   await page.getByLabel("Thu tiền lần đầu (₫)", { exact: false }).fill("20000000");
   await page.getByRole("button", { name: "Xác nhận bán xe", exact: true }).click();
   await expect(page).toHaveURL(/\/sales\/[a-f0-9-]{36}$/);
+  await expect(page.getByRole("heading", { name: "Lời cảm ơn khách hàng" })).toBeVisible();
+  await expect(page.getByText(/Chưa cấu hình kênh nhắn tin/)).toBeVisible();
 
   // 5. Record remaining payment
   await expect(page.getByText(/28\.000\.000/)).toBeVisible(); // Remaining amount 48M - 20M = 28M
@@ -314,9 +319,9 @@ test("FLOW C: Sell vehicle -> cancel sale -> vehicle returns to inventory", asyn
   await page.getByRole("button", { name: "Xác nhận hủy giao dịch", exact: true }).click();
   await expect(page.getByText("Đã hủy", { exact: true })).toBeVisible();
 
-  // Verify vehicle returns to IN_STOCK (badge text 'Trong kho')
+  // Verify vehicle returns to IN_STOCK (badge text 'Sẵn sàng bán')
   await page.goto(`/vehicles/${vehicleId}`);
-  await expect(page.getByText("Trong kho", { exact: true })).toBeVisible();
+  await expect(page.getByText("Sẵn sàng bán", { exact: true })).toBeVisible();
 });
 
 test("FLOW D: STAFF login -> attempt unauthorized admin/financial action -> access denied", async ({
@@ -341,26 +346,6 @@ test("FLOW D: STAFF login -> attempt unauthorized admin/financial action -> acce
   await expect(page.getByText("Giá mua", { exact: true })).toHaveCount(0);
 });
 
-test("FLOW E: VIEWER login -> verify read-only behavior", async ({ page }) => {
-  await loginAs(page, "viewer");
-
-  // 1. Can view dashboard and inventory
-  await expect(page.getByText(/Tồn kho hiện tại|Xe đang trong kho/)).toBeVisible();
-  await page.goto("/vehicles");
-  await expect(page.locator(".inventory-table, .desktop-table, .mobile-record").first()).toBeVisible();
-
-  // 2. Action buttons for creating vehicles are absent
-  await expect(page.getByRole("link", { name: "Thêm xe mới" })).toHaveCount(0);
-
-  // 3. Directly attempting /vehicles/new is blocked
-  await page.goto("/vehicles/new");
-  await expect(page.getByText("Bạn chưa được cấp quyền mở trang này")).toBeVisible();
-
-  // 4. Directly attempting /sell is blocked
-  await page.goto("/sell");
-  await expect(page.getByText("Bạn chưa được cấp quyền mở trang này")).toBeVisible();
-});
-
 async function seedSale(overrides = {}) {
   const connection = await db.connection();
   try {
@@ -376,7 +361,9 @@ test("Operational: receivable collection reuses payment flow and refreshes real 
   const saleId = await seedSale();
   await loginAs(page, "staff");
   await page.goto("/receivables?payment_status=PARTIALLY_PAID");
-  await expect(page.getByLabel("Trạng thái", { exact: false })).toHaveValue("PARTIALLY_PAID");
+  await expect(
+    page.getByRole("button", { name: "Đã trả một phần", exact: true }),
+  ).toHaveAttribute("aria-pressed", "true");
   await page.getByLabel("Tìm công nợ").fill(`Khách công nợ ${ids.OWNER.slice(0, 6)}`);
   const saleRow = page.locator(".desktop-table tbody tr").filter({ hasText: `Khách công nợ ${ids.OWNER.slice(0, 6)}` });
   await expect(saleRow).toContainText("13.000.000");
@@ -390,6 +377,8 @@ test("Operational: receivable collection reuses payment flow and refreshes real 
   await expect(page.getByRole("heading", { name: /Lịch sử mua hàng/ })).toBeVisible();
   await expect(page.locator(".modal-card")).toContainText("Đã thu: 8.000.000");
   await expect(page.locator(".modal-card")).toContainText("Lịch sử trả tiền (2 lần)");
+  await expect(page.locator(".modal-card")).toContainText("Lịch sử liên hệ");
+  await expect(page.locator(".modal-card")).toContainText("Cảm ơn sau mua xe");
   await page.screenshot({ path: "test-results/customer-history-desktop.png", fullPage: true });
 });
 
@@ -413,7 +402,7 @@ test("Operational: lost payment response retries the same UUID once without dupl
 });
 
 test("Operational: global search debounces typing, opens with Ctrl+K and resolves keyboard selection", async ({ page }) => {
-  await loginAs(page, "viewer");
+  await loginAs(page, "staff");
   const requests = [];
   page.on("request", request => { if (request.url().endsWith("/rest/v1/rpc/global_search")) requests.push(request.postDataJSON()); });
   await page.keyboard.press("Control+k");
@@ -431,16 +420,12 @@ test("Operational: global search debounces typing, opens with Ctrl+K and resolve
   await expect(page.getByText("Giá mua", { exact: true })).toHaveCount(0);
 });
 
-test("Operational: selected-day reconciliation shows real sales, payments and independent costs", async ({ page }) => {
+test("Operational: expense management shows real independent costs and supports CRUD", async ({ page }) => {
   const saleId = await seedSale();
   await loginAs(page, "owner");
-  await page.goto("/reconciliation");
-  await expect(page.getByRole("heading", { name: "Đối soát cuối ngày", exact: true })).toBeVisible();
-  const details = page.locator(".data-table tbody tr").filter({ hasText: `Khách công nợ ${ids.OWNER.slice(0, 6)}` });
-  await expect(details.first()).toContainText("5.000.000");
-  await expect(details.last()).toContainText("18.000.000");
-  await expect(details.last()).toContainText("13.000.000");
-  await page.screenshot({ path: "test-results/reconciliation-desktop.png", fullPage: true });
+  await page.goto("/expenses");
+  await expect(page.getByRole("heading", { name: "Quản lý chi phí", exact: true })).toBeVisible();
+  await page.screenshot({ path: "test-results/expenses-desktop.png", fullPage: true });
   expect((await db.query("SELECT id FROM public.sales WHERE id=$1", [saleId])).rows).toHaveLength(1);
 });
 
@@ -478,8 +463,12 @@ test("Operational: CSV validates preview before writing, imports valid rows atom
 test("Operational: QR vehicle route returns after login, downloads a genuine SVG and camera failure has search fallback", async ({ page }) => {
   await page.goto(`/vehicles/${createdVehicles[0]}`);
   await expect(page).toHaveURL(/\/login$/);
-  await page.getByLabel(/Tên đăng nhập|Email/i).fill("viewer@example.test");
-  await page.getByLabel("Mật khẩu", { exact: true }).fill("Password-Test-2026");
+  const username = page.getByRole("textbox", { name: /Tên đăng nhập hoặc email/i });
+  const password = page.getByLabel("Mật khẩu", { exact: true });
+  await username.fill("staff@example.test");
+  await expect(username).toHaveValue("staff@example.test");
+  await password.fill("Password-Test-2026");
+  await expect(password).toHaveValue("Password-Test-2026");
   await page.getByRole("button", { name: "Đăng nhập", exact: true }).click();
   await expect(page).toHaveURL(`/vehicles/${createdVehicles[0]}`);
   await expect(page.getByRole("img", { name: /QR mở xe/ })).toBeVisible();

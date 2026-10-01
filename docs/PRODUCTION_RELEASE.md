@@ -15,7 +15,7 @@ The cached link metadata matches the reference written in `docs/AUTH_RECOVERY_AU
 - Starting worktree was already dirty. No earlier snapshot exists to attribute individual edits to the previous implementation turn. No files were reset or discarded.
 - `.env` was absent. `.gitignore` now excludes `supabase/.temp/`; no CLI link metadata is staged.
 - `docs/AUTH_BACKUP_METADATA.md` remains local and is excluded from the checkpoint because it contains personal account metadata.
-- `supabase/migrations/20260930001800_reset_owner_password_default.sql` remains preserved in the worktree but is excluded from the checkpoint. It contains a hardcoded owner default password and emits that value in notices. It must not be applied or included in a public/shared commit. If it was ever used, rotate the affected credential. The checkpoint consequently has a migration-version gap and is **not a deployable migration set**.
+- `supabase/migrations/20260930001800_reset_owner_password_default.sql` was preserved in the worktree, excluded from the checkpoint, and is now quarantined at `supabase/quarantine/` (Git-ignored; `supabase/migrations/20260930001800_*` is ignore-guarded so it can never re-enter the migration set). It contains a hardcoded owner default password and emits that value in notices. It must not be applied or included in a public/shared commit. If it was ever used, rotate the affected credential. The final repository strategy for version 018 (sanitized no-op historical placeholder versus permanent exclusion) awaits remote migration-ledger evidence.
 - No production database, Auth, account, business record, Edge Function, backup, or configuration was changed.
 
 ## Migration inventory and reconciliation
@@ -64,9 +64,11 @@ No production-only migrations, manually applied migrations, duplicate versions, 
 
 | Function | Purpose | Local status | Required runtime configuration | Deployed? | Production-tested? |
 |---|---|---|---|---|---|
-| `manage-users` | OWNER account administration (user create/update/reset/disable flows) | Local code and tests present; runtime CORS/auth/role flows not hosted-verified | Supabase URL and public/anon key, server-side administrative key; CORS currently uses the Supabase SDK defaults, so production origin policy requires review | Unknown / not verified | No |
+| `manage-users` | OWNER account administration (user create/update/reset/disable flows) | Local code and tests present; runtime CORS/auth/role flows not hosted-verified | Supabase URL and public/anon key, server-side administrative key; CORS now enforces the `ALLOWED_ORIGINS` env list (exact origins; unset falls back to SDK defaults for local development only) | Unknown / not verified | No |
 | `ai-assist` | Optional authenticated, role-aware read-only assistant | Local code present; remains disabled | `AI_ENABLED=true`, `AI_PROVIDER_API_KEY`, `AI_MODEL` plus Supabase runtime configuration | Unknown / not verified; should remain undeployed until separately reviewed | No |
 | `reset-owner` | Retired endpoint | Local handler returns HTTP 410 | None | Must not deploy | No |
+
+`process-message` requires explicit `verify_jwt = true` (declared in `supabase/config.toml`) and authenticated worker invocation; messaging remains MOCK-only and it must not block the CRM release.
 
 Never place service/admin or provider credentials in client code, migration notices, logs, or Git. The AI provider key remains server-side and is absent in this workspace. Normal CRM release must not depend on AI.
 

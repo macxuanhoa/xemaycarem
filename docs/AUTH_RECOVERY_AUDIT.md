@@ -1,5 +1,5 @@
 # BÁO CÁO KIỂM TOÁN VÀ PHỤC HỒI HỆ THỐNG XÁC THỰC (AUTH RECOVERY AUDIT)
-*Dự án: Xe CRM — Quản lý Cửa hàng Xe máy Cà Rém*  
+*Dự án: Xe CRM — Quản lý Cửa hàng Xe máy Cà Rem*  
 *Thời gian kiểm toán: 2026-09-30*  
 *Môi trường: Supabase Production (`atsgqtarxhmxrsugulva`)*
 
@@ -48,8 +48,8 @@ Hệ thống đã trải qua chuỗi các bản vá di chuyển tự phát từ 
 | Auth User ID | Auth Email hiện tại | Identity Email gốc | Profile Username | Họ và tên | Vai trò | Active | Lịch làm việc |
 |---|---|---|---|---|---|---|---|
 | `f5028720-6110-41e7-ad2f-1c3f24af8e69` | `macxuanhoa21100211@internal.xecrm.app` | `macxuanhoa211002@gmail.com` | `macxuanhoa21100211` | Ông chủ Cà rem | **OWNER** | **true** | Không giới hạn |
-| `854aae82-a2b8-445b-b4a9-967b0b0252dc` | `nguyenb11@internal.xecrm.app` | `nguyenb11@internal.xecrm.app` | `nguyenb11` | Người dùng mới | VIEWER | false | Mặc định |
-| `1dfc523a-b4d5-4458-b339-82c4ee5ca601` | `phoang.le2409@internal.xecrm.app` | `phoang.le2409@internal.xecrm.app` | `phoang.le2409` | Người dùng mới | VIEWER | false | Mặc định |
+| `854aae82-a2b8-445b-b4a9-967b0b0252dc` | `nguyenb11@internal.xecrm.app` | `nguyenb11@internal.xecrm.app` | `nguyenb11` | Người dùng mới | STAFF | true | Mặc định |
+| `1dfc523a-b4d5-4458-b339-82c4ee5ca601` | `phoang.le2409@internal.xecrm.app` | `phoang.le2409@internal.xecrm.app` | `phoang.le2409` | Người dùng mới | STAFF | true | Mặc định |
 
 ---
 

@@ -8,7 +8,7 @@ Phạm vi gồm cải thiện quy trình vận hành, bảo mật và UX trên w
 
 ## 2. Quy ước giữ lại
 
-Giữ luồng Thu vào → Tồn kho → Chi phí/cập nhật → Bán ra; tái sử dụng RPC và bảng hiện có; phân quyền OWNER/MANAGER/STAFF/VIEWER ở server; ngày nghiệp vụ Asia/Ho_Chi_Minh; trạng thái bán/thu chỉ báo thành công sau phản hồi server; giao diện dùng card, form, modal, navigation hiện có. Bản nháp cục bộ chỉ giữ các trường an toàn, không giữ giá, khoản thu, trạng thái hay thông tin xác thực.
+Giữ luồng Thu vào → Tồn kho → Chi phí/cập nhật → Bán ra; tái sử dụng RPC và bảng hiện có; phân quyền OWNER/MANAGER/STAFF ở server; ngày nghiệp vụ Asia/Ho_Chi_Minh; trạng thái bán/thu chỉ báo thành công sau phản hồi server; giao diện dùng card, form, modal, navigation hiện có. Bản nháp cục bộ chỉ giữ các trường an toàn, không giữ giá, khoản thu, trạng thái hay thông tin xác thực.
 
 ## 3. Tính năng đã triển khai
 

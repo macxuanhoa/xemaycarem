@@ -23,3 +23,6 @@ coverage/
 
 docs/AUTH_BACKUP_METADATA.md
 supabase/quarantine/**
+
+# Manual logical backups of production (large, sensitive data) - never commit.
+backups/

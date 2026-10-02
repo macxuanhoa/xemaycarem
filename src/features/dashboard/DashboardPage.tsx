@@ -14,7 +14,6 @@ import {
   Receipt,
   Sparkles,
   TrendingUp,
-  Wallet,
 } from "lucide-react";
 import {
   Badge,
@@ -396,59 +395,6 @@ export default function DashboardPage() {
                 </Card>
               </div>
 
-              {/* ════════════════════════════════════════════════════════════
-                  BIẾN ĐỘNG THEO KỲ LỌC (kỳ chọn đang nằm trong thanh filter của Bản tin)
-                  ════════════════════════════════════════════════════════════ */}
-                {/* All financial metrics are fetched together for the selected date range. */}
-                <div className="period-kpi-grid">
-                  {canManage(profile) ? (
-                    <Metric
-                      to={`/sales?from=${range.from}&to=${range.to}`}
-                      label="Doanh thu"
-                      value={compactMoney(d.revenue)}
-                      detail={`${d.sales_count} xe đã bán chốt`}
-                      icon={<Wallet size={20} />}
-                      featured
-                    />
-                  ) : (
-                    <Metric
-                      to={`/sales?from=${range.from}&to=${range.to}`}
-                      label="Xe bán trong kỳ"
-                      value={String(d.sales_count)}
-                      detail="Giao dịch chốt thành công"
-                      icon={<Receipt size={20} />}
-                      featured
-                    />
-                  )}
-
-                  <Metric
-                    to={canFinance(profile) ? `/sales?from=${range.from}&to=${range.to}` : `/acquisitions?from=${range.from}&to=${range.to}`}
-                    label={canFinance(profile) ? "Lợi nhuận" : "Xe thu vào trong kỳ"}
-                    value={canFinance(profile) ? compactMoney(d.gross_profit) : String(d.acquisitions_count ?? 0)}
-                    detail={canFinance(profile) ? "Doanh thu trừ giá vốn" : "Xe thu mua nhập kho"}
-                    icon={canFinance(profile) ? <TrendingUp size={20} /> : <ArrowDownLeft size={20} />}
-                  />
-
-                  {canFinance(profile) && (
-                    <Metric
-                      to={`/acquisitions?from=${range.from}&to=${range.to}`}
-                      label="Tổng tiền thu mua xe"
-                      value={compactMoney(d.acquisition_cost)}
-                      detail={`${d.acquisitions_count ?? 0} xe thu trong kỳ`}
-                      icon={<ArrowDownLeft size={20} />}
-                    />
-                  )}
-                  {canFinance(profile) && (
-                    <Metric
-                      to="/expenses"
-                      label="Các chi phí khác"
-                      value={compactMoney(d.business_expenses ?? 0)}
-                      detail="Mặt bằng, vận hành"
-                      icon={<CreditCard size={20} />}
-                    />
-                  )}
-                </div>
-
                 {/* 2.2 BIỂU ĐỒ NHỊP KINH DOANH TRONG KỲ */}
                 {canManage(profile) ? (
                   <Card className="revenue-card">
@@ -656,53 +602,6 @@ function periodDisplay(range: DateFilter): { lower: string } {
       };
   }
   return { lower: `${dateLabel(range.from)} – ${dateLabel(range.to)}` };
-}
-
-function Metric({
-  label,
-  value,
-  detail,
-  icon,
-  featured = false,
-  to,
-}: {
-  label: string;
-  value: string;
-  detail: string;
-  icon: React.ReactNode;
-  featured?: boolean;
-  to?: string;
-}) {
-  const content = (
-    <>
-      <div className="metric-label">
-        <span>{label}</span>
-        <span className="metric-icon-box">{icon}</span>
-      </div>
-      <div className="metric-value-wrap">
-        <strong className="metric-value">{value}</strong>
-      </div>
-      <div className="metric-detail-row">
-        <p>{detail}</p>
-        {to && <ArrowUpRight size={14} className="metric-arrow" aria-hidden="true" />}
-      </div>
-    </>
-  );
-
-  if (to) {
-    return (
-      <Link
-        to={to}
-        className={`metric-link card metric ${featured ? "featured" : ""}`}
-      >
-        {content}
-      </Link>
-    );
-  }
-
-  return (
-    <Card className={`metric ${featured ? "featured" : ""}`}>{content}</Card>
-  );
 }
 
 function RevenueChart({

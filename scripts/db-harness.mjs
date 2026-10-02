@@ -121,13 +121,20 @@ async function nativeDatabase() {
     // client stays exclusive until released, so SET ROLE / set_config session
     // state used by asUser() still behaves like a dedicated connection.
     const pool = new pg.Pool({ host: '127.0.0.1', port, user: 'postgres', password, max: 10 })
+    pool.on('error', () => {
+      // Idle clients in the pool receive 57P01 (terminating connection due to administrator command)
+      // or ECONNRESET when embedded postgres stops (e.g. via SIGINT on Linux).
+      // Node's EventEmitter would crash the process if this error event was left unhandled.
+    })
     const bootstrap = await pool.connect()
+    bootstrap.on('error', () => {})
     const run = (sql, values) => bootstrap.query(sql, values)
     return {
       query: run,
       exec: (sql) => bootstrap.query(sql),
       connection: async () => {
         const connection = await pool.connect()
+        connection.on('error', () => {})
         return { query: (sql, values) => connection.query(sql, values), exec: (sql) => connection.query(sql), close: () => connection.release() }
       },
       close: async () => {

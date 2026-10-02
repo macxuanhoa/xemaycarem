@@ -361,7 +361,8 @@ function StoreSettings({
           <p className="muted small" style={{ marginBottom: "14px" }}>
             Thiết lập ngưỡng để hệ thống đánh dấu tình trạng kho trên Dashboard.
             Chỉ số được tính trên tổng số xe đang tại cửa hàng (gồm cả xe đang
-            giữ chỗ); hệ thống không gửi email hay thông báo đẩy.
+            giữ chỗ). Số xe bằng đúng ngưỡng vẫn là Tồn kho bình thường. Hệ
+            thống không gửi email, tin nhắn hay thông báo tự động.
           </p>
           <div className="form-grid">
             <Field label="Số xe tối thiểu nên có">
@@ -377,8 +378,8 @@ function StoreSettings({
                 }
               />
               <span className="field-hint">
-                Khi số xe đang tại cửa hàng thấp hơn mức này, trạng thái kho
-                được đánh dấu là Tồn kho thấp.
+                Khi số xe trong kho giảm xuống dưới mức này, Dashboard sẽ đánh
+                dấu trạng thái Tồn kho thấp.
               </span>
             </Field>
             <Field label="Số xe tối đa nên giữ">
@@ -394,8 +395,8 @@ function StoreSettings({
                 }
               />
               <span className="field-hint">
-                Khi số xe đang tại cửa hàng cao hơn mức này, trạng thái kho
-                được đánh dấu là Tồn kho cao.
+                Khi số xe trong kho tăng vượt trên mức này, Dashboard sẽ đánh
+                dấu trạng thái Tồn kho cao.
               </span>
             </Field>
           </div>

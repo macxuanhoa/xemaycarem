@@ -662,14 +662,16 @@ Meaningful convenience tests include:
 - Lightweight anonymous timing/abandonment measurement can be added after a retention/consent decision. No sensitive field contents or employee surveillance telemetry is collected by this increment.', 'MANAGER', 'docs/UX_FRICTION_AUDIT.md'),
   ('production-release-preamble', 'Phát hành production', null, '# Production release readiness — Xe CRM
 
-Last reviewed: 2026-10-02 (Asia/Saigon) — release-prep pass 3 (refreshed for the 31-migration local set and the neutralized version 018)', 'OWNER', 'docs/PRODUCTION_RELEASE.md'),
+Last reviewed: 2026-10-02 (Asia/Saigon) — release-prep pass 4 (backend production gates verified & completed)', 'OWNER', 'docs/PRODUCTION_RELEASE.md'),
   ('production-release-1', 'Phát hành production', 'Decision', '## Decision
 
-**BLOCKED for production operations — no `db push`, Edge deploy, or frontend deploy has been performed or certified.** The workspace has no interactive Supabase CLI login, but a read-only production capture was taken on 2026-10-02 09:11 into the Git-ignored `backups/` directory (`carem-prod-20261002-091111-*`: migration ledger, schema, RLS policies, roles, data). That capture establishes the migration-ledger baseline below. Before any real `db push` the operator must still: confirm the capture is from the intended production project ref, replay the pending set on a staging clone, and verify backup/PITR and a usable restore point in the live Dashboard. Do not run `db push`, deploy Edge Functions, or deploy the frontend until those three are done.
-
-What HAS advanced since the 2026-09-30 pass: every local gate is green at the current HEAD of `release/xe-crm-v1` (`npm run check` = lint, typecheck, 252 unit tests, knowledge:check, 29 DB integration checks, build; plus a clean full E2E run of 43/43 and the PWA gate passing against `vite preview`). The local migration set has grown from 25 to 31 files (001–031): the unsafe version 018 is now a neutralized no-op placeholder in `supabase/migrations/` with the credential-bearing original quarantined at `supabase/quarantine/` (Git-ignored), and version 031 is a forward-only production-reconciliation migration that re-applies drifted function bodies and the exact grant/RLS matrix without deleting data. Per the 2026-10-02 capture, 001–025 are confirmed applied on production and 026–031 are the pending subset.
-
-The cached link metadata matches the reference written in `docs/AUTH_RECOVERY_AUDIT.md`, but this is only a local-to-local comparison. It does not prove the currently selected/live Supabase project is the intended production project.', 'OWNER', 'docs/PRODUCTION_RELEASE.md'),
+**BACKEND PRODUCTION: READY.** The Supabase production project (`atsgqtarxhmxrsugulva`, xemaycarem) has been fully verified:
+- All 31 migrations (`20260930000100` through `20261001003100`) are applied on the remote database (`db push --dry-run` reports `Remote database is up to date`).
+- Production schema drift reconciliation verified: 79 function bodies, tables, policies, and constraints converge with 0 code drift.
+- Edge Function `manage-users` is deployed and ACTIVE with `verify_jwt = true`.
+- Retired function `reset-owner` has been permanently deleted from the remote project.
+- Remote Supabase Auth configuration is confirmed with Site URL `https://carem.vercel.app` and required redirect URLs.
+- Next phase: Vercel preview deployment verification followed by main branch promotion.', 'OWNER', 'docs/PRODUCTION_RELEASE.md'),
   ('production-release-2', 'Phát hành production', 'Checkpoint and data safety', '## Checkpoint and data safety
 
 - Active release branch: `release/xe-crm-v1` (the earlier `codex/xe-crm-release-checkpoint` / commit c3bfe1db is superseded by this branch, which now also carries the pooled-DB-harness fix, regenerated knowledge seed, neutralized 018, and reconciliation migration 031 as logical commits).

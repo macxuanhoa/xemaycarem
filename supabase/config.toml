@@ -30,8 +30,15 @@ file_size_limit = "8MiB"
 
 [auth]
 enabled = true
-site_url = "http://127.0.0.1:5173"
-additional_redirect_urls = ["http://127.0.0.1:5173/reset-password", "http://localhost:5173/reset-password"]
+site_url = "https://carem.vercel.app"
+additional_redirect_urls = [
+  "https://carem.vercel.app/**",
+  "https://carem.vercel.app/reset-password",
+  "http://127.0.0.1:5173/**",
+  "http://127.0.0.1:5173/reset-password",
+  "http://localhost:5173/**",
+  "http://localhost:5173/reset-password"
+]
 jwt_expiry = 3600
 # Global signup endpoint is disabled; accounts are created via Auth Admin/manage-users only.
 enable_signup = false

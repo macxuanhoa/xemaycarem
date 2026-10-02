@@ -30,3 +30,5 @@ backups/
 scratch/
 .vercel
 .env*
+
+.vercel-tmp/

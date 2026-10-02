@@ -6,7 +6,9 @@ import { runBusinessRisksTests } from '../tests/db/business-risks.test.mjs'
 import { runOperationalTests } from '../tests/db/operational-features.test.mjs'
 import { runAuthSecurityTests } from '../tests/db/auth-security.test.mjs'
 import { runKnowledgeTests } from '../tests/db/knowledge.test.mjs'
+import { runCopilotGapTests } from '../tests/db/copilot-gaps.test.mjs'
 import { runIdentityDocumentTests } from '../tests/db/identity-documents.test.mjs'
+import { runShowroomTests } from '../tests/db/showroom.test.mjs'
 
 const engine = process.argv.includes('--pglite') ? 'pglite' : 'postgres'
 console.log(`Database integration suite: ${engine} (disposable database; no cloud credentials)`)
@@ -15,7 +17,9 @@ await runBusinessRisksTests(null, { engine })
 await runOperationalTests(null, { engine })
 await runAuthSecurityTests({ engine })
 await runKnowledgeTests(null, { engine })
+await runCopilotGapTests(null, { engine })
 await runIdentityDocumentTests(null, { engine })
+await runShowroomTests(null, { engine })
 const db = await createDatabase({ engine })
 let passed = 0
 const users = Object.fromEntries(['owner', 'manager', 'financialManager', 'staff', 'disabled'].map((role) => [role, randomUUID()]))
@@ -258,8 +262,15 @@ try {
   if (db.connection) await concurrencyTests()
   else console.log('SKIP concurrency: PGlite is single-session. Run without --pglite for multi-session PostgreSQL races.')
   console.log(`\n${passed} database integration checks passed on ${engine}.`)
+} catch (error) {
+  // Record the failure instead of letting the finally-block exit swallow it.
+  console.error(error)
+  process.exitCode = 1
 } finally {
   await db.close()
+  // Embedded-postgres handles can keep the event loop alive after close(); exit
+  // explicitly, but propagate the recorded status so CI sees real failures.
+  process.exit(process.exitCode ?? 0)
 }
 
 async function concurrencyTests() {

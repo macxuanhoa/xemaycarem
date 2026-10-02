@@ -20,6 +20,7 @@ const AcquisitionFormPage = lazy(() =>
     default: m.AcquisitionFormPage,
   })),
 );
+const ShorthandIntakePage = lazy(() => import("@/features/intake/ShorthandIntakePage"));
 const InventoryPage = lazy(() =>
   import("@/features/vehicles/VehiclePages").then((m) => ({
     default: m.InventoryPage,
@@ -184,6 +185,7 @@ export default function App() {
                   path="acquisitions/new"
                   element={<AcquisitionFormPage />}
                 />
+                <Route path="intake" element={<ShorthandIntakePage />} />
                 <Route path="vehicles/new" element={<VehicleFormPage />} />
                 <Route path="vehicles/:id/edit" element={<VehicleFormPage />} />
                 <Route path="vehicles/:id/sell" element={<SellVehiclePage />} />

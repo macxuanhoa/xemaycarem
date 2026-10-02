@@ -5,6 +5,8 @@ import { BookOpen, Search, Sparkles } from "lucide-react";
 import { api } from "@/lib/api";
 import { Card, EmptyState, ErrorState, Loading, PageHeader } from "@/components/ui";
 import { MarkdownLite } from "@/lib/markdownLite";
+import { useAuth } from "@/features/auth/AuthProvider";
+import { isOwner } from "@/lib/permissions";
 import { useDebouncedValue } from "@/lib/useDebouncedValue";
 import type { KnowledgeAudience, KnowledgeIndexItem } from "@/types";
 
@@ -20,11 +22,20 @@ const audienceLabels: Record<KnowledgeAudience, string> = {
 /** Documents the store keeps about itself, served from the database and read under RLS. */
 export default function DocsPage() {
   const { slug } = useParams<{ slug?: string }>();
+  const { profile } = useAuth();
   const [term, setTerm] = useState("");
   const query = useDebouncedValue(term.trim(), 300);
   const index = useQuery({
     queryKey: ["knowledge-index"],
     queryFn: () => api.listKnowledge(),
+  });
+  // OWNER sees what the copilot could not answer yet; retry stays off because the
+  // RPC is missing until the copilot_question_gaps migration is applied.
+  const gaps = useQuery({
+    queryKey: ["copilot-gaps"],
+    queryFn: () => api.listCopilotGaps(30),
+    enabled: Boolean(profile && isOwner(profile)),
+    retry: false,
   });
   const search = useQuery({
     queryKey: ["knowledge-search", query],
@@ -125,6 +136,29 @@ export default function DocsPage() {
             {index.data ? `${index.data.total} phần tài liệu bạn được đọc. ` : ""}
             AI chỉ trích dẫn những trang nằm trong danh sách này.
           </p>
+        </Card>
+      )}
+
+      {!slug && profile && isOwner(profile) && (gaps.data?.items.length ?? 0) > 0 && (
+        <Card>
+          <h2 className="section-title">Câu hỏi chưa có tài liệu</h2>
+          <p className="muted">
+            {gaps.data!.total} câu hỏi trong {gaps.data!.days} ngày qua mà Trợ lý AI
+            không tìm được bằng chứng. Câu nào lặp lại nhiều lần là dấu hiệu cần viết
+            ngay một quy trình vào <code>docs/INTERNAL_SOPS.md</code>, sau đó chạy{" "}
+            <code>npm run knowledge:seed</code>.
+          </p>
+          <ul className="docs-list">
+            {gaps.data!.items.map((gap) => (
+              <li key={gap.id}>
+                <span>
+                  <strong>{gap.question}</strong>
+                  <small className="muted">Lần gần nhất: {new Date(gap.last_seen_at).toLocaleDateString("vi-VN")}</small>
+                </span>
+                <em className="docs-tier">Gặp {gap.hits} lần</em>
+              </li>
+            ))}
+          </ul>
         </Card>
       )}
     </div>

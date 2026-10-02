@@ -121,6 +121,18 @@ export default function CapturePage() {
       </Card>
       {canOperate(profile) && (
         <Card>
+          <h2 className="section-title">Thu xe tốc ký</h2>
+          <p className="muted">
+            Dán tin nhắn hoặc ghi chú viết tắt (mỗi dòng một xe) để Cà Rem tách
+            thành danh sách thu xe, kiểm tra rồi thu hàng loạt.
+          </p>
+          <Button asChild variant="secondary">
+            <Link to="/intake">Mở thu xe tốc ký</Link>
+          </Button>
+        </Card>
+      )}
+      {canOperate(profile) && (
+        <Card>
           <h2 className="section-title">Chụp ảnh xe / đồng hồ km</h2>
           <p className="muted">
             Chọn hồ sơ xe, rồi dùng “Thêm ảnh” để chụp bằng camera. Kiểm tra số

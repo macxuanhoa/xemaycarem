@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useDebouncedValue } from "@/lib/useDebouncedValue";
 import { useDialog } from "@/lib/useDialog";
 import { Link, useSearchParams } from "react-router-dom";
-import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-query";
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   ArrowRight,
   Bike,
@@ -24,7 +24,7 @@ import {
   PageHeader,
   Pagination,
 } from "@/components/ui";
-import type { CustomerSummary, Paged } from "@/types";
+import type { CustomerSummary, Paged, ShowroomLead, ShowroomLeadStatus } from "@/types";
 
 const pageSize = 6;
 
@@ -79,6 +79,21 @@ export function CustomersPage() {
         p_phone: selectedPhone!,
       }),
     enabled: !!selectedPhone,
+  });
+
+  // A2: lead thật từ Showroom — nhân sự thấy và xử lý ngay tại đây.
+  const leadsQuery = useQuery({
+    queryKey: ["showroom-leads"],
+    queryFn: () =>
+      api.call<Paged<ShowroomLead>>("list_showroom_leads", {
+        p_filters: { status: "NEW", limit: 10 },
+      }),
+  });
+  const leadStatusMutation = useMutation({
+    mutationFn: ({ id, status }: { id: string; status: ShowroomLeadStatus }) =>
+      api.call("update_showroom_lead_status", { p_id: id, p_status: status }),
+    onSuccess: () =>
+      client.invalidateQueries({ queryKey: ["showroom-leads"] }),
   });
   const communicationQuery = useQuery({
     queryKey: ["customer-communications", selectedPhone],
@@ -285,6 +300,80 @@ export function CustomersPage() {
             pageSize={pageSize}
             onChange={setPage}
           />
+        </Card>
+      )}
+
+      {(leadsQuery.data?.items.length ?? 0) > 0 && (
+        <Card>
+          <div className="row between" style={{ marginBottom: "10px" }}>
+            <h3 style={{ margin: 0 }}>Yêu cầu mới từ Showroom</h3>
+            <small className="muted">
+              {leadsQuery.data?.total ?? 0} lead chờ xử lý
+            </small>
+          </div>
+          <div className="compact-list">
+            {leadsQuery.data!.items.map((lead) => (
+              <div key={lead.id} className="card" style={{ padding: "12px" }}>
+                <div className="row between">
+                  <strong>
+                    {lead.customer_name} ·{" "}
+                    {lead.kind === "BUYBACK" ? "Cần bán xe" : "Hỏi mua xe"}
+                  </strong>
+                  <small className="muted">{dateLabel(lead.created_at)}</small>
+                </div>
+                <div className="row" style={{ gap: "10px", marginTop: "4px" }}>
+                  <a href={`tel:${lead.phone}`} className="muted small row" style={{ gap: "4px" }}>
+                    <Phone size={13} /> {lead.phone}
+                  </a>
+                  {lead.vehicle_name && (
+                    <small className="muted">
+                      Xe: {lead.vehicle_name}
+                      {lead.vehicle_year ? ` (${lead.vehicle_year})` : ""}
+                      {lead.expected_price ? ` · Mong muốn ${money(lead.expected_price)}` : ""}
+                    </small>
+                  )}
+                  {lead.vehicle_id && (
+                    <Link to={`/vehicles/${lead.vehicle_id}`} className="small row" style={{ gap: "4px" }}>
+                      <Bike size={13} /> Xem xe
+                    </Link>
+                  )}
+                </div>
+                {lead.message && <p className="small muted" style={{ margin: "6px 0 0" }}>{lead.message}</p>}
+                <div className="row" style={{ gap: "6px", marginTop: "8px", justifyContent: "flex-end" }}>
+                  <Button
+                    variant="secondary"
+                    className="small"
+                    disabled={leadStatusMutation.isPending}
+                    onClick={() =>
+                      leadStatusMutation.mutate({ id: lead.id, status: "CONTACTED" })
+                    }
+                  >
+                    Đã liên hệ
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    className="small"
+                    disabled={leadStatusMutation.isPending}
+                    onClick={() =>
+                      leadStatusMutation.mutate({ id: lead.id, status: "CLOSED" })
+                    }
+                  >
+                    Đã chốt
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    className="small"
+                    disabled={leadStatusMutation.isPending}
+                    onClick={() =>
+                      leadStatusMutation.mutate({ id: lead.id, status: "SPAM" })
+                    }
+                  >
+                    Spam
+                  </Button>
+                </div>
+              </div>
+            ))}
+          </div>
         </Card>
       )}
 

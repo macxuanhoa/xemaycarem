@@ -52,6 +52,13 @@ Local draft/recent values are scoped to the authenticated user and exclude finan
 - Toàn bộ tính năng "Báo cáo" (`/reports`, `src/features/reports/`) đã được gỡ khỏi giao diện: tuyến đường, mục điều hướng, preload, liên kết số liệu trên Tổng quan và trích dẫn copilot trỏ về `/reports` đều chuyển hướng sang màn hình còn tồn tại (Bán hàng/Tổng quan). Lý do: chủ cửa hàng yêu cầu xóa tab khỏi app; số liệu doanh thu/lợi nhuận đã hiển thị ngay trên Tổng quan và danh sách Bán hàng, tab riêng là trùng lặp.
 - RPC database `report(p_kind, p_filters)` được giữ nguyên: hàm đã nằm trên production (migration 003/005 đã áp dụng), việc DROP là không đảo được và không cần thiết sau khi UI gỡ; nó chỉ là bề mặt đọc không còn consumer. Ghi quyết định này để agent sau không coi RPC "chết" là sót lại cần xóa vội.
 
+## Ngưỡng tồn kho và chỉ báo trạng thái kho
+
+- `low_stock_threshold` / `high_stock_threshold` là ngưỡng phục vụ đánh dấu hiển thị, KHÔNG phải hệ thống cảnh báo chủ động: hệ thống không gửi email, push hay tự tạo `system_announcements` khi chạm ngưỡng (bản cũ trong Cài đặt ghi "sẽ gửi cảnh báo tới quản lý" là sai, đã được sửa). Tự động hóa announcements vẫn là công việc tương lai, chưa implement.
+- Audit ngữ nghĩa (giữ nguyên công thức server, chỉ sửa câu chữ UI): `inventory_indicator` tính trên TỔNG XE ĐANG TẠI CỬA HÀNG (`IN_STOCK` + `RESERVED`), không phải "xe sẵn sàng bán" — xe RESERVED đang giữ cho khách nên không được mô tả là sẵn sàng bán. Wording UI đổi thành "số xe đang tại cửa hàng". Phương án đổi công thức sang `IN_STOCK` thuần bị bác vì thay đổi semantics nghiệp vụ đang chạy trên production mà chưa được chủ cửa hàng duyệt.
+- Biên ngưỡng là so sánh DẸT theo SQL hiện hành (`<` và `>`): LOW khi số xe tại cửa hàng nhỏ hơn mức tối thiểu, HIGH khi lớn hơn mức tối đa; hai ngưỡng là dải chấp nhận được (bao gồm cả giá trị đúng bằng). `src/lib/inventory-status.ts` là resolver duy nhất (canonical, ưu tiên `inventory_indicator` từ server) và mirror đúng CASE này; kiểm thử biên nằm ở `tests/unit/inventory-status.test.ts` và `tests/db/operational-features.test.mjs`.
+- Nhãn hiển thị trên card "Kho xe hiện tại" (Dashboard): LOW → "Tồn kho thấp", NORMAL → "Tồn kho bình thường", HIGH → "Tồn kho cao", dùng tone màu ngữ nghĩa đã có trong theme (emerald/amber/indigo tint), không định nghĩa bảng màu mới.
+
 ## Unverified external state
 
 These decisions describe local code. They do not assert the current contents of a hosted Supabase project or any production account credential.

@@ -33,6 +33,7 @@ import {
 } from "@/components/ui";
 import { MoneyInput } from "@/components/ui/MoneyInput";
 import type { Expense, Paged, Vehicle } from "@/types";
+import { AVAILABLE_VEHICLE_FILTER } from "@/lib/vehicleFilters";
 import {
   businessExpenseLabels,
   dateValue,
@@ -596,7 +597,7 @@ function ExpenseEditor({
       api.call<Paged<Vehicle>>("list_vehicles", {
         p_filters: {
           search: deferredSearch,
-          status: "AVAILABLE",
+          status: AVAILABLE_VEHICLE_FILTER,
           limit: 30,
           offset: 0,
         },

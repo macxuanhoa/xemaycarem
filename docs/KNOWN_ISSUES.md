@@ -1,5 +1,20 @@
 # Known Issues and Verification Limits
 
+## Behavioral defect audit A1–A7 — 2026-10-02
+
+All seven confirmed behavioral defects are FIXED locally with regression coverage; none is DEFERRED or BLOCKED.
+
+- A1 Showroom (`/showroom`) now reads real stock through `list_showroom_vehicles` (migration `20261002003200`), an anon-granted, safe projection of IN_STOCK vehicles only. RESERVED/SOLD/CANCELLED are explicitly excluded from the public showroom (documented policy in the migration header). `FEATURED_BIKES` and every fake vehicle/price/plate/odometer constant is deleted; loading and error states replace fake fallbacks; missing fields render "—" or are omitted. Private buckets are not leaked: cards use styled placeholders, not photos.
+- A2 The sell/inquiry form persists a real `showroom_leads` row through `create_showroom_lead` (migration `20261002003300`) BEFORE any success message; success is gated on the mutation's `onSuccess`. Zalo opening is a secondary try/catch and cannot lose the lead. Anon writes only (validated + phone-normalized + 10-minute per-phone throttle); staff triage lives on the Customers page via `list_showroom_leads`/`update_showroom_lead_status` (audited as `UPDATE_SHOWROOM_LEAD_STATUS`).
+- A3 One canonical resolver `src/lib/debt.ts` (`resolveDebtStatus`/`resolveIsOverdue`) is consumed by both desktop and mobile receivables; it prefers the server `debt_status`/`is_overdue` and falls back to the same rules the server uses. The historic mobile missing-UNPAID branch is gone.
+- A4 An empty due-date input can no longer silently delete an existing due date: submit blocks with an inline message; removal is a separate "Xóa hạn thanh toán" action with a danger confirmation (form is `noValidate` so the custom message always wins over native tooltips).
+- A5/A6 Persisted `VehicleStatus` and query-only `VehicleStatusFilter` (AVAILABLE/UNSOLD aliases) are separate types; canonical constants live in `src/lib/vehicleFilters.ts` and `AVAILABLE_VEHICLE_FILTER` is the only alias allowed in list queries — aliases never reach status mutations.
+- A7 `ReceivablesPage.setPaymentStatus` uses a functional `setSearchParams` updater plus `mergeSearchParams` (`src/lib/urlParams.ts`), preserving search/page/date/other params.
+
+Residual notes: migrations `0032`/`0033` are pending like every unreleased version — nothing was deployed; `create_showroom_lead` intentionally writes no `audit_logs` row because `private.audit` records `auth.uid()` (NULL for anon) and the lead row itself is the evidence trail; editing these docs changed the `knowledge_base` corpus hash while applied migration `20261001002900_knowledge_seed.sql` must not be modified, so `npm run knowledge:check` is RED until release prep decides a forward re-seed migration.
+
+Last reviewed: 2026-10-02
+
 ## Customer communication Phase 1
 
 - Real Zalo ZNS/SMS providers are not implemented or configured. `MESSAGE_PROVIDER_MODE=MOCK` simulates acceptance; absent configuration fails safely. Keep customer messaging disabled until provider approval, Edge secrets, template/eligibility review, callback handling, and hosted verification are complete.

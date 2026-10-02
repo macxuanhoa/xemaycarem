@@ -17,7 +17,14 @@ export type Profile = {
   updated_at?: string;
 };
 export type Paged<T> = { items: T[]; total: number };
+/** Persisted vehicle status — the only values ever stored in vehicles.status. */
 export type VehicleStatus = "IN_STOCK" | "RESERVED" | "SOLD" | "CANCELLED";
+/**
+ * Query/filter aliases accepted by list_vehicles p_filters.status.
+ * AVAILABLE and UNSOLD are NOT persisted statuses: the SQL expands them to
+ * status IN ('IN_STOCK','RESERVED'). They must never leak into mutations.
+ */
+export type VehicleStatusFilter = VehicleStatus | "AVAILABLE" | "UNSOLD";
 export type AcquisitionStatus = "COMPLETED" | "CANCELLED";
 export type VehicleImage = {
   id: string;
@@ -50,6 +57,36 @@ export type Expense = {
   status: "ACTIVE" | "CANCELLED";
   created_at?: string;
   created_by?: string;
+};
+/** Public showroom projection from list_showroom_vehicles — safe fields only. */
+export type ShowroomVehicle = {
+  id: string;
+  brand: string;
+  model: string;
+  variant: string;
+  year: number | null;
+  color: string;
+  license_plate: string;
+  odometer: number | null;
+  asking_price: number;
+  purchase_date: string;
+  created_at: string;
+};
+export type ShowroomLeadStatus = "NEW" | "CONTACTED" | "CLOSED" | "SPAM";
+/** Showroom inquiry / buyback lead captured anonymously on /showroom. */
+export type ShowroomLead = {
+  id: string;
+  kind: "BUYBACK" | "VEHICLE_INQUIRY";
+  vehicle_id: string | null;
+  vehicle_name: string | null;
+  vehicle_year: string | null;
+  customer_name: string;
+  phone: string;
+  expected_price: number | null;
+  message: string | null;
+  source: string;
+  status: ShowroomLeadStatus;
+  created_at: string;
 };
 export type Vehicle = {
   id: string;
@@ -193,6 +230,7 @@ export type DashboardData = {
   acquisition_cost: number | null;
   inventory_cost: number | null;
   inventory_cost_pending: number;
+  // Server-computed from at-store stock (IN_STOCK + RESERVED) vs saved thresholds.
   inventory_indicator?: "LOW" | "NORMAL" | "HIGH";
   today_revenue: number | null;
   month_revenue: number | null;
@@ -360,6 +398,22 @@ export type CopilotAnswer = {
 };
 
 export type KnowledgeAudience = "ALL" | "STAFF" | "MANAGER" | "OWNER";
+
+/** One unanswered copilot question, aggregated by normalized text (OWNER reads these in /docs). */
+export type CopilotGapItem = {
+  id: string;
+  question: string;
+  hits: number;
+  last_role: "OWNER" | "MANAGER" | "STAFF";
+  asked_first_at: string;
+  last_seen_at: string;
+};
+
+export type CopilotGapDigest = {
+  items: CopilotGapItem[];
+  total: number;
+  days: number;
+};
 
 export type KnowledgeIndexItem = {
   slug: string;

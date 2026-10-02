@@ -1,26 +1,20 @@
 import { describe, expect, it } from "vitest";
 import { statusLabels } from "@/components/ui";
+import {
+  AVAILABLE_VEHICLE_STATUSES,
+  PERSISTED_VEHICLE_STATUSES,
+  VEHICLE_STATUS_OPTIONS,
+} from "@/lib/vehicleFilters";
 
 /**
- * Regression tests for inventory filter UX semantics.
+ * Regression tests for inventory filter UX semantics (A5/A6).
  *
- * These tests import the static configuration directly from InventoryPage
- * source to verify that status tabs, quick presets, advanced filters, and sort
- * remain semantically independent and free of redundancy.
- *
- * Since the constants are module-level but not exported, we test by re-declaring
- * the canonical expected values and verifying business invariants.
+ * The canonical option list now lives in src/lib/vehicleFilters.ts — these
+ * tests import it directly so code and contract can never drift apart.
  */
 
 /* ── Canonical status options (lifecycle state) ── */
-const statusOptions = [
-  { value: "", label: "Tất cả" },
-  { value: "AVAILABLE", label: "Tại cửa hàng" },
-  { value: "IN_STOCK", label: "Sẵn sàng bán" },
-  { value: "RESERVED", label: "Giữ chỗ" },
-  { value: "SOLD", label: "Đã bán" },
-  { value: "CANCELLED", label: "Đã hủy" },
-];
+const statusOptions = VEHICLE_STATUS_OPTIONS;
 
 /* ── Canonical quick presets (operational shortcuts) ── */
 const quickPresets = [
@@ -54,6 +48,30 @@ describe("Inventory status tabs (vehicle lifecycle)", () => {
     const atShop = statusOptions.find((o) => o.value === "AVAILABLE");
     expect(atShop).toBeDefined();
     expect(atShop!.label).toBe("Tại cửa hàng");
+    // A6: the alias semantics must stay explicit in the shared constant.
+    expect(AVAILABLE_VEHICLE_STATUSES).toEqual(["IN_STOCK", "RESERVED"]);
+    expect(atShop!.hint).toContain("IN_STOCK");
+    expect(atShop!.hint).toContain("RESERVED");
+  });
+
+  it("A5: AVAILABLE is a query alias only — never a persisted vehicle status", () => {
+    expect(PERSISTED_VEHICLE_STATUSES).not.toContain("AVAILABLE" as never);
+    expect(PERSISTED_VEHICLE_STATUSES).not.toContain("UNSOLD" as never);
+    expect(PERSISTED_VEHICLE_STATUSES).toEqual([
+      "IN_STOCK",
+      "RESERVED",
+      "SOLD",
+      "CANCELLED",
+    ]);
+    // Every tab value is either "" (all) or an accepted filter token.
+    for (const option of statusOptions) {
+      expect(
+        option.value === "" ||
+          option.value === "AVAILABLE" ||
+          option.value === "UNSOLD" ||
+          PERSISTED_VEHICLE_STATUSES.includes(option.value as never),
+      ).toBe(true);
+    }
   });
 
   it("'Sẵn sàng bán' maps to IN_STOCK", () => {
@@ -106,7 +124,9 @@ describe("Quick presets (operational shortcuts)", () => {
       const keys = Object.keys(preset.filters);
       // A preset is a status-tab duplicate if it has only { status: "..." }
       if (keys.length === 1 && keys[0] === "status") {
-        const duplicated = statusValues.includes(preset.filters.status!);
+        const duplicated = statusValues.includes(
+          preset.filters.status! as (typeof statusValues)[number],
+        );
         expect(duplicated).toBe(false);
       }
     }

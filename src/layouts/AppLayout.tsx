@@ -111,6 +111,7 @@ export function AppLayout() {
     if (pathname.startsWith("/audit")) return "Lịch sử thao tác";
     if (pathname.startsWith("/users")) return "Nhân sự";
     if (pathname.startsWith("/capture")) return "Quét giấy tờ";
+    if (pathname.startsWith("/intake")) return "Thu xe tốc ký";
     if (pathname.startsWith("/copilot")) return "Trợ lý AI";
     if (pathname.startsWith("/docs")) return "Tài liệu cửa hàng";
     if (pathname.startsWith("/sell")) return "Bán xe";
@@ -346,7 +347,10 @@ export function AppLayout() {
               title={theme === "dark" ? "Nền sáng" : "Nền tối"}
               onClick={() => setTheme(toggleTheme())}
             >
-              {theme === "dark" ? <Sun size={18} /> : <Moon size={18} />}
+              {/* key remounts the icon so the pop/spin animation replays on every switch */}
+              {theme === "dark"
+                ? <Sun key="sun" size={18} />
+                : <Moon key="moon" size={18} />}
             </button>
             <button
               className="icon-button header-logout"

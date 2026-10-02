@@ -369,6 +369,18 @@ pre {
 .field > span:first-child {
   color: #435b4e;
 }
+/* Giải thích ngắn dưới ô nhập (Field là <label> nên dùng span, không dùng <p>). */
+.field-hint {
+  display: block;
+  margin-top: 6px;
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 1.55;
+  color: #64748b;
+}
+[data-theme="dark"] .field-hint {
+  color: #8f96a8;
+}
 .field-error {
   font-weight: 400;
 }
@@ -1066,9 +1078,50 @@ pre {
   outline-offset: 2px;
   background: #eff3e8;
 }
-/* Sun/moon switch lives in the phone header only; desktop keeps the logout chip. */
+/* Sun/moon switch — visible on every breakpoint (desktop & phone), morphs its
+   own color alongside the theme instead of hiding on desktop. */
 .header-theme-toggle {
-  display: none;
+  display: inline-flex;
+  position: relative;
+  width: 38px;
+  height: 38px;
+  border-radius: 12px;
+  border: 1px solid rgba(99, 102, 241, 0.28);
+  background:
+    radial-gradient(80% 80% at 20% 10%, rgba(165, 180, 252, 0.35), transparent 70%),
+    linear-gradient(135deg, #eef2ff 0%, #e0e7ff 100%);
+  color: #4f46e5;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.7);
+  transition:
+    background 0.35s ease,
+    border-color 0.35s ease,
+    color 0.35s ease,
+    box-shadow 0.35s ease,
+    transform 0.16s ease;
+}
+.header-theme-toggle:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 16px -8px rgba(79, 70, 229, 0.55);
+}
+.header-theme-toggle:active {
+  transform: translateY(0) scale(0.94);
+}
+.header-theme-toggle svg {
+  animation: caremThemePop 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+}
+@keyframes caremThemePop {
+  0% {
+    transform: rotate(-120deg) scale(0.4);
+    opacity: 0;
+  }
+  60% {
+    transform: rotate(12deg) scale(1.08);
+    opacity: 1;
+  }
+  100% {
+    transform: rotate(0deg) scale(1);
+    opacity: 1;
+  }
 }
 .offline-banner,
 .update-banner {
@@ -2948,13 +3001,11 @@ pre {
   .topbar-right .icon-button {
     width: 30px;
   }
-  /* Phone header rule: logout is mis-tap bait next to the user chip, so the
-     sun/moon theme switch takes its place and signing out moves to the drawer. */
+  /* Phone header rule: logout is mis-tap bait next to the user chip, so it hides
+     on mobile and signing out moves to the drawer. The sun/moon switch shows on
+     every breakpoint now (see .header-theme-toggle) so it needs no mobile override. */
   .header-logout {
     display: none;
-  }
-  .header-theme-toggle {
-    display: inline-flex;
   }
   .main-content {
     padding: 24px 17px calc(90px + env(safe-area-inset-bottom));
@@ -5265,31 +5316,35 @@ pre {
    ============================================================ */
 .toast-viewport {
   position: fixed;
-  top: 16px;
-  right: 16px;
+  bottom: 20px;
+  right: 20px;
   z-index: 90;
   display: flex;
-  flex-direction: column;
-  gap: 10px;
-  width: min(380px, calc(100vw - 32px));
+  flex-direction: column-reverse;
+  gap: 8px;
+  width: min(360px, calc(100vw - 32px));
   pointer-events: none;
 }
 .toast {
   pointer-events: auto;
   display: flex;
   align-items: flex-start;
-  gap: 12px;
-  background: #fff;
-  border: 1px solid var(--line, #e3e4ea);
-  border-left-width: 4px;
-  border-radius: var(--radius-lg, 16px);
-  box-shadow: 0 18px 40px -18px rgba(15, 23, 42, 0.4);
-  padding: 12px 14px;
-  animation: toastIn 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  gap: 10px;
+  background: rgba(255, 255, 255, 0.96);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  border: 1px solid rgba(0, 0, 0, 0.06);
+  border-left: 3px solid var(--line, #e3e4ea);
+  border-radius: 10px;
+  box-shadow: 0 4px 16px -4px rgba(15, 23, 42, 0.08), 0 1px 3px rgba(0, 0, 0, 0.04);
+  padding: 10px 14px;
+  animation: toastIn 0.28s cubic-bezier(0.22, 1, 0.36, 1);
+  transition: opacity 0.2s ease, transform 0.2s ease;
 }
 .toast-icon {
   flex-shrink: 0;
   margin-top: 1px;
+  opacity: 0.85;
 }
 .toast-body {
   flex: 1;
@@ -5298,15 +5353,16 @@ pre {
   gap: 2px;
 }
 .toast-title {
-  font-size: 13.5px;
-  font-weight: 700;
-  color: #1c1917;
+  font-size: 13px;
+  font-weight: 600;
+  color: #292524;
+  letter-spacing: -0.01em;
 }
 .toast-desc {
   margin: 0;
-  font-size: 12.5px;
+  font-size: 12px;
   line-height: 1.5;
-  color: #57534e;
+  color: #6b6560;
   overflow-wrap: anywhere;
 }
 .toast-action {
@@ -5325,17 +5381,18 @@ pre {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 26px;
-  height: 26px;
+  width: 24px;
+  height: 24px;
   border: 0;
-  border-radius: 8px;
+  border-radius: 6px;
   background: transparent;
-  color: #a8a29e;
+  color: #b0aaa6;
   cursor: pointer;
+  transition: color 0.15s ease, background 0.15s ease;
 }
 .toast-close:hover {
-  background: #f5f5f4;
-  color: #1c1917;
+  background: rgba(0, 0, 0, 0.04);
+  color: #44403c;
 }
 .toast-success {
   border-left-color: #16a34a;
@@ -5364,7 +5421,7 @@ pre {
 @keyframes toastIn {
   from {
     opacity: 0;
-    transform: translateY(-8px) scale(0.98);
+    transform: translateY(10px) scale(0.97);
   }
   to {
     opacity: 1;
@@ -5667,7 +5724,7 @@ pre {
 /* Responsive: mobile toasts + announcement */
 @media (max-width: 640px) {
   .toast-viewport {
-    top: 8px;
+    bottom: calc(8px + env(safe-area-inset-bottom, 0px));
     right: 8px;
     left: 8px;
     width: auto;
@@ -6572,6 +6629,36 @@ pre {
   color: #94a3b8;
 }
 
+/* Trạng thái kho (LOW/NORMAL/HIGH theo ngưỡng tồn kho) — badge trong bản tin.
+   Nền của .carem-digest luôn tối nên badge dùng thẳng tint ngữ nghĩa đã có
+   (emerald/amber/indigo), không định nghĩa bảng màu mới. */
+.digest-status {
+  justify-self: end;
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 10px;
+  border-radius: 999px;
+  border: 1px solid transparent;
+  font-size: 11.5px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.digest-status--lime {
+  color: #6ee7b7;
+  background: rgba(34, 197, 94, 0.13);
+  border-color: rgba(34, 197, 94, 0.3);
+}
+.digest-status--amber {
+  color: #fbbf24;
+  background: rgba(245, 158, 11, 0.13);
+  border-color: rgba(245, 158, 11, 0.3);
+}
+.digest-status--gold {
+  color: #a5b4fc;
+  background: rgba(99, 102, 241, 0.16);
+  border-color: rgba(99, 102, 241, 0.34);
+}
+
 /* Support row under the digest: alerts, aging and recent vehicles. */
 .digest-support-grid {
   display: grid;
@@ -6585,18 +6672,39 @@ pre {
   min-width: 0;
 }
 
-/* Side 2: Filterable Operational Column */
-.dashboard-side-filterable {
-  display: flex;
-  flex-direction: column;
-  gap: 20px;
-  min-width: 0;
-}
-
-.dashboard-period-toolbar {
+/* Period filter bar living inside the daily digest header */
+.carem-digest-filter {
   display: flex;
   align-items: center;
   justify-content: flex-end;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin: -6px 0 16px;
+}
+
+/* Re-skin the light date controls for the always-dark digest card. */
+.carem-digest-filter .date-segmented-bar {
+  background: rgba(148, 163, 184, 0.14);
+  border-color: rgba(148, 163, 184, 0.24);
+}
+.carem-digest-filter .date-seg-btn {
+  color: #94a3b8;
+}
+.carem-digest-filter .date-seg-btn:hover {
+  color: #e2e8f0;
+}
+.carem-digest-filter .date-seg-btn.active {
+  background: #f8fafc;
+  color: #0f172a;
+}
+.carem-digest-filter .date-inputs-pill {
+  background: rgba(15, 23, 42, 0.55);
+  border-color: rgba(148, 163, 184, 0.24);
+  color: #e2e8f0;
+}
+.carem-digest-filter .date-inputs-pill .datepicker-input,
+.carem-digest-filter .date-inputs-pill input[type="date"] {
+  color: #e2e8f0;
 }
 
 /* Period KPI Grid (Renders all at once) */
@@ -6666,6 +6774,12 @@ pre {
   }
   .digest-row {
     padding: 8px 11px;
+  }
+  .carem-digest-filter {
+    justify-content: stretch;
+  }
+  .carem-digest-filter .date-range-cluster {
+    width: 100%;
   }
 }
 
@@ -6737,8 +6851,9 @@ pre {
 }
 .copilot-facts {
   list-style: none;
-  margin: 12px 0 0;
-  padding: 0;
+  margin: 16px 0 0;
+  padding: 14px 0 0;
+  border-top: 1px dashed var(--line);
   display: grid;
   gap: 8px;
 }
@@ -6754,8 +6869,13 @@ pre {
 }
 .copilot-facts li > span:first-child {
   flex: 1 1 auto;
+  color: var(--muted);
+  font-size: 13px;
 }
 .copilot-facts strong {
+  font-size: 15px;
+  font-weight: 700;
+  color: #0f172a;
   font-variant-numeric: tabular-nums;
 }
 .copilot-warnings {
@@ -6809,20 +6929,26 @@ pre {
 .citation-chip {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
-  vertical-align: baseline;
-  border: 1px solid var(--primary);
+  gap: 3px;
+  vertical-align: super;
+  border: 1px solid rgba(79, 70, 229, 0.26);
   color: var(--primary);
-  background: #fff;
+  background: rgba(79, 70, 229, 0.07);
   border-radius: 999px;
-  padding: 0 7px;
+  padding: 1px 7px;
   margin: 0 2px;
-  font-size: 11px;
-  font-weight: 600;
+  font-size: 10.5px;
+  font-weight: 650;
+  line-height: 1.45;
   cursor: pointer;
+  transition:
+    background 0.15s ease,
+    border-color 0.15s ease,
+    color 0.15s ease;
 }
 .citation-chip:hover {
   background: var(--primary);
+  border-color: var(--primary);
   color: #fff;
 }
 .citation-list {
@@ -6900,23 +7026,103 @@ pre {
   border-top: 1px solid var(--line);
   margin: 8px 0;
 }
+.markdown :not(pre) > code {
+  background: #f1f1f7;
+  border: 1px solid var(--line-subtle);
+  border-radius: 6px;
+  padding: 1px 6px;
+  font-size: 0.86em;
+  font-family: "JetBrains Mono", ui-monospace, monospace;
+}
 .markdown-table-wrap {
   overflow-x: auto;
+  border: 1px solid var(--line);
+  border-radius: 10px;
 }
 .markdown-table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 13px;
+  font-size: 13.5px;
 }
 .markdown-table th,
 .markdown-table td {
-  border: 1px solid var(--line);
-  padding: 6px 10px;
+  border: 0;
+  border-bottom: 1px solid var(--line-subtle);
+  padding: 8px 12px;
   text-align: left;
   vertical-align: top;
 }
 .markdown-table th {
+  border-bottom: 1.5px solid var(--line);
   background: #f6f6fa;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 650;
+  letter-spacing: 0.2px;
+  white-space: nowrap;
+}
+.markdown-table tbody tr:nth-child(even) {
+  background: #fafafc;
+}
+.markdown-table tbody tr:last-child td {
+  border-bottom: 0;
+}
+/* The answer itself sits on its own tinted surface so it is unmistakable. */
+.copilot-answer-card {
+  border-color: rgba(79, 70, 229, 0.3);
+  background: linear-gradient(160deg, #f4f4ff 0%, #ffffff 58%);
+  box-shadow: 0 8px 26px -14px rgba(79, 70, 229, 0.28), 0 1px 3px 0 rgba(16, 43, 35, 0.03);
+}
+.copilot-answer-by {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  font-size: 12.5px;
+  font-weight: 700;
+  letter-spacing: 0.2px;
+  color: var(--primary-dark);
+}
+.copilot-answer-avatar {
+  width: 27px;
+  height: 27px;
+  border-radius: 9px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(99, 102, 241, 0.14);
+  color: var(--primary);
+  flex-shrink: 0;
+}
+.copilot-question-echo {
+  margin: 10px 0 0;
+  padding: 8px 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.72);
+  color: var(--muted);
+  font-size: 13px;
+}
+/* Answer area: roomier type so grounded answers read like a page, not a log. */
+.copilot-answer {
+  gap: 10px;
+  margin-top: 12px;
+  font-size: 15px;
+  line-height: 1.7;
+}
+.copilot-answer .markdown-heading {
+  margin: 12px 0 2px;
+  font-size: 16.5px;
+  letter-spacing: -0.2px;
+}
+.copilot-answer .markdown-list {
+  gap: 9px;
+  padding-left: 22px;
+}
+.copilot-answer strong {
+  font-weight: 700;
+  color: #0f172a;
+  font-variant-numeric: tabular-nums;
 }
 .doc-body {
   gap: 10px;
@@ -6985,6 +7191,13 @@ pre {
     margin-left: 26px;
   }
 }
+/* Touch phones get roomier citation chips even though they read smaller on paper. */
+@media (hover: none) and (pointer: coarse) {
+  .citation-chip {
+    padding: 3px 9px;
+    font-size: 11.5px;
+  }
+}
 /* ==========================================================================
    DARK THEME — nền carbon "Cà Rem đêm" (html[data-theme="dark"]).
    Reuses the sidebar's carbon palette (#0b0c10 / #0f1015 / #14161e / #171821)
@@ -7001,6 +7214,8 @@ html[data-theme] {
   --line: #232531;
   --line-subtle: #1a1c25;
   --muted: #8f96a8;
+  --chart-grid: #232531;
+  --chart-point-ring: #14161e;
 }
 /* Form controls */
 [data-theme="dark"] input,
@@ -7098,6 +7313,25 @@ html[data-theme] {
 [data-theme="dark"] .aging-stats {
   background: #14161e;
   border-color: #232531;
+}
+/* Toasts: subtle dark glass, softer text, refined close button */
+[data-theme="dark"] .toast {
+  background: rgba(24, 26, 36, 0.92);
+  border-color: rgba(255, 255, 255, 0.06);
+  box-shadow: 0 4px 18px -6px rgba(0, 0, 0, 0.5), 0 1px 3px rgba(0, 0, 0, 0.3);
+}
+[data-theme="dark"] .toast-title {
+  color: #e7e5e4;
+}
+[data-theme="dark"] .toast-desc {
+  color: #a8a29e;
+}
+[data-theme="dark"] .toast-close {
+  color: #6b6560;
+}
+[data-theme="dark"] .toast-close:hover {
+  background: rgba(255, 255, 255, 0.06);
+  color: #d6d3d1;
 }
 [data-theme="dark"] .metric-value,
 [data-theme="dark"] .price,
@@ -7214,4 +7448,998 @@ html[data-theme] {
   background: #101117;
   border-color: #262833;
   color: #e2e5ee;
+}
+/* ==========================================================================
+   DARK THEME — phần 2: bổ sung các thành phần còn sót lại chưa được phủ
+   giao diện tối (được rà soát tự động bằng script đối chiếu từng selector
+   có màu nền/viền sáng hardcode mà chưa có override [data-theme="dark"]).
+   Quy tắc: nền nổi #14161e, nền chìm #101117, hover #171821/#1d1f2a,
+   viền #232531/#262833, chữ #dcdfe9/#eef1f8, muted #8f96a8,
+   các tint màu (indigo/emerald/amber/rose/sky) dùng rgba mờ trên nền tối.
+   Thứ tự trong khối này là "gốc -> hover -> active" để quy tắc sau,
+   đặc điểm kỹ thuật (specificity) bằng nhau, thắng theo thứ tự nguồn.
+   ========================================================================== */
+
+/* --- Nút chuyển chủ đề (trăng/mặt trời) --- */
+html[data-theme="dark"] .header-theme-toggle {
+  border-color: rgba(251, 191, 36, 0.4);
+  background:
+    radial-gradient(80% 80% at 20% 10%, rgba(251, 191, 36, 0.3), transparent 70%),
+    linear-gradient(135deg, #1d1f2a 0%, #2a2410 100%);
+  color: #fcd34d;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06), 0 0 14px -4px rgba(251, 191, 36, 0.45);
+}
+@media (prefers-reduced-motion: reduce) {
+  .header-theme-toggle svg {
+    animation: none;
+  }
+}
+
+/* --- Thanh tìm kiếm & phân trang dùng chung --- */
+[data-theme="dark"] .search-palette-footer {
+  border-top-color: #232531;
+}
+[data-theme="dark"] .date-segmented-bar {
+  background: #101117;
+  border-color: #262833;
+}
+[data-theme="dark"] .palette-cmd-btn {
+  background: #171821;
+  border-color: #262833;
+}
+[data-theme="dark"] .search-field {
+  background: #14161e;
+  border-color: #262833;
+  color: #8f96a8;
+}
+[data-theme="dark"] .search-field:focus-within {
+  border-color: #4f46e5;
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.18);
+}
+[data-theme="dark"] .search-field input {
+  color: #e2e5ee;
+}
+[data-theme="dark"] .pagination {
+  border-top-color: #232531;
+  color: #8f96a8;
+}
+[data-theme="dark"] .pagination-page {
+  color: #9aa3b5;
+}
+[data-theme="dark"] .pagination-page:hover:not(.active) {
+  background: #1d1f2a;
+  color: #eef1f8;
+}
+[data-theme="dark"] .pagination-sizes {
+  background: #101117;
+}
+[data-theme="dark"] .pagination-size {
+  color: #8f96a8;
+}
+[data-theme="dark"] .pagination-size:hover:not(.active) {
+  color: #dcdfe9;
+}
+[data-theme="dark"] .pagination-size.active {
+  background: #1d1f2a;
+  color: #a5b4fc;
+  box-shadow: none;
+}
+[data-theme="dark"] .summary-list > div {
+  border-bottom-color: #232531;
+}
+[data-theme="dark"] .compact-row {
+  border-bottom-color: #1e2029;
+}
+[data-theme="dark"] .compact-row small {
+  color: #8f96a8;
+}
+
+/* --- Badge mặc định (các badge trạng thái đã có rule riêng ở khối trên) --- */
+[data-theme="dark"] .badge {
+  background: #1d1f2a;
+  color: #c3c9d6;
+}
+
+/* --- Thẻ chỉ số & biểu đồ ở Tổng quan --- */
+[data-theme="dark"] .metric-icon-box {
+  background: rgba(99, 102, 241, 0.16);
+  color: #a5b4fc;
+}
+[data-theme="dark"] .metric.featured {
+  background: linear-gradient(145deg, #0f172a 0%, #1e1b4b 50%, #312e81 100%);
+  border-color: rgba(99, 102, 241, 0.35);
+  color: #e0e7ff;
+}
+[data-theme="dark"] .metric-label,
+[data-theme="dark"] .metric-detail-row p {
+  color: #8f96a8;
+}
+[data-theme="dark"] .day-tasks-links a {
+  background: #171821;
+  border-color: #262833;
+  color: #dcdfe9;
+}
+[data-theme="dark"] .day-tasks-links a:hover {
+  background: #1d1f2a;
+  color: #a5b4fc;
+}
+[data-theme="dark"] .chart-empty {
+  background: #101117;
+  border-color: #262833;
+  color: #8f96a8;
+}
+/* Biểu đồ doanh thu — lưới, nhãn trục và HUD phải tối theo nền card */
+[data-theme="dark"] .chart-axis-text {
+  fill: #6b7383;
+}
+[data-theme="dark"] .chart-active-hud .hud-date,
+[data-theme="dark"] .chart-active-hud .hud-count,
+[data-theme="dark"] .chart-period-hint {
+  color: #8f96a8;
+}
+[data-theme="dark"] .reconcile-tab-counter,
+[data-theme="dark"] .recent-sale {
+  color: inherit;
+}
+[data-theme="dark"] .recent-sale {
+  border-top-color: #1e2029;
+}
+[data-theme="dark"] .recent-sale small {
+  color: #8f96a8;
+}
+[data-theme="dark"] .record-icon {
+  background: rgba(16, 185, 129, 0.14);
+  color: #6ee7b7;
+}
+[data-theme="dark"] .aging-stats > div {
+  border-right-color: #232531;
+}
+[data-theme="dark"] .aging-stats strong {
+  color: #eef1f8;
+}
+[data-theme="dark"] .aging-stats span {
+  color: #8f96a8;
+}
+
+/* --- Trung tâm cảnh báo (giữ lại màu phân mức, thay vì bị flatten bởi rule .alert-card chung) --- */
+[data-theme="dark"] .business-alerts {
+  background: #14161e;
+}
+[data-theme="dark"] .alert-count-chip {
+  background: rgba(239, 68, 68, 0.14);
+  border-color: rgba(239, 68, 68, 0.32);
+  color: #f87171;
+}
+[data-theme="dark"] .alert-content strong {
+  color: #eef1f8;
+}
+[data-theme="dark"] .alert-content span {
+  color: #8f96a8;
+}
+[data-theme="dark"] .alert-card svg:last-child {
+  color: #6b7383;
+}
+[data-theme="dark"] .alert-card:hover svg:last-child {
+  color: #dcdfe9;
+}
+[data-theme="dark"] .alert-card.alert-neutral {
+  background: #171821;
+  border-color: #232531;
+}
+[data-theme="dark"] .alert-card.alert-neutral .alert-icon {
+  background: #1d1f2a;
+  color: #9aa3b5;
+}
+[data-theme="dark"] .alert-card.alert-warning {
+  background: rgba(245, 158, 11, 0.08);
+  border-color: rgba(245, 158, 11, 0.32);
+}
+[data-theme="dark"] .alert-card.alert-warning .alert-icon {
+  background: rgba(245, 158, 11, 0.16);
+  color: #fcd34d;
+}
+[data-theme="dark"] .alert-card.alert-danger {
+  background: rgba(239, 68, 68, 0.08);
+  border-color: rgba(239, 68, 68, 0.3);
+}
+[data-theme="dark"] .alert-card.alert-danger .alert-icon {
+  background: rgba(239, 68, 68, 0.16);
+  color: #f87171;
+}
+[data-theme="dark"] .alert-card.alert-info {
+  background: rgba(59, 130, 246, 0.08);
+  border-color: rgba(59, 130, 246, 0.3);
+}
+[data-theme="dark"] .alert-card.alert-info .alert-icon {
+  background: rgba(59, 130, 246, 0.16);
+  color: #93c5fd;
+}
+
+/* --- Thanh công việc nhanh (quick bar) --- */
+[data-theme="dark"] .carem-quick-bar {
+  background: #14161e;
+}
+[data-theme="dark"] .carem-quick-bar-label {
+  color: #c7d2fe;
+}
+[data-theme="dark"] .quick-pill {
+  background: #171821;
+  border-color: #262833;
+  color: #c3c9d6;
+}
+[data-theme="dark"] .quick-pill:hover {
+  background: rgba(99, 102, 241, 0.16);
+  border-color: rgba(99, 102, 241, 0.4);
+  color: #a5b4fc;
+}
+[data-theme="dark"] .quick-pill-active {
+  background: rgba(99, 102, 241, 0.28);
+  border-color: rgba(129, 140, 248, 0.55);
+  color: #c7d2fe;
+}
+[data-theme="dark"] .quick-pill-active:hover {
+  background: rgba(99, 102, 241, 0.4);
+}
+[data-theme="dark"] .quick-pill-all {
+  background: rgba(99, 102, 241, 0.22);
+  border-color: rgba(99, 102, 241, 0.4);
+  color: #c7d2fe;
+}
+[data-theme="dark"] .quick-pill-all:hover {
+  background: rgba(99, 102, 241, 0.34);
+}
+[data-theme="dark"] .quick-pill kbd {
+  background: #1d1f2a;
+  border-color: #2c2f3d;
+  color: #a5b4fc;
+}
+
+/* --- Trang bán hàng theo kỳ (tab giao dịch) --- */
+[data-theme="dark"] .tx-tabs-header {
+  border-bottom-color: #232531;
+}
+[data-theme="dark"] .tx-tab-btn {
+  color: #8f96a8;
+}
+[data-theme="dark"] .tx-tab-btn:hover {
+  background: #171821;
+  color: #eef1f8;
+}
+[data-theme="dark"] .tx-tab-btn.active {
+  background: #1d1f2a;
+  color: #eef1f8;
+  border-color: #262833;
+}
+
+
+/* --- Modal & thẻ nhân sự --- */
+[data-theme="dark"] .user-settings-modal,
+[data-theme="dark"] .user-create-modal {
+  background: #14161e;
+  border-color: #262833;
+}
+[data-theme="dark"] .user-settings-header {
+  background: #14161e;
+  border-bottom-color: #232531;
+}
+[data-theme="dark"] .user-modal-status-dot {
+  border-color: #14161e;
+}
+[data-theme="dark"] .user-settings-role-tag {
+  background: rgba(99, 102, 241, 0.16);
+  border-color: rgba(99, 102, 241, 0.34);
+  color: #a5b4fc;
+}
+[data-theme="dark"] .user-settings-close-btn {
+  color: #8f96a8;
+}
+[data-theme="dark"] .user-settings-close-btn:hover {
+  background: #1d1f2a;
+  color: #e2e5ee;
+}
+[data-theme="dark"] .user-settings-tabs {
+  background: #101117;
+  border-bottom-color: #232531;
+}
+[data-theme="dark"] .user-tab-btn {
+  color: #8f96a8;
+}
+[data-theme="dark"] .user-tab-btn:hover {
+  background: #1d1f2a;
+  color: #e2e5ee;
+}
+[data-theme="dark"] .user-tab-btn.active {
+  background: #14161e;
+  color: #a5b4fc;
+  border-color: #262833;
+  box-shadow: none;
+}
+[data-theme="dark"] .user-tab-btn.active svg {
+  color: #a5b4fc;
+}
+[data-theme="dark"] .user-settings-subcard {
+  background: #171821;
+  border-color: #232531;
+}
+[data-theme="dark"] .user-security-block {
+  background: #101117;
+  border-color: #232531;
+}
+[data-theme="dark"] .user-security-block.user-danger-block {
+  background: #1d1412;
+  border-color: #3a2622;
+}
+[data-theme="dark"] .user-settings-footer {
+  background: #101117;
+  border-top-color: #232531;
+}
+[data-theme="dark"] .user-staff-card {
+  background: #14161e;
+}
+[data-theme="dark"] .user-staff-card:hover {
+  border-color: #2c2f3d;
+  box-shadow: 0 10px 28px -6px rgba(0, 0, 0, 0.45);
+}
+[data-theme="dark"] .user-staff-card.self-account {
+  background: linear-gradient(180deg, #171821 0%, #14161e 100%);
+  border-color: rgba(99, 102, 241, 0.4);
+}
+[data-theme="dark"] .user-chip-item {
+  background: #1d1f2a;
+  color: #c3c9d6;
+}
+[data-theme="dark"] .user-chip-item.user-chip-accent {
+  background: rgba(99, 102, 241, 0.16);
+  border-color: rgba(99, 102, 241, 0.34);
+  color: #a5b4fc;
+}
+[data-theme="dark"] .user-chip-item.user-chip-warning {
+  background: rgba(245, 158, 11, 0.15);
+  border-color: rgba(245, 158, 11, 0.32);
+  color: #fcd34d;
+}
+
+/* --- Chip chọn nhanh trong form (thu xe / bán xe) --- */
+[data-theme="dark"] .chip-item {
+  background: #1d1f2a;
+  border-color: #262833;
+  color: #c3c9d6;
+}
+[data-theme="dark"] .chip-item:hover {
+  background: #262833;
+  border-color: #3a3d4d;
+  color: #eef1f8;
+}
+[data-theme="dark"] .chip-item.active {
+  background: rgba(99, 102, 241, 0.28);
+  border-color: rgba(129, 140, 248, 0.55);
+  color: #c7d2fe;
+  box-shadow: none;
+}
+[data-theme="dark"] .money-helper-text {
+  background: rgba(99, 102, 241, 0.16);
+  border-color: rgba(99, 102, 241, 0.34);
+  color: #a5b4fc;
+}
+[data-theme="dark"] .money-helper-text .words-val {
+  color: #c7d2fe;
+}
+[data-theme="dark"] .draft-status-subtle {
+  background: rgba(34, 197, 94, 0.13);
+  border-color: rgba(34, 197, 94, 0.3);
+  color: #4ade80;
+}
+[data-theme="dark"] .draft-status-subtle .status-reentry-hint {
+  color: #fcd34d;
+  border-left-color: #262833;
+}
+[data-theme="dark"] .advanced-fields-box {
+  background: #101117;
+  border-color: #2c2f3d;
+}
+[data-theme="dark"] .advanced-fields-box[open] {
+  background: #14161e;
+  border-color: #262833;
+}
+[data-theme="dark"] .confirm-summary-list {
+  background: #171821;
+  border-color: #232531;
+}
+[data-theme="dark"] .confirm-summary-row.highlight-price {
+  border-top-color: #2c2f3d;
+}
+[data-theme="dark"] .confirm-code {
+  background: #262833;
+  color: #dcdfe9;
+}
+
+/* --- Datepicker --- */
+[data-theme="dark"] .datepicker-calendar-btn {
+  color: #8f96a8;
+}
+[data-theme="dark"] .datepicker-calendar-btn:hover:not(:disabled) {
+  background: #1d1f2a;
+  color: #a5b4fc;
+}
+[data-theme="dark"] .datepicker-popover {
+  background: #14161e;
+  border-color: #262833;
+  box-shadow: 0 14px 32px -6px rgba(0, 0, 0, 0.6);
+}
+[data-theme="dark"] .datepicker-nav-btn {
+  background: #171821;
+  border-color: #262833;
+  color: #c3c9d6;
+}
+[data-theme="dark"] .datepicker-nav-btn:hover {
+  background: #1d1f2a;
+  border-color: #2c2f3d;
+  color: #eef1f8;
+}
+[data-theme="dark"] .datepicker-day-cell {
+  color: #c3c9d6;
+}
+[data-theme="dark"] .datepicker-day-cell:hover:not(:disabled) {
+  background: #1d1f2a;
+  color: #eef1f8;
+}
+[data-theme="dark"] .datepicker-day-cell.today:not(.selected) {
+  border-color: #818cf8;
+  color: #a5b4fc;
+}
+[data-theme="dark"] .datepicker-footer {
+  border-top-color: #232531;
+}
+[data-theme="dark"] .datepicker-quick-btn {
+  color: #a5b4fc;
+}
+[data-theme="dark"] .datepicker-quick-btn:hover {
+  background: rgba(99, 102, 241, 0.16);
+  color: #c7d2fe;
+}
+
+/* --- Hộp thoại xác nhận --- */
+[data-theme="dark"] .dialog-panel {
+  background: #14161e;
+  border-color: #262833;
+  box-shadow: 0 25px 60px -15px rgba(0, 0, 0, 0.7);
+}
+[data-theme="dark"] .confirm-dialog-icon {
+  background: rgba(99, 102, 241, 0.16);
+  color: #a5b4fc;
+}
+[data-theme="dark"] .confirm-dialog-icon[data-tone="danger"] {
+  background: rgba(239, 68, 68, 0.14);
+  color: #f87171;
+}
+
+/* --- Thanh thông báo & quản trị thông báo --- */
+[data-theme="dark"] .announcement-bar,
+[data-theme="dark"] .announcement-INFO {
+  background: #171821;
+  color: #dcdfe9;
+}
+[data-theme="dark"] .announcement-CRITICAL {
+  background: rgba(239, 68, 68, 0.12);
+  color: #fca5a5;
+}
+[data-theme="dark"] .announcement-WARNING {
+  background: rgba(245, 158, 11, 0.12);
+  color: #fcd34d;
+}
+[data-theme="dark"] .announcement-SUCCESS {
+  background: rgba(34, 197, 94, 0.12);
+  color: #4ade80;
+}
+[data-theme="dark"] .announcement-form {
+  background: #101117;
+}
+[data-theme="dark"] .announcement-admin-row {
+  background: #14161e;
+}
+[data-theme="dark"] .badge-announcement {
+  background: #1d1f2a;
+  color: #c3c9d6;
+}
+[data-theme="dark"] .badge-announcement-CRITICAL {
+  background: rgba(239, 68, 68, 0.14);
+  color: #fca5a5;
+}
+[data-theme="dark"] .badge-announcement-WARNING {
+  background: rgba(245, 158, 11, 0.15);
+  color: #fcd34d;
+}
+[data-theme="dark"] .badge-announcement-SUCCESS {
+  background: rgba(34, 197, 94, 0.13);
+  color: #4ade80;
+}
+
+/* --- Pills lọc nhanh --- */
+[data-theme="dark"] .filter-pills-bar::-webkit-scrollbar-thumb {
+  background: #2c2f3d;
+}
+[data-theme="dark"] .filter-pill:not(.active) {
+  background: #171821;
+  border-color: #262833;
+  color: #c3c9d6;
+}
+[data-theme="dark"] .filter-pill:not(.active):hover {
+  background: #262833;
+  color: #eef1f8;
+}
+[data-theme="dark"] .filter-pill:not(.active) .filter-pill-count {
+  background: rgba(255, 255, 255, 0.08);
+  color: #c3c9d6;
+}
+
+/* --- Thẻ số liệu tổng quan (executive) --- */
+[data-theme="dark"] .executive-metric-card {
+  background: #14161e;
+  border-color: #232531;
+  box-shadow: 0 4px 16px -4px rgba(0, 0, 0, 0.4);
+}
+[data-theme="dark"] .executive-metric-card:hover {
+  border-color: #2c2f3d;
+  box-shadow: 0 8px 24px -4px rgba(0, 0, 0, 0.55);
+}
+[data-theme="dark"] .executive-metric-icon.indigo,
+[data-theme="dark"] .staff-stat-icon.indigo,
+[data-theme="dark"] .reconcile-insight-icon {
+  background: rgba(99, 102, 241, 0.16);
+  color: #a5b4fc;
+}
+[data-theme="dark"] .executive-metric-icon.emerald,
+[data-theme="dark"] .staff-stat-icon.emerald {
+  background: rgba(16, 185, 129, 0.14);
+  color: #6ee7b7;
+}
+[data-theme="dark"] .executive-metric-icon.rose {
+  background: rgba(244, 63, 94, 0.14);
+  color: #fca5a5;
+}
+[data-theme="dark"] .executive-metric-icon.amber,
+[data-theme="dark"] .staff-stat-icon.amber {
+  background: rgba(245, 158, 11, 0.15);
+  color: #fcd34d;
+}
+[data-theme="dark"] .executive-metric-icon.slate {
+  background: #1d1f2a;
+  color: #9aa3b5;
+}
+
+/* --- Thu nợ / đối soát --- */
+[data-theme="dark"] .receivables-clear-btn {
+  color: #6b7383;
+}
+[data-theme="dark"] .receivables-clear-btn:hover {
+  background: #1d1f2a;
+  color: #dcdfe9;
+}
+[data-theme="dark"] .reconcile-insight-banner {
+  background: linear-gradient(135deg, #171821 0%, #14161e 100%);
+  border-color: #232531;
+}
+[data-theme="dark"] .reconcile-tabs-bar {
+  border-bottom-color: #232531;
+}
+[data-theme="dark"] .reconcile-tab-btn {
+  color: #8f96a8;
+}
+[data-theme="dark"] .reconcile-tab-btn:hover {
+  background: #171821;
+  color: #eef1f8;
+}
+[data-theme="dark"] .reconcile-tab-btn.active {
+  background: #14161e;
+  color: #a5b4fc;
+}
+[data-theme="dark"] .reconcile-tab-counter {
+  background: #1d1f2a;
+  color: #c3c9d6;
+}
+[data-theme="dark"] .reconcile-tab-btn.active .reconcile-tab-counter {
+  background: rgba(99, 102, 241, 0.28);
+  color: #c7d2fe;
+}
+
+/* --- Thống kê nhân sự --- */
+[data-theme="dark"] .staff-stat-card {
+  background: #14161e;
+  border-color: #232531;
+  box-shadow: none;
+}
+
+/* --- Lịch sử thao tác (audit) --- */
+[data-theme="dark"] .audit-record {
+  background: #14161e;
+  border-color: #232531;
+}
+[data-theme="dark"] .audit-record[open] {
+  border-color: #2c2f3d;
+  box-shadow: 0 4px 16px -2px rgba(0, 0, 0, 0.5);
+}
+[data-theme="dark"] .audit-record summary {
+  background: #14161e;
+}
+[data-theme="dark"] .audit-record summary:hover {
+  background: #171821;
+}
+[data-theme="dark"] .audit-action-chip.create {
+  background: rgba(16, 185, 129, 0.14);
+  border-color: rgba(16, 185, 129, 0.32);
+  color: #6ee7b7;
+}
+[data-theme="dark"] .audit-action-chip.update {
+  background: rgba(59, 130, 246, 0.15);
+  border-color: rgba(59, 130, 246, 0.32);
+  color: #93c5fd;
+}
+[data-theme="dark"] .audit-action-chip.delete {
+  background: rgba(244, 63, 94, 0.14);
+  border-color: rgba(244, 63, 94, 0.32);
+  color: #fca5a5;
+}
+[data-theme="dark"] .audit-action-chip.default {
+  background: #1d1f2a;
+  border-color: #262833;
+  color: #c3c9d6;
+}
+[data-theme="dark"] .audit-diff-summary {
+  background: #101117;
+  border-color: #232531;
+}
+
+/* --- Trang Cài đặt --- */
+[data-theme="dark"] .settings-tabs-nav {
+  border-bottom-color: #232531;
+}
+[data-theme="dark"] .settings-nav-item {
+  color: #8f96a8;
+}
+[data-theme="dark"] .settings-nav-item:hover {
+  background: #171821;
+  color: #eef1f8;
+}
+[data-theme="dark"] .settings-nav-item.active {
+  background: #14161e;
+  color: #a5b4fc;
+}
+[data-theme="dark"] .settings-switch-card {
+  background: #101117;
+  border-color: #232531;
+}
+[data-theme="dark"] .settings-switch-card:hover {
+  background: #171821;
+}
+
+/* --- Trợ lý AI & Tài liệu --- */
+[data-theme="dark"] .copilot-chip {
+  background: #171821;
+  color: #dcdfe9;
+}
+[data-theme="dark"] .copilot-chip:hover {
+  background: #1d1f2a;
+}
+[data-theme="dark"] .copilot-answer-card {
+  border-color: rgba(99, 102, 241, 0.36);
+  background: linear-gradient(160deg, #1a1d2b 0%, #14161e 58%);
+  box-shadow: 0 10px 28px -14px rgba(0, 0, 0, 0.55);
+}
+[data-theme="dark"] .copilot-answer-by {
+  color: #a5b4fc;
+}
+[data-theme="dark"] .copilot-answer-avatar {
+  background: rgba(99, 102, 241, 0.2);
+  color: #a5b4fc;
+}
+[data-theme="dark"] .copilot-question-echo {
+  background: rgba(23, 24, 33, 0.72);
+  border-color: #262833;
+  color: #98a0b3;
+}
+[data-theme="dark"] .copilot-facts li {
+  background: #171821;
+}
+[data-theme="dark"] .copilot-facts strong,
+[data-theme="dark"] .copilot-answer strong {
+  color: #eef1f8;
+}
+[data-theme="dark"] .copilot-excerpt,
+[data-theme="dark"] .markdown-quote {
+  background: #171821;
+}
+[data-theme="dark"] .citation-chip {
+  background: rgba(99, 102, 241, 0.16);
+  border-color: rgba(99, 102, 241, 0.36);
+  color: #a5b4fc;
+}
+[data-theme="dark"] .citation-chip:hover {
+  background: var(--primary, #4f46e5);
+  border-color: var(--primary, #4f46e5);
+  color: #fff;
+}
+[data-theme="dark"] .markdown :not(pre) > code {
+  background: #1d1f2a;
+  border-color: #262833;
+  color: #dcdfe9;
+}
+[data-theme="dark"] .markdown-table th {
+  background: #101117;
+}
+[data-theme="dark"] .markdown-table tbody tr:nth-child(even) {
+  background: #171821;
+}
+[data-theme="dark"] .docs-search {
+  background: #14161e;
+}
+[data-theme="dark"] .docs-search input {
+  color: #e2e5ee;
+}
+/* Phần 3 — những chỗ sót cuối cùng của đợt rà soát màu tối */
+[data-theme="dark"] .breadcrumb-sep,
+[data-theme="dark"] .bullet-sep {
+  color: #4b5263;
+}
+[data-theme="dark"] .password-field > button:hover {
+  background: #262833;
+  color: #dcdfe9;
+}
+
+/* ==========================================================================
+   THU XE TÓC KÝ (/intake) — dán ghi chú viết tắt → danh sách thu xe
+   ========================================================================== */
+.intake-notes {
+  width: 100%;
+  font-family: inherit;
+  font-size: 15px;
+  line-height: 1.6;
+  resize: vertical;
+}
+.intake-notes-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-top: 12px;
+}
+.intake-source {
+  margin: 2px 0 12px;
+  overflow-wrap: anywhere;
+}
+.intake-issue-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #e11d48;
+  margin-left: 8px;
+  vertical-align: middle;
+}
+.intake-remove {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border: none;
+  background: none;
+  color: #64748b;
+  font-size: 13px;
+  cursor: pointer;
+  transition: color 150ms ease;
+}
+.intake-remove:hover {
+  color: #be123c;
+}
+.intake-entry.has-issues {
+  border-color: #fecdd3;
+}
+.intake-entry-issues {
+  list-style: none;
+  margin: 12px 0 0;
+  padding: 0;
+  display: grid;
+  gap: 6px;
+}
+.intake-entry-issues li {
+  font-size: 12.5px;
+  color: #9c493d;
+  background: #fef2f2;
+  border: 1px solid #fecdd3;
+  border-radius: 8px;
+  padding: 6px 10px;
+}
+.intake-learn-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 14px;
+}
+.intake-token-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: #f8fafc;
+  border: 1px dashed #cbd5e1;
+  border-radius: 999px;
+  padding: 4px 6px 4px 10px;
+  font-size: 12.5px;
+  color: #334155;
+}
+.intake-token-chip code {
+  font-size: 12px;
+}
+.intake-token-chip button {
+  border: none;
+  background: #eef2f7;
+  border-radius: 999px;
+  padding: 3px 9px;
+  font-size: 11.5px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  color: #475569;
+  transition: background 150ms ease, color 150ms ease;
+}
+.intake-token-chip button:hover {
+  background: #e2e8f0;
+}
+.intake-token-chip button.teach {
+  color: #4338ca;
+}
+.intake-token-chip button.teach:hover {
+  background: #e0e7ff;
+}
+.intake-hint {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid #c7d2fe;
+  background: #eef2ff;
+  color: #3730a3;
+  border-radius: 999px;
+  padding: 5px 12px;
+  font-size: 12.5px;
+  cursor: pointer;
+  transition: transform 150ms ease, box-shadow 150ms ease;
+}
+.intake-hint:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px -2px rgba(67, 56, 198, 0.3);
+}
+.intake-money-hint {
+  display: block;
+  font-size: 12px;
+  color: #0f766e;
+  margin-top: 4px;
+}
+.intake-money-hint.danger {
+  color: #be123c;
+}
+.intake-lesson-form {
+  margin: 14px 0;
+  padding: 14px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+}
+.intake-lesson-form > .row {
+  grid-column: 1 / -1;
+}
+.intake-rule-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+.intake-rule-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: #f1f5f9;
+  border: 1px solid #e2e8f0;
+  border-radius: 999px;
+  padding: 4px 6px 4px 12px;
+  font-size: 12.5px;
+  color: #334155;
+}
+.intake-rule-chip code {
+  font-size: 12px;
+}
+.intake-rule-chip small {
+  color: #64748b;
+}
+.intake-rule-chip button {
+  border: none;
+  background: none;
+  color: #94a3b8;
+  cursor: pointer;
+  display: inline-flex;
+  padding: 3px;
+  border-radius: 50%;
+  transition: color 150ms ease, background 150ms ease;
+}
+.intake-rule-chip button:hover {
+  color: #be123c;
+  background: #fee2e2;
+}
+.intake-dictionary summary {
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 600;
+}
+@media (max-width: 640px) {
+  /* 16px keeps iOS Safari from zooming when a notes field is focused. */
+  .intake-notes {
+    font-size: 16px;
+  }
+  .intake-notes-actions .button {
+    width: 100%;
+    justify-content: center;
+  }
+}
+[data-theme="dark"] .intake-notes {
+  background: #14161e;
+  color: #e2e5ee;
+  border-color: #262833;
+}
+[data-theme="dark"] .intake-token-chip {
+  background: #171821;
+  border-color: #33394b;
+  color: #c4cad8;
+}
+[data-theme="dark"] .intake-token-chip button {
+  background: #1f2230;
+  color: #aab3c5;
+}
+[data-theme="dark"] .intake-token-chip button:hover {
+  background: #262b3c;
+}
+[data-theme="dark"] .intake-token-chip button.teach {
+  color: #a5b4fc;
+}
+[data-theme="dark"] .intake-token-chip button.teach:hover {
+  background: #232646;
+}
+[data-theme="dark"] .intake-hint {
+  background: #1d1f38;
+  border-color: #37397a;
+  color: #c7d2fe;
+}
+[data-theme="dark"] .intake-entry-issues li {
+  background: #2a1418;
+  border-color: #5b1f2a;
+  color: #fda4af;
+}
+[data-theme="dark"] .intake-entry.has-issues {
+  border-color: #5b1f2a;
+}
+[data-theme="dark"] .intake-lesson-form {
+  background: #14161e;
+  border-color: #262833;
+}
+[data-theme="dark"] .intake-rule-chip {
+  background: #171821;
+  border-color: #262833;
+  color: #c4cad8;
+}
+[data-theme="dark"] .intake-rule-chip button:hover {
+  background: #2a1418;
+  color: #fda4af;
+}
+[data-theme="dark"] .intake-remove {
+  color: #8a93a6;
+}
+[data-theme="dark"] .intake-remove:hover {
+  color: #fda4af;
+}
+[data-theme="dark"] .intake-money-hint {
+  color: #5eead4;
+}
+[data-theme="dark"] .intake-money-hint.danger {
+  color: #fda4af;
 }

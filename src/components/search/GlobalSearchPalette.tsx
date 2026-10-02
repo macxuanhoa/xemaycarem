@@ -36,6 +36,7 @@ export function GlobalSearchPalette() {
     ...(canOperate(profile)
       ? [
           { label: "Thu xe", to: "/acquisitions/new" },
+          { label: "Thu xe tốc ký (dán ghi chú)", to: "/intake" },
           { label: "Bán xe", to: "/sell" },
         ]
       : []),

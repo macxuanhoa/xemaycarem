@@ -1,5 +1,6 @@
 import { useState, useMemo } from "react";
 import { Link } from "react-router-dom";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import {
   Bike,
   CheckCircle2,
@@ -21,220 +22,170 @@ import {
   X,
 } from "lucide-react";
 import { useAuth } from "@/features/auth/AuthProvider";
+import { api } from "@/lib/api";
+import type { Paged, ShowroomVehicle } from "@/types";
+import {
+  buybackLeadSchema,
+  SHOWROOM_HOTLINE,
+  zaloConsultLink,
+  type BuybackLeadValues,
+} from "./showroomLead";
 import "@/styles-showroom.css";
 
-export type ShowroomBike = {
-  id: string;
+/**
+ * A1: Showroom chỉ bày kho xe THẬT lấy qua list_showroom_vehicles (chỉ
+ * IN_STOCK — xe đang giữ chỗ/đã bán/đã hủy bị loại theo chính sách công khai).
+ * Không còn xe giả định hardcoded: backend không tải được thì hiện
+ * loading/error/empty, tuyệt đối không bịa dữ liệu.
+ */
+type BikeView = {
+  vehicle: ShowroomVehicle;
   name: string;
-  brand: string;
-  category: "scooter" | "manual" | "sports";
-  year: number;
-  price: number;
-  condition: string;
-  plate: string;
-  odo: string;
-  color: string;
-  image: string;
-  isNew?: boolean;
-  featured?: boolean;
-  specs: {
-    engine: string;
-    fuel: string;
-    warranty: string;
-    origin: string;
-  };
-  description: string;
+  plate: string | null;
+  odoLabel: string | null;
+  yearLabel: string | null;
+  isNew: boolean;
 };
 
-const FEATURED_BIKES: ShowroomBike[] = [
-  {
-    id: "sh-150-white-2023",
-    name: "Honda SH 150i ABS",
-    brand: "Honda",
-    category: "scooter",
-    year: 2023,
-    price: 89000000,
-    condition: "99% Mới cứng - Máy nguyên zin",
-    plate: "92-B1 221.33 (Hội An)",
-    odo: "8.200 km",
-    color: "Trắng Ngọc Trai",
-    image: "/bike-sh-white.jpg",
-    isNew: true,
-    featured: true,
-    specs: {
-      engine: "150cc eSP+ 4 van, phanh ABS 2 kênh",
-      fuel: "Phun xăng điện tử PGM-FI siêu tiết kiệm",
-      warranty: "Bảo hành máy 12 tháng tại cửa hàng",
-      origin: "Chính chủ Hội An, bao rút hồ sơ sang tên",
-    },
-    description:
-      "Xe tuyển chọn cực kỳ kỹ lưỡng, dàn áo dán keo trong từ lúc mua, máy êm ru, 2 chìa khoá smartkey đầy đủ. Khách xem là ưng ngay.",
-  },
-  {
-    id: "yamaha-nvx-red-2023",
-    name: "Yamaha NVX 155 VVA Đỏ Thể Thao",
-    brand: "Yamaha",
-    category: "scooter",
-    year: 2023,
-    price: 43500000,
-    condition: "98% Đẹp không tì vết",
-    plate: "92-D1 556.88 (Quảng Nam)",
-    odo: "11.500 km",
-    color: "Đỏ Đen Candy",
-    image: "/bike-red.jpg",
-    isNew: true,
-    featured: true,
-    specs: {
-      engine: "155cc van biến thiên VVA, phanh ABS",
-      fuel: "Phun xăng điện tử FI, bình xăng lớn",
-      warranty: "Bảo hành máy móc 12 tháng",
-      origin: "Hồ sơ gốc cầm tay, công chứng trong ngày",
-    },
-    description:
-      "Dáng xe thể thao mạnh mẽ, tăng tốc cực bốc. Xe bảo dưỡng định kỳ đầy đủ nhớt Motul cao cấp, lốp còn gai gió dày cui.",
-  },
-  {
-    id: "honda-sh-125-red-2022",
-    name: "Honda SH 125i CBS Sang Trọng",
-    brand: "Honda",
-    category: "scooter",
-    year: 2022,
-    price: 68500000,
-    condition: "99% Zin từng con ốc",
-    plate: "92-C1 348.92 (Hội An)",
-    odo: "9.800 km",
-    color: "Đỏ Mận Đậm",
-    image: "/hero-banner.jpg",
-    isNew: false,
-    featured: true,
-    specs: {
-      engine: "125cc eSP+ êm ái, bốc mượt mà",
-      fuel: "Tiết kiệm xăng tối ưu",
-      warranty: "Bảo hành 1 năm cửa hàng",
-      origin: "Xe chính chủ Hội An",
-    },
-    description:
-      "Màu đỏ đô lịch lãm tôn dáng người lái. Xe người lớn tuổi đi giữ kỹ, chỉ đi phố Hội An, không trầy xước.",
-  },
-  {
-    id: "yamaha-exciter-155-2023",
-    name: "Yamaha Exciter 155 VVA Khóa Smartkey",
-    brand: "Yamaha",
-    category: "manual",
-    year: 2023,
-    price: 36500000,
-    condition: "98% Nguyên bản",
-    plate: "92-K1 889.12 (Hội An)",
-    odo: "14.000 km",
-    color: "Xanh GP Thể Thao",
-    image: "/bike-red.jpg",
-    isNew: false,
-    featured: false,
-    specs: {
-      engine: "155cc côn tay 6 số VVA mượt mà",
-      fuel: "FI điện tử",
-      warranty: "Bảo hành máy móc 6 tháng",
-      origin: "Biển số Hội An, bao công chứng",
-    },
-    description:
-      "Chiếc xe côn tay quốc dân, côn số nhẹ nhàng, máy móc nguyên zin 100%, pô zin nổ êm ấm.",
-  },
-  {
-    id: "honda-vision-smartkey-2023",
-    name: "Honda Vision Bản Cao Cấp Smartkey",
-    brand: "Honda",
-    category: "scooter",
-    year: 2023,
-    price: 32000000,
-    condition: "99% Như dắt trong hãng ra",
-    plate: "92-C1 772.19 (Hội An)",
-    odo: "6.500 km",
-    color: "Trắng Nâu Lịch Sự",
-    image: "/bike-sh-white.jpg",
-    isNew: true,
-    featured: false,
-    specs: {
-      engine: "110cc eSP siêu nhẹ nhàng, bền bỉ",
-      fuel: "Mức tiêu thụ chỉ 1.8L / 100km",
-      warranty: "Bảo hành 12 tháng máy",
-      origin: "Chính chủ nữ đi làm văn phòng",
-    },
-    description:
-      "Dòng xe tay ga bán chạy nhất, nhẹ nhàng, cốp rộng, tiết kiệm xăng. Xe rất mới, lốp zin theo xe.",
-  },
-  {
-    id: "piaggio-vespa-sprint-2022",
-    name: "Vespa Sprint 125 i-Get ABS Đèn Vuông",
-    brand: "Piaggio",
-    category: "scooter",
-    year: 2022,
-    price: 54000000,
-    condition: "98% Dàn áo cực kỳ bóng đẹp",
-    plate: "92-B1 449.88 (Hội An)",
-    odo: "13.200 km",
-    color: "Xám Xi Măng Thể Thao",
-    image: "/bike-sh-white.jpg",
-    isNew: false,
-    featured: true,
-    specs: {
-      engine: "125cc i-Get thế hệ mới êm ái",
-      fuel: "Hệ thống phun xăng điện tử",
-      warranty: "Bảo hành máy 1 năm",
-      origin: "Hồ sơ công chứng sang tên liền",
-    },
-    description:
-      "Phong cách thời trang Ý đẳng cấp. Động cơ iGet êm ru không giật, màu xám xi măng hot trend cực kỳ hút mắt.",
-  },
-];
+const RECENT_STOCK_DAYS = 7;
+
+function toBikeView(vehicle: ShowroomVehicle): BikeView {
+  const cutoff = new Date(Date.now() - RECENT_STOCK_DAYS * 86_400_000)
+    .toISOString()
+    .slice(0, 10);
+  return {
+    vehicle,
+    name: [vehicle.brand, vehicle.model, vehicle.variant]
+      .filter(Boolean)
+      .join(" "),
+    plate: vehicle.license_plate || null,
+    odoLabel:
+      vehicle.odometer && vehicle.odometer > 0
+        ? `${vehicle.odometer.toLocaleString("vi-VN")} km`
+        : null,
+    yearLabel: vehicle.year ? `Đời ${vehicle.year}` : null,
+    isNew: !!vehicle.purchase_date && vehicle.purchase_date >= cutoff,
+  };
+}
 
 export default function ShowroomPage() {
   const { user } = useAuth();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [selectedBrand, setSelectedBrand] = useState("ALL");
-  const [selectedTab, setSelectedTab] = useState<"ALL" | "NEW" | "HOT">("ALL");
+  const [selectedTab, setSelectedTab] = useState<"ALL" | "NEW">("ALL");
   const [searchQuery, setSearchQuery] = useState("");
-  const [selectedBike, setSelectedBike] = useState<ShowroomBike | null>(null);
+  const [selectedBike, setSelectedBike] = useState<BikeView | null>(null);
   const [sellModalOpen, setSellModalOpen] = useState(false);
   const [sellForm, setSellForm] = useState({
+    customerName: "",
     bikeName: "",
     year: "",
     phone: "",
     expectedPrice: "",
     note: "",
   });
+  const [sellErrors, setSellErrors] = useState<Record<string, string>>({});
   const [sellSubmitted, setSellSubmitted] = useState(false);
 
+  // A1: kho xe thật từ RPC công khai (chỉ IN_STOCK). Không có fallback giả định.
+  const inventory = useQuery({
+    queryKey: ["showroom-vehicles"],
+    queryFn: () =>
+      api.call<Paged<ShowroomVehicle>>("list_showroom_vehicles", {
+        p_filters: { limit: 50 },
+      }),
+    staleTime: 60_000,
+  });
+  const bikes = useMemo(
+    () => (inventory.data?.items ?? []).map(toBikeView),
+    [inventory.data],
+  );
+  const brands = useMemo(
+    () => [
+      "ALL",
+      ...Array.from(new Set(bikes.map((bike) => bike.vehicle.brand))).sort(),
+    ],
+    [bikes],
+  );
+
   const filteredBikes = useMemo(() => {
-    return FEATURED_BIKES.filter((bike) => {
+    return bikes.filter((bike) => {
       const matchBrand =
         selectedBrand === "ALL" ||
-        bike.brand.toLowerCase() === selectedBrand.toLowerCase();
-      const matchTab =
-        selectedTab === "ALL" ||
-        (selectedTab === "NEW" && bike.isNew) ||
-        (selectedTab === "HOT" && bike.featured);
+        bike.vehicle.brand.toLowerCase() === selectedBrand.toLowerCase();
+      const matchTab = selectedTab === "ALL" || (selectedTab === "NEW" && bike.isNew);
+      const haystack = `${bike.name} ${bike.plate ?? ""} ${bike.vehicle.color}`.toLowerCase();
       const matchSearch =
-        !searchQuery.trim() ||
-        bike.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        bike.brand.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        bike.plate.toLowerCase().includes(searchQuery.toLowerCase());
+        !searchQuery.trim() || haystack.includes(searchQuery.trim().toLowerCase());
       return matchBrand && matchTab && matchSearch;
     });
-  }, [selectedBrand, selectedTab, searchQuery]);
+  }, [bikes, selectedBrand, selectedTab, searchQuery]);
+
+  // A2: lead PHẢI được lưu thành công trước khi báo "Đã gửi". Zalo chỉ là
+  // kênh phụ — popup bị chặn thì yêu cầu vẫn còn trong hệ thống.
+  const sellMutation = useMutation({
+    mutationFn: (values: BuybackLeadValues) =>
+      api.call<string>("create_showroom_lead", {
+        p_data: {
+          kind: "BUYBACK",
+          customer_name: values.customer_name,
+          phone: values.phone,
+          vehicle_name: values.vehicle_name,
+          vehicle_year: values.vehicle_year || null,
+          expected_price: values.expected_price || null,
+          message: values.message || null,
+          source: "SHOWROOM_WEB",
+        },
+      }),
+    onSuccess: (leadId, values) => {
+      setSellSubmitted(true);
+      const msg = `[ĐỊNH GIÁ XE CẦN BÁN]\nTên xe: ${values.vehicle_name}${values.vehicle_year ? ` (Đời: ${values.vehicle_year})` : ""}\nSĐT: ${values.phone}\nGiá mong muốn: ${values.expected_price ? `${Number(values.expected_price).toLocaleString("vi-VN")} đ` : "Thương lượng"}\nGhi chú: ${values.message || "Không có"}\nMã yêu cầu: ${leadId}`;
+      try {
+        window.open(zaloConsultLink(msg), "_blank");
+      } catch {
+        /* Popup bị chặn — lead đã lưu, không sao cả. */
+      }
+    },
+  });
+
+  const closeSellModal = () => {
+    setSellModalOpen(false);
+    setSellSubmitted(false);
+    setSellErrors({});
+    sellMutation.reset();
+  };
 
   const handleSellSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    setSellSubmitted(true);
-    // Deep link directly to Zalo with pre-filled message
-    const msg = `[ĐỊNH GIÁ XE CẦN BÁN]\nTên xe: ${sellForm.bikeName} (Đời: ${sellForm.year})\nSĐT: ${sellForm.phone}\nGiá mong muốn: ${sellForm.expectedPrice || "Thương lượng"}\nGhi chú: ${sellForm.note || "Không có"}`;
-    const zaloUrl = `https://zalo.me/0914929292?text=${encodeURIComponent(msg)}`;
-    window.open(zaloUrl, "_blank");
+    const parsed = buybackLeadSchema.safeParse({
+      customer_name: sellForm.customerName,
+      phone: sellForm.phone,
+      vehicle_name: sellForm.bikeName,
+      vehicle_year: sellForm.year,
+      expected_price: sellForm.expectedPrice,
+      message: sellForm.note,
+    });
+    if (!parsed.success) {
+      const errors: Record<string, string> = {};
+      for (const issue of parsed.error.issues) {
+        const key = String(issue.path[0] ?? "form");
+        if (!errors[key]) errors[key] = issue.message;
+      }
+      setSellErrors(errors);
+      return;
+    }
+    setSellErrors({});
+    sellMutation.mutate(parsed.data);
   };
 
-  const openZaloConsult = (bike: ShowroomBike) => {
-    const msg = `Chào Cửa hàng Cà Rem, tôi muốn hỏi mua chiếc: ${bike.name} - Giá: ${bike.price.toLocaleString("vi-VN")} đ (Biển: ${bike.plate}). Nhờ cửa hàng tư vấn giúp tôi!`;
-    const zaloUrl = `https://zalo.me/0914929292?text=${encodeURIComponent(msg)}`;
-    window.open(zaloUrl, "_blank");
+  const openZaloConsult = (bike: BikeView) => {
+    // Zalo là kênh tư vấn phụ — không hứa hẹn lưu trữ ở luồng này.
+    const msg = `Chào Cửa hàng Cà Rem, tôi muốn hỏi mua chiếc: ${bike.name}${bike.plate ? ` (Biển: ${bike.plate})` : ""}. Nhờ cửa hàng tư vấn giúp tôi!`;
+    try {
+      window.open(zaloConsultLink(msg), "_blank");
+    } catch {
+      /* Popup bị chặn: khách vẫn còn hotline ngay bên cạnh. */
+    }
   };
 
   return (
@@ -573,7 +524,7 @@ export default function ShowroomPage() {
                 className={`inv-tab ${selectedTab === "ALL" ? "active" : ""}`}
                 onClick={() => setSelectedTab("ALL")}
               >
-                Tất cả xe ({FEATURED_BIKES.length})
+                Tất cả xe ({bikes.length})
               </button>
               <button
                 type="button"
@@ -582,18 +533,11 @@ export default function ShowroomPage() {
               >
                 🔥 Xe mới về
               </button>
-              <button
-                type="button"
-                className={`inv-tab ${selectedTab === "HOT" ? "active" : ""}`}
-                onClick={() => setSelectedTab("HOT")}
-              >
-                ⭐ Xe nổi bật
-              </button>
             </div>
 
-            {/* Brand Chips */}
+            {/* Brand Chips — lấy từ hãng xe CÓ THẬT trong kho đang hiển thị */}
             <div className="brand-chips-row">
-              {["ALL", "Honda", "Yamaha", "Piaggio"].map((brand) => (
+              {brands.map((brand) => (
                 <button
                   key={brand}
                   type="button"
@@ -626,41 +570,69 @@ export default function ShowroomPage() {
             </div>
           </div>
 
+          {/* A1: loading/error thật — không bao giờ fallback sang xe giả định */}
+          {inventory.isPending ? (
+            <div className="showroom-empty-state" role="status">
+              <Bike size={48} className="empty-icon" />
+              <h3>Đang tải kho xe tại cửa hàng…</h3>
+              <p>
+                Cà Rem đang đồng bộ danh sách xe có sẵn. Vui lòng chờ vài giây
+                hoặc nhắn Zalo/gọi hotline để được báo xe trực tiếp.
+              </p>
+            </div>
+          ) : inventory.isError ? (
+            <div className="showroom-empty-state" role="alert">
+              <Bike size={48} className="empty-icon" />
+              <h3>Chưa tải được kho xe</h3>
+              <p>
+                Máy chủ tạm thời không phản hồi danh sách xe. Bạn thử tải lại,
+                gọi hotline {SHOWROOM_HOTLINE} hoặc nhắn Zalo để Cà Rem báo xe
+                trực tiếp cho mình nhé!
+              </p>
+              <button
+                type="button"
+                className="btn-hero-primary"
+                onClick={() => void inventory.refetch()}
+              >
+                Thử tải lại
+              </button>
+            </div>
+          ) : (
+            <>
           {/* Bike Cards Grid */}
           <div className="showroom-bike-grid">
             {filteredBikes.map((bike) => (
-              <div key={bike.id} className="bike-card-neon">
-                {/* Image Container */}
+              <div key={bike.vehicle.id} className="bike-card-neon">
+                {/* Ảnh thật của xe ở storage riêng tư — dùng placeholder có chủ đích */}
                 <div
                   className="bike-card-image-wrap"
                   onClick={() => setSelectedBike(bike)}
                 >
-                  <img
-                    src={bike.image}
-                    alt={bike.name}
-                    className="bike-card-img"
-                    loading="lazy"
-                  />
+                  <div className="bike-card-image-placeholder">
+                    <Bike size={52} />
+                    <span>{bike.name}</span>
+                  </div>
                   <div className="bike-badges-floating">
                     {bike.isNew && (
                       <span className="badge-pill badge-new">MỚI VỀ</span>
                     )}
-                    {bike.featured && (
-                      <span className="badge-pill badge-hot">HOT</span>
-                    )}
                   </div>
-                  <span className="badge-plate">{bike.plate}</span>
+                  {bike.plate && <span className="badge-plate">{bike.plate}</span>}
                   <div className="bike-image-hover-overlay">
                     <span>Xem chi tiết thông số →</span>
                   </div>
                 </div>
 
-                {/* Content */}
+                {/* Content — 100% số liệu từ hồ sơ xe thật */}
                 <div className="bike-card-body">
                   <div className="bike-brand-year">
-                    <span className="bike-brand">{bike.brand}</span>
-                    <span className="bike-year">Đời {bike.year}</span>
-                    <span className="bike-odo">• {bike.odo}</span>
+                    <span className="bike-brand">{bike.vehicle.brand}</span>
+                    {bike.yearLabel && (
+                      <span className="bike-year">{bike.yearLabel}</span>
+                    )}
+                    {bike.odoLabel && (
+                      <span className="bike-odo">• {bike.odoLabel}</span>
+                    )}
                   </div>
 
                   <h3
@@ -671,14 +643,17 @@ export default function ShowroomPage() {
                   </h3>
 
                   <p className="bike-condition-tag">
-                    <CheckCircle2 size={13} /> {bike.condition}
+                    <CheckCircle2 size={13} />
+                    {bike.vehicle.color
+                      ? `Màu ${bike.vehicle.color}`
+                      : "Xe tuyển chọn tại Cà Rem"}
                   </p>
 
                   <div className="bike-price-row">
                     <div className="price-block">
                       <span className="price-label">Giá niêm yết:</span>
                       <strong className="price-amount">
-                        {bike.price.toLocaleString("vi-VN")} đ
+                        {bike.vehicle.asking_price.toLocaleString("vi-VN")} đ
                       </strong>
                     </div>
                   </div>
@@ -727,6 +702,8 @@ export default function ShowroomPage() {
                 Xem tất cả xe
               </button>
             </div>
+          )}
+            </>
           )}
         </div>
       </section>
@@ -1112,21 +1089,28 @@ export default function ShowroomPage() {
 
             <div className="modal-bike-layout">
               <div className="modal-img-col">
-                <img
-                  src={selectedBike.image}
-                  alt={selectedBike.name}
-                  className="modal-bike-img"
-                />
+                <div className="modal-bike-placeholder">
+                  <Bike size={72} />
+                  <span>{selectedBike.name}</span>
+                </div>
                 <div className="modal-img-caption">
-                  <span className="badge-plate">{selectedBike.plate}</span>
-                  <span className="badge-condition">{selectedBike.condition}</span>
+                  {selectedBike.plate ? (
+                    <span className="badge-plate">{selectedBike.plate}</span>
+                  ) : (
+                    <span className="badge-plate">Chưa cập nhật biển số</span>
+                  )}
+                  <span className="badge-condition">Xe đang có tại cửa hàng</span>
                 </div>
               </div>
 
               <div className="modal-info-col">
                 <div className="modal-badge-row">
-                  <span className="modal-brand-tag">{selectedBike.brand}</span>
-                  <span className="modal-year-tag">Đời {selectedBike.year}</span>
+                  <span className="modal-brand-tag">
+                    {selectedBike.vehicle.brand}
+                  </span>
+                  {selectedBike.yearLabel && (
+                    <span className="modal-year-tag">{selectedBike.yearLabel}</span>
+                  )}
                 </div>
 
                 <h2 className="modal-bike-title">{selectedBike.name}</h2>
@@ -1134,34 +1118,31 @@ export default function ShowroomPage() {
                 <div className="modal-price-box">
                   <span className="label">Giá bán công khai:</span>
                   <strong className="val">
-                    {selectedBike.price.toLocaleString("vi-VN")} đ
+                    {selectedBike.vehicle.asking_price.toLocaleString("vi-VN")} đ
                   </strong>
                 </div>
 
-                <p className="modal-bike-desc">{selectedBike.description}</p>
+                <p className="modal-bike-desc">
+                  Thông tin bên dưới là số liệu thật từ hồ sơ xe của cửa hàng.
+                  Vui lòng liên hệ trực tiếp để Cà Rem cho xem và chạy thử xe.
+                </p>
 
                 <div className="modal-specs-list">
                   <div className="spec-row">
-                    <span className="k">Động cơ:</span>
-                    <span className="v">{selectedBike.specs.engine}</span>
+                    <span className="k">Biển số:</span>
+                    <span className="v">{selectedBike.plate || "—"}</span>
                   </div>
                   <div className="spec-row">
                     <span className="k">Màu sơn:</span>
-                    <span className="v">{selectedBike.color}</span>
+                    <span className="v">{selectedBike.vehicle.color || "—"}</span>
                   </div>
                   <div className="spec-row">
                     <span className="k">Đã lăn bánh:</span>
-                    <span className="v">{selectedBike.odo}</span>
+                    <span className="v">{selectedBike.odoLabel || "Chưa cập nhật"}</span>
                   </div>
                   <div className="spec-row">
-                    <span className="k">Bảo hành:</span>
-                    <span className="v text-highlight">
-                      {selectedBike.specs.warranty}
-                    </span>
-                  </div>
-                  <div className="spec-row">
-                    <span className="k">Giấy tờ & Pháp lý:</span>
-                    <span className="v">{selectedBike.specs.origin}</span>
+                    <span className="k">Phiên bản:</span>
+                    <span className="v">{selectedBike.vehicle.variant || "—"}</span>
                   </div>
                 </div>
 
@@ -1192,10 +1173,7 @@ export default function ShowroomPage() {
       {sellModalOpen && (
         <div
           className="showroom-modal-backdrop"
-          onClick={() => {
-            setSellModalOpen(false);
-            setSellSubmitted(false);
-          }}
+          onClick={closeSellModal}
         >
           <div
             className="showroom-modal-card sell-modal"
@@ -1204,10 +1182,7 @@ export default function ShowroomPage() {
             <button
               type="button"
               className="modal-close-btn"
-              onClick={() => {
-                setSellModalOpen(false);
-                setSellSubmitted(false);
-              }}
+              onClick={closeSellModal}
             >
               <X size={20} />
             </button>
@@ -1223,13 +1198,15 @@ export default function ShowroomPage() {
               {sellSubmitted ? (
                 <div className="sell-success-box">
                   <CheckCircle2 size={42} className="success-icon" />
-                  <h3>Đã mở kết nối Zalo với Anh Hậu Cà Rem!</h3>
+                  <h3>Đã gửi yêu cầu định giá thành công!</h3>
                   <p>
-                    Bạn có thể gửi thêm ảnh xe và ảnh đăng ký xe qua Zalo để
-                    nhận định giá chính xác và nhanh nhất nhé!
+                    Cà Rem đã lưu thông tin xe của bạn và sẽ liên hệ qua số
+                    điện thoại đã gửi trong thời gian sớm nhất. Nếu Zalo vừa
+                    mở, bạn có thể gửi thêm ảnh xe và ảnh đăng ký để nhận định
+                    giá nhanh hơn.
                   </p>
                   <a
-                    href="https://zalo.me/0914929292"
+                    href={zaloConsultLink("Em gửi Cà Rem thông tin xe cần bán, nhờ anh Hậu định giá giúp em ạ!")}
                     target="_blank"
                     rel="noreferrer"
                     className="btn-hero-primary"
@@ -1238,7 +1215,25 @@ export default function ShowroomPage() {
                   </a>
                 </div>
               ) : (
-                <form onSubmit={handleSellSubmit} className="sell-form-stack">
+                <form onSubmit={handleSellSubmit} className="sell-form-stack" noValidate>
+                  <div className="form-group">
+                    <label>Họ tên của bạn *</label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="Ví dụ: Nguyễn Văn Hậu"
+                      value={sellForm.customerName}
+                      onChange={(e) =>
+                        setSellForm({ ...sellForm, customerName: e.target.value })
+                      }
+                    />
+                    {sellErrors.customer_name && (
+                      <span className="field-error-inline">
+                        {sellErrors.customer_name}
+                      </span>
+                    )}
+                  </div>
+
                   <div className="form-group">
                     <label>Tên dòng xe cần bán *</label>
                     <input
@@ -1250,6 +1245,11 @@ export default function ShowroomPage() {
                         setSellForm({ ...sellForm, bikeName: e.target.value })
                       }
                     />
+                    {sellErrors.vehicle_name && (
+                      <span className="field-error-inline">
+                        {sellErrors.vehicle_name}
+                      </span>
+                    )}
                   </div>
 
                   <div className="form-row-2">
@@ -1257,12 +1257,18 @@ export default function ShowroomPage() {
                       <label>Đời xe / Năm đăng ký</label>
                       <input
                         type="text"
+                        inputMode="numeric"
                         placeholder="Ví dụ: 2021 hoặc 2023"
                         value={sellForm.year}
                         onChange={(e) =>
                           setSellForm({ ...sellForm, year: e.target.value })
                         }
                       />
+                      {sellErrors.vehicle_year && (
+                        <span className="field-error-inline">
+                          {sellErrors.vehicle_year}
+                        </span>
+                      )}
                     </div>
                     <div className="form-group">
                       <label>Số điện thoại / Zalo của bạn *</label>
@@ -1275,6 +1281,11 @@ export default function ShowroomPage() {
                           setSellForm({ ...sellForm, phone: e.target.value })
                         }
                       />
+                      {sellErrors.phone && (
+                        <span className="field-error-inline">
+                          {sellErrors.phone}
+                        </span>
+                      )}
                     </div>
                   </div>
 
@@ -1282,7 +1293,8 @@ export default function ShowroomPage() {
                     <label>Giá bạn mong muốn (VNĐ)</label>
                     <input
                       type="text"
-                      placeholder="Ví dụ: 45 triệu (hoặc để trống)"
+                      inputMode="numeric"
+                      placeholder="Ví dụ: 45000000 (hoặc để trống)"
                       value={sellForm.expectedPrice}
                       onChange={(e) =>
                         setSellForm({
@@ -1291,6 +1303,11 @@ export default function ShowroomPage() {
                         })
                       }
                     />
+                    {sellErrors.expected_price && (
+                      <span className="field-error-inline">
+                        {sellErrors.expected_price}
+                      </span>
+                    )}
                   </div>
 
                   <div className="form-group">
@@ -1303,16 +1320,38 @@ export default function ShowroomPage() {
                         setSellForm({ ...sellForm, note: e.target.value })
                       }
                     />
+                    {sellErrors.message && (
+                      <span className="field-error-inline">
+                        {sellErrors.message}
+                      </span>
+                    )}
                   </div>
 
-                  <button type="submit" className="btn-hero-primary full-width">
+                  {/* A2: chỉ báo thành công khi lead đã lưu thật; lỗi hiện tại chỗ */}
+                  {sellMutation.isError && (
+                    <p className="sell-form-error" role="alert">
+                      Không gửi được yêu cầu (máy chủ từ chối hoặc mất kết
+                      nối). Bạn thử lại, hoặc gọi hotline 0914 929 292 / nhắn
+                      Zalo để Cà Rem hỗ trợ ngay.
+                    </p>
+                  )}
+
+                  <button
+                    type="submit"
+                    className="btn-hero-primary full-width"
+                    disabled={sellMutation.isPending}
+                  >
                     <Tag size={18} />
-                    <span>Gửi thông tin định giá qua Zalo ngay</span>
+                    <span>
+                      {sellMutation.isPending
+                        ? "Đang gửi yêu cầu…"
+                        : "Gửi thông tin định giá cho Cà Rem"}
+                    </span>
                   </button>
 
                   <p className="privacy-note">
                     🔒 Thông tin của bạn được bảo mật tuyệt đối, chỉ dùng để Cà
-                    Rém liên hệ báo giá.
+                    Rem liên hệ báo giá.
                   </p>
                 </form>
               )}

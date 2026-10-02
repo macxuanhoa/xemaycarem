@@ -1,6 +1,14 @@
 # Release handoff — Xe CRM
 
-Last reviewed: 2026-10-01 (Asia/Saigon)
+Last reviewed: 2026-10-02 (Asia/Saigon)
+
+## Behavioral defects A1–A7 handoff — 2026-10-02
+
+The post-audit defect phase fixed A1–A7 only; the deferred technical-debt list (manage-users dispatch factory, StaffSettingsModal mutation factory, AuthProvider polling, money-formatter consolidation, theme tokens, prefetch abstractions, expense cancellation duplication) was deliberately untouched and remains the next phase.
+
+Frontend: new `src/lib/debt.ts`, `src/lib/urlParams.ts`, `src/lib/vehicleFilters.ts`, `src/features/showroom/showroomLead.ts`; `ShowroomPage` rewritten to real inventory + persisted leads (fake `FEATURED_BIKES` deleted); `ReceivablesPage` shares one debt resolver across desktop/mobile, blocks silent due-date deletion, and updates URL params functionally; `InventoryPage`/`SellVehiclePage`/`ExpensePages` consume the canonical status-filter constants; `CustomersPage` gained the NEW-lead triage panel. Database (pending, NOT deployed): `20261002003200_showroom_public_inventory.sql` (anon `list_showroom_vehicles`, IN_STOCK-only safe projection) and `20261002003300_showroom_leads.sql` (`showroom_leads` table, anon `create_showroom_lead` with validation/normalization/throttle, staff `list_showroom_leads`/`update_showroom_lead_status` with audit). Neither touches any applied migration.
+
+Local gates (all green, run 2026-10-02): `npm run lint`, `npm run typecheck`, `npm run test` (267 unit tests / 24 files, incl. new `debt-status`, `url-params`, `showroom-lead`, `showroom-source-contract` suites and extended `inventory-filters`), `npm run test:db` (full multi-suite replay incl. 10 new showroom checks in `tests/db/showroom.test.mjs`), `npm run build`, `npm run test:e2e` (64/64), `npm run test:pwa`. `npm run knowledge:check` is expected RED because these doc edits change the seeded corpus while applied migration `20261001002900_knowledge_seed.sql` must not be modified — resolve with a forward re-seed migration during release prep, not by rewriting history. Hosted deployment remains blocked by the release blockers below; nothing in this phase was pushed to Supabase.
 
 ## Phase 1 customer communication handoff — 2026-10-01
 

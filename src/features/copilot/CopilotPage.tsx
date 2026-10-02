@@ -130,12 +130,18 @@ export default function CopilotPage() {
 
       {answer && (
         <>
-          <Card>
-            <h2 className="section-title">
-              {answer.mode === "llm" ? "AI tóm tắt (có bằng chứng)" : "Kết quả tra cứu"}
+          <Card className="copilot-answer-card">
+            <p className="copilot-answer-by">
+              <span className="copilot-answer-avatar" aria-hidden="true">
+                <Sparkles size={15} />
+              </span>
+              {answer.mode === "llm" ? "AI Cà Rem tóm tắt — mỗi nhận định có bằng chứng" : "Cà Rem tra cứu trực tiếp"}
               {answer.period ? ` · kỳ ${answer.period}` : ""}
-            </h2>
-            <MarkdownLite text={answer.answer_markdown} citations={chips} />
+            </p>
+            <p className="copilot-question-echo">
+              Bạn hỏi: “{String(ask.variables ?? question)}”
+            </p>
+            <MarkdownLite text={answer.answer_markdown} citations={chips} className="copilot-answer" />
             {answer.facts.length > 0 && (
               <ul className="copilot-facts">
                 {answer.facts.map((fact) => {

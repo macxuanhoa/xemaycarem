@@ -118,6 +118,15 @@ Deno.serve(async (request: Request) => {
       // Evidence always comes from the deterministic, permission-scoped lookup first.
       throttle(auth.user.id, 30);
       const evidence = await buildEvidence(input.text ?? '', caller, profile as AccessProfile);
+      if (evidence.insufficient) {
+        // Documentation feedback loop: record the unanswered question so the OWNER can
+        // write the missing SOP in docs/INTERNAL_SOPS.md. Logging never blocks or
+        // changes the answer, and the RPC itself re-checks the caller's role.
+        try {
+          const gap = await caller.rpc('log_copilot_gap', { p_question: input.text ?? '' });
+          if (gap.error) console.warn('log_copilot_gap failed', String(gap.error));
+        } catch { /* the answer stands either way */ }
+      }
       let grounded: GroundedAnswer | null = null;
       const copilotWarnings = [...evidence.warnings];
       if (input.mode === 'llm') {

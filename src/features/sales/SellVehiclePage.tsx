@@ -24,6 +24,7 @@ import {
   Pagination,
 } from "@/components/ui";
 import type { Paged, Vehicle } from "@/types";
+import { AVAILABLE_VEHICLE_FILTER } from "@/lib/vehicleFilters";
 import { paymentLabels } from "@/features/vehicles/vehicleSchema";
 import { saleSchema, type SaleFormValues } from "./saleSchema";
 
@@ -49,7 +50,7 @@ export function SellVehiclePage() {
       api.call<Paged<Vehicle>>("list_vehicles", {
         p_filters: {
           search: deferredSearch,
-          status: "AVAILABLE",
+          status: AVAILABLE_VEHICLE_FILTER,
           offset: (page - 1) * pageSize,
           limit: pageSize,
         },

@@ -35,20 +35,15 @@ import {
   PageHeader,
   Pagination,
 } from "@/components/ui";
-import type { Paged, Vehicle } from "@/types";
+import type { Paged, Vehicle, VehicleStatusFilter } from "@/types";
+import {
+  VEHICLE_STATUS_OPTIONS,
+} from "@/lib/vehicleFilters";
 import { useDebouncedValue } from "@/lib/useDebouncedValue";
 import { QuickExpenseModal } from "@/features/expenses/QuickExpenseModal";
 import { VehicleActionsSheet } from "./VehicleActionsSheet";
 
 const pageSize = 6;
-const statusOptions = [
-  { value: "", label: "Tất cả" },
-  { value: "AVAILABLE", label: "Tại cửa hàng" },
-  { value: "IN_STOCK", label: "Sẵn sàng bán" },
-  { value: "RESERVED", label: "Giữ chỗ" },
-  { value: "SOLD", label: "Đã bán" },
-  { value: "CANCELLED", label: "Đã hủy" },
-];
 const quickPresets: Array<{ id: string; label: string; filters: Record<string, string> }> = [
   { id: "old", label: "Tồn kho lâu > 60 ngày", filters: { sort: "longest_stock", status: "IN_STOCK", min_days: "61" } },
   { id: "cost_pending", label: "Chờ giá nhập", filters: { cost_pending: "true" } },
@@ -83,8 +78,9 @@ export function InventoryPage() {
     updateParams({ q: value });
   }
   const deferredSearch = useDebouncedValue(search);
-  const status = params.get("status") ?? "";
-  const setStatus = (value: string) => updateParams({ status: value });
+  const status = (params.get("status") ?? "") as VehicleStatusFilter | "";
+  const setStatus = (value: VehicleStatusFilter | "") =>
+    updateParams({ status: value });
   const sort = params.get("sort") ?? "newest";
   const setSort = (value: string) => updateParams({ sort: value });
   const parsedPage = Number(params.get("page") ?? "1");
@@ -372,12 +368,13 @@ export function InventoryPage() {
           </div>
         )}
         <div className="tabs" aria-label="Trạng thái xe">
-          {statusOptions.map((option) => (
+          {VEHICLE_STATUS_OPTIONS.map((option) => (
             <button
               key={option.value}
               type="button"
               className={status === option.value ? "tab active" : "tab"}
               aria-pressed={status === option.value}
+              title={option.hint}
               onClick={() => {
                 setStatus(option.value);
               }}

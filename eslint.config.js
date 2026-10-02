@@ -11,6 +11,7 @@ export default tseslint.config(
       "src/types/database.generated.ts",
       "playwright-report/**",
       "test-results/**",
+      "scratch/**",
     ],
   },
   js.configs.recommended,

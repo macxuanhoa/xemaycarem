@@ -14,6 +14,9 @@ import {
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { canOperate } from "@/lib/permissions";
+import { resolveDebtStatus, resolveIsOverdue } from "@/lib/debt";
+import { mergeSearchParams } from "@/lib/urlParams";
+import { confirmAction } from "@/components/ui/ConfirmDialog";
 import { dateLabel, money, shiftDate, today } from "@/lib/format";
 import { useAuth } from "@/features/auth/AuthProvider";
 import {
@@ -45,8 +48,11 @@ export function ReceivablesPage({
   const [search, setSearch] = useState("");
   const deferredSearch = useDebouncedValue(search);
   const paymentStatus = params.get("payment_status") || "DEBT_ONLY";
+  // A7: functional updater so switching the debt filter keeps unrelated params.
   const setPaymentStatus = (value: string) =>
-    setParams({ payment_status: value });
+    setParams((prev) => mergeSearchParams(prev, { payment_status: value }), {
+      replace: true,
+    });
   const [sort, setSort] = useState("highest_debt");
   const [range, setRange] = useState({ from: "", to: "" });
   const [page, setPage] = useState(1);
@@ -55,6 +61,15 @@ export function ReceivablesPage({
     null,
   );
   const [dueDateInput, setDueDateInput] = useState("");
+  const [dueDateError, setDueDateError] = useState<string | null>(null);
+
+  // A4: opening the editor always starts from a clean validation state.
+  const openDueDateEditor = (sale: Sale) => {
+    setEditingDueDateSale(sale);
+    setDueDateInput(sale.due_date || "");
+    setDueDateError(null);
+    dueDateMutation.reset();
+  };
 
   const query = useQuery({
     queryKey: [
@@ -108,10 +123,10 @@ export function ReceivablesPage({
   }, [query.data, page, deferredSearch, paymentStatus, sort, range, client]);
 
   const dueDateMutation = useMutation({
-    mutationFn: ({ saleId, dueDate }: { saleId: string; dueDate: string }) =>
+    mutationFn: ({ saleId, dueDate }: { saleId: string; dueDate: string | null }) =>
       api.call("update_sale_due_date", {
         p_sale_id: saleId,
-        p_due_date: dueDate || null,
+        p_due_date: dueDate,
       }),
     onSuccess: async () => {
       await client.invalidateQueries({ queryKey: ["receivables"] });
@@ -326,11 +341,7 @@ export function ReceivablesPage({
               </thead>
               <tbody>
                 {data.items.map((sale) => {
-                  const isOverdue =
-                    sale.is_overdue ||
-                    (sale.due_date &&
-                      sale.due_date < today() &&
-                      sale.remaining_amount > 0);
+                  const isOverdue = resolveIsOverdue(sale);
                   return (
                     <tr
                       key={sale.id}
@@ -400,10 +411,7 @@ export function ReceivablesPage({
                                 <button
                                   className="icon-button small"
                                   title="Đổi ngày hẹn trả"
-                                  onClick={() => {
-                                    setEditingDueDateSale(sale);
-                                    setDueDateInput(sale.due_date || "");
-                                  }}
+                                  onClick={() => openDueDateEditor(sale)}
                                 >
                                   <Clock size={14} />
                                 </button>
@@ -413,10 +421,7 @@ export function ReceivablesPage({
                           <Button
                             variant="ghost"
                             className="small"
-                            onClick={() => {
-                              setEditingDueDateSale(sale);
-                              setDueDateInput("");
-                            }}
+                            onClick={() => openDueDateEditor(sale)}
                           >
                             <Calendar size={13} /> Hẹn ngày
                           </Button>
@@ -430,16 +435,7 @@ export function ReceivablesPage({
                             <span /> Quá hạn
                           </span>
                         ) : (
-                          <Badge
-                            status={
-                              sale.debt_status ||
-                              (sale.remaining_amount <= 0
-                                ? "PAID"
-                                : sale.paid_amount > 0
-                                  ? "PARTIALLY_PAID"
-                                  : "UNPAID")
-                            }
-                          />
+                          <Badge status={resolveDebtStatus(sale)} />
                         )}
                       </td>
                       <td>
@@ -474,11 +470,7 @@ export function ReceivablesPage({
 
           <div className="mobile-cards">
             {data.items.map((sale) => {
-              const isOverdue =
-                sale.is_overdue ||
-                (sale.due_date &&
-                  sale.due_date < today() &&
-                  sale.remaining_amount > 0);
+              const isOverdue = resolveIsOverdue(sale);
               return (
                 <div
                   key={sale.id}
@@ -493,14 +485,7 @@ export function ReceivablesPage({
                         <span /> Quá hạn
                       </span>
                     ) : (
-                      <Badge
-                        status={
-                          sale.debt_status ||
-                          (sale.remaining_amount <= 0
-                            ? "PAID"
-                            : "PARTIALLY_PAID")
-                        }
-                      />
+                      <Badge status={resolveDebtStatus(sale)} />
                     )}
                   </div>
                   <div className="row between small">
@@ -561,10 +546,7 @@ export function ReceivablesPage({
                       </Button>
                       <Button
                         variant="ghost"
-                        onClick={() => {
-                          setEditingDueDateSale(sale);
-                          setDueDateInput(sale.due_date || "");
-                        }}
+                        onClick={() => openDueDateEditor(sale)}
                       >
                         <Clock size={16} /> Hạn trả
                       </Button>
@@ -603,8 +585,20 @@ export function ReceivablesPage({
             </p>
             <form
               className="stack"
+              noValidate
               onSubmit={(e) => {
                 e.preventDefault();
+                // A4: an empty input must never silently delete an existing
+                // due date. Removal is a separate explicit action below.
+                if (!dueDateInput) {
+                  setDueDateError(
+                    editingDueDateSale.due_date
+                      ? 'Chọn ngày hẹn trả mới. Muốn bỏ hẳn hạn trả, bấm "Xóa hạn thanh toán".'
+                      : "Chọn ngày hẹn trả trước khi lưu.",
+                  );
+                  return;
+                }
+                setDueDateError(null);
                 dueDateMutation.mutate({
                   saleId: editingDueDateSale.id,
                   dueDate: dueDateInput,
@@ -614,9 +608,10 @@ export function ReceivablesPage({
               <Field
                 label="Hạn trả tiền *"
                 error={
-                  dueDateMutation.error instanceof Error
+                  dueDateError ??
+                  (dueDateMutation.error instanceof Error
                     ? dueDateMutation.error.message
-                    : undefined
+                    : undefined)
                 }
               >
                 <div style={{ display: "flex", gap: "6px", flexWrap: "wrap", marginBottom: "8px" }}>
@@ -650,16 +645,42 @@ export function ReceivablesPage({
                 />
               </Field>
               <div className="form-actions">
-                <Button
-                  type="button"
-                  variant="secondary"
-                  onClick={() => setEditingDueDateSale(null)}
-                >
-                  Đóng
-                </Button>
-                <Button type="submit" disabled={dueDateMutation.isPending}>
-                  {dueDateMutation.isPending ? "Đang lưu…" : "Lưu hạn trả"}
-                </Button>
+                {editingDueDateSale.due_date && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    className="text-danger"
+                    disabled={dueDateMutation.isPending}
+                    onClick={async () => {
+                      const ok = await confirmAction({
+                        title: "Xóa hạn thanh toán",
+                        description: `Xóa hạn trả ${dateLabel(editingDueDateSale.due_date!)} của giao dịch ${editingDueDateSale.sale_code}? Khoản nợ sẽ không còn ngày hẹn trả.`,
+                        confirmLabel: "Xóa hạn thanh toán",
+                        tone: "danger",
+                      });
+                      if (!ok) return;
+                      setDueDateError(null);
+                      dueDateMutation.mutate({
+                        saleId: editingDueDateSale.id,
+                        dueDate: null,
+                      });
+                    }}
+                  >
+                    Xóa hạn thanh toán
+                  </Button>
+                )}
+                <div className="row" style={{ gap: "8px", marginLeft: "auto" }}>
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    onClick={() => setEditingDueDateSale(null)}
+                  >
+                    Đóng
+                  </Button>
+                  <Button type="submit" disabled={dueDateMutation.isPending}>
+                    {dueDateMutation.isPending ? "Đang lưu…" : "Lưu hạn trả"}
+                  </Button>
+                </div>
               </div>
             </form>
             </Card>

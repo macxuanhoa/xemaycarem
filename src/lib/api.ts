@@ -314,6 +314,9 @@ export const api = {
       p_query: query,
       p_limit: limit,
     }),
+  /** OWNER-only digest of copilot questions that had no evidence (documentation gaps). */
+  listCopilotGaps: async (days = 30) =>
+    call<import("@/types").CopilotGapDigest>("list_copilot_gaps", { p_days: days }),
   listActiveAnnouncements: async () =>
     call<
       import("@/types").Announcement[]

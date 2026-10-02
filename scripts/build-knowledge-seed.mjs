@@ -26,6 +26,10 @@ const MAX_BODY = 58_000;
 /** source_path -> { audience, title } */
 const SOURCES = [
   { path: 'README.md', audience: 'ALL', title: 'Hướng dẫn sử dụng Cà Rem CRM' },
+  { path: 'docs/INTERNAL_SOPS.md', audience: 'STAFF', title: 'Quy trình nội bộ (SOP)' },
+  // docs/SYSTEM_REFERENCE.md is itself generated from the code by build-system-docs.mjs;
+  // knowledge:system runs first so this reader always sees fresh content (CI enforces it).
+  { path: 'docs/SYSTEM_REFERENCE.md', audience: 'STAFF', title: 'Tham chiếu hệ thống (sinh tự động)' },
   { path: 'docs/PROJECT_STATE.md', audience: 'STAFF', title: 'Hiện trạng dự án' },
   { path: 'docs/OPERATIONS.md', audience: 'MANAGER', title: 'Vận hành và sao lưu' },
   { path: 'docs/DECISIONS.md', audience: 'MANAGER', title: 'Quyết kiến trúc và nghiệp vụ' },

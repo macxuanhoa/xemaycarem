@@ -26,6 +26,7 @@ import {
 } from "@/components/ui";
 import { api } from "@/lib/api";
 import { canFinance, canManage, canOperate } from "@/lib/permissions";
+import { resolveInventoryStatus } from "@/lib/inventory-status";
 import {
   compactMoney,
   dateLabel,
@@ -43,6 +44,10 @@ export default function DashboardPage() {
   // Default to TODAY as explicitly requested by user
   const [range, setRange] = useState<DateFilter>(() => datePreset("today"));
   const [activeTxTab, setActiveTxTab] = useState<"sales" | "acquisitions" | "profitable">("sales");
+
+  // The digest follows the filter bar inside "Bản tin trong ngày"; while the
+  // chosen period is today both queries share one cache entry.
+  const digestRange = range;
 
   const query = useQuery({
     queryKey: ["dashboard", range],
@@ -70,7 +75,17 @@ export default function DashboardPage() {
   });
 
   const d = query.data;
+  const period = periodDisplay(digestRange);
   const recon = reconciliationQuery.data;
+  // Server-authoritative stock badge (LOW/NORMAL/HIGH on at-store vehicles);
+  // thresholds are absent client-side, so no fallback inputs here.
+  const stockStatus = d
+    ? resolveInventoryStatus({
+        inventory_indicator: d.inventory_indicator,
+        in_stock: d.in_stock,
+        reserved: d.reserved,
+      })
+    : null;
 
   return (
     <div className="stack page-stack">
@@ -103,65 +118,70 @@ export default function DashboardPage() {
                 </span>
               </header>
 
+              {/* Quick period filter: yesterday → custom range drives the digest and every period panel below. */}
+              <div className="carem-digest-filter">
+                <DateRange value={digestRange} onChange={setRange} />
+              </div>
+
               <div className="carem-digest-grid">
-                {/* A. THỐNG KÊ HÔM NAY */}
+                {/* A. THỐNG KÊ THEO KỲ (mặc định: hôm nay) */}
                 <div className="carem-digest-col">
                   <h3 className="carem-digest-section-label">
-                    Thống kê hôm nay
+                    Thống kê {period.lower}
                   </h3>
                   <div className="digest-row">
-                    <span className="digest-row-label">Xe thu vào hôm nay</span>
+                    <span className="digest-row-label">
+                      Xe thu vào {period.lower}
+                    </span>
                     <strong className="digest-row-value cyan">
-                      {d.acquired_today ?? 0} xe
+                      {d.acquisitions_count ?? 0} xe
                     </strong>
                   </div>
+                  {canFinance(profile) && (
+                    <div className="digest-row">
+                      <span className="digest-row-label">
+                        Tổng tiền mua xe {period.lower}
+                      </span>
+                      <strong className="digest-row-value gold">
+                        {money(d.acquisition_cost ?? 0)}
+                      </strong>
+                    </div>
+                  )}
                   <div className="digest-row">
-                    <span className="digest-row-label">Xe bán ra hôm nay</span>
+                    <span className="digest-row-label">
+                      Xe bán ra {period.lower}
+                    </span>
                     <strong className="digest-row-value lime">
-                      {d.sold_today} xe
+                      {d.sales_count} xe
                     </strong>
                   </div>
                   {canManage(profile) && (
-                    <>
-                      <div className="digest-row">
-                        <span className="digest-row-label">
-                          Doanh thu hôm nay
-                        </span>
-                        <strong className="digest-row-value gold">
-                          {money(d.today_revenue ?? 0)}
-                        </strong>
-                      </div>
-                      <div className="digest-row">
-                        <span className="digest-row-label">
-                          Tiền đã thu hôm nay
-                        </span>
-                        <strong className="digest-row-value gold">
-                          {money(recon?.total_collected)}
-                        </strong>
-                      </div>
-                      <div className="digest-row">
-                        <span className="digest-row-label">
-                          Thu hồi công nợ hôm nay
-                        </span>
-                        <strong className="digest-row-value emerald">
-                          {money(recon?.debt_collected_today)}
-                        </strong>
-                      </div>
-                      <div className="digest-row">
-                        <span className="digest-row-label">
-                          Công nợ phát sinh hôm nay
-                        </span>
-                        <strong className="digest-row-value gold">
-                          {money(recon?.new_debt_created)}
-                        </strong>
-                      </div>
-                    </>
+                    <div className="digest-row">
+                      <span className="digest-row-label">
+                        Doanh thu {period.lower}
+                      </span>
+                      <strong className="digest-row-value gold">
+                        {money(d.revenue ?? 0)}
+                      </strong>
+                    </div>
                   )}
                   {canFinance(profile) && (
                     <div className="digest-row">
-                      <span className="digest-row-label">Lợi nhuận hôm nay</span>
+                      <span className="digest-row-label">
+                        Lợi nhuận {period.lower}
+                      </span>
                       <strong className="digest-row-value emerald">
-                        {money(d.today_profit)}
+                        {money(d.gross_profit ?? 0)}
+                      </strong>
+                    </div>
+                  )}
+                  {canManage(profile) && isTodayPeriod(digestRange) && (
+                    <div className="digest-row">
+                      <span className="digest-row-label">
+                        Tiền đã thu hôm nay
+                      </span>
+                      <strong className="digest-row-value gold">
+                        {money(recon?.total_collected)}
                       </strong>
                     </div>
                   )}
@@ -178,6 +198,14 @@ export default function DashboardPage() {
                       {d.in_stock + d.reserved} xe
                     </strong>
                   </div>
+                  {stockStatus && (
+                    <span
+                      className={`digest-status digest-status--${stockStatus.tone}`}
+                      title="Đánh dấu theo tổng số xe đang tại cửa hàng (gồm xe đang giữ chỗ) so với ngưỡng Cài đặt"
+                    >
+                      {stockStatus.label}
+                    </span>
+                  )}
                   <div className="digest-row">
                     <span className="digest-row-label">Sẵn sàng bán</span>
                     <strong className="digest-row-value lime">
@@ -368,14 +396,9 @@ export default function DashboardPage() {
                 </Card>
               </div>
 
-              {/* ══════════════════════════════════════════════════════════════
-                  PHÍA 2: BIẾN ĐỘNG THEO KỲ LỌC (MẶC ĐỊNH LÀ HÔM NAY - RENDER CHUNG)
-                  ══════════════════════════════════════════════════════════════ */}
-              <div className="dashboard-side-filterable">
-                <div className="dashboard-period-toolbar">
-                  <DateRange value={range} onChange={setRange} />
-                </div>
-
+              {/* ════════════════════════════════════════════════════════════
+                  BIẾN ĐỘNG THEO KỲ LỌC (kỳ chọn đang nằm trong thanh filter của Bản tin)
+                  ════════════════════════════════════════════════════════════ */}
                 {/* All financial metrics are fetched together for the selected date range. */}
                 <div className="period-kpi-grid">
                   {canManage(profile) ? (
@@ -601,12 +624,38 @@ export default function DashboardPage() {
                     </div>
                   </Card>
                 )}
-              </div>
           </>
         )
       )}
     </div>
   );
+}
+
+/** True when the chosen period is exactly the current day. */
+function isTodayPeriod(range: DateFilter) {
+  const day = today();
+  return range.from === day && range.to === day;
+}
+
+/**
+ * Period phrase reused inside digest labels: "hôm nay", "hôm qua", "tuần này",
+ * "tháng này", "tháng trước", or "[dd/MM] – [dd/MM]" for a custom range.
+ */
+function periodDisplay(range: DateFilter): { lower: string } {
+  for (const preset of ["today", "yesterday", "week", "month", "last-month"]) {
+    const p = datePreset(preset);
+    if (p.from === range.from && p.to === range.to)
+      return {
+        lower: {
+          today: "hôm nay",
+          yesterday: "hôm qua",
+          week: "tuần này",
+          month: "tháng này",
+          "last-month": "tháng trước",
+        }[preset as "today" | "yesterday" | "week" | "month" | "last-month"],
+      };
+  }
+  return { lower: `${dateLabel(range.from)} – ${dateLabel(range.to)}` };
 }
 
 function Metric({
@@ -739,7 +788,7 @@ function RevenueChart({
               x2="670"
               y1={y}
               y2={y}
-              stroke="#f1f3f7"
+              style={{ stroke: 'var(--chart-grid, #f1f3f7)' }}
               strokeDasharray="4 4"
             />
           ))}
@@ -790,7 +839,7 @@ function RevenueChart({
                     cy={cy}
                     r={isHovered ? "5" : "3.5"}
                     fill="#4f46e5"
-                    stroke="#ffffff"
+                    style={{ stroke: 'var(--chart-point-ring, #ffffff)' }}
                     strokeWidth="2"
                     cursor="pointer"
                   />

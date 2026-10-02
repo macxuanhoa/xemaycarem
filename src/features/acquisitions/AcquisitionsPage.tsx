@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowRight, CirclePlus, Search } from "lucide-react";
+import { ArrowRight, CirclePlus, NotebookPen, Search } from "lucide-react";
 import { api } from "@/lib/api";
 import { canFinance, canOperate } from "@/lib/permissions";
 import { dateLabel, money, today } from "@/lib/format";
@@ -77,9 +77,14 @@ export function AcquisitionsPage() {
         description="Danh sách xe đã thu mua, từ lúc nhận xe đến khi nhập kho."
         actions={
           canOperate(profile) ? (
-            <Link className="button primary" to="/acquisitions/new">
-              <CirclePlus size={18} /> Thu xe mới
-            </Link>
+            <div className="row" style={{ gap: 8 }}>
+              <Link className="button secondary" to="/intake">
+                <NotebookPen size={18} /> Thu xe tốc ký
+              </Link>
+              <Link className="button primary" to="/acquisitions/new">
+                <CirclePlus size={18} /> Thu xe mới
+              </Link>
+            </div>
           ) : undefined
         }
       />

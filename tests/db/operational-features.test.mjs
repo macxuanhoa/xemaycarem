@@ -130,6 +130,38 @@ export async function runOperationalTests(externalDb, { engine = 'postgres' } = 
       assert.equal(data.inventory_cost_pending, 1)
       assert.ok(data.old_inventory_count >= 2)
     })
+    await test('inventory indicator marks at-store stock (IN_STOCK+RESERVED) strictly below/above the thresholds', async () => {
+      const atStore = async () => (await row("SELECT count(*)::int AS n FROM public.vehicles WHERE status IN ('IN_STOCK','RESERVED')")).n
+      const indicatorFor = async () => (await read('staff', 'dashboard', '$1::date, $2::date', [older, day])).inventory_indicator
+      const count = await atStore()
+      // Boundary-accurate band: the count itself is NORMAL (both strict comparisons fail).
+      await call('owner', 'save_settings', { low_stock_threshold: count, high_stock_threshold: count })
+      assert.equal(await indicatorFor(), 'NORMAL')
+      // One more at-store vehicle than the minimum flips nothing; one BELOW does.
+      await call('owner', 'save_settings', { low_stock_threshold: count + 1, high_stock_threshold: 100_000 })
+      assert.equal(await indicatorFor(), 'LOW')
+      await call('owner', 'save_settings', { low_stock_threshold: count, high_stock_threshold: 100_000 })
+      assert.equal(await indicatorFor(), 'NORMAL')
+      // Reserved bikes count as at-store stock, not 'sẵn sàng bán'.
+      const reservedVehicle = await vehicle({ purchase_date: yesterday })
+      assert.equal(await atStore(), count + 1)
+      await call('owner', 'save_settings', { low_stock_threshold: count + 1, high_stock_threshold: 100_000 })
+      assert.equal(await indicatorFor(), 'NORMAL')
+      await run('owner', client => rpc(client, 'save_vehicle', '$1::jsonb,$2::uuid', [JSON.stringify({ status: 'RESERVED' }), reservedVehicle]))
+      assert.equal(await indicatorFor(), 'NORMAL')
+      // HIGH fires only strictly above the maximum threshold. At-store is now count + 1
+      // (the reserved bike still counts), so the boundary is high = count + 1 → NORMAL.
+      await call('owner', 'save_settings', { low_stock_threshold: 0, high_stock_threshold: count })
+      assert.equal(await indicatorFor(), 'HIGH')
+      await call('owner', 'save_settings', { low_stock_threshold: 0, high_stock_threshold: count + 1 })
+      assert.equal(await indicatorFor(), 'NORMAL')
+      // Remove the probe bike, then restore shipped defaults. The suite's small dataset
+      // sits under the default minimum of 5, so the honest indicator is LOW.
+      await run('owner', client => rpc(client, 'save_vehicle', '$1::jsonb,$2::uuid', [JSON.stringify({ status: 'CANCELLED' }), reservedVehicle]))
+      assert.equal(await atStore(), count)
+      await call('owner', 'save_settings', { low_stock_threshold: 5, high_stock_threshold: 100 })
+      assert.equal(await indicatorFor(), count < 5 ? 'LOW' : 'NORMAL')
+    })
     await test('dashboard old-stock and pending-cost links resolve matching inventory filters', async () => {
       const old = await call('staff', 'list_vehicles', { status: 'AVAILABLE', min_days: 61 })
       assert.ok(old.items.length >= 2)

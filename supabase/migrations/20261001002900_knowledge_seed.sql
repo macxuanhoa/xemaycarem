@@ -168,6 +168,211 @@ Service worker chỉ cache application shell và tài nguyên tĩnh. Không cach
   ('readme-11', 'Hướng dẫn sử dụng Cà Rem CRM', 'Sao lưu và vận hành', '## Sao lưu và vận hành
 
 Xem [docs/OPERATIONS.md](docs/OPERATIONS.md) để thiết lập backup Supabase, dump định kỳ ra ngoài, sao lưu Storage, khôi phục và kiểm tra sau restore. CSV chỉ là báo cáo, không thay bản sao lưu đầy đủ.', 'ALL', 'README.md'),
+  ('internal-sops-preamble', 'Quy trình nội bộ (SOP)', null, '# Quy trình nội bộ Cà Rem CRM
+
+Tài liệu nghiệp vụ chính thức, mô tả đúng 100% hành vi hệ thống đang chạy (UI, Edge Function và RPC đã kiểm tra trong mã nguồn). Mỗi mục `##` là một đơn vị tra cứu độc lập cho Trợ lý AI và trang Tài liệu cửa hàng.', 'STAFF', 'docs/INTERNAL_SOPS.md'),
+  ('internal-sops-1', 'Quy trình nội bộ (SOP)', 'Tạo tài khoản nhân viên mới (chỉ OWNER)', '## Tạo tài khoản nhân viên mới (chỉ OWNER)
+
+Chỉ tài khoản OWNER còn hoạt động làm được việc này, và hệ thống **không tự gửi email** cho nhân viên.
+
+1. OWNER đăng nhập, mở mục **Nhân sự** (`/users`) — trang này chỉ OWNER thấy và mở được.
+2. Bấm **Tạo tài khoản** để mở hộp thoại "Tạo tài khoản nhân viên mới" và điền:
+   - **Họ và tên**: bắt buộc, tối đa 120 ký tự.
+   - **Tên đăng nhập**: 3–30 ký tự, chỉ chữ thường, số, `_` hoặc `.` (bấm `.` cũng bị xóa khoảng trắng tự động). Nhân viên sẽ đăng nhập bằng tên này, không phải email.
+   - **Mật khẩu ban đầu**: tối thiểu 12 ký tự. Đây là mật khẩu tạm — nhân viên buộc đổi khi đăng nhập lần đầu.
+   - **Vai trò**: mặc định STAFF; chọn MANAGER nếu cần xem quản lý.
+   - **Xem số tài chính** (tùy chọn): bật nếu nhân viên được thấy giá vốn, doanh thu, lợi nhuận.
+   - **Giờ làm việc và ngày làm việc**: mặc định 07:00–20:00, thứ Hai đến thứ Bảy. Ngoài lịch này tài khoản bị chặn đăng nhập.
+3. Xác nhận. Yêu cầu đi qua Edge Function `manage-users` chạy phía server: kiểm tra OWNER còn hoạt động, chưa đổi mật khẩu lần đầu (`check_user_access`), rồi mới tạo tài khoản. Nếu khởi tạo hồ sơ thất bại, hệ thống tự hoàn tất một phần và báo lỗi để làm lại — không có trạng thái "nửa tài khoản" đăng nhập được.
+4. Gửi tên đăng nhập + mật khẩu tạm cho nhân viên qua kênh an toàn. Nhân viên đăng nhập sẽ bị chuyển ngay tới trang **Đổi mật khẩu** (`/change-password`) và phải đổi rồi mới dùng được các màn hình khác.
+
+Lưu ý: Function chỉ tạo tài khoản bằng mật khẩu, không tự gửi email. Mọi thao tác của OWNER đều vào lịch sử thao tác (`/audit`).', 'STAFF', 'docs/INTERNAL_SOPS.md'),
+  ('internal-sops-2', 'Quy trình nội bộ (SOP)', 'Quản lý tài khoản sau khi tạo (chỉ OWNER)', '## Quản lý tài khoản sau khi tạo (chỉ OWNER)
+
+Tất cả đi qua cùng Edge Function `manage-users` với các hành động: `reset_password` (cấp mật khẩu tạm mới, kèm buộc đổi lần đầu), `force_password_change` (chặn màn hình cho tới khi người dùng tự đổi mật khẩu), `disable` (vô hiệu có thời hạn `disabled_until` kèm lý do — tài khoản bị chặn đăng nhập ngay), `enable_user` / `restore` (mở lại trước hạn), `delete` (xóa mềm, giữ lịch sử), `hard_delete` (xóa vĩnh viễn, chỉ khi được kiểm tra quyền `check_user_can_hard_delete`), `update_schedule` (giờ/ngày làm việc), `change_role`, `promote_to_owner` / `demote_owner`. Chủ cửa hàng **không thể vô hiệu hoặc hạ cấp OWNER đang hoạt động cuối cùng** — luôn có ít nhất một chủ tài khoản điều hành được.', 'STAFF', 'docs/INTERNAL_SOPS.md'),
+  ('internal-sops-3', 'Quy trình nội bộ (SOP)', 'Ghi nhận xe thu vào (STAFF trở lên, trong lịch làm việc)', '## Ghi nhận xe thu vào (STAFF trở lên, trong lịch làm việc)
+
+1. Mở **Thu vào** (`/acquisitions`) để xem danh sách; bấm tạo mới để vào form (`/acquisitions/new`).
+2. Điền thông tin xe: biển số, số khung, số máy, thương hiệu, đời, giá mua, chi phí sang tên/linh tinh, ngày thu, người bán.
+3. Ảnh CCCD của người bán (khi thu xe) chụp và tải trực tiếp trong form: ảnh chỉ lưu ở bucket riêng tư `identity-documents`, liên kết theo hồ sơ thu qua `save_identity_document` + `register_identity_document_image`; người có quyền chỉ xem được bằng liên kết tạm 120 giây. Không lưu ảnh CCCD vào nơi khác.
+4. Bấm Lưu. Giao dịch được ghi bằng RPC `acquire_vehicle` — một transaction duy nhất tạo xe + chi phí + hồ sơ; hoặc có thể thêm xe bằng form Tồn kho (`save_vehicle`) rồi bổ sung chi phí sau.
+5. Giá mua chưa xác định được thì để trống: xe ở trạng thái "chờ giá vốn" (`cost_pending`), **chưa bán được** cho tới khi người có quyền tài chính nhập giá mua thật.', 'STAFF', 'docs/INTERNAL_SOPS.md'),
+  ('internal-sops-4', 'Quy trình nội bộ (SOP)', 'Thu xe tốc ký — nhập nhiều xe cùng lúc từ tin nhắn viết tắt (STAFF trở lên)', '## Thu xe tốc ký — nhập nhiều xe cùng lúc từ tin nhắn viết tắt (STAFF trở lên)
+
+Khi có một danh sách nhiều xe cần thu (tin nhắn Notes/Zalo), dùng trang **Thu xe tốc ký** (`/intake`, nằm trong mục Thu vào) thay vì nhập từng xe:
+
+1. Dán tin nhắn vào ô ghi chú, **mỗi dòng là một xe**, rồi bấm **Tách thành danh sách**. Ví dụ: `sh den bs 29b1-123.45 nam 22 2v gia 18tr5`.
+2. Từ viết tắt có sẵn nhận diện được: hãng (`hd`=Honda, `yam`/`ym`=Yamaha, `sz`=Suzuki, `vb`=Vinfast, `vespa`=Piaggio…), dòng xe (`sh`, `ex`=Exciter, `vis`=Vision, `ab`=Air Blade, `rsx`=Wave RSX, `janus`, `nvx`…), màu (`den`, `trang`, `do`, `xanh`…), phiên bản (`abs`, `cbs`, `phunxe`, `lazang`/`mamduc`=Mâm đúc). Tra cứu không dấu nên `SH`, `sh`, `Đen`, `den` đều khớp.
+3. Từ khóa đứng trước giá trị cần lấy: `fk`/`khung`/`chassi` (số khung), `gm`/`may` (số máy), `bs`/`bien`/`bienso` (biển số), `sdt`/`dt`/`phone`/`tel` (SĐT người bán), `gia`/`thu` (giá thu), `niemyet`/`giasale`/`giabannoi`/`banra` (giá niêm yết), `km`/`van` (số km), `nam`/`yr` (năm), `ngay`/`date` (ngày thu), `ten`/`chu`/`anh`/`chi` (tên người bán), `ghichu`/`ghcn` (ghi chú — nhận hết phần còn lại của dòng).
+4. Tiền viết tắt: `18tr5` = 18.500.000, `1.2ty` = 1.200.000.000, `450k` = 450.000, hoặc số đầy đủ `18.000.000`.
+5. Từ không nhận diện được **không bao giờ bị đoán vào trường tiền**; chúng hiện ở mục "từ chưa nhận diện" để bạn gán vào Ghi chú hoặc dạy cho máy.
+6. **Dạy viết tắt**: sửa một giá trị (hãng, dòng, phiên bản, màu, tên người bán) khác token gốc sẽ hiện nút dạy; xác nhận là lần sau dán lại tự đúng. Bộ nhớ viết tắt lưu **theo tài khoản ngay trên máy đó** (localStorage), không đồng bộ sang máy khác; xem và xóa từng quy tắc trong bảng "Bộ nhớ viết tắt" cuối trang.
+7. Trước khi lưu, mỗi thẻ xe tự kiểm tra: bắt buộc có **số khung, hãng xe, dòng xe**; nếu bạn có quyền tài chính thì **bắt buộc giá thu**; năm 1900–2100; km 0–10.000.000; biển số ≤ 30 ký tự; ngày thu không ở tương lai. Nhân viên không có quyền tài chính không ghi giá thu (chủ/nhân viên quản lý có quyền sẽ nhập sau; xe chờ giá vốn không bán được).
+8. Bấm **Xác nhận thu xe**: hệ thống gửi cả lô cho `validate_import_vehicles` kiểm tra trùng lặp và tính hợp lệ phía server. Nếu có bất kỳ lỗi/trùng nào → báo ngay trên từng thẻ, **không lưu gì cả** để bạn sửa. Khi sạch lỗi → `import_vehicles` lưu toàn bộ xe + phiếu thu trong một giao dịch rồi chuyển về danh sách Thu vào.', 'STAFF', 'docs/INTERNAL_SOPS.md'),
+  ('internal-sops-5', 'Quy trình nội bộ (SOP)', 'Cập nhật xe trong tồn kho', '## Cập nhật xe trong tồn kho
+
+Mở **Tồn kho** (`/vehicles`), bấm vào xe để xem chi tiết (`/vehicles/:id`), bấm **Sửa** (`/vehicles/:id/edit`). Form dùng RPC `save_vehicle`; các trường số tiền là VND nguyên (không dấu phẩy). Ảnh xe tải lên bucket riêng tư `vehicle-images` (JPG/PNG/WebP, tối đa 5 MB mỗi ảnh trong app), đăng ký qua `register_vehicle_image`; xóa ảnh chỉ gỡ tham chiếu (soft delete), ảnh gốc giữ cho kiểm kê/sao lưu và quản trị viên dọn sau. Ảnh chưa đăng ký không ai đọc được.', 'STAFF', 'docs/INTERNAL_SOPS.md'),
+  ('internal-sops-6', 'Quy trình nội bộ (SOP)', 'Bán xe (STAFF trở lên, trong lịch làm việc)', '## Bán xe (STAFF trở lên, trong lịch làm việc)
+
+1. Từ xe trong kho bấm **Bán** (`/vehicles/:id/sell`) — xe phải đã chốt giá mua (không còn `cost_pending`).
+2. Form bán (`sell_vehicle`) gồm: tên khách, số điện thoại khách, giá bán, ngày bán, số tiền đặt cọc/trả trước, phương thức thanh toán, ghi chú. Toàn bộ là SĐT và số tiền VND nguyên; tổng thanh toán không được vượt giá bán.
+3. Lưu tạo bản ghi bán và chuyển xe sang trạng thái SOLD; hóa đơn cho khách in từ trang chi tiết bán (`/sales/:id`).
+4. Muốn xóa bán sai: chủ/nhân viên được quyền bấm **Hủy bán** trên trang chi tiết, **bắt buộc nhập lý do** (`cancel_sale`). Các khoản đã thu bị đánh dấu `VOIDED` và loại khỏi công nợ đang hiệu lực nhưng vẫn giữ lịch sử; việc **hoàn tiền thật thực hiện bằng tiền mặt/chuyển khoản ngoài app** và phải tự đối chiếu.', 'STAFF', 'docs/INTERNAL_SOPS.md'),
+  ('internal-sops-7', 'Quy trình nội bộ (SOP)', 'Thu tiền công nợ', '## Thu tiền công nợ
+
+Mở **Sổ công nợ** (`/receivables`) — thấy với mọi tài khoản hoạt động trong lịch. Mỗi dòng là một thương vụ còn phải thu, kèm hạn trả (`update_sale_due_date` để dời hạn, có ghi vết). Bấm **Thu tiền** để ghi một khoản: RPC `add_payment` với số tiền dương (VND nguyên, tối đa 1.000.000.000.000 mỗi lần), phương thức, ngày thu, tham chiếu/ghi chú. Khoản thu **không sửa được** — ghi sai thì quản lý xử lý bằng nghiệp vụ hủy/đối chiếu, không xóa lịch sử. Tổng đã thu + còn phải thu luôn khớp `get_sale`.', 'STAFF', 'docs/INTERNAL_SOPS.md'),
+  ('internal-sops-8', 'Quy trình nội bộ (SOP)', 'Ghi chi phí', '## Ghi chi phí
+
+Mở **Chi phí** (`/expenses`) — cần MANAGER/OWNER để xem danh sách; STAFF thêm chi phí nhanh của một xe (QuickExpenseModal) hoặc chi phí hoạt động chung. RPC `save_expense` với `p_kind` là `vehicle` (gắn xe) hoặc `business` (chung). Muốn xóa: `cancel_expense` kèm lý do — bản ghi giữ lịch sử, chỉ bị loại khỏi tổng đang hiệu lực.', 'STAFF', 'docs/INTERNAL_SOPS.md'),
+  ('internal-sops-9', 'Quy trình nội bộ (SOP)', 'Showroom công khai và khách vãng lai', '## Showroom công khai và khách vãng lai
+
+Trang `/showroom` hiển thị xe đang có thật cho người ngoài xem (chỉ những xe chủ/showroom bật công khai). Khi khách để lại liên hệ, hệ thống tạo **lead** qua `create_showroom_lead`. Lead và khách mua được quản lý ở **Khách hàng** (`/customers`): đổi trạng thái lead (`update_showroom_lead_status`), xem lịch sử của khách (`get_customer_history`), tin nhắn đã gửi/đến (`list_customer_communications`, xử lý qua Edge Function `process-message`). Việc nhắn tin cho khách luôn do người thật xác nhận, AI không tự gửi.', 'STAFF', 'docs/INTERNAL_SOPS.md'),
+  ('internal-sops-10', 'Quy trình nội bộ (SOP)', 'Tìm kiếm nhanh và bảng điều khiển', '## Tìm kiếm nhanh và bảng điều khiển
+
+Ô tìm kiếm tổng (`global_search`) trên đầu mọi trang gộp kết quả xe, khách, thương vụ theo đúng quyền người xem. **Tổng quan** (`/dashboard`) dùng RPC `dashboard` (mặc định kỳ từ ngày 1 tháng này, múi giờ Asia/Ho_Chi_Minh) và **đối chiếu ngày** `daily_reconciliation` chỉ hiện cho MANAGER/OWNER. Cờ hiệu tồn kho (`inventory_indicator`) đếm xe **tại cửa hàng** (IN_STOCK + RESERVED) so với ngưỡng thấp/cao đã lưu: LOW khi số xe thấp hơn hẳn ngưỡng dưới, HIGH khi cao hơn hẳn ngưỡng trên — chỉ để nhìn, hệ thống không tự gửi thông báo.', 'STAFF', 'docs/INTERNAL_SOPS.md'),
+  ('internal-sops-11', 'Quy trình nội bộ (SOP)', 'Thông báo nội bộ', '## Thông báo nội bộ
+
+OWNER/MANAGER soạn tin trên **Cài đặt** → tab Thông báo (`save_announcement`, bật/tắt `set_announcement_active`, xóa `delete_announcement`). Tin đang bật hiện trên thanh dọc của **mọi** người dùng (`list_active_announcements`) cho tới khi tắt. Cài đặt chung của cửa hàng (tên, SĐT, ngưỡng tồn kho) lưu qua `save_settings`.', 'STAFF', 'docs/INTERNAL_SOPS.md'),
+  ('internal-sops-12', 'Quy trình nội bộ (SOP)', 'Dùng Trợ lý AI đúng cách', '## Dùng Trợ lý AI đúng cách
+
+- `/copilot` chỉ **đọc**: không tạo, không sửa, không lưu giao dịch nào. Mọi số liệu và tài liệu lấy theo đúng quyền của người đang hỏi (JWT/RLS).
+- Mặc định là tra cứu chắc chắn — mỗi con số có mã bằng chứng `[m1]`, mỗi đoạn tài liệu `[d1]`; **bấm vào mã để mở đúng màn hình chứa bằng chứng và kiểm tra trước khi hành động**.
+- Chế độ "AI viết câu tóm tắt" chỉ OWNER bật được; AI chỉ được diễn đạt lại bằng chứng đã truy xuất, nội dung bịa bị loại và tự rơi về tra cứu thường.
+- Câu hỏi chưa có tài liệu/số liệu, trợ lý trả lời "Chưa tìm thấy..." và **ghi lại vào nhật ký câu hỏi hụt** — OWNER xem danh sách đó ở trang Tài liệu để biết cần bổ sung quy trình gì.', 'STAFF', 'docs/INTERNAL_SOPS.md'),
+  ('internal-sops-13', 'Quy trình nội bộ (SOP)', 'Bổ sung và sửa tài liệu cho Trợ lý AI', '## Bổ sung và sửa tài liệu cho Trợ lý AI
+
+Tài liệu copilot đọc được sinh tự động từ markdown trong repo — **không sửa tay** migration seed. Quy trình:
+
+1. Sửa file gốc (`README.md`, `docs/*.md` kể cả file này, `supabase/API.md`, `supabase/SECURITY.md`).
+2. Chạy `npm run knowledge:seed` để sinh lại `supabase/migrations/*_knowledge_seed.sql`, rồi chạy `npm run knowledge:check` để xác nhận khớp.
+3. Áp migration lên database (forward-only). Mỗi mục `##` thành một phần tra cứu riêng; tier quyền theo nguồn: `docs/INTERNAL_SOPS.md` = STAFF, OPERATIONS/DECISIONS = MANAGER, PRODUCTION_RELEASE/SECURITY = OWNER.
+4. CI báo lỗi nếu sửa `.md` mà quên sinh seed — luôn chạy `npm run check` trước khi commit.', 'STAFF', 'docs/INTERNAL_SOPS.md'),
+  ('internal-sops-14', 'Quy trình nội bộ (SOP)', 'Nhật ký câu hỏi chưa có tài liệu (OWNER)', '## Nhật ký câu hỏi chưa có tài liệu (OWNER)
+
+Khi copilot trả lời "Chưa tìm thấy dữ liệu hoặc tài liệu phù hợp", câu hỏi được ghi vào `public.copilot_question_gaps` (nội dung chuẩn hóa, số lần gặp, người hỏi gần nhất). OWNER mở **Tài liệu cửa hàng** (`/docs`) để xem khối "Câu hỏi chưa có tài liệu"; mỗi câu xuất hiện nhiều lần là tín hiệu cần viết ngay một SOP cho nó vào `docs/INTERNAL_SOPS.md` rồi chạy lại bước ở mục trên.', 'STAFF', 'docs/INTERNAL_SOPS.md'),
+  ('system-reference-preamble', 'Tham chiếu hệ thống (sinh tự động)', null, '# Tham chiếu hệ thống (sinh tự động)
+
+File này do `scripts/build-system-docs.mjs` sinh ra từ chính mã nguồn — **không sửa tay**, sửa script hoặc nguồn rồi chạy `npm run knowledge:system`. Nội dung luôn khớp migration mới nhất, routes trong `src/App.tsx`, thư mục `supabase/functions` và các statement tạo bucket.', 'STAFF', 'docs/SYSTEM_REFERENCE.md'),
+  ('system-reference-1', 'Tham chiếu hệ thống (sinh tự động)', 'Danh sách chức năng database (RPC)', '## Danh sách chức năng database (RPC)
+
+Toàn bộ hàm `public` mà ứng dụng gọi được, lấy từ định nghĩa cuối cùng trong `supabase/migrations`. Cột quyền là `private.require_role` khai báo trong thân hàm; "kiểm tra quyền riêng" nghĩa là hàm dùng cơ chế khác (so sánh vai trò trực tiếp, chủ tài khoản cuối cùng, v.v.).
+
+| RPC | Tham số | Vai trò cần |
+| --- | --- | --- |
+| acquire_vehicle | p_data jsonb | OWNER, MANAGER, STAFF |
+| add_payment | p_data jsonb | OWNER, MANAGER, STAFF |
+| cancel_acquisition | p_id uuid, p_reason text | OWNER, MANAGER |
+| cancel_expense | p_kind text,p_id uuid,p_reason text | OWNER, MANAGER |
+| cancel_sale | p_id uuid,p_reason text | OWNER, MANAGER |
+| check_user_access | không tham số | kiểm tra quyền riêng trong hàm |
+| check_user_can_hard_delete | p_user_id UUID | OWNER |
+| claim_message | p_message_id uuid | OWNER, MANAGER, STAFF |
+| complete_password_change | không tham số | kiểm tra quyền riêng trong hàm |
+| create_showroom_lead | p_data jsonb | kiểm tra quyền riêng trong hàm |
+| daily_reconciliation | p_date date DEFAULT NULL | OWNER, MANAGER |
+| dashboard | p_from date DEFAULT (date_trunc(''month''::text, (now() AT TIME ZONE ''Asia/Ho_Chi_Minh''::text)))::date, p_to date DEFAULT ((now() AT TIME ZONE ''Asia/Ho_Chi_Minh''::text))::date | OWNER, MANAGER, STAFF |
+| delete_announcement | p_id uuid | OWNER |
+| fail_message | p_message_id uuid, p_error_code text, p_safe_message text, p_permanent boolean DEFAULT false | OWNER, MANAGER, STAFF |
+| finish_mock_message | p_message_id uuid, p_provider_message_id text | OWNER, MANAGER, STAFF |
+| get_acquisition_for_vehicle | p_vehicle_id uuid | OWNER, MANAGER |
+| get_customer_history | p_phone text | OWNER, MANAGER, STAFF |
+| get_identity_document | p_subject_type text, p_subject_id uuid | OWNER, MANAGER |
+| get_knowledge_article | p_slug text | OWNER, MANAGER, STAFF |
+| get_sale | p_id uuid | OWNER, MANAGER, STAFF |
+| get_sale_communication | p_sale_id uuid | OWNER, MANAGER, STAFF |
+| get_settings | không tham số | OWNER, MANAGER, STAFF |
+| get_vehicle | p_id uuid | OWNER, MANAGER, STAFF |
+| global_search | p_query text, p_limit integer DEFAULT 10 | OWNER, MANAGER, STAFF |
+| import_vehicles | p_vehicles jsonb | OWNER, MANAGER, STAFF |
+| list_acquisitions | p_filters jsonb DEFAULT ''{}''::jsonb | OWNER, MANAGER, STAFF |
+| list_active_announcements | không tham số | kiểm tra quyền riêng trong hàm |
+| list_announcements | không tham số | OWNER |
+| list_audit | p_filters jsonb default ''{}'' | OWNER |
+| list_copilot_gaps | p_days integer DEFAULT 30 | OWNER |
+| list_customer_communications | p_phone text | OWNER, MANAGER, STAFF |
+| list_customers | p_filters jsonb DEFAULT ''{}''::jsonb | OWNER, MANAGER, STAFF |
+| list_expenses | p_filters jsonb default ''{}'' | OWNER, MANAGER |
+| list_knowledge | không tham số | OWNER, MANAGER, STAFF |
+| list_profiles | không tham số | OWNER |
+| list_receivables | p_filters jsonb DEFAULT ''{}''::jsonb | OWNER, MANAGER, STAFF |
+| list_sales | p_filters jsonb DEFAULT ''{}''::jsonb | OWNER, MANAGER, STAFF |
+| list_showroom_leads | p_filters jsonb DEFAULT ''{}'' | OWNER, MANAGER, STAFF |
+| list_showroom_vehicles | p_filters jsonb DEFAULT ''{}'' | kiểm tra quyền riêng trong hàm |
+| list_vehicles | p_filters jsonb DEFAULT ''{}''::jsonb | OWNER, MANAGER, STAFF |
+| log_copilot_gap | p_question text | OWNER, MANAGER, STAFF |
+| register_identity_document_image | p_subject_type text, p_subject_id uuid, p_side text, p_storage_path text | OWNER, MANAGER |
+| register_vehicle_image | p_vehicle_id uuid,p_storage_path text,p_display_order integer default 0 | OWNER, MANAGER, STAFF |
+| remove_identity_document_image | p_subject_type text, p_subject_id uuid, p_side text | OWNER, MANAGER |
+| remove_vehicle_image | p_id uuid | OWNER, MANAGER, STAFF |
+| report | p_kind text, p_filters jsonb DEFAULT ''{}'' | OWNER, MANAGER |
+| require_password_change | p_user_id uuid, p_reset_pending boolean DEFAULT false | OWNER |
+| resolve_login_email | p_identifier TEXT | kiểm tra quyền riêng trong hàm |
+| retry_sale_thank_you | p_sale_id uuid | OWNER, MANAGER |
+| save_announcement | p_data jsonb | OWNER |
+| save_expense | p_kind text,p_data jsonb,p_id uuid default null | OWNER, MANAGER |
+| save_identity_document | p_data jsonb | OWNER, MANAGER |
+| save_settings | p_data jsonb | OWNER |
+| save_vehicle | p_data jsonb, p_id uuid default null | OWNER, MANAGER, STAFF |
+| search_knowledge | p_query text, p_limit integer DEFAULT 8 | OWNER, MANAGER, STAFF |
+| sell_vehicle | p_data jsonb | OWNER, MANAGER, STAFF |
+| set_announcement_active | p_id uuid, p_active boolean | OWNER |
+| skip_message | p_message_id uuid, p_error_code text, p_safe_message text | OWNER, MANAGER, STAFF |
+| update_profile | p_id uuid, p_data jsonb | OWNER, MANAGER, STAFF |
+| update_sale_due_date | p_sale_id uuid, p_due_date date | OWNER, MANAGER, STAFF |
+| update_showroom_lead_status | p_id uuid, p_status text | OWNER, MANAGER, STAFF |
+| validate_import_vehicles | p_vehicles jsonb | OWNER, MANAGER, STAFF |', 'STAFF', 'docs/SYSTEM_REFERENCE.md'),
+  ('system-reference-2', 'Tham chiếu hệ thống (sinh tự động)', 'Màn hình ứng dụng và quyền mở', '## Màn hình ứng dụng và quyền mở
+
+Trích từ cây route trong `src/App.tsx` (thành phần `Protected` kế thừa theo cây).
+
+| Đường dẫn | Quyền mở |
+| --- | --- |
+| `/login` | công khai (không cần đăng nhập) |
+| `/showroom` | công khai (không cần đăng nhập) |
+| `/forgot-password` | công khai (không cần đăng nhập) |
+| `/reset-password` | công khai (không cần đăng nhập) |
+| `/change-password` | công khai (không cần đăng nhập) |
+| `/` | đăng nhập |
+| `/acquisitions` | đăng nhập |
+| `/vehicles` | đăng nhập |
+| `/vehicles/:id` | đăng nhập |
+| `/sales` | đăng nhập |
+| `/sales/:id` | đăng nhập |
+| `/capture` | đăng nhập |
+| `/assist` | đăng nhập |
+| `/copilot` | đăng nhập |
+| `/docs` | đăng nhập |
+| `/docs/:slug` | đăng nhập |
+| `/receivables` | đăng nhập |
+| `/customers` | đăng nhập |
+| `/settings` | đăng nhập |
+| `/acquisitions/new` | STAFF trở lên (trong lịch làm việc) |
+| `/intake` | STAFF trở lên (trong lịch làm việc) |
+| `/vehicles/new` | STAFF trở lên (trong lịch làm việc) |
+| `/vehicles/:id/edit` | STAFF trở lên (trong lịch làm việc) |
+| `/vehicles/:id/sell` | STAFF trở lên (trong lịch làm việc) |
+| `/sell` | STAFF trở lên (trong lịch làm việc) |
+| `/reconciliation` | MANAGER hoặc OWNER |
+| `/expenses` | MANAGER hoặc OWNER |
+| `/users` | chỉ OWNER |
+| `/audit` | chỉ OWNER |
+| `/*` | công khai (không cần đăng nhập) |', 'STAFF', 'docs/SYSTEM_REFERENCE.md'),
+  ('system-reference-3', 'Tham chiếu hệ thống (sinh tự động)', 'Edge Functions', '## Edge Functions
+
+| Function | Vai trò |
+| --- | --- |
+| ai-assist | No service-role/database credential exists in this function. Model output is either a draft for human review or a validated plan for explicit read RPCs. |
+| manage-users | Secure administrative user management for Xe CRM. Accessible strictly by authenticated OWNER role. No service role key is exposed to browser. |
+| process-message | Provider-agnostic outbox worker. Phase 1 deliberately supports MOCK only. |
+| reset-owner | Retired recovery endpoint. Recovery uses Supabase Auth or owner-authorized manage-users operations; this endpoint can no longer alter any account. |', 'STAFF', 'docs/SYSTEM_REFERENCE.md'),
+  ('system-reference-4', 'Tham chiếu hệ thống (sinh tự động)', 'Bucket ảnh riêng tư', '## Bucket ảnh riêng tư
+
+Khai báo `storage.buckets` trong migration; đường dẫn object luôn là `<uuid-chủ>/<uuid-ngẫu-nhiên>.<đuôi>` và trình duyệt chỉ xem qua signed URL ngắn hạn.
+
+| Bucket | Chế độ | Giới hạn dung lượng | Định dạng |
+| --- | --- | --- | --- |
+| vehicle-images | riêng tư | 8 MB | image/jpeg,image/png,image/webp,image/avif |
+| identity-documents | riêng tư | 8 MB | image/jpeg,image/png,image/webp,image/avif |', 'STAFF', 'docs/SYSTEM_REFERENCE.md'),
   ('project-state-preamble', 'Hiện trạng dự án', null, '# Project State — Xe CRM
 
 Last reviewed: 2026-10-01', 'STAFF', 'docs/PROJECT_STATE.md'),
@@ -237,11 +442,13 @@ Nếu cần khôi phục production, tạm dừng nhập giao dịch, ghi rõ m�
 
 Câu trả lời của `/copilot` và `/docs` lấy từ `public.knowledge_base`, được sinh từ markdown được quản lý trong repo.
 
-- **Sửa tài liệu:** sửa file `.md` gốc (`README.md`, `docs/*.md`, `supabase/API.md`, `supabase/SECURITY.md`). **Không sửa tay** `supabase/migrations/20261001002900_knowledge_seed.sql` — file này do script sinh ra và có dòng “Do not edit by hand”.
+- **Sửa tài liệu:** sửa file `.md` gốc (`README.md`, `docs/*.md` — quy trình nghiệp vụ cho nhân viên nằm ở `docs/INTERNAL_SOPS.md`, `supabase/API.md`, `supabase/SECURITY.md`). **Không sửa tay** `supabase/migrations/20261001002900_knowledge_seed.sql` — file này do script sinh ra và có dòng “Do not edit by hand”. **Không sửa tay** `docs/SYSTEM_REFERENCE.md` — xem mục dưới.
+- **Tài liệu sinh từ code:** `npm run knowledge:system` (`scripts/build-system-docs.mjs`) đọc `supabase/migrations` (mọi RPC `public` kèm gate `require_role`), `src/App.tsx` (cây route + mức `Protected`), `supabase/functions` và statement tạo bucket để viết lại `docs/SYSTEM_REFERENCE.md`. Nội dung deterministic (không có timestamp), đã sửa code/RPC/route mà quên chạy là `knowledge:check` báo lỗi. `knowledge:seed` tự chạy bước này trước.
 - **Sinh lại:** `npm run knowledge:seed`. Mỗi mục `##` thành một hàng; slug dạng `<tên-file>-<số-mục>`; mục vượt giới hạn độ dài được tách tiếp theo `###`. Script in ra số mục đã tạo và cảnh báo slug trùng/không đọc được file nguồn.
 - **Kiểm tra:** `npm run knowledge:check` (đã nằm trong `npm run check` và CI) so nội dung sinh lại với migration đã commit, trả về lỗi khi tài liệu sửa mà quên sinh seed.
 - **Thêm nguồn mới:** bổ sung `{ path, audience, title }` vào `SOURCES` trong `scripts/build-knowledge-seed.mjs` rồi chạy lại script. `audience` phải là `ALL`/`STAFF`/`MANAGER`/`OWNER` theo `private.knowledge_visible()`; đừng đưa secret, mật khẩu hay thông tin khách vào tài liệu có audience thấp.
-- **Áp lên database:** migrations `20261001002800_knowledge_base.sql` (bảng, RLS, ba RPC đọc) và `20261001002900_knowledge_seed.sql` (nội dung) chỉ được push sau khi đã chạy trên staging và đối chiếu lịch sử migration của dự án đích. Seed dùng UPSERT và xóa slug không còn trong nguồn, nên chạy lại không nhân đôi hàng.
+- **Áp lên database:** migrations `20261001002800_knowledge_base.sql` (bảng, RLS, ba RPC đọc), `20261001002900_knowledge_seed.sql` (nội dung) và `20261002003400_copilot_question_gaps.sql` (nhật ký câu hỏi hụt + RPC ghi/đọc) chỉ được push sau khi đã chạy trên staging và đối chiếu lịch sử migration của dự án đích. Seed dùng UPSERT và xóa slug không còn trong nguồn, nên chạy lại không nhân đôi hàng.
+- **Vòng lặp cải tiến tài liệu:** khi copilot trả lời "Chưa tìm thấy...", `ai-assist` gọi `log_copilot_gap` (bất đồng bộ, không chặn câu trả lời). OWNER mở `/docs` xem khối "Câu hỏi chưa có tài liệu" (xếp theo số lần gặp) rồi viết SOP tương ứng vào `docs/INTERNAL_SOPS.md` — đó là cách duy nhất "train" trợ lý trong dự án này, không fine-tune mô hình.
 - **Deploy function:** sửa `supabase/functions/ai-assist/` (kể cả `copilot.ts`, `contracts.ts`) thì chạy `npx supabase functions deploy ai-assist` và `node scripts/check-edge-types.mjs` trước đó.
 - **Secrets Edge:** `AI_ENABLED=true`, `AI_PROVIDER_API_KEY`, `AI_MODEL` qua `npx supabase secrets set`. Cả ba đều **tùy chọn** với copilot: thiếu cấu hình thì tra cứu deterministic vẫn trả lời đủ, chỉ chế độ AI tóm tắt (OWNER) bị hạ về tra cứu trực tiếp kèm cảnh báo. Khóa chỉ nằm ở Edge runtime, không vào frontend, không ghi log.
 - **Kiểm tra sau triển khai:** hỏi `/copilot` một câu số liệu và một câu tài liệu; bấm thử từng mã bằng chứng để chắc chắn nó mở đúng màn hình; đăng nhập bằng STAFF để xác nhận các con số nhạy cảm biến mất hoàn toàn (không phải hiển thị `0`); mở `/docs` và chắc chắn không thấy mục audience cao hơn quyền.', 'MANAGER', 'docs/OPERATIONS.md'),
@@ -315,11 +522,31 @@ Local draft/recent values are scoped to the authenticated user and exclude finan
 
 - Toàn bộ tính năng "Báo cáo" (`/reports`, `src/features/reports/`) đã được gỡ khỏi giao diện: tuyến đường, mục điều hướng, preload, liên kết số liệu trên Tổng quan và trích dẫn copilot trỏ về `/reports` đều chuyển hướng sang màn hình còn tồn tại (Bán hàng/Tổng quan). Lý do: chủ cửa hàng yêu cầu xóa tab khỏi app; số liệu doanh thu/lợi nhuận đã hiển thị ngay trên Tổng quan và danh sách Bán hàng, tab riêng là trùng lặp.
 - RPC database `report(p_kind, p_filters)` được giữ nguyên: hàm đã nằm trên production (migration 003/005 đã áp dụng), việc DROP là không đảo được và không cần thiết sau khi UI gỡ; nó chỉ là bề mặt đọc không còn consumer. Ghi quyết định này để agent sau không coi RPC "chết" là sót lại cần xóa vội.', 'MANAGER', 'docs/DECISIONS.md'),
-  ('decisions-9', 'Quyết kiến trúc và nghiệp vụ', 'Unverified external state', '## Unverified external state
+  ('decisions-9', 'Quyết kiến trúc và nghiệp vụ', 'Ngưỡng tồn kho và chỉ báo trạng thái kho', '## Ngưỡng tồn kho và chỉ báo trạng thái kho
+
+- `low_stock_threshold` / `high_stock_threshold` là ngưỡng phục vụ đánh dấu hiển thị, KHÔNG phải hệ thống cảnh báo chủ động: hệ thống không gửi email, push hay tự tạo `system_announcements` khi chạm ngưỡng (bản cũ trong Cài đặt ghi "sẽ gửi cảnh báo tới quản lý" là sai, đã được sửa). Tự động hóa announcements vẫn là công việc tương lai, chưa implement.
+- Audit ngữ nghĩa (giữ nguyên công thức server, chỉ sửa câu chữ UI): `inventory_indicator` tính trên TỔNG XE ĐANG TẠI CỬA HÀNG (`IN_STOCK` + `RESERVED`), không phải "xe sẵn sàng bán" — xe RESERVED đang giữ cho khách nên không được mô tả là sẵn sàng bán. Wording UI đổi thành "số xe đang tại cửa hàng". Phương án đổi công thức sang `IN_STOCK` thuần bị bác vì thay đổi semantics nghiệp vụ đang chạy trên production mà chưa được chủ cửa hàng duyệt.
+- Biên ngưỡng là so sánh DẸT theo SQL hiện hành (`<` và `>`): LOW khi số xe tại cửa hàng nhỏ hơn mức tối thiểu, HIGH khi lớn hơn mức tối đa; hai ngưỡng là dải chấp nhận được (bao gồm cả giá trị đúng bằng). `src/lib/inventory-status.ts` là resolver duy nhất (canonical, ưu tiên `inventory_indicator` từ server) và mirror đúng CASE này; kiểm thử biên nằm ở `tests/unit/inventory-status.test.ts` và `tests/db/operational-features.test.mjs`.
+- Nhãn hiển thị trên card "Kho xe hiện tại" (Dashboard): LOW → "Tồn kho thấp", NORMAL → "Tồn kho bình thường", HIGH → "Tồn kho cao", dùng tone màu ngữ nghĩa đã có trong theme (emerald/amber/indigo tint), không định nghĩa bảng màu mới.', 'MANAGER', 'docs/DECISIONS.md'),
+  ('decisions-10', 'Quyết kiến trúc và nghiệp vụ', 'Unverified external state', '## Unverified external state
 
 These decisions describe local code. They do not assert the current contents of a hosted Supabase project or any production account credential.', 'MANAGER', 'docs/DECISIONS.md'),
   ('known-issues-preamble', 'Lỗi đã biết và giới hạn', null, '# Known Issues and Verification Limits', 'MANAGER', 'docs/KNOWN_ISSUES.md'),
-  ('known-issues-1', 'Lỗi đã biết và giới hạn', 'Customer communication Phase 1', '## Customer communication Phase 1
+  ('known-issues-1', 'Lỗi đã biết và giới hạn', 'Behavioral defect audit A1–A7 — 2026-10-02', '## Behavioral defect audit A1–A7 — 2026-10-02
+
+All seven confirmed behavioral defects are FIXED locally with regression coverage; none is DEFERRED or BLOCKED.
+
+- A1 Showroom (`/showroom`) now reads real stock through `list_showroom_vehicles` (migration `20261002003200`), an anon-granted, safe projection of IN_STOCK vehicles only. RESERVED/SOLD/CANCELLED are explicitly excluded from the public showroom (documented policy in the migration header). `FEATURED_BIKES` and every fake vehicle/price/plate/odometer constant is deleted; loading and error states replace fake fallbacks; missing fields render "—" or are omitted. Private buckets are not leaked: cards use styled placeholders, not photos.
+- A2 The sell/inquiry form persists a real `showroom_leads` row through `create_showroom_lead` (migration `20261002003300`) BEFORE any success message; success is gated on the mutation''s `onSuccess`. Zalo opening is a secondary try/catch and cannot lose the lead. Anon writes only (validated + phone-normalized + 10-minute per-phone throttle); staff triage lives on the Customers page via `list_showroom_leads`/`update_showroom_lead_status` (audited as `UPDATE_SHOWROOM_LEAD_STATUS`).
+- A3 One canonical resolver `src/lib/debt.ts` (`resolveDebtStatus`/`resolveIsOverdue`) is consumed by both desktop and mobile receivables; it prefers the server `debt_status`/`is_overdue` and falls back to the same rules the server uses. The historic mobile missing-UNPAID branch is gone.
+- A4 An empty due-date input can no longer silently delete an existing due date: submit blocks with an inline message; removal is a separate "Xóa hạn thanh toán" action with a danger confirmation (form is `noValidate` so the custom message always wins over native tooltips).
+- A5/A6 Persisted `VehicleStatus` and query-only `VehicleStatusFilter` (AVAILABLE/UNSOLD aliases) are separate types; canonical constants live in `src/lib/vehicleFilters.ts` and `AVAILABLE_VEHICLE_FILTER` is the only alias allowed in list queries — aliases never reach status mutations.
+- A7 `ReceivablesPage.setPaymentStatus` uses a functional `setSearchParams` updater plus `mergeSearchParams` (`src/lib/urlParams.ts`), preserving search/page/date/other params.
+
+Residual notes: migrations `0032`/`0033` are pending like every unreleased version — nothing was deployed; `create_showroom_lead` intentionally writes no `audit_logs` row because `private.audit` records `auth.uid()` (NULL for anon) and the lead row itself is the evidence trail; editing these docs changed the `knowledge_base` corpus hash while applied migration `20261001002900_knowledge_seed.sql` must not be modified, so `npm run knowledge:check` is RED until release prep decides a forward re-seed migration.
+
+Last reviewed: 2026-10-02', 'MANAGER', 'docs/KNOWN_ISSUES.md'),
+  ('known-issues-2', 'Lỗi đã biết và giới hạn', 'Customer communication Phase 1', '## Customer communication Phase 1
 
 - Real Zalo ZNS/SMS providers are not implemented or configured. `MESSAGE_PROVIDER_MODE=MOCK` simulates acceptance; absent configuration fails safely. Keep customer messaging disabled until provider approval, Edge secrets, template/eligibility review, callback handling, and hosted verification are complete.
 - The preferred and fallback channels are stored in settings for configuration continuity; fallback sending is not implemented until real providers are approved and integrated.
@@ -328,7 +555,7 @@ These decisions describe local code. They do not assert the current contents of 
 - Hosted migration `20261001002600` and Edge Function `process-message` are not deployed or production-tested. Existing production access/reconciliation blockers below remain in force.
 
 Last reviewed: 2026-09-30', 'MANAGER', 'docs/KNOWN_ISSUES.md'),
-  ('known-issues-2', 'Lỗi đã biết và giới hạn', 'Production release blockers', '## Production release blockers
+  ('known-issues-3', 'Lỗi đã biết và giới hạn', 'Production release blockers', '## Production release blockers
 
 - (RESOLVED 2026-10-01, release-prep pass 3) The full E2E suite now passes 43/43, re-confirmed on TWO consecutive full runs after the final code change. The former failures split into stale assertions (assistant `Số khung *` exact label after the duplicate-check hint joins the accessible name; the old `Khoảng thời gian` select becoming date chips + DD/MM/YYYY DatePickers in report/dashboard tests; settings "Tên cửa hàng" moving behind the owner "Thông tin cửa hàng" tab; no `role=status` swap during route loading because React Router keeps the previous route mounted) and two real app defects that were fixed: `ReceivablesPage` rendered duplicated status controls (chips + select) and `DateRange.handleDateChange` let an erased date boundary leave a stale draft value that could then be submitted. The login/sequential timing flake is now genuinely root-caused, not masked: `scripts/db-harness.mjs` opened a fresh embedded-Postgres connection for every intercepted `/rest/v1/*` request, so the app-boot RPC burst caused connection churn whose latency spikes pushed a login past the `expect` timeout; it now reuses a bounded `pg.Pool` with a single bootstrap client, and the RPC-signature lookup (`pg_get_function_arguments`) runs on the dedicated per-request connection instead of the shared bootstrap client (removing a concurrent-query race). No timeout was raised and no `page.waitForTimeout` was added; `npm run test:db` (which includes multi-session concurrency and lock-blocking checks) stays green on the pooled harness. Remaining watch item: the `receipt capture`/draft assistant tests still guard the auth-bootstrap remount (`/assist` can remount once while the session resolves and wipes local form state) with an in-test re-entry helper (`submitDraft`, max two attempts) that asserts on the settled UI; the remount trigger in that static-mock path is not separately root-caused.
 - Supabase CLI and authenticated production access were unavailable during release readiness. Live project identity, migration ledger, schema, Auth, RLS, Storage, and Edge deployment status remain unverified. (The CLI itself now runs locally via `npx supabase` 2.119.0 with Docker; only production authentication/ledger access is still missing.)
@@ -336,17 +563,17 @@ Last reviewed: 2026-09-30', 'MANAGER', 'docs/KNOWN_ISSUES.md'),
 - Production backup/PITR availability, current restore point, and recovery path have not been verified. Do not apply schema changes until verified.
 - `supabase/quarantine/20260930001800_reset_owner_password_default.sql` contains a hardcoded default owner password and emits it in migration notices. It is excluded from the release checkpoint, moved out of `supabase/migrations/`, and Git-ignored so it cannot be accidentally applied or committed. It must not be deployed. If it was ever applied or its value used, rotate the affected credential through the approved account process.
 - The checkpoint omits version 018 intentionally, so it is not a deployable/reconciled migration set. The file is now quarantined at `supabase/quarantine/` (Git-ignored and removed from the migration search path), and `supabase/migrations/20260930001800_*` is ignore-guarded. Resolve the final repository strategy (sanitized no-op historical placeholder versus permanent exclusion) with the remote ledger in hand; do not silently recreate or replay it.', 'MANAGER', 'docs/KNOWN_ISSUES.md'),
-  ('known-issues-3', 'Lỗi đã biết và giới hạn', 'External integrations not verified', '## External integrations not verified
+  ('known-issues-4', 'Lỗi đã biết và giới hạn', 'External integrations not verified', '## External integrations not verified
 
 - No migration or Edge Function was deployed during this release turn. Hosted Auth session behavior, RLS, Storage, endpoint configuration, and production smoke tests remain unverified.
 - `manage-users` has only local verification. Its actual Deno runtime/module resolution, production CORS, authenticated OWNER flow, and STAFF denial need hosted testing.
 - `ai-assist` has no server-side provider key/model configured, so extraction drafts and the OWNER-only copilot `mode: ''llm''` summary are unverified against a real provider (behavior, retention, spending, actual calls). The deterministic copilot path is exercised locally and needs no provider, but search relevance over the real Vietnamese documentation corpus has not been reviewed by a human reader.
 - The `knowledge_base` corpus is regenerated from tracked markdown; a documentation file added to the repo but not listed in `scripts/build-knowledge-seed.mjs` `SOURCES` is invisible to the copilot. `npm run knowledge:check` only proves the committed seed matches the listed sources.
 - Camera, microphone, image compression readability, PWA installation, and receipt appearance need acceptance on physical devices/printers/browsers.', 'MANAGER', 'docs/KNOWN_ISSUES.md'),
-  ('known-issues-4', 'Lỗi đã biết và giới hạn', 'Bundle measurements', '## Bundle measurements
+  ('known-issues-5', 'Lỗi đã biết và giới hạn', 'Bundle measurements', '## Bundle measurements
 
 A fresh local production build shows a 767.00 kB initial JavaScript entry (229.72 kB gzip), above Vite''s warning threshold. It does not contain `html5-qrcode`. The Capture route is dynamically loaded and the camera library is separately loaded only after the user invokes camera scanning (375.14 kB raw, 110.56 kB gzip). No production performance measurement is available; investigate the initial entry if real metrics show a problem.', 'MANAGER', 'docs/KNOWN_ISSUES.md'),
-  ('known-issues-5', 'Lỗi đã biết và giới hạn', 'Existing product/data limits', '## Existing product/data limits
+  ('known-issues-6', 'Lỗi đã biết và giới hạn', 'Existing product/data limits', '## Existing product/data limits
 
 - Purchase disbursements and expense settlements are not recorded separately, so reconciliation excludes those flows.
 - Direct XLSX import is not implemented; export the spreadsheet as CSV UTF-8.
@@ -354,7 +581,7 @@ A fresh local production build shows a 767.00 kB initial JavaScript entry (229.7
 - Image uploads retry while the current page session remains open; there is no durable offline upload queue.
 - Customer identity is grouped by phone. A phone shared by multiple people is warned about but still needs a human to choose the right sale before collection.
 - Normal acquire_vehicle/save_vehicle frame-number uniqueness follows existing server behavior; import additionally checks chassis/engine case-insensitively and plates without punctuation while preserving submitted display text.', 'MANAGER', 'docs/KNOWN_ISSUES.md'),
-  ('known-issues-6', 'Lỗi đã biết và giới hạn', 'Deployment note', '## Deployment note
+  ('known-issues-7', 'Lỗi đã biết và giới hạn', 'Deployment note', '## Deployment note
 
 The migration directory contains historic Auth/account-recovery operations and the unsafe version 018 described above. Compare the exact target migration history first and apply only reviewed forward changes. The local `reset-owner` function is retired and returns HTTP 410; do not deploy it.', 'MANAGER', 'docs/KNOWN_ISSUES.md'),
   ('verification-preamble', 'Quy trình kiểm chứng', null, '# Kết quả kiểm chứng — 01/10/2026', 'MANAGER', 'docs/VERIFICATION.md'),
@@ -765,25 +992,32 @@ Local gates recorded in `docs/VERIFICATION.md` remain separate from production r
 Make Supabase CLI access available using the approved local authentication flow without sharing tokens in chat. Then verify the live project ref and query `migration list --linked` read-only. In parallel, verify backup/PITR and restore point in the Dashboard. Reconcile all local/remote versions, including the deliberately omitted unsafe version 018, and prepare an exact reviewed migration plan before considering any production mutation. Stop if identity, ledger, or recovery evidence does not match.', 'OWNER', 'docs/PRODUCTION_RELEASE.md'),
   ('agent-handoff-preamble', 'Bàn giao cho agent', null, '# Release handoff — Xe CRM
 
-Last reviewed: 2026-10-01 (Asia/Saigon)', 'OWNER', 'docs/AGENT_HANDOFF.md'),
-  ('agent-handoff-1', 'Bàn giao cho agent', 'Phase 1 customer communication handoff — 2026-10-01', '## Phase 1 customer communication handoff — 2026-10-01
+Last reviewed: 2026-10-02 (Asia/Saigon)', 'OWNER', 'docs/AGENT_HANDOFF.md'),
+  ('agent-handoff-1', 'Bàn giao cho agent', 'Behavioral defects A1–A7 handoff — 2026-10-02', '## Behavioral defects A1–A7 handoff — 2026-10-02
+
+The post-audit defect phase fixed A1–A7 only; the deferred technical-debt list (manage-users dispatch factory, StaffSettingsModal mutation factory, AuthProvider polling, money-formatter consolidation, theme tokens, prefetch abstractions, expense cancellation duplication) was deliberately untouched and remains the next phase.
+
+Frontend: new `src/lib/debt.ts`, `src/lib/urlParams.ts`, `src/lib/vehicleFilters.ts`, `src/features/showroom/showroomLead.ts`; `ShowroomPage` rewritten to real inventory + persisted leads (fake `FEATURED_BIKES` deleted); `ReceivablesPage` shares one debt resolver across desktop/mobile, blocks silent due-date deletion, and updates URL params functionally; `InventoryPage`/`SellVehiclePage`/`ExpensePages` consume the canonical status-filter constants; `CustomersPage` gained the NEW-lead triage panel. Database (pending, NOT deployed): `20261002003200_showroom_public_inventory.sql` (anon `list_showroom_vehicles`, IN_STOCK-only safe projection) and `20261002003300_showroom_leads.sql` (`showroom_leads` table, anon `create_showroom_lead` with validation/normalization/throttle, staff `list_showroom_leads`/`update_showroom_lead_status` with audit). Neither touches any applied migration.
+
+Local gates (all green, run 2026-10-02): `npm run lint`, `npm run typecheck`, `npm run test` (267 unit tests / 24 files, incl. new `debt-status`, `url-params`, `showroom-lead`, `showroom-source-contract` suites and extended `inventory-filters`), `npm run test:db` (full multi-suite replay incl. 10 new showroom checks in `tests/db/showroom.test.mjs`), `npm run build`, `npm run test:e2e` (64/64), `npm run test:pwa`. `npm run knowledge:check` is expected RED because these doc edits change the seeded corpus while applied migration `20261001002900_knowledge_seed.sql` must not be modified — resolve with a forward re-seed migration during release prep, not by rewriting history. Hosted deployment remains blocked by the release blockers below; nothing in this phase was pushed to Supabase.', 'OWNER', 'docs/AGENT_HANDOFF.md'),
+  ('agent-handoff-2', 'Bàn giao cho agent', 'Phase 1 customer communication handoff — 2026-10-01', '## Phase 1 customer communication handoff — 2026-10-01
 
 Phase 1 is implemented locally in migration `20261001002600_customer_communications.sql`, `supabase/functions/process-message`, and the sales/customer/settings UI. Sale creation adds one thank-you outbox event in the normal `sell_vehicle` transaction; a nested exception boundary ensures an outbox/config write fault cannot roll back the sale. Provider work is attempted only after the sale commits. Messaging defaults OFF. The only worker mode implemented is MOCK; missing provider is recorded as `SKIPPED / PROVIDER_NOT_CONFIGURED`. No provider secret is present in frontend or tracked source. Do not claim production delivery or deploy to hosted Supabase from this workspace: live target identity, migration ledger, and backup/recovery remain unverified per the release blockers below.
 
 At phase start, the repository search found no communication/outbox/history implementation. Existing `sell_vehicle`, settings RPC, customer history and private phone normalization were reused. Local checks: typecheck, lint, 176 unit tests, 26 migration replay / 77 DB integration tests, 34/34 E2E tests, build, PWA check, and local Edge TypeScript check. These are not hosted/production checks. There is no hosted scheduler; a transient job stays queued with a backoff timestamp until another trusted worker invocation. Real provider activation and hosted migration/function deployment remain blocked by release-readiness requirements below.', 'OWNER', 'docs/AGENT_HANDOFF.md'),
-  ('agent-handoff-2', 'Bàn giao cho agent', 'UI feedback + system announcement handoff — 2026-10-01', '## UI feedback + system announcement handoff — 2026-10-01
+  ('agent-handoff-3', 'Bàn giao cho agent', 'UI feedback + system announcement handoff — 2026-10-01', '## UI feedback + system announcement handoff — 2026-10-01
 
 This turn adds a client feedback layer and a persistent store-wide announcement feature without touching core business workflows (sales, acquisitions, inventory, payments, profit, auth, roles, existing RPC safety). No toast/dialog library was installed: toasts (`src/lib/toast.ts`, rendered by `src/components/ui/Toaster.tsx`) and a single reusable confirm dialog (`src/components/ui/ConfirmDialog.tsx` exposing `confirmAction()`) are hand-built and mounted in `src/App.tsx`. The only native `window.confirm` in the codebase (the `useFormDraft` unsaved-draft navigation guard) now uses `confirmAction()` and re-fires the link click after confirmation; the `beforeunload` handler is untouched. The PWA install `prompt.prompt()` in Settings is a browser API, not a native dialog, and was left as-is.
 
 Backend: migration `20261001002700_system_announcements.sql` creates `public.system_announcements` (with `announcement_type`, `announcement_display`, `announcement_audience` enums), five SECURITY DEFINER RPCs, `private.audit` on every mutation, RLS enabled, and direct table/function access revoked from `public`/`anon`/`authenticated` (only `authenticated` gets EXECUTE). OWNER-only writes are enforced server-side, not just by hiding buttons. `list_active_announcements` filters by `is_active`, the Asia/Ho_Chi_Minh time window, and audience role, ordered by priority. The app-shell `AnnouncementBar` polls active announcements, shows one primary banner (static or CSS-scrolling ticker that pauses on hover and freezes under `prefers-reduced-motion`), supports "Xem thêm" overflow, and per-device dismissal via `localStorage` keyed by id+`updated_at`. The OWNER manager lives under Cài đặt → Thông báo hệ thống.
 
 Local checks only: `npm run typecheck` passes; `tests/unit/feedback-notifications.test.ts` (3 tests) passes; the standalone operational DB suite reports 33 passing checks including 5 new announcement tests. Do not deploy this migration to hosted Supabase: it is not in the release checkpoint, and target identity/ledger/backup remain unverified per the blockers below.', 'OWNER', 'docs/AGENT_HANDOFF.md'),
-  ('agent-handoff-3', 'Bàn giao cho agent', 'Release state', '## Release state
+  ('agent-handoff-4', 'Bàn giao cho agent', 'Release state', '## Release state
 
 The local implementation phase is complete according to `docs/IMPLEMENTATION_REPORT.md` and `docs/VERIFICATION.md`. The local gates recorded there are green; the production build was rerun during this release audit and completed successfully. These results do not verify hosted Supabase, production Auth, Edge Functions, physical devices, printers, or production performance.
 
 No production database, Auth configuration, Edge Function, backup, or business record has been changed or verified during this release-readiness turn.', 'OWNER', 'docs/AGENT_HANDOFF.md'),
-  ('agent-handoff-4', 'Bàn giao cho agent', 'Repository checkpoint', '## Repository checkpoint
+  ('agent-handoff-5', 'Bàn giao cho agent', 'Repository checkpoint', '## Repository checkpoint
 
 - Starting branch: `main`, tracking `origin/main`; history contained only `b5b21df` (`Initial commit: Quản lý Cửa Hàng Xe Máy Cà Rem`).
 - The worktree was already dirty at the start, with staged/unstaged edits and new implementation files. There is no earlier snapshot that can reliably separate pre-existing work from the latest implementation. Nothing was reset or discarded.
@@ -793,7 +1027,7 @@ No production database, Auth configuration, Edge Function, backup, or business r
 - `supabase/.temp/` is ignored and excluded. `.env` was absent and no Supabase CLI/access token was available.
 - No push is planned.
 - Checkpoint commit hash: c3bfe1db87fba48595a46dde0a47bd4398a9f4ad.', 'OWNER', 'docs/AGENT_HANDOFF.md'),
-  ('agent-handoff-5', 'Bàn giao cho agent', 'Target, migration ledger, and recovery', '## Target, migration ledger, and recovery
+  ('agent-handoff-6', 'Bàn giao cho agent', 'Target, migration ledger, and recovery', '## Target, migration ledger, and recovery
 
 - The cached Supabase link reference matches the reference recorded in `docs/AUTH_RECOVERY_AUDIT.md`; this only checks local cached metadata against a local note. The live target project identity is **not verified**.
 - Supabase CLI is unavailable and `SUPABASE_ACCESS_TOKEN` is not configured, so the linked production migration history could not be queried.
@@ -801,7 +1035,7 @@ No production database, Auth configuration, Edge Function, backup, or business r
 - Production status for every version is `UNVERIFIED`. The disposable PostgreSQL suite replay is local testing, not production-ledger evidence.
 - Production backup/PITR availability, a restore point, and a recovery path have not been verified. The general plan in `docs/OPERATIONS.md` is guidance, not proof of a production backup.
 - All production database apply operations are blocked until target identity, complete remote ledger reconciliation, migration review, and backup/recovery evidence are available.', 'OWNER', 'docs/AGENT_HANDOFF.md'),
-  ('agent-handoff-6', 'Bàn giao cho agent', 'Functions and optional integrations', '## Functions and optional integrations
+  ('agent-handoff-7', 'Bàn giao cho agent', 'Functions and optional integrations', '## Functions and optional integrations
 
 - `manage-users`: local account-management function; requires Supabase runtime configuration, a server-side administrative key, and allowed-origin configuration. Not confirmed deployed or production-tested.
   - Extended with OWNER-only server-side actions: `CHANGE_ROLE`, `PROMOTE_TO_OWNER`, `DEMOTE_OWNER`, `ENABLE_USER`, `FORCE_PASSWORD_CHANGE`
@@ -813,7 +1047,7 @@ No production database, Auth configuration, Edge Function, backup, or business r
   - `profiles.role` remains protected from direct authenticated UPDATE (no RLS grants loosened)
 - `ai-assist`: optional local authenticated/read-only assistant; requires `AI_ENABLED`, `AI_PROVIDER_API_KEY`, and `AI_MODEL` server-side. Provider configuration is absent; AI remains disabled and is not a CRM release dependency.
 - `reset-owner`: retired local endpoint returns HTTP 410. Do not deploy it.', 'OWNER', 'docs/AGENT_HANDOFF.md'),
-  ('agent-handoff-7', 'Bàn giao cho agent', 'User management architecture', '## User management architecture
+  ('agent-handoff-8', 'Bàn giao cho agent', 'User management architecture', '## User management architecture
 
 All account administration after initial OWNER bootstrap is possible from the Nhân sự UI without SQL Editor:
 
@@ -856,10 +1090,10 @@ All account administration after initial OWNER bootstrap is possible from the Nh
 - Final active OWNER cannot be demoted, disabled, or deleted
 - User cannot self-promote through direct client call
 - Audit logs verified for privileged actions', 'OWNER', 'docs/AGENT_HANDOFF.md'),
-  ('agent-handoff-8', 'Bàn giao cho agent', 'Local camera and bundle verification', '## Local camera and bundle verification
+  ('agent-handoff-9', 'Bàn giao cho agent', 'Local camera and bundle verification', '## Local camera and bundle verification
 
 A fresh `npm run build` passed. The HTML entry loads a 736.97 kB JavaScript entry (220.67 kB gzip), which triggers Vite''s 500 kB warning. This is not the camera bundle. The Capture route is a 3.62 kB dynamic chunk, and `html5-qrcode` is in a separate 375.14 kB (110.56 kB gzip) chunk requested only after the camera action. Thus the camera library is lazy-loaded and absent from initial JavaScript. Production network/performance metrics remain unmeasured.', 'OWNER', 'docs/AGENT_HANDOFF.md'),
-  ('agent-handoff-9', 'Bàn giao cho agent', 'Release validation still outstanding', '## Release validation still outstanding
+  ('agent-handoff-10', 'Bàn giao cho agent', 'Release validation still outstanding', '## Release validation still outstanding
 
 1. Make the Supabase CLI available and authenticate using the approved local flow; never paste credentials into chat or commit them.
 2. Verify the live project ref against an authoritative project record and inspect the linked migration ledger read-only. Reconcile remote-only/manual versions and the checkpoint''s intentionally omitted version 018 before deciding any migration action.
@@ -1240,10 +1474,12 @@ All operations require a verified Supabase session and an active profile. Functi
 | search_knowledge | p_query text, p_limit int = 8 (max 20) | Ranked sections: slug,title,section,audience,source_path,rank,excerpt |
 | list_knowledge | none | {items:[slug,title,section,audience,source_path],total} |
 | get_knowledge_article | p_slug text | Article with body_md,audience,source_path,updated_at |
+| log_copilot_gap | p_question text | void; ai-assist records unanswered questions under the caller''s JWT |
+| list_copilot_gaps | p_days int = 30 (max 365) | {items:[id,question,hits,last_role,asked_first_at,last_seen_at],total,days}; OWNER only |
 
 List filters: `offset` (default 0), `limit` (default 25; max 100), `search`. Vehicle filters: `status` (enum value, `ALL`, or `AVAILABLE`/`UNSOLD` for IN_STOCK and RESERVED), `brand`, `year`, `min_price`, `max_price`, `date_from`, `date_to`, `sort` (`newest`, `oldest`, `highest_cost`, `highest_price`, `longest_stock`). Sales/expense/report dates: `from`, `to` (also accept `date_from`, `date_to`). Expense kind: `vehicle` or `business` (default both), with optional `vehicle_id`. Report kind: `sales`, `inventory`, `profit`, `vehicle_expenses`, `business_expenses`.
 
-Dashboard period totals, daily sales, top profits, recent sales and recent expenses obey the selected inclusive date range. Today/month counters use the Asia/Ho_Chi_Minh business date. Inventory is current stock; `inventory_cost_pending` counts missing costs and `inventory_indicator` is LOW/NORMAL/HIGH using saved low/high stock thresholds. Inventory reports filter current stock by intake date; they are not historical stock reconstructions.
+Dashboard period totals, daily sales, top profits, recent sales and recent expenses obey the selected inclusive date range. Today/month counters use the Asia/Ho_Chi_Minh business date. Inventory is current stock; `inventory_cost_pending` counts missing costs and `inventory_indicator` is LOW/NORMAL/HIGH using saved low/high stock thresholds. The indicator counts vehicles AT THE STORE (`IN_STOCK` + `RESERVED`, which includes bikes held for customers — it is not "sẵn sàng bán"/`IN_STOCK` only) with strict comparisons: LOW when the at-store count is strictly below `low_stock_threshold`, HIGH when strictly above `high_stock_threshold`, otherwise NORMAL (the thresholds are the inclusive acceptable band). It is display-only: the system sends no email, push, or automatic `system_announcements` when a threshold is reached. Inventory reports filter current stock by intake date; they are not historical stock reconstructions.
 
 Vehicle purchase cost is optional only for operational users. Missing cost is stored as NULL, exposed as `cost_pending:true`, and blocks selling until an authorized financial user enters the actual purchase cost. `purchase_price` and `total_cost` keys are absent for unauthorized users. Expense lists require OWNER or MANAGER. Staff can add/update operational vehicle information and sell vehicles with completed costs.
 
@@ -1254,7 +1490,9 @@ Vehicle images use the private `vehicle-images` bucket, JPEG/PNG/WebP/AVIF only,
 
 `public.knowledge_base` stores one row per documentation section (`slug` unique, `title`, `section`, `body_md`, `audience` in `ALL`/`STAFF`/`MANAGER`/`OWNER`, `source_path`, generated `tsvector` with a GIN index). Browser roles have `SELECT` only, guarded by the `knowledge_base_read` policy and re-checked inside each `SECURITY DEFINER` function through `private.knowledge_visible(audience)`: OWNER reads every tier, MANAGER reads `ALL`/`STAFF`/`MANAGER`, STAFF reads `ALL`/`STAFF`, and disabled or unauthorized callers are rejected by `private.require_role`. Unknown and unauthorized slugs are indistinguishable (`KNOWLEDGE_NOT_FOUND`).
 
-The corpus is generated from repository documentation by `npm run knowledge:seed` (`scripts/build-knowledge-seed.mjs`), which writes `supabase/migrations/20261001002900_knowledge_seed.sql` as an idempotent upsert plus a prune of stale slugs; edit the Markdown files, never the seed migration. The `ai-assist` copilot reads this corpus through `search_knowledge` together with the existing read RPCs and returns a citation for every figure; see [docs/AI_ASSIST_CONTRACT.md](../docs/AI_ASSIST_CONTRACT.md).
+The corpus is generated from repository documentation by `npm run knowledge:seed` (`scripts/build-knowledge-seed.mjs`), which writes `supabase/migrations/20261001002900_knowledge_seed.sql` as an idempotent upsert plus a prune of stale slugs; edit the Markdown files, never the seed migration. `docs/SYSTEM_REFERENCE.md` is itself derived from the code (public RPCs with their `require_role` gates, routes from `src/App.tsx`, Edge Functions, storage buckets) by `scripts/build-system-docs.mjs` — regenerate with `npm run knowledge:system`, which is chained into `knowledge:seed`/`knowledge:check` so CI fails when code changed but the reference did not. Operational procedures for staff live in `docs/INTERNAL_SOPS.md` (audience STAFF). The `ai-assist` copilot reads this corpus through `search_knowledge` together with the existing read RPCs and returns a citation for every figure; see [docs/AI_ASSIST_CONTRACT.md](../docs/AI_ASSIST_CONTRACT.md).
+
+When the copilot finds neither data nor documents (`coverage: ''none''`), `ai-assist` calls `log_copilot_gap` with the caller''s own JWT; questions collapse on normalized text with a hit counter in `public.copilot_question_gaps` (RLS on, no browser policies, no business data). The OWNER reviews the digest via `list_copilot_gaps` in the in-app docs page and writes the missing SOP into `docs/INTERNAL_SOPS.md` to close the loop.
 
 `manage-users` Edge Function accepts POST `{email,password,full_name,role,can_view_financials}` for an OWNER to create a user. Role/status updates use `update_profile` RPC; self-profile updates accept only full_name. The final active OWNER cannot be disabled/demoted. Owner provisioning for the first account is documented separately and requires a trusted SQL session.', 'MANAGER', 'supabase/API.md'),
   ('security-preamble', 'Mô hình bảo mật Supabase', null, '# Security and deployment notes', 'OWNER', 'supabase/SECURITY.md'),
@@ -1319,7 +1557,7 @@ SET title = EXCLUDED.title,
 
 -- Drop sections that no longer exist in the tracked documents.
 DELETE FROM public.knowledge_base
-WHERE source_path IN ('README.md', 'docs/PROJECT_STATE.md', 'docs/OPERATIONS.md', 'docs/DECISIONS.md', 'docs/KNOWN_ISSUES.md', 'docs/VERIFICATION.md', 'docs/COMMUNICATION_ARCHITECTURE.md', 'docs/AI_ASSIST_CONTRACT.md', 'docs/UX_FRICTION_AUDIT.md', 'docs/PRODUCTION_RELEASE.md', 'docs/AGENT_HANDOFF.md', 'docs/IMPLEMENTATION_PLAN.md', 'docs/IMPLEMENTATION_REPORT.md', 'docs/AUTH_ACCEPTANCE_REPORT.md', 'docs/AUTH_RECOVERY_AUDIT.md', 'supabase/API.md', 'supabase/SECURITY.md')
-  AND slug NOT IN ('readme-preamble', 'readme-1', 'readme-2', 'readme-3', 'readme-4', 'readme-5', 'readme-6', 'readme-7', 'readme-8', 'readme-9', 'readme-10', 'readme-11', 'project-state-preamble', 'project-state-1', 'project-state-2', 'project-state-3', 'project-state-4', 'project-state-5', 'project-state-6', 'operations-preamble', 'operations-1', 'operations-2', 'operations-3', 'operations-4', 'operations-5', 'operations-6', 'decisions-preamble', 'decisions-1', 'decisions-2', 'decisions-3', 'decisions-4', 'decisions-5', 'decisions-6', 'decisions-7', 'decisions-8', 'decisions-9', 'known-issues-preamble', 'known-issues-1', 'known-issues-2', 'known-issues-3', 'known-issues-4', 'known-issues-5', 'known-issues-6', 'verification-preamble', 'verification-1', 'verification-2', 'verification-3', 'verification-4', 'verification-5', 'verification-6', 'verification-7', 'verification-8', 'communication-architecture-preamble', 'communication-architecture-1', 'communication-architecture-2', 'communication-architecture-3', 'communication-architecture-4', 'communication-architecture-5', 'communication-architecture-6', 'ai-assist-contract-preamble', 'ai-assist-contract-1', 'ai-assist-contract-2', 'ai-assist-contract-3', 'ai-assist-contract-4', 'ai-assist-contract-5', 'ai-assist-contract-6', 'ux-friction-audit-preamble', 'ux-friction-audit-1', 'ux-friction-audit-2', 'ux-friction-audit-3', 'ux-friction-audit-4', 'ux-friction-audit-5', 'production-release-preamble', 'production-release-1', 'production-release-2', 'production-release-3', 'production-release-4', 'production-release-5', 'production-release-6', 'production-release-7', 'production-release-8', 'agent-handoff-preamble', 'agent-handoff-1', 'agent-handoff-2', 'agent-handoff-3', 'agent-handoff-4', 'agent-handoff-5', 'agent-handoff-6', 'agent-handoff-7', 'agent-handoff-8', 'agent-handoff-9', 'implementation-plan-preamble', 'implementation-plan-1', 'implementation-plan-2', 'implementation-plan-3', 'implementation-plan-4', 'implementation-report-preamble', 'implementation-report-1', 'implementation-report-2', 'implementation-report-3', 'implementation-report-4', 'implementation-report-5', 'implementation-report-6', 'implementation-report-7', 'implementation-report-8', 'implementation-report-9', 'implementation-report-10', 'implementation-report-11', 'implementation-report-12', 'implementation-report-13', 'implementation-report-14', 'implementation-report-15', 'implementation-report-16', 'implementation-report-17', 'implementation-report-18', 'implementation-report-19', 'implementation-report-20', 'implementation-report-21', 'implementation-report-22', 'implementation-report-23', 'implementation-report-24', 'auth-acceptance-report-preamble', 'auth-acceptance-report-1', 'auth-acceptance-report-2', 'auth-acceptance-report-3', 'auth-acceptance-report-4', 'auth-acceptance-report-5', 'auth-acceptance-report-6', 'auth-acceptance-report-7', 'auth-acceptance-report-8', 'auth-recovery-audit-preamble', 'auth-recovery-audit-1', 'auth-recovery-audit-2', 'auth-recovery-audit-3', 'auth-recovery-audit-4', 'api-preamble', 'api-1', 'security-preamble', 'security-1', 'security-2', 'security-3', 'security-4', 'security-5', 'security-6');
+WHERE source_path IN ('README.md', 'docs/INTERNAL_SOPS.md', 'docs/SYSTEM_REFERENCE.md', 'docs/PROJECT_STATE.md', 'docs/OPERATIONS.md', 'docs/DECISIONS.md', 'docs/KNOWN_ISSUES.md', 'docs/VERIFICATION.md', 'docs/COMMUNICATION_ARCHITECTURE.md', 'docs/AI_ASSIST_CONTRACT.md', 'docs/UX_FRICTION_AUDIT.md', 'docs/PRODUCTION_RELEASE.md', 'docs/AGENT_HANDOFF.md', 'docs/IMPLEMENTATION_PLAN.md', 'docs/IMPLEMENTATION_REPORT.md', 'docs/AUTH_ACCEPTANCE_REPORT.md', 'docs/AUTH_RECOVERY_AUDIT.md', 'supabase/API.md', 'supabase/SECURITY.md')
+  AND slug NOT IN ('readme-preamble', 'readme-1', 'readme-2', 'readme-3', 'readme-4', 'readme-5', 'readme-6', 'readme-7', 'readme-8', 'readme-9', 'readme-10', 'readme-11', 'internal-sops-preamble', 'internal-sops-1', 'internal-sops-2', 'internal-sops-3', 'internal-sops-4', 'internal-sops-5', 'internal-sops-6', 'internal-sops-7', 'internal-sops-8', 'internal-sops-9', 'internal-sops-10', 'internal-sops-11', 'internal-sops-12', 'internal-sops-13', 'internal-sops-14', 'system-reference-preamble', 'system-reference-1', 'system-reference-2', 'system-reference-3', 'system-reference-4', 'project-state-preamble', 'project-state-1', 'project-state-2', 'project-state-3', 'project-state-4', 'project-state-5', 'project-state-6', 'operations-preamble', 'operations-1', 'operations-2', 'operations-3', 'operations-4', 'operations-5', 'operations-6', 'decisions-preamble', 'decisions-1', 'decisions-2', 'decisions-3', 'decisions-4', 'decisions-5', 'decisions-6', 'decisions-7', 'decisions-8', 'decisions-9', 'decisions-10', 'known-issues-preamble', 'known-issues-1', 'known-issues-2', 'known-issues-3', 'known-issues-4', 'known-issues-5', 'known-issues-6', 'known-issues-7', 'verification-preamble', 'verification-1', 'verification-2', 'verification-3', 'verification-4', 'verification-5', 'verification-6', 'verification-7', 'verification-8', 'communication-architecture-preamble', 'communication-architecture-1', 'communication-architecture-2', 'communication-architecture-3', 'communication-architecture-4', 'communication-architecture-5', 'communication-architecture-6', 'ai-assist-contract-preamble', 'ai-assist-contract-1', 'ai-assist-contract-2', 'ai-assist-contract-3', 'ai-assist-contract-4', 'ai-assist-contract-5', 'ai-assist-contract-6', 'ux-friction-audit-preamble', 'ux-friction-audit-1', 'ux-friction-audit-2', 'ux-friction-audit-3', 'ux-friction-audit-4', 'ux-friction-audit-5', 'production-release-preamble', 'production-release-1', 'production-release-2', 'production-release-3', 'production-release-4', 'production-release-5', 'production-release-6', 'production-release-7', 'production-release-8', 'agent-handoff-preamble', 'agent-handoff-1', 'agent-handoff-2', 'agent-handoff-3', 'agent-handoff-4', 'agent-handoff-5', 'agent-handoff-6', 'agent-handoff-7', 'agent-handoff-8', 'agent-handoff-9', 'agent-handoff-10', 'implementation-plan-preamble', 'implementation-plan-1', 'implementation-plan-2', 'implementation-plan-3', 'implementation-plan-4', 'implementation-report-preamble', 'implementation-report-1', 'implementation-report-2', 'implementation-report-3', 'implementation-report-4', 'implementation-report-5', 'implementation-report-6', 'implementation-report-7', 'implementation-report-8', 'implementation-report-9', 'implementation-report-10', 'implementation-report-11', 'implementation-report-12', 'implementation-report-13', 'implementation-report-14', 'implementation-report-15', 'implementation-report-16', 'implementation-report-17', 'implementation-report-18', 'implementation-report-19', 'implementation-report-20', 'implementation-report-21', 'implementation-report-22', 'implementation-report-23', 'implementation-report-24', 'auth-acceptance-report-preamble', 'auth-acceptance-report-1', 'auth-acceptance-report-2', 'auth-acceptance-report-3', 'auth-acceptance-report-4', 'auth-acceptance-report-5', 'auth-acceptance-report-6', 'auth-acceptance-report-7', 'auth-acceptance-report-8', 'auth-recovery-audit-preamble', 'auth-recovery-audit-1', 'auth-recovery-audit-2', 'auth-recovery-audit-3', 'auth-recovery-audit-4', 'api-preamble', 'api-1', 'security-preamble', 'security-1', 'security-2', 'security-3', 'security-4', 'security-5', 'security-6');
 
 COMMIT;

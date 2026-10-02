@@ -6,6 +6,7 @@ const routeLoaders: Record<string, () => Promise<unknown>> = {
   "/": () => import("@/features/dashboard/DashboardPage"),
   "/acquisitions": () => import("@/features/acquisitions/AcquisitionPages"),
   "/acquisitions/new": () => import("@/features/acquisitions/AcquisitionPages"),
+  "/intake": () => import("@/features/intake/ShorthandIntakePage"),
   "/vehicles": () => import("@/features/vehicles/VehiclePages"),
   "/vehicles/new": () => import("@/features/vehicles/VehiclePages"),
   "/sales": () => import("@/features/sales/SalePages"),

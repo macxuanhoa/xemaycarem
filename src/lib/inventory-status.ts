@@ -10,6 +10,10 @@
  * dashboard never disagrees with the server. Reserved bikes are held for
  * customers, so this indicator is deliberately NOT "sẵn sàng bán"; wording
  * here must keep the "đang tại cửa hàng" semantics (see docs/DECISIONS.md).
+ *
+ * Worked example with low=5, high=100: 4 -> LOW, 5 -> NORMAL, 100 -> NORMAL,
+ * 101 -> HIGH. These thresholds are operational dashboard indicators only and
+ * never generate an email, push, or automatic `system_announcements`.
  */
 
 export type InventoryIndicator = "LOW" | "NORMAL" | "HIGH";

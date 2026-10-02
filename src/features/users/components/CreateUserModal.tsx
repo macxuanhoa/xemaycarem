@@ -158,7 +158,7 @@ export function CreateUserModal({ onDone }: { onDone: () => void }) {
                     setForm({ ...form, can_view_financials: e.target.checked })
                   }
                 />
-                <strong>Cho phép xem giá mua xe và báo cáo lợi nhuận</strong>
+                <strong>Cho phép xem giá mua xe và lợi nhuận</strong>
               </label>
             </div>
           )}

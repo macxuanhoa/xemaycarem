@@ -47,7 +47,7 @@ function renderChangedKeys(oldData: unknown, newData: unknown) {
               ? JSON.stringify(oldObj[k])
               : String(oldObj[k] ?? "—")}
           </span>
-          <span>→</span>
+          <span className="audit-diff-arrow">→</span>
           <span className="audit-diff-new">
             {typeof newObj[k] === "object"
               ? JSON.stringify(newObj[k])
@@ -226,8 +226,8 @@ export default function AuditPage() {
                       <span className={getActionChipClass(a.action)}>
                         {actionLabels[a.action] ?? a.action}
                       </span>
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <div className="row" style={{ gap: "6px", alignItems: "center" }}>
+                      <div className="audit-record-main">
+                        <div className="audit-record-actor">
                           <User size={13} className="muted" />
                           <strong>
                             {a.actor_name ?? a.full_name ?? a.user_id}
@@ -236,7 +236,7 @@ export default function AuditPage() {
                           <span className="muted small">{a.entity_type}</span>
                         </div>
                       </div>
-                      <time className="row small" style={{ gap: "6px" }}>
+                      <time className="audit-record-time small">
                         <Clock size={13} className="muted" />
                         <span>{dateLabel(a.created_at)}</span>
                         <small className="muted">
@@ -247,8 +247,8 @@ export default function AuditPage() {
                       </time>
                     </summary>
 
-                    <div style={{ padding: "0 18px 18px" }}>
-                      <p className="small muted" style={{ marginTop: "4px" }}>
+                    <div className="audit-record-body">
+                      <p className="small muted audit-record-id">
                         Mã định danh đối tượng: <code>{a.entity_id}</code>
                       </p>
 

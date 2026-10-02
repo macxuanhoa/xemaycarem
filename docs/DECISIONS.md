@@ -47,6 +47,11 @@ The profile flag is a user-flow signal, not proof. A private table stores a salt
 
 Local draft/recent values are scoped to the authenticated user and exclude financial amounts and secrets. Images sent for extraction are transient in the browser request; vehicle photo storage remains a separate existing workflow. The provider is disabled until explicit server configuration and policy review.
 
+## Bỏ tab Báo cáo
+
+- Toàn bộ tính năng "Báo cáo" (`/reports`, `src/features/reports/`) đã được gỡ khỏi giao diện: tuyến đường, mục điều hướng, preload, liên kết số liệu trên Tổng quan và trích dẫn copilot trỏ về `/reports` đều chuyển hướng sang màn hình còn tồn tại (Bán hàng/Tổng quan). Lý do: chủ cửa hàng yêu cầu xóa tab khỏi app; số liệu doanh thu/lợi nhuận đã hiển thị ngay trên Tổng quan và danh sách Bán hàng, tab riêng là trùng lặp.
+- RPC database `report(p_kind, p_filters)` được giữ nguyên: hàm đã nằm trên production (migration 003/005 đã áp dụng), việc DROP là không đảo được và không cần thiết sau khi UI gỡ; nó chỉ là bề mặt đọc không còn consumer. Ghi quyết định này để agent sau không coi RPC "chết" là sót lại cần xóa vội.
+
 ## Unverified external state
 
 These decisions describe local code. They do not assert the current contents of a hosted Supabase project or any production account credential.

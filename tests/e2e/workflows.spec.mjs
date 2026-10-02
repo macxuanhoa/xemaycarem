@@ -334,20 +334,10 @@ test("Staff: financial fields absent, forbidden routes blocked, disabled user re
   ).toBeVisible();
 });
 
-test("Owner: report export, date ranges, audit and settings routes", async ({
+test("Owner: audit and settings routes", async ({
   page,
 }) => {
   await login(page);
-  await page.goto("/reports");
-  await page.getByRole("button", { name: "Tồn kho", exact: true }).click();
-  await expect(page.locator(".data-table tbody tr").first()).toBeVisible();
-  const download = page.waitForEvent("download");
-  await page.getByRole("button", { name: "Xuất CSV", exact: true }).click();
-  expect((await download).suggestedFilename()).toMatch(/inventory.*\.csv$/);
-  await page.getByRole("button", { name: "Tháng trước", exact: true }).click();
-  await expect(
-    page.getByRole("button", { name: "Tháng trước", exact: true }),
-  ).toHaveAttribute("aria-pressed", "true");
   await page.goto("/audit");
   await expect(page.locator(".audit-record").first()).toBeVisible();
   await page.locator(".audit-record summary").first().click();
@@ -521,7 +511,7 @@ test("Regression: loading a new route keeps the navigation shell visible", async
     signalModule = resolve;
   });
   await page.route(
-    "**/src/features/reports/ReportsPage.tsx*",
+    "**/src/features/expenses/ExpensePages.tsx*",
     async (route) => {
       signalModule();
       await moduleHeld;
@@ -531,7 +521,7 @@ test("Regression: loading a new route keeps the navigation shell visible", async
   try {
     await page
       .locator(".sidebar")
-      .getByRole("link", { name: "Báo cáo", exact: true })
+      .getByRole("link", { name: "Chi phí", exact: true })
       .click();
     await moduleRequested;
     await expect(page.locator(".sidebar")).toBeVisible();
@@ -549,7 +539,7 @@ test("Regression: loading a new route keeps the navigation shell visible", async
     releaseModule();
   }
   await expect(
-    page.getByRole("heading", { name: "Báo cáo", exact: true }),
+    page.getByRole("heading", { name: "Quản lý chi phí", exact: true }),
   ).toBeVisible();
 });
 

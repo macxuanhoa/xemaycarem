@@ -306,24 +306,6 @@ export type CustomerSummary = {
   customer_names?: string[];
 };
 
-export type ImportVehicleRow = {
-  frame_number: string;
-  brand: string;
-  model: string;
-  variant?: string;
-  year?: number | null;
-  color?: string;
-  engine_number?: string;
-  license_plate?: string;
-  odometer?: number;
-  purchase_date?: string;
-  purchase_price?: number;
-  asking_price?: number;
-  supplier_name?: string;
-  supplier_phone?: string;
-  notes?: string;
-};
-
 /**
  * AI copilot. Every answer is a list of facts plus the exact evidence rows the
  * server read under this user's session, so each claim can be reopened.

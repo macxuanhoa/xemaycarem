@@ -129,14 +129,14 @@ const INTENTS: Intent[] = [
     pattern: /(doanh thu|thu duoc bao nhieu|revenue)/,
     label: 'Doanh thu',
     requires: 'manage',
-    run: (context) => metrics(context, [['revenue', 'Doanh thu hoàn tất', 'money', '/reports', 'manage']]),
+    run: (context) => metrics(context, [['revenue', 'Doanh thu hoàn tất', 'money', '/', 'manage']]),
   },
   {
     key: 'profit',
     pattern: /(loi nhuan|lai bao nhieu|profit|hieu suat)/,
     label: 'Lợi nhuận',
     requires: 'finance',
-    run: (context) => metrics(context, [['gross_profit', 'Lợi nhuận gộp', 'money', '/reports', 'finance']]),
+    run: (context) => metrics(context, [['gross_profit', 'Lợi nhuận gộp', 'money', '/', 'finance']]),
   },
   {
     key: 'aging',

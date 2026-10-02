@@ -69,6 +69,9 @@ async function setup(page, { role = 'OWNER', result = evidence, status = 200 } =
 test('AI mode lives in the sidebar and every claim opens its own evidence', async ({ page }) => {
   const calls = await setup(page)
   await page.goto('/')
+  // The AI section is collapsed by default and expands via its toggle.
+  await expect(page.getByRole('link', { name: /Hỏi AI Cà Rem/ })).toBeHidden()
+  await page.getByRole('button', { name: /TRỢ LÝ AI/ }).click()
   await expect(page.getByRole('link', { name: /Hỏi AI Cà Rem/ })).toBeVisible()
   await expect(page.getByRole('link', { name: /Tài liệu cửa hàng/ })).toBeVisible()
   await page.getByRole('link', { name: /Hỏi AI Cà Rem/ }).click()

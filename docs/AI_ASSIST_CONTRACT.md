@@ -52,7 +52,7 @@ Retrieval (`src/features/copilot/CopilotPage.tsx` → `supabase/functions/ai-ass
 
 1. `search_knowledge` ranks documentation sections the caller's audience tier may read.
 2. Keyword intents (inventory, acquisitions, sales, revenue, profit, aging, receivables, expenses, audit, team, settings) call only the existing read RPCs — `dashboard`, `list_receivables`, `list_expenses`, `list_audit`, `list_profiles`, `get_settings`, `list_vehicles` — with the caller's JWT, so RLS and `private.require_role` decide what is answerable.
-3. Each returned figure is paired with a citation (`id`, `type`, `label`, `detail`, `route`) pointing at the exact screen that shows it (`/vehicles/:id`, `/sales/:id`, `/receivables`, `/expenses`, `/audit`, `/users`, `/settings`, `/reports`, `/docs/:slug`).
+3. Each returned figure is paired with a citation (`id`, `type`, `label`, `detail`, `route`) pointing at the exact screen that shows it (`/vehicles/:id`, `/sales/:id`, `/receivables`, `/expenses`, `/audit`, `/users`, `/settings`, `/docs/:slug`).
 
 Responses use `kind: 'copilot'`:
 

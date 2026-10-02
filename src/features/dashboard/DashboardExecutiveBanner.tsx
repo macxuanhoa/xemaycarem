@@ -6,7 +6,6 @@ import {
   Plus,
   ScanLine,
   Sparkles,
-  Zap,
 } from "lucide-react";
 import { canOperate } from "@/lib/permissions";
 import type { Profile } from "@/types";
@@ -14,13 +13,11 @@ import type { Profile } from "@/types";
 interface DashboardExecutiveBannerProps {
   profile: Profile | null;
   storeName?: string;
-  onOpenQuickActions?: () => void;
 }
 
 export function DashboardExecutiveBanner({
   profile,
   storeName = "Cửa hàng Xe Máy Cà Rem",
-  onOpenQuickActions,
 }: DashboardExecutiveBannerProps) {
   const greeting = useMemo(() => {
     const hour = new Date().getHours();
@@ -89,20 +86,6 @@ export function DashboardExecutiveBanner({
             <Sparkles size={15} />
             <span>Hỏi Cà Rem AI</span>
           </Link>
-
-          {onOpenQuickActions && (
-            <button
-              type="button"
-              onClick={onOpenQuickActions}
-              className="carem-btn carem-btn-outline"
-              title="Mở bảng thao tác nhanh (Phím Q)"
-              aria-label="Thao tác nhanh"
-            >
-              <Zap size={15} />
-              <span>Thao tác</span>
-              <kbd className="carem-key-badge">Q</kbd>
-            </button>
-          )}
         </div>
       </div>
     </div>

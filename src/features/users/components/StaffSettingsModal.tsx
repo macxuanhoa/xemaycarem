@@ -442,7 +442,7 @@ export function StaffSettingsModal({
                     <strong>Cho phép xem giá mua xe và lợi nhuận</strong>
                   </label>
                   <p className="muted small" style={{ margin: "4px 0 0 24px" }}>
-                    Khi bật, Quản lý này sẽ thấy giá nhập vốn, tổng lãi gộp của từng xe và các báo cáo tài chính nội bộ.
+                    Khi bật, Quản lý này sẽ thấy giá nhập vốn và tổng lãi gộp của từng xe.
                   </p>
                 </div>
               )}

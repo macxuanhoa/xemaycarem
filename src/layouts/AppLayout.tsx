@@ -11,11 +11,13 @@ import {
 import {
   ArrowDownLeft,
   BookOpen,
-  ChartNoAxesCombined,
+  Bot,
+  ChevronDown,
   ExternalLink,
   House,
   LogOut,
   Menu,
+  Moon,
   Bike,
   Package,
   Plus,
@@ -23,21 +25,20 @@ import {
   ClipboardList,
   Settings,
   ShieldCheck,
-  Sparkles,
   Store,
+  Sun,
   Users,
   WifiOff,
   X,
-  Zap,
 } from "lucide-react";
 import { useAuth } from "@/features/auth/AuthProvider";
 import { canManage, canOperate, isOwner, roleLabels } from "@/lib/permissions";
 import { Loading } from "@/components/ui";
 import { useMobileDrawer } from "@/lib/useMobileDrawer";
 import { GlobalSearchPalette } from "@/components/search/GlobalSearchPalette";
-import { QuickActionsModal } from "@/components/QuickActionsModal";
 import { AnnouncementBar } from "@/components/AnnouncementBar";
 import { preloadRoute } from "@/lib/routePreload";
+import { currentTheme, toggleTheme, type Theme } from "@/lib/theme";
 
 function RouteLoadingFallback() {
   return (
@@ -54,40 +55,28 @@ const mainNav = [
   { to: "/sales", label: "Bán hàng & Thu nợ", icon: Receipt },
   { to: "/customers", label: "Khách hàng", icon: Users },
   { to: "/expenses", label: "Chi phí", icon: ClipboardList },
-  { to: "/reports", label: "Báo cáo", icon: ChartNoAxesCombined },
 ];
 export function AppLayout() {
   const { profile, signOut } = useAuth();
+  // Sun/moon switch lives in the mobile header in place of logout (mis-tap guard).
+  const [theme, setTheme] = useState<Theme>(() => currentTheme());
   const settings = useQuery({
     queryKey: ["settings"],
     queryFn: () => api.call<{ store_name: string }>("get_settings"),
   });
   const drawer = useMobileDrawer();
   const [online, setOnline] = useState(navigator.onLine);
-  const [quickActionsOpen, setQuickActionsOpen] = useState(false);
   const { pathname, state } = useLocation();
+  // The AI section stays collapsed until opened, but is revealed on its pages.
+  // Seeded from the router location so server-render tests never touch window.
+  const [aiSectionOpen, setAiSectionOpen] = useState(
+    () => pathname.startsWith("/copilot") || pathname.startsWith("/docs"),
+  );
   const navigationType = useNavigationType();
 
   useEffect(() => {
-    const handleGlobalKey = (e: KeyboardEvent) => {
-      const target = e.target as HTMLElement;
-      const isTyping =
-        target?.isContentEditable ||
-        ["INPUT", "TEXTAREA", "SELECT"].includes(target?.tagName);
-      if (isTyping) return;
-      if (
-        e.key.toLowerCase() === "q" &&
-        !e.ctrlKey &&
-        !e.metaKey &&
-        !e.altKey
-      ) {
-        e.preventDefault();
-        setQuickActionsOpen((prev) => !prev);
-      }
-    };
-    window.addEventListener("keydown", handleGlobalKey);
-    return () => window.removeEventListener("keydown", handleGlobalKey);
-  }, []);
+    if (pathname.startsWith("/copilot") || pathname.startsWith("/docs")) setAiSectionOpen(true);
+  }, [pathname]);
 
   useEffect(() => {
     if (
@@ -109,8 +98,7 @@ export function AppLayout() {
   }, []);
   const visibleNav = mainNav.filter(
     (n) =>
-      !["/reports", "/expenses"].includes(n.to) ||
-      canManage(profile),
+      n.to !== "/expenses" || canManage(profile),
   );
 
   const currentPageTitle = useMemo(() => {
@@ -125,7 +113,6 @@ export function AppLayout() {
     if (pathname.startsWith("/capture")) return "Quét giấy tờ";
     if (pathname.startsWith("/copilot")) return "Trợ lý AI";
     if (pathname.startsWith("/docs")) return "Tài liệu cửa hàng";
-    if (pathname.startsWith("/import")) return "Nhập dữ liệu";
     if (pathname.startsWith("/sell")) return "Bán xe";
     return "";
   }, [pathname]);
@@ -185,29 +172,46 @@ export function AppLayout() {
         </nav>
         {/* AI mode: grounded Q&A plus the documentation the answers cite. */}
         {canOperate(profile) && (
-          <>
-            <p className="nav-caption">TRỢ LÝ AI</p>
-            <nav aria-label="Trợ lý AI">
-              <NavLink
-                to="/copilot"
-                onClick={drawer.close}
-                onMouseEnter={() => preloadRoute("/copilot")}
-                onFocus={() => preloadRoute("/copilot")}
-              >
-                <Sparkles size={20} />
-                <span>Hỏi AI Cà Rem</span>
-              </NavLink>
-              <NavLink
-                to="/docs"
-                onClick={drawer.close}
-                onMouseEnter={() => preloadRoute("/docs")}
-                onFocus={() => preloadRoute("/docs")}
-              >
-                <BookOpen size={20} />
-                <span>Tài liệu cửa hàng</span>
-              </NavLink>
-            </nav>
-          </>
+          <div className="ai-nav-group">
+            <button
+              type="button"
+              className="ai-nav-toggle"
+              aria-expanded={aiSectionOpen}
+              aria-controls="ai-nav-links"
+              onClick={() => setAiSectionOpen((open) => !open)}
+              onMouseEnter={() => preloadRoute("/copilot")}
+              onFocus={() => preloadRoute("/copilot")}
+            >
+              <Bot size={18} />
+              <span className="ai-nav-caption">TRỢ LÝ AI</span>
+              <ChevronDown
+                size={15}
+                className={`ai-nav-chevron ${aiSectionOpen ? "open" : ""}`}
+              />
+            </button>
+            {aiSectionOpen && (
+              <nav id="ai-nav-links" aria-label="Trợ lý AI">
+                <NavLink
+                  to="/copilot"
+                  onClick={drawer.close}
+                  onMouseEnter={() => preloadRoute("/copilot")}
+                  onFocus={() => preloadRoute("/copilot")}
+                >
+                  <Bot size={20} />
+                  <span>Hỏi AI Cà Rem</span>
+                </NavLink>
+                <NavLink
+                  to="/docs"
+                  onClick={drawer.close}
+                  onMouseEnter={() => preloadRoute("/docs")}
+                  onFocus={() => preloadRoute("/docs")}
+                >
+                  <BookOpen size={20} />
+                  <span>Tài liệu cửa hàng</span>
+                </NavLink>
+              </nav>
+            )}
+          </div>
         )}
         <div className="sidebar-bottom">
           {isOwner(profile) && (
@@ -245,6 +249,15 @@ export function AppLayout() {
               <Settings size={20} />
               Cài đặt
             </NavLink>
+            {/* Mobile safe place for logout: inside the drawer, away from the header. */}
+            <button
+              type="button"
+              className="sidebar-signout"
+              onClick={() => void signOut()}
+            >
+              <LogOut size={20} />
+              Đăng xuất
+            </button>
           </nav>
           <div className="sidebar-showroom-cta">
             <Link
@@ -307,17 +320,6 @@ export function AppLayout() {
               <span>Showroom</span>
               <ExternalLink size={12} style={{ opacity: 0.7 }} />
             </Link>
-            <button
-              type="button"
-              className="header-quick-action-btn"
-              onClick={() => setQuickActionsOpen(true)}
-              title="Thao tác nhanh (Phím tắt: Q)"
-              aria-label="Mở bảng thao tác nhanh"
-            >
-              <Zap size={15} />
-              <span>Thao tác</span>
-              <kbd className="header-key-hint">Q</kbd>
-            </button>
           </div>
           <div className="topbar-right">
             <span className="workday">
@@ -339,7 +341,15 @@ export function AppLayout() {
               </span>
             </Link>
             <button
-              className="icon-button"
+              className="icon-button header-theme-toggle"
+              aria-label={theme === "dark" ? "Chuyển sang nền sáng" : "Chuyển sang nền tối"}
+              title={theme === "dark" ? "Nền sáng" : "Nền tối"}
+              onClick={() => setTheme(toggleTheme())}
+            >
+              {theme === "dark" ? <Sun size={18} /> : <Moon size={18} />}
+            </button>
+            <button
+              className="icon-button header-logout"
               aria-label="Đăng xuất"
               title="Đăng xuất"
               onClick={() => void signOut()}
@@ -418,17 +428,6 @@ export function AppLayout() {
           Menu
         </button>
       </nav>
-
-      <QuickActionsModal
-        open={quickActionsOpen}
-        onClose={() => setQuickActionsOpen(false)}
-        onOpenSearch={() => {
-          const input = document.querySelector<HTMLInputElement>(
-            '.global-search input[type="search"]',
-          );
-          input?.focus();
-        }}
-      />
     </div>
   );
 }

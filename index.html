@@ -17,6 +17,28 @@
       rel="stylesheet"
     />
     <title>Cà Rem · Quản Lý Cửa Hàng Xe Máy</title>
+    <script>
+      // Apply the saved (or system) theme before first paint to avoid a flash.
+      (function () {
+        try {
+          var saved = localStorage.getItem("xe-theme");
+          var theme =
+            saved === "light" || saved === "dark"
+              ? saved
+              : window.matchMedia &&
+                  window.matchMedia("(prefers-color-scheme: dark)").matches
+                ? "dark"
+                : "light";
+          document.documentElement.dataset.theme = theme;
+          if (theme === "dark") {
+            var meta = document.querySelector('meta[name="theme-color"]');
+            if (meta) meta.setAttribute("content", "#0b0c10");
+          }
+        } catch (e) {
+          /* default to light */
+        }
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>

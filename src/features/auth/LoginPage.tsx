@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Link, Navigate, useLocation } from "react-router-dom";
+import { Link, Navigate } from "react-router-dom";
 import {
   ArrowRight,
   Eye,
@@ -23,9 +23,7 @@ const loginSchema = z.object({
   remember: z.boolean(),
 });
 export default function LoginPage() {
-  const location = useLocation();
-  const from: unknown = location.state?.from;
-  const returnTo = typeof from === "string" && from.startsWith("/") && !from.startsWith("//") && !from.startsWith("/login") ? from : "/";
+  // Signing in always lands on the dashboard first; deep links are not resumed.
   const { profile, refresh, error: authError, user, signOut } = useAuth();
   const [show, setShow] = useState(false),
     [error, setError] = useState<unknown>(null);
@@ -37,7 +35,7 @@ export default function LoginPage() {
     resolver: zodResolver(loginSchema),
     defaultValues: { remember: true },
   });
-  if (profile) return <Navigate to={returnTo} replace />;
+  if (profile) return <Navigate to="/" replace />;
   const login = handleSubmit(async (values) => {
     setError(null);
     if (!supabase) return;

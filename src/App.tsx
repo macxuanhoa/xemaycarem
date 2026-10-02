@@ -53,7 +53,6 @@ const ExpensesPage = lazy(() =>
     default: m.ExpensesPage,
   })),
 );
-const ReportsPage = lazy(() => import("@/features/reports/ReportsPage"));
 const UsersPage = lazy(() => import("@/features/users/UsersPage"));
 const AuditPage = lazy(() => import("@/features/audit/AuditPage"));
 const SettingsPage = lazy(() => import("@/features/settings/SettingsPage"));
@@ -65,11 +64,6 @@ const ReceivablesPage = lazy(() =>
 const CustomersPage = lazy(() =>
   import("@/features/customers/CustomersPage").then((m) => ({
     default: m.CustomersPage,
-  })),
-);
-const ImportVehiclesPage = lazy(() =>
-  import("@/features/vehicles/ImportVehiclesPage").then((m) => ({
-    default: m.ImportVehiclesPage,
   })),
 );
 const CapturePage = lazy(() => import("@/features/capture/CapturePage"));
@@ -194,15 +188,10 @@ export default function App() {
                 <Route path="vehicles/:id/edit" element={<VehicleFormPage />} />
                 <Route path="vehicles/:id/sell" element={<SellVehiclePage />} />
                 <Route path="sell" element={<SellVehiclePage />} />
-                <Route
-                  path="import-vehicles"
-                  element={<ImportVehiclesPage />}
-                />
               </Route>
               <Route element={<Protected access="manage" />}>
                 <Route path="reconciliation" element={<Navigate to="/expenses" replace />} />
                 <Route path="expenses" element={<ExpensesPage />} />
-                <Route path="reports" element={<ReportsPage />} />
               </Route>
               <Route element={<Protected access="owner" />}>
                 <Route path="users" element={<UsersPage />} />

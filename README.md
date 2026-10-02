@@ -80,7 +80,7 @@ React PWA → Supabase Auth → PostgreSQL RPC + RLS
 - Xe do nhân viên nhập chưa có giá mua được đánh dấu `cost_pending`; chủ cửa hàng/quản lý được cấp quyền phải bổ sung trước khi bán. Tổng vốn tồn kho hiện `—` nếu còn xe chưa xác nhận giá mua.
 - Giá vốn = giá mua + chi phí xe ACTIVE. Lợi nhuận gộp = giá bán − snapshot giá vốn. Chi phí cửa hàng được báo riêng, không cộng vào giá vốn xe.
 - Hủy sale giữ lịch sử, vô hiệu khoản thu (`VOIDED`), đưa xe về IN_STOCK; hoàn tiền ngân hàng/tiền mặt thực tế cần đối chiếu bên ngoài hệ thống.
-- Ngày nghiệp vụ dùng `Asia/Ho_Chi_Minh`. Báo cáo tồn kho là tồn kho **hiện tại**, có lọc ngày nhập, không phải tái dựng số dư lịch sử.
+- Ngày nghiệp vụ dùng `Asia/Ho_Chi_Minh`. Trang tồn kho hiển thị tồn kho **hiện tại**, có lọc ngày nhập, không phải tái dựng số dư lịch sử.
 - Ảnh lưu trong bucket private, đường dẫn theo UUID xe; trình duyệt dùng signed URL ngắn hạn. Gỡ ảnh soft-delete metadata, không hard-delete lịch sử.
 
 Chi tiết hợp đồng API: [supabase/API.md](supabase/API.md). Mô hình bảo mật: [supabase/SECURITY.md](supabase/SECURITY.md).
@@ -89,9 +89,9 @@ Chi tiết hợp đồng API: [supabase/API.md](supabase/API.md). Mô hình bả
 
 | Vai trò | Quyền chính |
 |---|---|
-| OWNER | Toàn bộ nghiệp vụ, giá mua/lợi nhuận, nhân sự, audit, cài đặt, báo cáo |
-| MANAGER | Nhập/sửa/bán xe, thu tiền, chi phí, doanh thu/báo cáo; giá mua và lợi nhuận cần `can_view_financials` |
-| STAFF | Xem kho, nhập/cập nhật thông tin vận hành, bán xe đủ giá vốn, ghi nhận thanh toán; không quản trị/chi phí/báo cáo nhạy cảm |
+| OWNER | Toàn bộ nghiệp vụ, giá mua/lợi nhuận, nhân sự, audit, cài đặt |
+| MANAGER | Nhập/sửa/bán xe, thu tiền, chi phí, doanh thu; giá mua và lợi nhuận cần `can_view_financials` |
+| STAFF | Xem kho, nhập/cập nhật thông tin vận hành, bán xe đủ giá vốn, ghi nhận thanh toán; không quản trị/chi phí nhạy cảm |
 
 Tài khoản `active=false` bị từ chối tại database dù session Auth còn tồn tại. Frontend làm mới quyền định kỳ và khi quay lại cửa sổ. Không cho vô hiệu hóa hoặc hạ vai trò OWNER hoạt động cuối cùng.
 
@@ -102,7 +102,6 @@ Tài khoản `active=false` bị từ chối tại database dù session Auth cò
 - Kho xe: tìm mã xe/biển số/hãng/dòng/số khung/số máy/SĐT khách; lọc trạng thái/hãng/năm/giá/ngày; phân trang/sắp xếp; nhập/sửa/chi tiết/ảnh/lịch sử.
 - Bán hàng: bán xe trong một biểu mẫu, trả nhiều lần, chi tiết giao dịch và hủy có lý do.
 - Chi phí xe và cửa hàng: thêm, sửa, hủy có lịch sử.
-- Báo cáo bán hàng/tồn kho/lợi nhuận/chi phí, khoảng ngày tùy chọn, CSV UTF-8 chống formula injection.
 - Nhân sự, audit trước/sau thay đổi, hồ sơ và cài đặt cửa hàng.
 - Trợ lý AI (`/copilot`) hỏi đáp có bằng chứng bấm được, và tài liệu cửa hàng (`/docs`) xem ngay trong app.
 

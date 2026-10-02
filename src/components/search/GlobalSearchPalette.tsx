@@ -37,7 +37,6 @@ export function GlobalSearchPalette() {
       ? [
           { label: "Thu xe", to: "/acquisitions/new" },
           { label: "Bán xe", to: "/sell" },
-          { label: "Nhập CSV", to: "/import-vehicles" },
         ]
       : []),
     ...(canManage(profile)

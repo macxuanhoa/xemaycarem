@@ -429,38 +429,7 @@ test("Operational: expense management shows real independent costs and supports 
   expect((await db.query("SELECT id FROM public.sales WHERE id=$1", [saleId])).rows).toHaveLength(1);
 });
 
-test("Operational: CSV validates preview before writing, imports valid rows atomically and rejects stale duplicates", async ({ page }) => {
-  await loginAs(page, "owner");
-  await page.goto("/import-vehicles");
-  const frame = `E2E-${ids.OWNER.slice(0, 8)}`;
-  const csv = `Số khung,Hãng,Dòng xe,Giá mua,Giá bán,Ngày mua\r\n${frame},Honda,Nhập CSV thử,12000000,15000000,${day}\r\n${frame}-INVALID,Honda,Giá âm,-12000000,15000000,${day}`;
-  await page.locator('input[type="file"]').setInputFiles({ name: "nhap-thu.csv", mimeType: "text/csv", buffer: Buffer.from("\uFEFF" + csv, "utf8") });
-  await expect(page.getByRole("heading", { name: /Bảng kiểm tra chi tiết/ })).toBeVisible();
-  const rows = page.locator(".data-table tbody tr");
-  await expect(rows).toHaveCount(2);
-  await expect(rows.nth(1)).toContainText(/không hợp lệ|không âm|số nguyên/i);
-  expect((await db.query("SELECT id FROM public.vehicles WHERE frame_number=$1", [frame])).rows).toHaveLength(0);
-  await page.screenshot({ path: "test-results/import-preview-desktop.png", fullPage: true });
-  await page.getByRole("button", { name: "Xác nhận nhập 1 xe hợp lệ vào kho", exact: true }).click();
-  await expect(page.getByRole("heading", { name: "Nhập xe vào kho thành công!", exact: true })).toBeVisible();
-  expect((await db.query("SELECT id FROM public.vehicles WHERE frame_number=$1", [frame])).rows).toHaveLength(1);
-  expect((await db.query("SELECT id FROM public.vehicles WHERE frame_number=$1", [`${frame}-INVALID`])).rows).toHaveLength(0);
-
-  // A second preview can become stale; execution must recheck the actual database.
-  await page.getByRole("button", { name: "Tiếp tục nhập file khác", exact: true }).click();
-  const staleFrame = `${frame}-STALE`;
-  await page.locator('input[type="file"]').setInputFiles({ name: "stale.csv", mimeType: "text/csv", buffer: Buffer.from(`Số khung,Hãng,Dòng xe,Giá mua,Giá bán\n${staleFrame},Honda,Dòng thử,10000000,15000000`, "utf8") });
-  await expect(page.getByRole("button", { name: "Xác nhận nhập 1 xe hợp lệ vào kho", exact: true })).toBeEnabled();
-  const connection = await db.connection();
-  try { await asUser(connection, ids.OWNER, client => rpc(client, "save_vehicle", "$1::jsonb", [JSON.stringify({ frame_number: staleFrame, brand: "Honda", model: "Dòng đã nhập", purchase_date: day, purchase_price: 10000000, asking_price: 15000000 })])); }
-  finally { await connection.close(); }
-  await page.getByRole("button", { name: "Xác nhận nhập 1 xe hợp lệ vào kho", exact: true }).click();
-  await expect(page.getByRole("heading", { name: "Nhập xe vào kho thành công!", exact: true })).toHaveCount(0);
-  await expect(page.getByText(/trùng|đã tồn tại/i).last()).toBeVisible();
-  expect((await db.query("SELECT id FROM public.vehicles WHERE frame_number=$1", [staleFrame])).rows).toHaveLength(1);
-});
-
-test("Operational: QR vehicle route returns after login, downloads a genuine SVG and camera failure has search fallback", async ({ page }) => {
+test("Operational: QR vehicle route opens after login (dashboard-first), downloads a genuine SVG and camera failure has search fallback", async ({ page }) => {
   await page.goto(`/vehicles/${createdVehicles[0]}`);
   await expect(page).toHaveURL(/\/login$/);
   const username = page.getByRole("textbox", { name: /Tên đăng nhập hoặc email/i });
@@ -470,7 +439,9 @@ test("Operational: QR vehicle route returns after login, downloads a genuine SVG
   await password.fill("Password-Test-2026");
   await expect(password).toHaveValue("Password-Test-2026");
   await page.getByRole("button", { name: "Đăng nhập", exact: true }).click();
-  await expect(page).toHaveURL(`/vehicles/${createdVehicles[0]}`);
+  // Login always lands on the dashboard first; the QR target is then opened normally.
+  await expect(page).toHaveURL("/");
+  await page.goto(`/vehicles/${createdVehicles[0]}`);
   await expect(page.getByRole("img", { name: /QR mở xe/ })).toBeVisible();
   const download = page.waitForEvent("download");
   await page.getByRole("button", { name: "Tải QR", exact: true }).click();

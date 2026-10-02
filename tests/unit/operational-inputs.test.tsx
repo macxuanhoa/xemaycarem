@@ -1,7 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { renderToStaticMarkup } from "react-dom/server";
-import { parseCsv, parseVehiclesCsv, validateImportRows } from "@/lib/csv";
 import { resolveVehicleQr, vehicleQrUrl, generateQrSvg } from "@/lib/qrcode";
 import { CustomerReceipt } from "@/features/sales/CustomerReceipt";
 import type { Sale } from "@/types";
@@ -18,80 +17,6 @@ vi.mock("@/features/auth/AuthProvider", () => ({
     signOut: vi.fn(),
   }),
 }));
-
-describe("inventory CSV input integrity", () => {
-  const row = {
-    frame_number: "RLH-TEST",
-    brand: "Honda",
-    model: "Wave",
-    purchase_date: "2026-09-30",
-  };
-  it("preserves Vietnamese quoted values and BOM", () => {
-    expect(
-      parseVehiclesCsv(
-        '\uFEFFSố khung,Hãng,Dòng xe\r\nTEST,Honda,"Wave, trắng"',
-      ).rawRows[0].model,
-    ).toBe("Wave, trắng");
-  });
-  it.each(['"unfinished', 'a"b",c', '"a"x,b'])(
-    "rejects malformed CSV %s",
-    (value) => expect(() => parseCsv(value)).toThrow(),
-  );
-  it("rejects missing and duplicate mapped columns and row width", () => {
-    for (const csv of [
-      "brand,model\nHonda,Wave",
-      "frame_number,Số khung,brand,model\nA,B,Honda,Wave",
-      "frame_number,brand,model\nA,Honda",
-    ])
-      expect(() => parseVehiclesCsv(csv)).toThrow();
-  });
-  it.each(["-100", "1.5", "garbage", "1e8", "9007199254740992"])(
-    "rejects money without silently changing it: %s",
-    (purchase_price) => {
-      expect(
-        validateImportRows([{ ...row, purchase_price }], true, "2026-09-30")[0]
-          .isValid,
-      ).toBe(false);
-    },
-  );
-  it("blank purchase cost remains unknown instead of zero", () => {
-    const result = validateImportRows([row], false, "2026-09-30")[0];
-    expect(result.isValid).toBe(true);
-    expect(result.data).not.toHaveProperty("purchase_price");
-  });
-  it("rejects restricted financial input", () =>
-    expect(
-      validateImportRows(
-        [{ ...row, purchase_price: "100" }],
-        false,
-        "2026-09-30",
-      )[0].isValid,
-    ).toBe(false));
-  it.each([
-    { purchase_date: "2026-02-30" },
-    { purchase_date: "2026-10-01" },
-    { year: "2024x" },
-    { year: "1949" },
-    { odometer: "-20" },
-    { odometer: "12.5" },
-  ])("validates calendar and exact integer fields %j", (fields) => {
-    expect(
-      validateImportRows([{ ...row, ...fields }], true, "2026-09-30")[0]
-        .isValid,
-    ).toBe(false);
-  });
-  it("detects equivalent formatted identifiers in upload", () => {
-    const rows = validateImportRows(
-      [
-        { ...row, license_plate: "43A1-123.45" },
-        { ...row, frame_number: "OTHER", license_plate: "43a1 12345" },
-      ],
-      true,
-      "2026-09-30",
-    );
-    expect(rows[1].isDuplicate).toBe(true);
-  });
-});
 
 describe("QR identity", () => {
   const id = "12345678-1234-1234-1234-123456789abc";

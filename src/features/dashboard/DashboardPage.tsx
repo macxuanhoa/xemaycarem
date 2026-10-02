@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 import {
@@ -7,13 +7,8 @@ import {
   ArrowDownLeft,
   ArrowRight,
   ArrowUpRight,
-  Bike,
-  Bot,
-  Boxes,
   CalendarDays,
   CheckCircle2,
-  ChevronDown,
-  ChevronUp,
   Clock3,
   CreditCard,
   Receipt,
@@ -39,26 +34,15 @@ import {
   money,
   today,
 } from "@/lib/format";
-import {
-  getRecentVehicles,
-  formatRelativeTime,
-  type RecentVehicleItem,
-} from "@/lib/recentVehicles";
 import { useAuth } from "@/features/auth/AuthProvider";
 import { DashboardExecutiveBanner } from "./DashboardExecutiveBanner";
-import type { DashboardData, DateFilter } from "@/types";
+import type { DashboardData, DailyReconciliation, DateFilter } from "@/types";
 
 export default function DashboardPage() {
   const { profile } = useAuth();
   // Default to TODAY as explicitly requested by user
   const [range, setRange] = useState<DateFilter>(() => datePreset("today"));
-  const [recentVehicles, setRecentVehicles] = useState<RecentVehicleItem[]>([]);
-  const [recentExpanded, setRecentExpanded] = useState(true);
   const [activeTxTab, setActiveTxTab] = useState<"sales" | "acquisitions" | "profitable">("sales");
-
-  useEffect(() => {
-    setRecentVehicles(getRecentVehicles(profile?.id));
-  }, [profile?.id]);
 
   const query = useQuery({
     queryKey: ["dashboard", range],
@@ -74,7 +58,19 @@ export default function DashboardPage() {
     queryFn: () => api.call<{ store_name: string }>("get_settings"),
   });
 
+  // Reuses the existing reconciliation RPC for true cash collected today.
+  // OWNER/MANAGER only server-side, so STAFF never triggers the call.
+  const reconciliationQuery = useQuery({
+    queryKey: ["daily-reconciliation", today()],
+    queryFn: () =>
+      api.call<DailyReconciliation>("daily_reconciliation", {
+        p_date: today(),
+      }),
+    enabled: canManage(profile),
+  });
+
   const d = query.data;
+  const recon = reconciliationQuery.data;
 
   return (
     <div className="stack page-stack">
@@ -82,9 +78,6 @@ export default function DashboardPage() {
       <DashboardExecutiveBanner
         profile={profile}
         storeName={settingsQuery.data?.store_name ?? "Cửa hàng Xe Máy Cà Rem"}
-        onOpenQuickActions={() => {
-          window.dispatchEvent(new KeyboardEvent("keydown", { key: "q" }));
-        }}
       />
 
       {query.isPending ? (
@@ -94,134 +87,141 @@ export default function DashboardPage() {
       ) : (
         d && (
           <>
-            {/* ═══ AGENT LED DIGEST BANNER (PULSING LED BORDER NOTIFICATION) ═══ */}
-            <div className="agent-led-card" role="region" aria-label="Bản tin Trợ lý Cà Rem AI">
-              <div className="agent-led-ambient" aria-hidden="true" />
-              <div className="agent-led-header">
-                <div className="agent-led-badge">
-                  <Bot size={17} className="agent-bot-icon" />
-                  <span>TRỢ LÝ CÀ REM AI · BẢN TIN TRONG NGÀY</span>
-                </div>
-                <div className="agent-led-status">
-                  <span className="agent-live-dot" aria-hidden="true" />
-                  <span>Trực tuyến {dateLabel(today())}</span>
-                </div>
-              </div>
+            {/* ═══ BẢN TIN TRONG NGÀY (soft animated LED-border digest) ═══ */}
+            <section
+              className="carem-digest"
+              role="region"
+              aria-label="Bản tin trong ngày"
+            >
+              <header className="carem-digest-head">
+                <h2 className="carem-digest-title">
+                  <span className="carem-digest-led" aria-hidden="true" />
+                  Bản tin trong ngày
+                </h2>
+                <span className="carem-digest-meta">
+                  Cập nhật {dateLabel(today())}
+                </span>
+              </header>
 
-              <div className="agent-led-body">
-                <p className="agent-led-speech">
-                  {d.today_revenue && d.today_revenue > 0 ? (
-                    <>
-                      Hôm nay cửa hàng đã ghi nhận doanh thu{" "}
-                      <strong className="agent-highlight-gold">{money(d.today_revenue)}</strong>, hoàn tất{" "}
-                      <strong className="agent-highlight-lime">{d.sold_today}</strong> đơn xe xuất kho và thu vào{" "}
-                      <strong className="agent-highlight-cyan">{d.acquired_today ?? 0}</strong> xe mới.
-                      {canFinance(profile) && d.today_profit != null && (
-                        <>
-                          {" "}Lợi nhuận gộp hôm nay tạm tính:{" "}
-                          <strong className="agent-highlight-emerald">{money(d.today_profit)}</strong>.
-                        </>
-                      )}
-                    </>
-                  ) : (
-                    <>
-                      Hôm nay chưa phát sinh giao dịch xuất xe. Hiện đang có{" "}
-                      <strong className="agent-highlight-lime">{d.in_stock}</strong> xe sẵn sàng chào bán và{" "}
-                      <strong className="agent-highlight-gold">{d.reserved}</strong> xe đang giữ chỗ cọc. Chúc cửa hàng một ngày buôn may bán đắt!
-                    </>
-                  )}
-                </p>
-
-                <div className="agent-led-chips">
+              <div className="carem-digest-grid">
+                {/* A. THỐNG KÊ HÔM NAY */}
+                <div className="carem-digest-col">
+                  <h3 className="carem-digest-section-label">
+                    Thống kê hôm nay
+                  </h3>
+                  <div className="digest-row">
+                    <span className="digest-row-label">Xe thu vào hôm nay</span>
+                    <strong className="digest-row-value cyan">
+                      {d.acquired_today ?? 0} xe
+                    </strong>
+                  </div>
+                  <div className="digest-row">
+                    <span className="digest-row-label">Xe bán ra hôm nay</span>
+                    <strong className="digest-row-value lime">
+                      {d.sold_today} xe
+                    </strong>
+                  </div>
                   {canManage(profile) && (
-                    <div className="agent-chip">
-                      <span className="agent-chip-label">Doanh thu hôm nay</span>
-                      <strong className="agent-chip-val gold">{money(d.today_revenue ?? 0)}</strong>
+                    <>
+                      <div className="digest-row">
+                        <span className="digest-row-label">
+                          Doanh thu hôm nay
+                        </span>
+                        <strong className="digest-row-value gold">
+                          {money(d.today_revenue ?? 0)}
+                        </strong>
+                      </div>
+                      <div className="digest-row">
+                        <span className="digest-row-label">
+                          Tiền đã thu hôm nay
+                        </span>
+                        <strong className="digest-row-value gold">
+                          {money(recon?.total_collected)}
+                        </strong>
+                      </div>
+                      <div className="digest-row">
+                        <span className="digest-row-label">
+                          Thu hồi công nợ hôm nay
+                        </span>
+                        <strong className="digest-row-value emerald">
+                          {money(recon?.debt_collected_today)}
+                        </strong>
+                      </div>
+                      <div className="digest-row">
+                        <span className="digest-row-label">
+                          Công nợ phát sinh hôm nay
+                        </span>
+                        <strong className="digest-row-value gold">
+                          {money(recon?.new_debt_created)}
+                        </strong>
+                      </div>
+                    </>
+                  )}
+                  {canFinance(profile) && (
+                    <div className="digest-row">
+                      <span className="digest-row-label">Lợi nhuận hôm nay</span>
+                      <strong className="digest-row-value emerald">
+                        {money(d.today_profit)}
+                      </strong>
                     </div>
                   )}
-                  <div className="agent-chip">
-                    <span className="agent-chip-label">Xe bán hôm nay</span>
-                    <strong className="agent-chip-val lime">{d.sold_today} xe</strong>
+                </div>
+
+                {/* B. KHO XE HIỆN TẠI */}
+                <div className="carem-digest-col">
+                  <h3 className="carem-digest-section-label">
+                    Kho xe hiện tại
+                  </h3>
+                  <div className="digest-row digest-row--total">
+                    <span className="digest-row-label">Tồn kho hiện tại</span>
+                    <strong className="digest-row-value">
+                      {d.in_stock + d.reserved} xe
+                    </strong>
                   </div>
-                  <div className="agent-chip">
-                    <span className="agent-chip-label">Thu vào hôm nay</span>
-                    <strong className="agent-chip-val cyan">{d.acquired_today ?? 0} xe</strong>
+                  <div className="digest-row">
+                    <span className="digest-row-label">Sẵn sàng bán</span>
+                    <strong className="digest-row-value lime">
+                      {d.in_stock} xe
+                    </strong>
                   </div>
-                  {canFinance(profile) && (
-                    <div className="agent-chip">
-                      <span className="agent-chip-label">Lợi nhuận hôm nay</span>
-                      <strong className="agent-chip-val emerald">{money(d.today_profit ?? 0)}</strong>
+                  <div className="digest-row">
+                    <span className="digest-row-label">Đang giữ chỗ</span>
+                    <strong className="digest-row-value gold">
+                      {d.reserved} xe
+                    </strong>
+                  </div>
+                  {d.inventory_cost_pending > 0 && (
+                    <div className="digest-row">
+                      <span className="digest-row-label">
+                        Chờ xác nhận giá mua
+                      </span>
+                      <strong className="digest-row-value amber">
+                        {d.inventory_cost_pending} xe
+                      </strong>
                     </div>
+                  )}
+                  {canFinance(profile) && (
+                    <div className="digest-row digest-row--total">
+                      <span className="digest-row-label">
+                        Tổng giá trị tồn kho
+                      </span>
+                      <strong className="digest-row-value gold">
+                        {money(d.inventory_cost)}
+                      </strong>
+                    </div>
+                  )}
+                  {canFinance(profile) && d.inventory_cost == null && d.inventory_cost_pending > 0 && (
+                    <p className="digest-note">
+                      Giá trị tồn kho chưa khả dụng vì còn{" "}
+                      {d.inventory_cost_pending} xe chưa có giá mua.
+                    </p>
                   )}
                 </div>
               </div>
-            </div>
+            </section>
 
-            {/* ═══ TWO-SIDES BALANCED DASHBOARD: FIXED KHO VS FILTERABLE KỲ ═══ */}
-            <div className="dashboard-two-sides">
-              {/* ══════════════════════════════════════════════════════════════
-                  PHÍA 1: CỐ ĐỊNH KHO XE & HIỆN TRẠNG TỨC THỜI (REAL-TIME SNAPSHOT)
-                  ══════════════════════════════════════════════════════════════ */}
-              <div className="dashboard-side-fixed">
-                <div className="side-zone-header">
-                  <div className="side-zone-title-row">
-                    <span className="side-zone-icon blue">
-                      <Boxes size={18} />
-                    </span>
-                    <div>
-                      <h2 className="side-zone-title">Kho xe &amp; Hiện trạng</h2>
-                      <span className="side-zone-sub">
-                        Cố định · Số liệu thời gian thực tại tiệm
-                      </span>
-                    </div>
-                  </div>
-                  <span className="live-snapshot-badge">Snapshot thực tế</span>
-                </div>
-
-                {/* 1.1 THẺ TỒN KHO HIỆN TẠI */}
-                <div className="stock-overview-card">
-                  <div className="row between" style={{ alignItems: "center" }}>
-                    <span className="metric-label" style={{ margin: 0, fontWeight: 650, fontSize: "12.5px" }}>
-                      Tồn kho hiện tại
-                    </span>
-                    <Bike size={18} style={{ color: "#2563eb" }} />
-                  </div>
-
-                  <div className="stock-headline-wrap">
-                    <span className="stock-total-num">
-                      {d.in_stock + d.reserved}
-                    </span>
-                    <span className="stock-unit-label">xe đang trong kho</span>
-                  </div>
-
-                  <div className="stock-split-row">
-                    <div className="stock-split-box available">
-                      <span className="stock-split-title">Sẵn sàng bán</span>
-                      <strong className="stock-split-val">{d.in_stock} xe</strong>
-                    </div>
-                    <div className="stock-split-box reserved">
-                      <span className="stock-split-title">Đang giữ chỗ</span>
-                      <strong className="stock-split-val">{d.reserved} xe</strong>
-                    </div>
-                  </div>
-
-                  {canFinance(profile) && (
-                    <div className="stock-valuation-bar">
-                      <span className="muted">Giá vốn tồn kho:</span>
-                      <strong>{money(d.inventory_cost)}</strong>
-                    </div>
-                  )}
-
-                  <Link
-                    to="/vehicles?status=AVAILABLE"
-                    className="button secondary"
-                    style={{ width: "100%", justifyContent: "center", gap: "6px" }}
-                  >
-                    Xem toàn bộ kho xe
-                    <ArrowRight size={15} />
-                  </Link>
-                </div>
-
+            {/* ═══ SUPPORT CARDS: CẦN XỬ LÝ · TUỔI TỒN KHO ═══ */}
+            <div className="digest-support-grid">
                 {/* 1.2 THẺ VIỆC CẦN XỬ LÝ NGAY (ACTIONABLE ALERTS) */}
                 <Card>
                   <div className="section-heading" style={{ marginBottom: "12px" }}>
@@ -366,50 +366,6 @@ export default function DashboardPage() {
                     </div>
                   ) : null}
                 </Card>
-
-                {/* 1.4 XE VỪA THAO TÁC */}
-                {recentVehicles.length > 0 && (
-                  <Card className="recent-vehicles-card">
-                    <button
-                      type="button"
-                      className="section-heading"
-                      onClick={() => setRecentExpanded(!recentExpanded)}
-                      style={{
-                        width: "100%",
-                        cursor: "pointer",
-                        textAlign: "left",
-                        background: "none",
-                        border: "none",
-                        padding: 0,
-                      }}
-                    >
-                      <div className="row" style={{ gap: "8px", alignItems: "center" }}>
-                        <Clock3 size={16} />
-                        <h3 style={{ fontSize: "14.5px", margin: 0 }}>Xe vừa thao tác</h3>
-                        {recentExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
-                      </div>
-                      <span className="muted small">1 chạm mở lại</span>
-                    </button>
-                    {recentExpanded && (
-                      <div className="stack" style={{ gap: "8px", marginTop: "12px" }}>
-                        {recentVehicles.slice(0, 4).map((item) => (
-                          <Link
-                            key={item.id}
-                            to={`/vehicles/${item.id}`}
-                            className="compact-row"
-                            style={{ padding: "8px 10px" }}
-                          >
-                            <div>
-                              <strong>{item.brand} {item.model}</strong>
-                              <small>{item.license_plate || item.frame_number}</small>
-                            </div>
-                            <span className="small muted">{formatRelativeTime(item.updated_at)}</span>
-                          </Link>
-                        ))}
-                      </div>
-                    )}
-                  </Card>
-                )}
               </div>
 
               {/* ══════════════════════════════════════════════════════════════
@@ -443,7 +399,7 @@ export default function DashboardPage() {
                   )}
 
                   <Metric
-                    to={canFinance(profile) ? "/reports" : `/acquisitions?from=${range.from}&to=${range.to}`}
+                    to={canFinance(profile) ? `/sales?from=${range.from}&to=${range.to}` : `/acquisitions?from=${range.from}&to=${range.to}`}
                     label={canFinance(profile) ? "Lợi nhuận" : "Xe thu vào trong kỳ"}
                     value={canFinance(profile) ? compactMoney(d.gross_profit) : String(d.acquisitions_count ?? 0)}
                     detail={canFinance(profile) ? "Doanh thu trừ giá vốn" : "Xe thu mua nhập kho"}
@@ -496,7 +452,7 @@ export default function DashboardPage() {
                     <p className="muted">
                       Tìm nhanh xe trong kho, bổ sung thông tin xe hoặc ghi nhận giao dịch khi khách nhận xe.
                     </p>
-                    <div className="quick-actions" style={{ marginTop: 18 }}>
+                    <div className="day-tasks-links" style={{ marginTop: 18 }}>
                       <Link to="/vehicles">
                         Mở kho xe <ArrowRight size={16} />
                       </Link>
@@ -646,7 +602,6 @@ export default function DashboardPage() {
                   </Card>
                 )}
               </div>
-            </div>
           </>
         )
       )}

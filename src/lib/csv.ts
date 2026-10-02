@@ -368,5 +368,5 @@ export function downloadVehicleImportTemplate() {
     },
   ];
 
-  downloadCsv("mau_nhap_xe_crm.csv", sampleData);
+  downloadCsv("mau_nhap_xemaycarem.csv", sampleData);
 }

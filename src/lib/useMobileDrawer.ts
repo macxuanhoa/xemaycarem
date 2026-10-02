@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 
-const mobileQuery = "(max-width: 760px)";
+const mobileQuery = "(max-width: 768px)";
 
 export function useMobileDrawer() {
   const [mobile, setMobile] = useState(
@@ -29,7 +29,7 @@ export function useMobileDrawer() {
   useEffect(() => {
     if (!active || !panelRef.current) return;
     const panel = panelRef.current;
-    const previousOverflow = document.body.style.overflow;
+    const previousBodyStyle = document.body.getAttribute("style");
     const trigger = triggerRef.current;
     const controls = () =>
       Array.from(
@@ -37,7 +37,14 @@ export function useMobileDrawer() {
           'a[href], button:not([disabled]), [tabindex="0"]',
         ),
       ).filter((element) => element.getClientRects().length > 0);
+    // iOS Safari ignores body overflow alone; pin the body at the current
+    // offset so the page cannot scroll (or shift) behind the drawer.
+    const scrollY = window.scrollY;
     document.body.style.overflow = "hidden";
+    document.body.style.position = "fixed";
+    document.body.style.top = `-${scrollY}px`;
+    document.body.style.left = "0";
+    document.body.style.right = "0";
     panel.querySelector<HTMLButtonElement>(".mobile-menu-close")?.focus();
 
     const onKeyDown = (event: KeyboardEvent) => {
@@ -60,7 +67,9 @@ export function useMobileDrawer() {
     document.addEventListener("keydown", onKeyDown);
     return () => {
       document.removeEventListener("keydown", onKeyDown);
-      document.body.style.overflow = previousOverflow;
+      if (previousBodyStyle === null) document.body.removeAttribute("style");
+      else document.body.setAttribute("style", previousBodyStyle);
+      window.scrollTo(0, scrollY);
       if (trigger?.isConnected && trigger.getClientRects().length) trigger.focus();
     };
   }, [active]);

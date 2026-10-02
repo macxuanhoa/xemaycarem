@@ -26,3 +26,5 @@ supabase/quarantine/**
 
 # Manual logical backups of production (large, sensitive data) - never commit.
 backups/
+
+scratch/

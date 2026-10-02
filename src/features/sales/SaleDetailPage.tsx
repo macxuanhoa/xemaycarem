@@ -488,7 +488,7 @@ export function PaymentEditor({
         Xác nhận thu {money(form.watch("amount"))} cho {sale.customer_name} ·{" "}
         {sale.sale_code}.
       </p>
-      <div className="form-actions mobile-sticky-actions">
+      <div className="form-actions form-footer-actions">
         <Button type="button" variant="secondary" onClick={onClose}>
           Đóng
         </Button>

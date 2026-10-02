@@ -205,20 +205,36 @@ function AcquisitionEditor() {
     setPendingConfirmation(normalized);
   };
 
-  const handleValidationErrors = (errors: Record<string, unknown>) => {
-    if (
-      [
-        "variant",
-        "year",
-        "color",
-        "odometer",
-        "asking_price",
-        "notes",
-      ].some((field) => field in errors)
-    ) {
+  const focusFirstError = () => {
+    // The first invalid field is the first .field wrapper that rendered a
+    // .field-error message, following the document order of the form.
+    const field = document.querySelector<HTMLElement>(".field:has(.field-error)");
+    if (!field) return;
+    const control = field.querySelector<HTMLElement>(
+      "input, select, textarea, [role='combobox']",
+    );
+    field.scrollIntoView({ behavior: "smooth", block: "center" });
+    control?.focus({ preventScroll: true });
+  };
+
+  const handleValidationErrors = (
+    errors: Record<string, { message?: unknown } | undefined>,
+  ) => {
+    const advancedFields = [
+      "variant",
+      "year",
+      "color",
+      "odometer",
+      "asking_price",
+      "notes",
+    ];
+    const hasAdvancedError = advancedFields.some((field) => field in errors);
+    if (hasAdvancedError && advancedRef.current) {
+      advancedRef.current.open = true;
       setMoreOpen(true);
-      if (advancedRef.current) advancedRef.current.open = true;
     }
+    // Wait for React to commit the expanded <details> before scrolling/focus.
+    requestAnimationFrame(() => focusFirstError());
   };
 
   return (
@@ -272,6 +288,7 @@ function AcquisitionEditor() {
 
       <form
         className="stack"
+        noValidate
         onSubmit={form.handleSubmit(
           handleValidSubmit,
           handleValidationErrors,
@@ -298,14 +315,12 @@ function AcquisitionEditor() {
                   {...form.register("frame_number")}
                   onBlur={() => {
                     const val = form.getValues("frame_number");
-                    if (val) {
-                      form.setValue(
-                        "frame_number",
-                        val.trim().toUpperCase(),
-                        { shouldValidate: true },
-                      );
-                    }
-                    void form.trigger("frame_number");
+                    if (!val) return;
+                    form.setValue(
+                      "frame_number",
+                      val.trim().toUpperCase(),
+                      { shouldValidate: true },
+                    );
                   }}
                   placeholder="Nhập số khung xe (bắt buộc)"
                 />
@@ -401,7 +416,9 @@ function AcquisitionEditor() {
                   aria-label="Hãng xe *"
                   value={brand}
                   onChange={(value) => setText("brand", value)}
-                  onBlur={() => void form.trigger("brand")}
+                  onBlur={() => {
+                    if (brand.trim()) void form.trigger("brand");
+                  }}
                   suggestions={suggestions("brand")}
                   placeholder="Ví dụ: Honda"
                   enterKeyHint="next"
@@ -413,7 +430,10 @@ function AcquisitionEditor() {
                   aria-label="Dòng xe *"
                   value={form.watch("model")}
                   onChange={(value) => setText("model", value)}
-                  onBlur={() => void form.trigger("model")}
+                  onBlur={() => {
+                    if (form.getValues("model").trim())
+                      void form.trigger("model");
+                  }}
                   suggestions={suggestions("model")}
                   placeholder="Ví dụ: SH 160i, Vision…"
                   enterKeyHint="next"
@@ -613,7 +633,7 @@ function AcquisitionEditor() {
 
         {mutation.isError && <ErrorState error={mutation.error} />}
 
-        <div className="form-actions form-actions-acquisition mobile-sticky-actions">
+        <div className="form-actions form-actions-acquisition form-footer-actions">
           <div className="form-actions-status">
             {isDraftRestored &&
             financial &&

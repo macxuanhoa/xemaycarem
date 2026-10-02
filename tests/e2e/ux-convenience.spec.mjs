@@ -162,8 +162,18 @@ test("Mobile acquisition uses visible save, normalized money and keeps advanced 
     name: "Thu xe & tạo phiếu",
     exact: true,
   });
+  // Actions must live in the normal document flow (no floating bar over the
+  // bottom navigation) and required-field errors must not appear on load.
+  const actionBar = page.locator(".form-footer-actions");
+  const position = await actionBar.evaluate(
+    (node) => getComputedStyle(node).position,
+  );
+  expect(position).not.toBe("fixed");
+  expect(position).not.toBe("sticky");
+  await expect(page.getByText("Nhập số khung xe.")).toHaveCount(0);
+  await action.scrollIntoViewIfNeeded();
+  await expect(action).toBeVisible();
   const bounds = await action.boundingBox();
-  expect(bounds.y + bounds.height).toBeLessThanOrEqual(844);
   expect(bounds.y).toBeGreaterThan(0);
   const started = Date.now();
   await page.getByLabel("Số khung *", { exact: true }).fill("NEW-UX-FRAME");
@@ -193,6 +203,59 @@ test("Mobile acquisition uses visible save, normalized money and keeps advanced 
     path: "test-results/ux-acquisition-mobile.png",
     fullPage: true,
   });
+});
+
+for (const width of [320, 375, 390, 430]) {
+  test(`Acquisition actions stay in-flow (no floating bar) at ${width}px`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width, height: 700 });
+    await installMock(page);
+    await page.goto("/acquisitions/new");
+    const actionBar = page.locator(".form-footer-actions");
+    const position = await actionBar.evaluate(
+      (node) => getComputedStyle(node).position,
+    );
+    expect(position).toBe("static");
+    // Reachable by natural scrolling and never pinned over the bottom nav.
+    const action = page.getByRole("button", {
+      name: "Thu xe & tạo phiếu",
+      exact: true,
+    });
+    await action.scrollIntoViewIfNeeded();
+    await expect(action).toBeVisible();
+    const doc = await page.evaluate(() => ({
+      hasFixedBar: Boolean(
+        document.querySelector(".mobile-sticky-actions"),
+      ),
+    }));
+    expect(doc.hasFixedBar).toBe(false);
+  });
+}
+
+test("Acquisition submit validates on demand and focuses the first error", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 390, height: 700 });
+  await installMock(page);
+  await page.goto("/acquisitions/new");
+  // No required-field error before interaction.
+  await expect(page.getByText("Nhập số khung xe.")).toHaveCount(0);
+  const action = page.getByRole("button", {
+    name: "Thu xe & tạo phiếu",
+    exact: true,
+  });
+  await action.scrollIntoViewIfNeeded();
+  await action.click();
+  // Submission is blocked and the first invalid field reports inline.
+  await expect(page.getByText("Nhập số khung xe.")).toBeVisible();
+  const focusedIsFrame = await page.evaluate(() =>
+    document.activeElement?.getAttribute("aria-label")
+      ?.startsWith("Số khung") ??
+      document.activeElement?.getAttribute("placeholder")?.includes("số khung") ??
+      false,
+  );
+  expect(focusedIsFrame).toBe(true);
 });
 
 test("Frame duplicates are reported while typing before the form is submitted", async ({

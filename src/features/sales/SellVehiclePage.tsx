@@ -436,7 +436,7 @@ function SaleEditor({ vehicle }: { vehicle: Vehicle }) {
               Giá vốn được chốt tại thời điểm bán. Bạn có thể ghi nhận các lần
               thanh toán tiếp theo trong chi tiết giao dịch.
             </p>
-            <div className="mobile-sticky-actions">
+            <div className="form-footer-actions">
               <Button
                 type="submit"
                 className="full-width"

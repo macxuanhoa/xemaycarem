@@ -107,8 +107,14 @@ export function SalesPage({
         description="Theo dõi giao dịch bán xe, quản lý thanh toán và thu hồi công nợ khách hàng."
         actions={
           canOperate(profile) ? (
-            <Link className="button primary" to="/sell">
-              <CirclePlus size={18} /> Tạo giao dịch
+            <Link
+              className="button primary"
+              to="/sell"
+              aria-label="Tạo giao dịch"
+            >
+              <CirclePlus size={18} />
+              <span className="cta-label-full">Tạo giao dịch</span>
+              <span className="cta-label-short">Giao dịch</span>
             </Link>
           ) : undefined
         }

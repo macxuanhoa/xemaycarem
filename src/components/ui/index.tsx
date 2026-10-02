@@ -23,13 +23,15 @@ export function PageHeader({
   description?: string;
   actions?: ReactNode;
 }) {
+  // Title and primary action always live on one horizontal row (also on phones);
+  // the description sits below that row so it can never push the action down.
   return (
     <div className="page-heading">
-      <div>
+      <div className="heading-row">
         <h1>{title}</h1>
-        {description && <p>{description}</p>}
+        {actions && <div className="heading-actions">{actions}</div>}
       </div>
-      {actions && <div className="heading-actions">{actions}</div>}
+      {description && <p>{description}</p>}
     </div>
   );
 }

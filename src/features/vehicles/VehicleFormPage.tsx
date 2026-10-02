@@ -539,7 +539,7 @@ function VehicleEditor({ vehicle }: { vehicle?: Vehicle }) {
             Đã giữ bản nháp thông tin trên thiết bị này.
           </p>
         )}
-        <div className="form-actions mobile-sticky-actions">
+        <div className="form-actions form-footer-actions">
           <Link
             className="button secondary"
             to={vehicle ? `/vehicles/${vehicle.id}` : "/vehicles"}

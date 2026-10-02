@@ -211,8 +211,14 @@ export function InventoryPage() {
         description="Theo dõi từng chiếc xe, từ lúc thu vào đến khi bán ra."
         actions={
           canOperate(profile) ? (
-            <Link className="button primary" to="/acquisitions/new">
-              <CirclePlus size={18} /> Thu xe mới
+            <Link
+              className="button primary"
+              to="/acquisitions/new"
+              aria-label="Thu xe mới"
+            >
+              <CirclePlus size={18} />
+              <span className="cta-label-full">Thu xe mới</span>
+              <span className="cta-label-short">Thu xe</span>
             </Link>
           ) : undefined
         }
@@ -552,28 +558,28 @@ export function InventoryPage() {
                           .join(" · ")}
                       </span>
                     )}
-                    <span className="muted">Mã xe: {vehicle.internal_code}</span>
-                    <span className="muted">Số khung: {vehicle.frame_number || "—"}</span>
-                    <span className="muted">Biển số: {vehicle.license_plate || "—"}</span>
+                    <div className="record-details muted">
+                      <span>Mã xe: {vehicle.internal_code}</span>
+                      <span>Số khung: {vehicle.frame_number || "—"}</span>
+                      <span>Biển số: {vehicle.license_plate || "—"}</span>
+                    </div>
                     <div className="row between">
-                      <span>
-                        {["IN_STOCK", "RESERVED"].includes(vehicle.status)
-                          ? <>
-                              {dateLabel(vehicle.purchase_date)}
-                              <small>
-                                {(vehicle.days_in_inventory ?? daysInStock(vehicle.purchase_date)) === 0
-                                  ? "Hôm nay"
-                                  : `${vehicle.days_in_inventory ?? daysInStock(vehicle.purchase_date)} ngày`}
-                              </small>
-                            </>
-                          : dateLabel(vehicle.purchase_date)}
+                      <span className="record-date">
+                        {dateLabel(vehicle.purchase_date)}
+                        {["IN_STOCK", "RESERVED"].includes(vehicle.status) && (
+                          <small className="record-age">
+                            {(vehicle.days_in_inventory ?? daysInStock(vehicle.purchase_date)) === 0
+                              ? "Hôm nay"
+                              : `${vehicle.days_in_inventory ?? daysInStock(vehicle.purchase_date)} ngày`}
+                          </small>
+                        )}
                       </span>
                       <strong className="price">
                         {money(vehicle.asking_price)}
                       </strong>
                     </div>
                     {canFinance(profile) && (
-                      <small>
+                      <small className="record-cost">
                         Giá vốn:{" "}
                         {vehicle.cost_pending
                           ? "Chờ giá nhập"
@@ -581,17 +587,19 @@ export function InventoryPage() {
                       </small>
                     )}
                   </Link>
-                  <button
-                    type="button"
-                    className="button secondary"
-                    aria-label={`Thao tác với ${vehicle.brand} ${vehicle.model}`}
-                    onClick={() => {
-                      rememberPosition();
-                      setActionVehicle(vehicle);
-                    }}
-                  >
-                    <MoreHorizontal size={18} /> Thao tác
-                  </button>
+                  <div className="record-actions">
+                    <button
+                      type="button"
+                      className="button secondary"
+                      aria-label={`Thao tác với ${vehicle.brand} ${vehicle.model}`}
+                      onClick={() => {
+                        rememberPosition();
+                        setActionVehicle(vehicle);
+                      }}
+                    >
+                      <MoreHorizontal size={18} /> Thao tác
+                    </button>
+                  </div>
                 </article>
               ))}
             </div>

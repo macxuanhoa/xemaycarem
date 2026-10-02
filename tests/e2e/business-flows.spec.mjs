@@ -174,7 +174,7 @@ test.beforeEach(async ({ page }) => {
             const name = url.pathname.split("/").at(-1);
             if (!/^[a-z_]+$/.test(name)) throw new Error("Invalid RPC");
             const signature = (
-              await db.query(
+              await c.query(
                 "select pg_get_function_arguments(p.oid) as args from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='public' and p.proname=$1",
                 [name]
               )

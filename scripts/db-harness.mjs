@@ -80,6 +80,7 @@ export async function createDatabase({ engine = 'pglite' } = {}) {
 
 async function nativeDatabase() {
   const { default: EmbeddedPostgres } = await import('embedded-postgres')
+  const { default: pg } = await import('pg')
   const temporaryRoot = await realpath(tmpdir())
   const databaseDir = await mkdtemp(join(temporaryRoot, 'xe-crm-test-'))
   // embedded-postgres removes this directory on stop. Never point it at existing data.
@@ -88,23 +89,31 @@ async function nativeDatabase() {
   await new Promise((resolve) => listener.listen(0, '127.0.0.1', resolve))
   const port = listener.address().port
   await new Promise((resolve, reject) => listener.close((error) => error ? reject(error) : resolve()))
+  const password = randomBytes(24).toString('hex')
   const errors = []
-  const cluster = new EmbeddedPostgres({ databaseDir, port, user: 'postgres', password: randomBytes(24).toString('hex'), persistent: false, initdbFlags: ['--encoding=UTF8', '--no-locale'], postgresFlags: ['-h', '127.0.0.1'], onLog: () => {}, onError: (error) => errors.push(String(error)) })
+  const cluster = new EmbeddedPostgres({ databaseDir, port, user: 'postgres', password, persistent: false, initdbFlags: ['--encoding=UTF8', '--no-locale'], postgresFlags: ['-h', '127.0.0.1'], onLog: () => {}, onError: (error) => errors.push(String(error)) })
   try {
     await cluster.initialise()
     await cluster.start()
-    const client = cluster.getPgClient('postgres', '127.0.0.1')
-    await client.connect()
+    // Reuse a small pool instead of opening a fresh connection for every request.
+    // During app boot the browser mock fires many RPCs at once; per-request TCP
+    // connect/teardown against embedded Postgres occasionally spikes past the
+    // test timeout, which surfaced as an intermittent login flake. A checked-out
+    // client stays exclusive until released, so SET ROLE / set_config session
+    // state used by asUser() still behaves like a dedicated connection.
+    const pool = new pg.Pool({ host: '127.0.0.1', port, user: 'postgres', password, max: 10 })
+    const bootstrap = await pool.connect()
+    const run = (sql, values) => bootstrap.query(sql, values)
     return {
-      query: (sql, values) => client.query(sql, values),
-      exec: (sql) => client.query(sql),
+      query: run,
+      exec: (sql) => bootstrap.query(sql),
       connection: async () => {
-        const connection = cluster.getPgClient('postgres', '127.0.0.1')
-        await connection.connect()
-        return { query: (sql, values) => connection.query(sql, values), exec: (sql) => connection.query(sql), close: () => connection.end() }
+        const connection = await pool.connect()
+        return { query: (sql, values) => connection.query(sql, values), exec: (sql) => connection.query(sql), close: () => connection.release() }
       },
       close: async () => {
-        await client.end()
+        bootstrap.release()
+        await pool.end()
         try {
           await cluster.stop()
         } catch (error) {

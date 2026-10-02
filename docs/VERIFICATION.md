@@ -1,6 +1,6 @@
 # Kết quả kiểm chứng — 01/10/2026
 
-## Release preparation (đợt 2) — tỉa assertion E2E và chạy lại toàn bộ cổng (01/10/2026, worktree ổn định, chỉ một tiến trình ghi)
+## Release preparation (đợt 3) — gốc rễ flake login (connection churn) và xác nhận E2E xanh hai vòng liên tiếp (01/10/2026, worktree ổn định, chỉ một tiến trình ghi)
 
 | Kiểm tra | Kết quả |
 |---|---|
@@ -10,7 +10,7 @@
 | npm run test:db | Đạt: 29 kiểm tra tích hợp PostgreSQL (kèm các suite con); replay 29 migration, không có 018 |
 | npm run test:seed | Đạt; seed/idempotency/dashboard/reports/phân trang đúng |
 | npm run build | Đạt (vite build 6.38s) |
-| npx playwright test | ĐẠT 43/43 (1.8 phút) sau vòng tỉa bên dưới |
+| npm run playwright test | ĐẠT 43/43, xác nhận hai vòng chạy toàn bộ suite liên tiếp (1.7–1.8 phút/vòng) với mã cuối cùng |
 | npm run test:pwa | Đạt (preview + manifest + offline shell) |
 
 Phân loại 7 lỗi E2E đầu vào và cách xử lý:
@@ -22,6 +22,7 @@ Phân loại 7 lỗi E2E đầu vào và cách xử lý:
 5-6. `workflows:337` + `workflows:410` — assertion cũ kỹ (select "Khoảng thời gian" đã thay bằng chip preset + DatePicker DD/MM/YYYY) KÈM lỗi ứng dụng thật: xóa một cạnh ngày để lại giá trị cũ trong draft, có thể gửi range không khớp hiển thị. `DateRange.handleDateChange` nay giữ draft cục bộ khi range chưa đủ hai biên và mirror phép xóa vào draft; test viết lại theo chip mới.
 7. `workflows:505` — assertion cũ kỹ: React Router giữ trang cũ mounted trong lúc lazy module tải (không còn spinner `role=status`); test nay khẳng định shell + trang cũ vẫn hiển thị (không trắng màn hình).
 8. `workflows:337` (phần cài đặt) — assertion cũ kỹ: mục "Tên cửa hàng" chuyển vào tab chủ cửa hàng "Thông tin cửa hàng"; test thêm bước mở/đóng tab.
+9. Flake login/ thứ tự (`workflows` Staff đăng nhập, chạy kèm toàn bộ suite) — GỐC RỄ THẬT, đã sửa cách ly: `scripts/db-harness.mjs` mở một kết nối PostgreSQL nhúng mới cho mỗi request `/rest/v1/*` bị chặn, nên chuỗi RPC lúc bootstrap gây churn kết nối và spike trễ quá `expect` timeout. Nay dùng `pg.Pool` (giới hạn) với một client bootstrap; tra cứu chữ ký RPC (`pg_get_function_arguments`) chạy trên kết nối riêng của từng request thay vì client bootstrap chia sẻ (hỏa bỏ race query đồng thời). Không tăng timeout, không dùng `page.waitForTimeout`. `npm run test:db` (gồm kiểm tra đồng thời đa phiên và khóa chặn) vẫn đạt trên harness có pool.
 
 ## Release preparation — kết quả chạy lại toàn bộ cổng local (01/10/2026, worktree hiện tại, sau `npm ci` sạch)
 
@@ -32,7 +33,7 @@ Phân loại 7 lỗi E2E đầu vào và cách xử lý:
 | npm run typecheck | Đạt (lần chạy đầu trượt do race filesystem với `src/features/docs/DocsPage.tsx` mới xuất hiện; chạy lại đạt) |
 | npm test | Đạt: 252 test / 20 file (thêm `tests/security/copilot.test.ts` 11, `tests/unit/copilot-ui.test.tsx` 5) |
 | npm run test:db | Đạt (PGLite): 24 kiểm tra tích hợp + 33 operational + 9 auth + 8 knowledge + 8 CCCD; replay toàn bộ migration trong `supabase/migrations/` (29 tệp, KHÔNG còn 018 — đã cách ly sang `supabase/quarantine/`) |
-| npm run knowledge:check | Đạt: seed `knowledge_base` đúng 144 mục tài liệu, khớp với markdown trong repo |
+| npm run knowledge:check | Đạt: seed `knowledge_base` đúng 145 mục tài liệu, khớp với markdown trong repo |
 | npm run test:seed | Đạt; seed lặp không nhân dữ liệu |
 | node scripts/check-edge-types.mjs | Đạt cho 6 tệp Edge |
 | npm run build | Đạt; entry >500 kB vẫn cảnh báo kích thước như cũ |
@@ -49,7 +50,7 @@ Kiểm chứng cục bộ cho `task: 'copilot'`, `public.knowledge_base` và mà
 
 - `node scripts/check-edge-types.mjs` đạt cho 6 tệp Edge (gồm `ai-assist/copilot.ts`); Deno runtime và deployment thật chưa xác minh.
 - `tests/security/copilot.test.ts` (11) chạy handler thật qua `tests/helpers/edge-handler.ts`: từ chối chế độ `llm` với STAFF TRƯỚC khi gọi provider, trả lời deterministic khi chưa có khóa AI, fallback khi trích dẫn không khớp bằng chứng, và không lộ số tiền người hỏi không được đọc.
-- `tests/db/knowledge.test.mjs` (8, PGLite): 144 mục tài liệu được seed và index full-text, browser không ghi được, RLS/tier audience chặn `search_knowledge` + `get_knowledge_article` với STAFF/anon/disabled, `p_limit` kẹp trong 1..20.
+- `tests/db/knowledge.test.mjs` (8, PGLite): 145 mục tài liệu được seed và index full-text, browser không ghi được, RLS/tier audience chặn `search_knowledge` + `get_knowledge_article` với STAFF/anon/disabled, `p_limit` kẹp trong 1..20.
 - `tests/unit/copilot-ui.test.tsx` (5) và `tests/e2e/copilot.spec.mjs` (6, Chromium): mỗi nhận định có nút mở đúng trang bằng chứng, link ngoài không bao giờ thành link, text độc hại chỉ là text, chỉ OWNER thấy công tắc AI, và `/docs` chỉ liệt kê phần được đọc.
 - Copilot không có đường ghi: fixture e2e kiểm tra `calls.writes` rỗng.
 

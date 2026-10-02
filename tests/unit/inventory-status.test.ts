@@ -136,24 +136,45 @@ describe("Settings inventory-threshold copy", () => {
   const settingsSource = repoFile(
     "../../src/features/settings/SettingsPage.tsx",
   );
+  const thresholdRaw = settingsSource.slice(
+    settingsSource.indexOf("Cảnh báo tồn kho"),
+    settingsSource.indexOf("Khách hàng &"),
+  );
+  // JSX wraps long Vietnamese sentences across lines; compare on flow text.
+  const thresholdBlock = thresholdRaw.replace(/\s+/g, " ");
 
   it("no longer promises alerts the system does not send", () => {
     expect(settingsSource).not.toMatch(/gửi cảnh báo tới quản lý/);
     expect(settingsSource).not.toMatch(/sẽ gửi/);
+    expect(thresholdBlock).not.toMatch(/tự động (gửi|cảnh báo)/);
+    expect(thresholdBlock).not.toMatch(/thông báo đẩy/);
   });
 
   it("describes the actual behaviour: threshold marking on the Dashboard", () => {
-    expect(settingsSource).toContain(
+    expect(thresholdBlock).toContain(
       "Thiết lập ngưỡng để hệ thống đánh dấu tình trạng kho trên Dashboard.",
     );
   });
 
-  it("uses at-store wording, never 'sẵn sàng bán', for the threshold basis", () => {
-    expect(settingsSource).toMatch(/số xe đang tại cửa hàng/);
-    const thresholdBlock = settingsSource.slice(
-      settingsSource.indexOf("Cảnh báo tồn kho"),
-      settingsSource.indexOf("Khách hàng &"),
+  it("helper wording is strictly-below / strictly-above, never inclusive", () => {
+    expect(thresholdBlock).not.toContain("bằng hoặc thấp hơn");
+    expect(thresholdBlock).not.toContain("bằng hoặc cao hơn");
+    // Plain-business sentences naming the Dashboard outcome (strict boundaries).
+    expect(thresholdBlock).toContain(
+      "Khi số xe trong kho giảm xuống dưới mức này, Dashboard sẽ đánh dấu trạng thái Tồn kho thấp.",
     );
+    expect(thresholdBlock).toContain(
+      "Khi số xe trong kho tăng vượt trên mức này, Dashboard sẽ đánh dấu trạng thái Tồn kho cao.",
+    );
+    // The equal-to-threshold case is stated as NORMAL so nobody reads the
+    // thresholds as a trigger point.
+    expect(thresholdBlock).toContain(
+      "Số xe bằng đúng ngưỡng vẫn là Tồn kho bình thường.",
+    );
+  });
+
+  it("uses at-store wording, never 'sẵn sàng bán', for the threshold basis", () => {
+    expect(thresholdBlock).toContain("số xe đang tại cửa hàng");
     expect(thresholdBlock).not.toContain("sẵn sàng bán");
   });
 

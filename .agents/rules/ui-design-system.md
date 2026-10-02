@@ -74,5 +74,5 @@ Giao diện phải tạo ấn tượng chuyên nghiệp, sang trọng, đẳng c
 - **Mô tả** luôn chiếm toàn bộ chiều ngang ở hàng **dưới** hàng tiêu đề/CTA; không được đẩy CTA thành một khối riêng.
 - **Tại 320px** (và các màn hẹp tương tự): thu gọn padding cỡ nút, rút ngắn nhãn không thiết yếu (`.cta-label-full` → `.cta-label-short`, giữ nguyên `aria-label` để tên truy cập không đổi), cho phép tiêu đề xuống dòng, và CTA vẫn căn phải.
 - **Chỉ khi** chiều rộng vật lý không thể xếp hàng sau khi đã áp dụng các biện pháp trên thì CTA mới được rơi xuống hàng dưới — đây là **giải pháp cuối cùng**, không phải bố cục mặc định.
-- Cluster nhiều nút (vd. header trang chi tiết xe) tự gói gọn trong cột hành động có `max-width`, nên nút phụ có thể xếp chồng trong cột đó mà CTA chính vẫn ở lại hàng tiêu đề.
+- Cluster nhiều nút (≥ 2 nút `.button`, vd. header trang chi tiết xe) được gói trong cột hành động có `max-width`; từ 430px trở xuống, cluster đông đó chiếm một hàng đầy chiều ngang **bên dưới** hàng tiêu đề — CTA chính của trang đơn nút không bao giờ rơi xuống hàng.
 - Kiểm chứng tự động: `tests/e2e/page-header-cta.spec.mjs` (375/390/430/320).

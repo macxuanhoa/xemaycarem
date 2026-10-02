@@ -200,7 +200,7 @@ export default function DashboardPage() {
                   {stockStatus && (
                     <span
                       className={`digest-status digest-status--${stockStatus.tone}`}
-                      title="Đánh dấu theo tổng số xe đang tại cửa hàng (gồm xe đang giữ chỗ) so với ngưỡng Cài đặt"
+                      title="Số xe đang tại cửa hàng (gồm xe đang giữ chỗ) so với ngưỡng trong Cài đặt; bằng đúng ngưỡng vẫn là Tồn kho bình thường"
                     >
                       {stockStatus.label}
                     </span>

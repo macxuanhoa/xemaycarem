@@ -95,6 +95,8 @@ CREATE POLICY identity_document_read ON storage.objects FOR SELECT TO authentica
 -- old object is retained for administrative retention.
 
 -- Grant execute on the private helpers the Storage policies evaluate as the caller.
+-- Revoke first so Supabase default anon/PUBLIC EXECUTE privileges never linger.
+REVOKE ALL ON FUNCTION private.can_upload_identity_document_image(text), private.can_read_identity_document_image(text) FROM public, anon, authenticated;
 GRANT EXECUTE ON FUNCTION private.can_upload_identity_document_image(text), private.can_read_identity_document_image(text) TO authenticated;
 
 -- ============================================================
@@ -280,6 +282,17 @@ END $$;
 -- ============================================================
 -- STEP 4: grants for the new RPCs
 -- ============================================================
+
+-- Strip Supabase's default PUBLIC/anon EXECUTE privileges first: these RPCs
+-- carry PII and must never be callable by anonymous API roles, only by
+-- authenticated staff whose profile passes private.require_role().
+REVOKE ALL ON FUNCTION
+  public.save_identity_document(jsonb),
+  public.register_identity_document_image(text, uuid, text, text),
+  public.remove_identity_document_image(text, uuid, text),
+  public.get_identity_document(text, uuid),
+  public.get_acquisition_for_vehicle(uuid)
+FROM public, anon, authenticated;
 
 GRANT EXECUTE ON FUNCTION
   public.save_identity_document(jsonb),

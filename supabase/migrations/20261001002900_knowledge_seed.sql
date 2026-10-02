@@ -662,16 +662,17 @@ Meaningful convenience tests include:
 - Lightweight anonymous timing/abandonment measurement can be added after a retention/consent decision. No sensitive field contents or employee surveillance telemetry is collected by this increment.', 'MANAGER', 'docs/UX_FRICTION_AUDIT.md'),
   ('production-release-preamble', 'Phát hành production', null, '# Production release readiness — Xe CRM
 
-Last reviewed: 2026-09-30 (Asia/Saigon)', 'OWNER', 'docs/PRODUCTION_RELEASE.md'),
+Last reviewed: 2026-10-02 (Asia/Saigon) — release-prep pass 3 (refreshed for the 31-migration local set and the neutralized version 018)', 'OWNER', 'docs/PRODUCTION_RELEASE.md'),
   ('production-release-1', 'Phát hành production', 'Decision', '## Decision
 
-**BLOCKED — no production operation was performed.** The local Supabase CLI is unavailable and there is no configured Supabase access token. The target project and remote migration ledger could not be queried. Production backup/PITR and an actual recovery point are unverified. Do not run `db push`, deploy Edge Functions, or claim release completion from this state.
+**BLOCKED for production operations — no `db push`, Edge deploy, or frontend deploy has been performed or certified.** The workspace has no interactive Supabase CLI login, but a read-only production capture was taken on 2026-10-02 09:11 into the Git-ignored `backups/` directory (`carem-prod-20261002-091111-*`: migration ledger, schema, RLS policies, roles, data). That capture establishes the migration-ledger baseline below. Before any real `db push` the operator must still: confirm the capture is from the intended production project ref, replay the pending set on a staging clone, and verify backup/PITR and a usable restore point in the live Dashboard. Do not run `db push`, deploy Edge Functions, or deploy the frontend until those three are done.
+
+What HAS advanced since the 2026-09-30 pass: every local gate is green at the current HEAD of `release/xe-crm-v1` (`npm run check` = lint, typecheck, 252 unit tests, knowledge:check, 29 DB integration checks, build; plus a clean full E2E run of 43/43 and the PWA gate passing against `vite preview`). The local migration set has grown from 25 to 31 files (001–031): the unsafe version 018 is now a neutralized no-op placeholder in `supabase/migrations/` with the credential-bearing original quarantined at `supabase/quarantine/` (Git-ignored), and version 031 is a forward-only production-reconciliation migration that re-applies drifted function bodies and the exact grant/RLS matrix without deleting data. Per the 2026-10-02 capture, 001–025 are confirmed applied on production and 026–031 are the pending subset.
 
 The cached link metadata matches the reference written in `docs/AUTH_RECOVERY_AUDIT.md`, but this is only a local-to-local comparison. It does not prove the currently selected/live Supabase project is the intended production project.', 'OWNER', 'docs/PRODUCTION_RELEASE.md'),
   ('production-release-2', 'Phát hành production', 'Checkpoint and data safety', '## Checkpoint and data safety
 
-- Local branch: `codex/xe-crm-release-checkpoint`.
-- Checkpoint commit: c3bfe1db87fba48595a46dde0a47bd4398a9f4ad.
+- Active release branch: `release/xe-crm-v1` (the earlier `codex/xe-crm-release-checkpoint` / commit c3bfe1db is superseded by this branch, which now also carries the pooled-DB-harness fix, regenerated knowledge seed, neutralized 018, and reconciliation migration 031 as logical commits).
 - Starting worktree was already dirty. No earlier snapshot exists to attribute individual edits to the previous implementation turn. No files were reset or discarded.
 - `.env` was absent. `.gitignore` now excludes `supabase/.temp/`; no CLI link metadata is staged.
 - `docs/AUTH_BACKUP_METADATA.md` remains local and is excluded from the checkpoint because it contains personal account metadata.
@@ -679,7 +680,16 @@ The cached link metadata matches the reference written in `docs/AUTH_RECOVERY_AU
 - No production database, Auth, account, business record, Edge Function, backup, or configuration was changed.', 'OWNER', 'docs/PRODUCTION_RELEASE.md'),
   ('production-release-3', 'Phát hành production', 'Migration inventory and reconciliation', '## Migration inventory and reconciliation
 
-Local files: versions `20260930000100` through `20260930002500`, 25 total. Each row is present locally. Production status is `UNVERIFIED` for every version because the remote ledger was not accessible. The disposable database replay (25 migrations) is a local test only.
+Local files: versions `20260930000100` (001) through `20261001003100` (031), 31 total. The 2026-10-02 production capture (`backups/carem-prod-20261002-091111-migration-history.txt`) shows production has **001–025 applied** and therefore **026–031 pending**. Version 018 is present in that ledger, which is why it is kept locally as a neutralized no-op placeholder so `db push` sees it already-applied and executes nothing. The captured RLS policies are the pre-reconciliation (025-era) bodies, which is exactly the drift migration 031 re-applies. Production status is `CONFIRMED via local capture` for 001–025 and `PENDING` for 026–031, but the project-ref provenance of the capture is not independently verified here. The disposable database replay (31 migrations, incl. 026–031) is a local test only. Versions 026–031 (the pending set):
+
+| Version | Local purpose | Static safety review | Production status | Safe to apply now? |
+|---|---|---|---|---|
+| 026 | Customer communications (outbox, history, per-sale events) | Review; new tables + `process-message` worker contract; MOCK provider only | UNVERIFIED | No — reconcile ledger/target first |
+| 027 | System announcements | Review; new table + read RPC | UNVERIFIED | No — reconcile ledger/target first |
+| 028 | `knowledge_base` table, RLS and read RPCs for the AI copilot | Review; audience-tiered read surface, browser has no write path | UNVERIFIED | No — reconcile ledger/target first |
+| 029 | `knowledge_base` documentation seed (generated from repo markdown) | UPSERT + prune by source; safe to re-apply; regenerate via `npm run knowledge:seed` | UNVERIFIED | No — reconcile ledger/target first |
+| 030 | CCCD identity-document module (PII isolation + private storage) | Review; PII stored in private bucket, access gated; anon revoke hardened in 031 | UNVERIFIED | No — reconcile ledger/target first |
+| 031 | Forward-only production reconciliation | Re-applies 15 drifted function bodies and the exact grant/revoke + RLS matrix to match the validated local replay; `CREATE OR REPLACE` on signatures verified 1:1, creates no new objects, deletes no data | UNVERIFIED | No — must be confirmed as the true pending subset against the live ledger first |
 
 | Version | Local purpose | Static safety review | Production status | Safe to apply now? |
 |---|---|---|---|---|
@@ -700,7 +710,7 @@ Local files: versions `20260930000100` through `20260930002500`, 25 total. Each 
 | 015 | Schedules and soft-delete support | Review; profile schema changes and creates account-delete logic | UNVERIFIED | No |
 | 016 | Auth email sync repair and account deletion support | **Blocked pending account review**; adds Auth-user deletion behavior and synchronization | UNVERIFIED | No |
 | 017 | Force-sync Auth emails | **Blocked pending account review**; bulk updates Auth user emails | UNVERIFIED | No |
-| 018 | Reset OWNER to a default password | **Unsafe: hardcoded credential and credential emitted in notices. Excluded from checkpoint. Never apply.** | UNVERIFIED | **No — do not deploy** |
+| 018 | Reset OWNER to a default password | **Neutralized no-op placeholder** (`SELECT 1;`) now lives in `supabase/migrations/` so the local ledger matches remote history; the credential-bearing original is quarantined at `supabase/quarantine/` (Git-ignored, must never be restored). Historically executed on 2026-09-30, so rotate the affected credential if it was ever used. | UNVERIFIED | No — already-applied no-op; do not restore the quarantined original |
 | 019 | Direct password reset helper and credential view | **Unsafe legacy surface**; privileged password reset helper is granted to `authenticated`; later migration 022 drops legacy objects | UNVERIFIED | **No — do not deploy** |
 | 020 | Show login information | Review; emits owner email/username/account details in notices (includes a sample SQL command) | UNVERIFIED | No |
 | 021 | Password-reset request queue | **Unsafe legacy surface**; stores requested password as plaintext and defines a reset processor; later migration 022 removes it | UNVERIFIED | **No — do not deploy** |

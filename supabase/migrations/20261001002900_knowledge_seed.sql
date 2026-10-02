@@ -1112,68 +1112,6 @@ These are local-code observations only; deployed frontend and database behavior 
 Use an authorized OWNER browser session to inspect Network requests while creating exactly one disposable STAFF account, only after confirming the intended production project. Separately test that account''s password sign-in and record the status/body category for profile lookup, `check_user_access`, route transition, and first app queries. A live authenticated probe is also required to verify the production `check_user_access()` object and its behavior.
 
 Do not reactivate the old accounts, apply migration `20260930002200`, deploy `manage-users`, or make other production changes based on the current evidence. Compare actual production objects with the migration first; if any state is incomplete, prepare a reviewed forward-only reconciliation rather than replaying the historical migration blindly.', 'OWNER', 'docs/AUTH_ACCEPTANCE_REPORT.md'),
-  ('auth-backup-metadata-preamble', 'Sao lưu metadata đăng nhập', null, '# BẢN LƯU TRỮ METADATA TÀI KHOẢN TRƯỚC PHỤC HỒI (AUTH STATE BACKUP)
-*Dự án: Xe CRM — Cửa hàng Xe máy Cà Rem*  
-*Thời gian ghi nhận: 2026-09-30*  
-*Bảo mật: Tuyệt đối không lưu mật khẩu thô, mã băm hay mã truy cập (tokens)*
-
----', 'OWNER', 'docs/AUTH_BACKUP_METADATA.md'),
-  ('auth-backup-metadata-1', 'Sao lưu metadata đăng nhập', '1. SNAPSHOT METADATA TÀI KHOẢN (TRƯỚC KHI THỰC HIỆN REFACTOR)', '## 1. SNAPSHOT METADATA TÀI KHOẢN (TRƯỚC KHI THỰC HIỆN REFACTOR)
-
-### Tài khoản 1: CHỦ CỬA HÀNG (OWNER)
-- **Auth User ID**: `f5028720-6110-41e7-ad2f-1c3f24af8e69`
-- **Email gốc trong `auth.identities`**: `macxuanhoa211002@gmail.com`
-- **Email tạm thời trong `auth.users`**: `macxuanhoa21100211@internal.xecrm.app`
-- **Identity Provider**: `email` (`sub`: `f5028720-6110-41e7-ad2f-1c3f24af8e69`)
-- **Profile ID**: `f5028720-6110-41e7-ad2f-1c3f24af8e69`
-- **Tên đăng nhập (Username)**: `macxuanhoa21100211`
-- **Họ và tên**: `Ông chủ Cà rem`
-- **Vai trò (Role)**: `OWNER`
-- **Trạng thái hoạt động (Active)**: `true`
-- **Yêu cầu đổi mật khẩu (must_change_password)**: `true`
-- **Khóa tạm đến (disabled_until)**: `null`
-- **Giờ bắt đầu làm việc (allowed_from)**: `00:00:00`
-- **Giờ kết thúc làm việc (allowed_until)**: `23:59:59`
-- **Ngày làm việc (working_days)**: `[1, 2, 3, 4, 5, 6, 7]`
-- **Thời gian tạo (created_at)**: `2026-09-30 03:38:28.137348+00`
-- **Lần đăng nhập cuối (last_sign_in_at)**: `2026-09-30 06:47:17.479498+00`
-- **Trạng thái xóa mềm (deleted_at)**: `null`
-
----
-
-### Tài khoản 2: NHÂN VIÊN THỬ NGHIỆM 1
-- **Auth User ID**: `854aae82-a2b8-445b-b4a9-967b0b0252dc`
-- **Email trong `auth.users`**: `nguyenb11@internal.xecrm.app`
-- **Profile ID**: `854aae82-a2b8-445b-b4a9-967b0b0252dc`
-- **Tên đăng nhập (Username)**: `nguyenb11`
-- **Họ và tên**: `Người dùng mới`
-- **Vai trò (Role)**: `STAFF`
-- **Trạng thái hoạt động (Active)**: `true`
-- **Yêu cầu đổi mật khẩu (must_change_password)**: `false`
-- **Khóa tạm đến (disabled_until)**: `null`
-- **Giờ làm việc**: `00:00:00` – `23:59:59`
-- **Ngày làm việc**: `[1, 2, 3, 4, 5, 6, 7]`
-- **Thời gian tạo (created_at)**: `2026-09-30 07:12:58.497952+00`
-- **Lần đăng nhập cuối**: `null` (Chưa từng đăng nhập)
-- **Lịch sử nghiệp vụ**: 0 xe, 0 giao dịch
-
----
-
-### Tài khoản 3: NHÂN VIÊN THỬ NGHIỆM 2
-- **Auth User ID**: `1dfc523a-b4d5-4458-b339-82c4ee5ca601`
-- **Email trong `auth.users`**: `phoang.le2409@internal.xecrm.app`
-- **Profile ID**: `1dfc523a-b4d5-4458-b339-82c4ee5ca601`
-- **Tên đăng nhập (Username)**: `phoang.le2409`
-- **Họ và tên**: `Người dùng mới`
-- **Vai trò (Role)**: `STAFF`
-- **Trạng thái hoạt động (Active)**: `true`
-- **Yêu cầu đổi mật khẩu (must_change_password)**: `false`
-- **Khóa tạm đến (disabled_until)**: `null`
-- **Giờ làm việc**: `00:00:00` – `23:59:59`
-- **Ngày làm việc**: `[1, 2, 3, 4, 5, 6, 7]`
-- **Thời gian tạo (created_at)**: `2026-09-30 07:42:33.481559+00`
-- **Lần đăng nhập cuối**: `null` (Chưa từng đăng nhập)
-- **Lịch sử nghiệp vụ**: 0 xe, 0 giao dịch', 'OWNER', 'docs/AUTH_BACKUP_METADATA.md'),
   ('auth-recovery-audit-preamble', 'Kiểm kê khôi phục tài khoản', null, '# BÁO CÁO KIỂM TOÁN VÀ PHỤC HỒI HỆ THỐNG XÁC THỰC (AUTH RECOVERY AUDIT)
 *Dự án: Xe CRM — Quản lý Cửa hàng Xe máy Cà Rem*  
 *Thời gian kiểm toán: 2026-09-30*  
@@ -1376,7 +1314,7 @@ SET title = EXCLUDED.title,
 
 -- Drop sections that no longer exist in the tracked documents.
 DELETE FROM public.knowledge_base
-WHERE source_path IN ('README.md', 'docs/PROJECT_STATE.md', 'docs/OPERATIONS.md', 'docs/DECISIONS.md', 'docs/KNOWN_ISSUES.md', 'docs/VERIFICATION.md', 'docs/COMMUNICATION_ARCHITECTURE.md', 'docs/AI_ASSIST_CONTRACT.md', 'docs/UX_FRICTION_AUDIT.md', 'docs/PRODUCTION_RELEASE.md', 'docs/AGENT_HANDOFF.md', 'docs/IMPLEMENTATION_PLAN.md', 'docs/IMPLEMENTATION_REPORT.md', 'docs/AUTH_ACCEPTANCE_REPORT.md', 'docs/AUTH_BACKUP_METADATA.md', 'docs/AUTH_RECOVERY_AUDIT.md', 'supabase/API.md', 'supabase/SECURITY.md')
-  AND slug NOT IN ('readme-preamble', 'readme-1', 'readme-2', 'readme-3', 'readme-4', 'readme-5', 'readme-6', 'readme-7', 'readme-8', 'readme-9', 'readme-10', 'readme-11', 'project-state-preamble', 'project-state-1', 'project-state-2', 'project-state-3', 'project-state-4', 'project-state-5', 'project-state-6', 'operations-preamble', 'operations-1', 'operations-2', 'operations-3', 'operations-4', 'operations-5', 'operations-6', 'decisions-preamble', 'decisions-1', 'decisions-2', 'decisions-3', 'decisions-4', 'decisions-5', 'decisions-6', 'decisions-7', 'decisions-8', 'known-issues-preamble', 'known-issues-1', 'known-issues-2', 'known-issues-3', 'known-issues-4', 'known-issues-5', 'known-issues-6', 'verification-preamble', 'verification-1', 'verification-2', 'verification-3', 'verification-4', 'verification-5', 'verification-6', 'verification-7', 'verification-8', 'communication-architecture-preamble', 'communication-architecture-1', 'communication-architecture-2', 'communication-architecture-3', 'communication-architecture-4', 'communication-architecture-5', 'communication-architecture-6', 'ai-assist-contract-preamble', 'ai-assist-contract-1', 'ai-assist-contract-2', 'ai-assist-contract-3', 'ai-assist-contract-4', 'ai-assist-contract-5', 'ai-assist-contract-6', 'ux-friction-audit-preamble', 'ux-friction-audit-1', 'ux-friction-audit-2', 'ux-friction-audit-3', 'ux-friction-audit-4', 'ux-friction-audit-5', 'production-release-preamble', 'production-release-1', 'production-release-2', 'production-release-3', 'production-release-4', 'production-release-5', 'production-release-6', 'production-release-7', 'production-release-8', 'agent-handoff-preamble', 'agent-handoff-1', 'agent-handoff-2', 'agent-handoff-3', 'agent-handoff-4', 'agent-handoff-5', 'agent-handoff-6', 'agent-handoff-7', 'agent-handoff-8', 'agent-handoff-9', 'implementation-plan-preamble', 'implementation-plan-1', 'implementation-plan-2', 'implementation-plan-3', 'implementation-plan-4', 'implementation-report-preamble', 'implementation-report-1', 'implementation-report-2', 'implementation-report-3', 'implementation-report-4', 'implementation-report-5', 'implementation-report-6', 'implementation-report-7', 'implementation-report-8', 'implementation-report-9', 'implementation-report-10', 'implementation-report-11', 'implementation-report-12', 'implementation-report-13', 'implementation-report-14', 'implementation-report-15', 'implementation-report-16', 'implementation-report-17', 'implementation-report-18', 'implementation-report-19', 'implementation-report-20', 'implementation-report-21', 'implementation-report-22', 'implementation-report-23', 'implementation-report-24', 'auth-acceptance-report-preamble', 'auth-acceptance-report-1', 'auth-acceptance-report-2', 'auth-acceptance-report-3', 'auth-acceptance-report-4', 'auth-acceptance-report-5', 'auth-acceptance-report-6', 'auth-acceptance-report-7', 'auth-acceptance-report-8', 'auth-backup-metadata-preamble', 'auth-backup-metadata-1', 'auth-recovery-audit-preamble', 'auth-recovery-audit-1', 'auth-recovery-audit-2', 'auth-recovery-audit-3', 'auth-recovery-audit-4', 'api-preamble', 'api-1', 'security-preamble', 'security-1', 'security-2', 'security-3', 'security-4', 'security-5', 'security-6');
+WHERE source_path IN ('README.md', 'docs/PROJECT_STATE.md', 'docs/OPERATIONS.md', 'docs/DECISIONS.md', 'docs/KNOWN_ISSUES.md', 'docs/VERIFICATION.md', 'docs/COMMUNICATION_ARCHITECTURE.md', 'docs/AI_ASSIST_CONTRACT.md', 'docs/UX_FRICTION_AUDIT.md', 'docs/PRODUCTION_RELEASE.md', 'docs/AGENT_HANDOFF.md', 'docs/IMPLEMENTATION_PLAN.md', 'docs/IMPLEMENTATION_REPORT.md', 'docs/AUTH_ACCEPTANCE_REPORT.md', 'docs/AUTH_RECOVERY_AUDIT.md', 'supabase/API.md', 'supabase/SECURITY.md')
+  AND slug NOT IN ('readme-preamble', 'readme-1', 'readme-2', 'readme-3', 'readme-4', 'readme-5', 'readme-6', 'readme-7', 'readme-8', 'readme-9', 'readme-10', 'readme-11', 'project-state-preamble', 'project-state-1', 'project-state-2', 'project-state-3', 'project-state-4', 'project-state-5', 'project-state-6', 'operations-preamble', 'operations-1', 'operations-2', 'operations-3', 'operations-4', 'operations-5', 'operations-6', 'decisions-preamble', 'decisions-1', 'decisions-2', 'decisions-3', 'decisions-4', 'decisions-5', 'decisions-6', 'decisions-7', 'decisions-8', 'known-issues-preamble', 'known-issues-1', 'known-issues-2', 'known-issues-3', 'known-issues-4', 'known-issues-5', 'known-issues-6', 'verification-preamble', 'verification-1', 'verification-2', 'verification-3', 'verification-4', 'verification-5', 'verification-6', 'verification-7', 'verification-8', 'communication-architecture-preamble', 'communication-architecture-1', 'communication-architecture-2', 'communication-architecture-3', 'communication-architecture-4', 'communication-architecture-5', 'communication-architecture-6', 'ai-assist-contract-preamble', 'ai-assist-contract-1', 'ai-assist-contract-2', 'ai-assist-contract-3', 'ai-assist-contract-4', 'ai-assist-contract-5', 'ai-assist-contract-6', 'ux-friction-audit-preamble', 'ux-friction-audit-1', 'ux-friction-audit-2', 'ux-friction-audit-3', 'ux-friction-audit-4', 'ux-friction-audit-5', 'production-release-preamble', 'production-release-1', 'production-release-2', 'production-release-3', 'production-release-4', 'production-release-5', 'production-release-6', 'production-release-7', 'production-release-8', 'agent-handoff-preamble', 'agent-handoff-1', 'agent-handoff-2', 'agent-handoff-3', 'agent-handoff-4', 'agent-handoff-5', 'agent-handoff-6', 'agent-handoff-7', 'agent-handoff-8', 'agent-handoff-9', 'implementation-plan-preamble', 'implementation-plan-1', 'implementation-plan-2', 'implementation-plan-3', 'implementation-plan-4', 'implementation-report-preamble', 'implementation-report-1', 'implementation-report-2', 'implementation-report-3', 'implementation-report-4', 'implementation-report-5', 'implementation-report-6', 'implementation-report-7', 'implementation-report-8', 'implementation-report-9', 'implementation-report-10', 'implementation-report-11', 'implementation-report-12', 'implementation-report-13', 'implementation-report-14', 'implementation-report-15', 'implementation-report-16', 'implementation-report-17', 'implementation-report-18', 'implementation-report-19', 'implementation-report-20', 'implementation-report-21', 'implementation-report-22', 'implementation-report-23', 'implementation-report-24', 'auth-acceptance-report-preamble', 'auth-acceptance-report-1', 'auth-acceptance-report-2', 'auth-acceptance-report-3', 'auth-acceptance-report-4', 'auth-acceptance-report-5', 'auth-acceptance-report-6', 'auth-acceptance-report-7', 'auth-acceptance-report-8', 'auth-recovery-audit-preamble', 'auth-recovery-audit-1', 'auth-recovery-audit-2', 'auth-recovery-audit-3', 'auth-recovery-audit-4', 'api-preamble', 'api-1', 'security-preamble', 'security-1', 'security-2', 'security-3', 'security-4', 'security-5', 'security-6');
 
 COMMIT;

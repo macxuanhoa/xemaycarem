@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import { cloneElement, isValidElement, type ReactNode } from "react";
 import { Link } from "react-router-dom";
 
 /**
@@ -31,7 +31,16 @@ function renderInline(
       nodes.push(<code key={`${uid}-c${index}`}>{token.slice(1, -1)}</code>);
     } else if (token.endsWith("]")) {
       const id = token.slice(1, -1);
-      nodes.push(citations[id] ?? <span key={`${uid}-x${index}`}>{id}</span>);
+      const citationNode = citations[id];
+      if (citationNode !== undefined) {
+        if (isValidElement(citationNode)) {
+          nodes.push(cloneElement(citationNode, { key: `${uid}-c-${index}` }));
+        } else {
+          nodes.push(<span key={`${uid}-c-${index}`}>{citationNode}</span>);
+        }
+      } else {
+        nodes.push(<span key={`${uid}-x${index}`}>{id}</span>);
+      }
     } else {
       const link = /^\[([^\]]+)\]\(((?:\/|#)[^)\s]*)\)$/.exec(token);
       if (link)

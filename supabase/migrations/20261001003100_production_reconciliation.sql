@@ -1148,3 +1148,17 @@ alter table public.vehicles enable row level security;
 alter table public.vehicles no force row level security;
 revoke all on public.user_performance_summary from public, anon, authenticated;
 grant select on public.user_performance_summary to authenticated;
+
+-- ---------------------------------------------------------------------
+-- drifted column defaults: local final state
+-- The 001 baseline was rewritten AFTER production had already applied it (VIEWER role
+-- removal plus active/schedule-gating and financial-visibility hardening). That rewrite
+-- also changed two profiles defaults: role 'OWNER' -> 'STAFF' and active false -> true.
+-- Replaying 026-031 on the live production schema (scripts/verify-prod-replay.mjs) proved
+-- these two defaults are the ONLY residual structural drift once 031's function/grant/RLS
+-- reconciliation is applied (0 code-drift functions, policies/constraints/indexes/grants
+-- all converge). Align them so `db push` leaves production equal to the validated local
+-- schema. Forward-only: no rows are modified, only omitted-column defaults for future inserts.
+-- ---------------------------------------------------------------------
+alter table public.profiles alter column role set default 'STAFF';
+alter table public.profiles alter column active set default true;

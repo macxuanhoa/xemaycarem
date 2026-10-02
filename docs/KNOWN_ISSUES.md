@@ -11,7 +11,7 @@ All seven confirmed behavioral defects are FIXED locally with regression coverag
 - A5/A6 Persisted `VehicleStatus` and query-only `VehicleStatusFilter` (AVAILABLE/UNSOLD aliases) are separate types; canonical constants live in `src/lib/vehicleFilters.ts` and `AVAILABLE_VEHICLE_FILTER` is the only alias allowed in list queries — aliases never reach status mutations.
 - A7 `ReceivablesPage.setPaymentStatus` uses a functional `setSearchParams` updater plus `mergeSearchParams` (`src/lib/urlParams.ts`), preserving search/page/date/other params.
 
-Residual notes: migrations `0032`/`0033` are pending like every unreleased version — nothing was deployed; `create_showroom_lead` intentionally writes no `audit_logs` row because `private.audit` records `auth.uid()` (NULL for anon) and the lead row itself is the evidence trail; editing these docs changed the `knowledge_base` corpus hash while applied migration `20261001002900_knowledge_seed.sql` must not be modified, so `npm run knowledge:check` is RED until release prep decides a forward re-seed migration.
+Residual notes: migrations `0032`/`0033`/`0034` are pending like every unreleased version — nothing was deployed; `create_showroom_lead` intentionally writes no `audit_logs` row because `private.audit` records `auth.uid()` (NULL for anon) and the lead row itself is the evidence trail. The corpus changes from these doc edits were propagated by re-running the generator over the still-pending `20261001002900_knowledge_seed.sql` in place (production's applied ledger stops at `20260930002500`), so `npm run knowledge:check` is green; if 029 ever turns out applied on a target before this batch ships, switch to a forward re-seed migration and never edit applied files.
 
 Last reviewed: 2026-10-02
 

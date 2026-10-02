@@ -7,10 +7,38 @@ import { PGlite } from '@electric-sql/pglite'
 import { pgcrypto } from '@electric-sql/pglite/contrib/pgcrypto'
 
 /** A disposable PostgreSQL engine, never a substitute for hosted Auth/Storage tests. */
-export async function createDatabase({ engine = 'pglite' } = {}) {
+export async function createDatabase({ engine = 'pglite', applyMigrations = true, loadDump = null, migrationFilter = null } = {}) {
   const database = engine === 'postgres' ? await nativeDatabase() : new PGlite({ extensions: { pgcrypto } })
   if (database.waitReady) await database.waitReady
-  await database.exec(`
+  await database.exec(SUPABASE_STUB_SQL)
+  // Release validation may load a real pg_dump of the production schema first so the
+  // pending migrations are exercised against the drifted live baseline, not only a
+  // clean build. Applied after the stubs (auth/storage/roles) and before migrations.
+  if (loadDump) {
+    await database.exec(await readFile(resolve(loadDump), 'utf8'))
+    // A pg_dump runs `SELECT set_config('search_path', '', false)`, and because this
+    // disposable engine reuses one session, that empty search_path would leak into the
+    // pending migrations. `supabase db push` executes each migration on a fresh session
+    // with the default path, so restore it here to faithfully mirror production apply.
+    await database.exec(`SELECT set_config('search_path', '"$user", public', false)`)
+    console.log(`LOADED DUMP ${loadDump}`)
+  }
+  if (!applyMigrations) return database
+  const migrationDirectory = resolve('supabase/migrations')
+  let migrations = (await readdir(migrationDirectory)).filter((name) => name.endsWith('.sql')).sort()
+  if (migrationFilter) migrations = migrations.filter(migrationFilter)
+  if (migrations.length === 0) throw new Error('No SQL migrations found; refusing a false-positive test run.')
+  for (const migration of migrations) {
+    await database.exec(await readFile(resolve(migrationDirectory, migration), 'utf8'))
+    console.log(`MIGRATION ${migration}`)
+  }
+  return database
+}
+
+// Supabase-like scaffolding (roles, auth/storage stubs, default privileges) provided by
+// the real managed platform. Extracted as a constant so release validation can load a
+// production dump on top of the identical stubs before applying pending migrations.
+export const SUPABASE_STUB_SQL = `
     CREATE ROLE anon NOLOGIN;
     CREATE ROLE authenticated NOLOGIN;
     CREATE ROLE service_role NOLOGIN BYPASSRLS;
@@ -67,16 +95,7 @@ export async function createDatabase({ engine = 'pglite' } = {}) {
     ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO anon, authenticated, service_role;
     ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON SEQUENCES TO anon, authenticated, service_role;
     ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT EXECUTE ON FUNCTIONS TO anon, authenticated, service_role;
-  `)
-  const migrationDirectory = resolve('supabase/migrations')
-  const migrations = (await readdir(migrationDirectory)).filter((name) => name.endsWith('.sql')).sort()
-  if (migrations.length === 0) throw new Error('No SQL migrations found; refusing a false-positive test run.')
-  for (const migration of migrations) {
-    await database.exec(await readFile(resolve(migrationDirectory, migration), 'utf8'))
-    console.log(`MIGRATION ${migration}`)
-  }
-  return database
-}
+`
 
 async function nativeDatabase() {
   const { default: EmbeddedPostgres } = await import('embedded-postgres')

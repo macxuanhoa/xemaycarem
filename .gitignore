@@ -14,6 +14,9 @@ supabase/.branches/
 # Quarantine preserves the unsafe historical migration 018 locally but must never be committed or applied.
 supabase/quarantine/
 supabase/migrations/20260930001800_*
+# Exception: the credential-free neutralized placeholder (SELECT 1) must be committed so a
+# clean clone matches the remote history version 018 and db push never proposes a replay.
+!supabase/migrations/20260930001800_reset_owner_password_default.sql
 .sites-runtime/
 .openai/
 coverage/

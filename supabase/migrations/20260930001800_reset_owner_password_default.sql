@@ -1,0 +1,13 @@
+-- Migration: 20260930001800_reset_owner_password_default.sql  [NEUTRALIZED NO-OP PLACEHOLDER]
+--
+-- The original script at this version reset the OWNER account to a hardcoded
+-- default password and emitted that credential. It was historically executed
+-- against production on 2026-09-30 and is retained for audit ONLY at:
+--   supabase/quarantine/20260930001800_reset_owner_password_default.sql
+-- (git-ignored; must never be restored into supabase/migrations).
+--
+-- This placeholder exists so the local migration ledger matches the remote
+-- history table (versions 001-025 are all recorded as applied remotely).
+-- `supabase db push` therefore sees this version as already applied and
+-- executes nothing from this file. There is intentionally no SQL here.
+SELECT 1; -- no-op: keeps this file parseable by the replay harness; carries no credential logic.

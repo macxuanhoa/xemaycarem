@@ -1,6 +1,6 @@
 # Project State — Xe CRM
 
-Last reviewed: 2026-10-01
+Last reviewed: 2026-10-02
 
 ## Current result
 
@@ -17,6 +17,10 @@ A grounded shop assistant is complete locally. The sidebar section **TRỢ LÝ A
 ## UI feedback and system announcements — 2026-10-01
 
 A feedback and announcement polish layer is complete locally. Toasts (`src/lib/toast.ts` + `Toaster.tsx`) and a reusable confirm dialog (`src/components/ui/ConfirmDialog.tsx` exposing `confirmAction()`) are mounted app-wide with no new dependency; the last native `window.confirm` (unsaved-draft navigation guard) now uses `confirmAction()`. A persistent store-wide system announcement feature is added via migration `20261001002700_system_announcements.sql`: a dedicated `public.system_announcements` table, OWNER-only SECURITY DEFINER RPCs with RLS and `private.audit`, an app-shell `AnnouncementBar` (static/CSS-scrolling ticker, priority ordering, per-device dismissal, scheduling), and an OWNER manager under Cài đặt → Thông báo hệ thống. Local checks: typecheck passes, `tests/unit/feedback-notifications.test.ts` (3) passes, and the standalone operational DB suite reports 33 passing checks including 5 new announcement tests. This is not a hosted/production check; the migration has not been deployed.
+
+## Shorthand intake (/intake) — 2026-10-02
+
+Paste-a-phone-note vehicle intake is complete locally with no backend change. `src/lib/shorthand/` is a pure parsing layer: `vocabulary.ts` (diacritic/case-insensitive normalization plus brand/model/color/keyword aliases), `parseIntakeNotes.ts` (one entry per line; shorthand money `18tr5`/`1.2ty`/`450k`, odometer vạn `2v`, plates, dates, provenance tracking, per-line unknown tokens), `learnedDictionary.ts` (per-user abbreviation memory in device localStorage `carem_shorthand_dict_v1:<userId>`, 300-rule cap, injectable storage), and `intakeRows.ts` (client validation mirroring the server rules; import-row and single-draft mapping). `ShorthandIntakePage` at `/intake` (visible to `canOperate`) parses pasted notes into editable cards with autocomplete suggestions, teaches abbreviations from unknown-token chips and post-edit hints, validates against `validate_import_vehicles` first (server issues map onto the offending cards and block the dialog), then sends the whole list through one atomic `import_vehicles` call — never row-by-row writes. Purchase price is neither rendered nor sent for users without financial rights, mirroring `FINANCIAL_ACCESS_DENIED`/`PURCHASE_PRICE_REQUIRED`. Entry points: Acquisitions header, Capture card, and global search (Ctrl+K). Local gates on 02/10/2026: lint, typecheck, 304 vitest tests (21 new), regenerated knowledge seed (170 sections), the full DB suite, 4 new plus 74 total Playwright tests, the PWA gate, and the production build. The learned dictionary is per device/account and is not synced to the server; no migration or Edge Function changed.
 
 ## Release readiness
 

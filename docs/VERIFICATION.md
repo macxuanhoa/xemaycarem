@@ -1,4 +1,20 @@
-# Kết quả kiểm chứng — 01/10/2026
+# Kết quả kiểm chứng — 02/10/2026
+
+## Thu xe tốc ký (/intake) — 02/10/2026
+
+| Kiểm tra | Kết quả |
+|---|---|
+| npm run lint | Đạt; 0 lỗi |
+| npm run typecheck | Đạt |
+| npm test | Đạt: 304 test / 26 file (thêm `tests/unit/shorthandIntake.test.ts` 21 test cho parser + từ điển học) |
+| npm run knowledge:check | Lần đầu báo seed lệch (trang mới sinh từ code) → chạy `npm run knowledge:seed` tạo lại 170 mục, sau đó đạt |
+| npm run test:db | Đạt: 10 business risks + 35 operational + 9 auth + 8 knowledge + 6 copilot gaps + 8 CCCD + 10 showroom + 29 tích hợp; replay toàn bộ migration — tính năng này không có migration mới |
+| npx playwright test shorthand-intake | Đạt: 4/4 (thu loạt một lệnh, học viết tắt + bền sau reload, trùng lặp server chặn trước confirm, STAFF không thấy/không gửi giá thu) |
+| npx playwright test (toàn suite) | Đạt: 74/74 (3.1 phút) |
+| npm run build | Đạt; PWA generateSW, precache 58 mục |
+| npm run test:pwa (preview 4173) | Đạt: manifest/icons, installability Chromium, service worker, login desktop/mobile, offline shell |
+
+Ghi chú: E2E spec mới mock Supabase HTTP/Auth tại `https://xe-test.supabase.co` và hai RPC `validate_import_vehicles`/`import_vehicles`; hành vi SQL thật của các RPC này do suite DB sẵn có đã bao phủ (không thêm SQL cho tính năng). Bộ nhớ viết tắt là localStorage theo thiết bị/tài khoản, không đồng bộ server.
 
 ## Release preparation (đợt 3) — gốc rễ flake login (connection churn) và xác nhận E2E xanh hai vòng liên tiếp (01/10/2026, worktree ổn định, chỉ một tiến trình ghi)
 

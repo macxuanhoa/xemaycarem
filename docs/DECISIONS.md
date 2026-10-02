@@ -60,6 +60,16 @@ Local draft/recent values are scoped to the authenticated user and exclude finan
 - Câu chữ trợ giúp trong Cài đặt phải phản ánh đúng semantics so sánh dẹt, diễn đạt theo ngôn ngữ kinh doanh đời thường: "giảm xuống dưới mức này" / "tăng vượt trên mức này", kèm ghi chú "Số xe bằng đúng ngưỡng vẫn là Tồn kho bình thường.". Cụm "bằng hoặc thấp hơn" / "bằng hoặc cao hơn" bị bác vì gợi ý ngưỡng là điểm kích hoạt, trái với hành vi thực tế của RPC.
 - Nhãn hiển thị trên card "Kho xe hiện tại" (Dashboard): LOW → "Tồn kho thấp", NORMAL → "Tồn kho bình thường", HIGH → "Tồn kho cao", dùng tone màu ngữ nghĩa đã có trong theme (emerald/amber/indigo tint), không định nghĩa bảng màu mới.
 
+## Thu xe tốc ký (/intake)
+
+- Tái sử dụng cặp RPC `validate_import_vehicles` + `import_vehicles` đã tồn tại trên schema (migration `20260930002400`): không thêm migration, không thêm Edge Function. Lô thu xe là nguyên tử all-or-nothing do server thực thi; khách KHÔNG bao giờ ghi từng dòng `acquire_vehicle` khi nhập nhiều xe.
+- Thứ tự chặn sai: bấm "Thu N xe vào kho" gọi validate TRƯỚC, map lỗi server (khung/biển trùng, vượt giới hạn) trở lại đúng từng thẻ xe và huỷ hộp thoại xác nhận; chỉ khi sạch mới confirm rồi mới import. Chi phí một round-trip validate đổi lấy việc không bao giờ mở hộp thoại "xác nhận" cho dữ liệu chắc chắn bị từ chối.
+- Bộ nhớ viết tắt là localStorage theo thiết bị + theo tài khoản (`carem_shorthand_dict_v1:<userId>`), không có bảng server: cách viết tắt là thói quen cá nhân, không cần chia sẻ/audit; đánh đổi mất bộ nhớ khi đổi thiết bị được chấp nhận. Từ điển học được ƯU TIÊN hơn builtin (người dùng thắng mặc định), trần 300 quy tắc, sắp xếp theo số lần dùng.
+- Thư viện parse nằm thuần trong `src/lib/shorthand/`, nhận từ điển và storage qua interface — unit-test chạy môi trường node của Vitest, không cần jsdom/localStorage.
+- An toàn tài chính mô phỏng hợp đồng server: tài khoản không `can_view_financials` KHÔNG render trường Giá thu và key `purchase_price` không tồn tại trong payload (server sẽ `FINANCIAL_ACCESS_DENIED`); tài khoản tài chính bắt buộc nhập giá (`PURCHASE_PRICE_REQUIRED`). Client validate bản địa soi cùng luật để lỗi hiện tức thì, server vẫn là chuẩn cuối.
+- Token lạ KHÔNG bao giờ bị âm thầm bỏ: hiển thị dạng chip kèm hai hành động `+ Ghi chú` và `Học`; từ đầu tiên chưa biết mới tạm đổ vào Dòng xe, và mọi trường đã có giá trị nhận token thừa vào chip lạ. Đây là điều kiện để dụng cụ học đúng thay vì đoán câm.
+- Seed `knowledge_base` lệch sau khi thêm trang `/intake` (docs hệ thống sinh từ code): xử lý bằng quy trình chuẩn `npm run knowledge:seed` tái sinh migration-seed `20261001002900` — file seed không bao giờ sửa tay; migration này chưa deploy nên tái sinh local là forward-only hợp lệ.
+
 ## Unverified external state
 
 These decisions describe local code. They do not assert the current contents of a hosted Supabase project or any production account credential.

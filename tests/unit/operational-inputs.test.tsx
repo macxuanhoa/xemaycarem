@@ -216,20 +216,23 @@ describe("MoneyInput Vietnamese component rendering", () => {
 });
 
 describe("DateRange Vietnamese component rendering and order integrity", () => {
-  it("renders custom date range 2026-10-01 → 2026-10-02 as 01/10/2026 → 02/10/2026", async () => {
+  // Fixed dates far from any preset boundary (from-day != 1, 15-day span)
+  // so the range can never coincidentally equal month/today/week/yesterday
+  // presets regardless of the machine clock date.
+  it("renders custom date range 2026-03-05 → 2026-03-20 as 05/03/2026 → 20/03/2026", async () => {
     const { DateRange } = await import("@/components/ui");
     const html = renderToStaticMarkup(
       <DateRange
-        value={{ from: "2026-10-01", to: "2026-10-02" }}
+        value={{ from: "2026-03-05", to: "2026-03-20" }}
         onChange={() => {}}
       />,
     );
     // User-facing inputs strictly formatted as DD/MM/YYYY
-    expect(html).toContain('value="01/10/2026"');
-    expect(html).toContain('value="02/10/2026"');
+    expect(html).toContain('value="05/03/2026"');
+    expect(html).toContain('value="20/03/2026"');
     // Never renders ambiguous US MM/DD/YYYY formats
-    expect(html).not.toContain('value="10/01/2026"');
-    expect(html).not.toContain('value="10/02/2026"');
+    expect(html).not.toContain('value="03/05/2026"');
+    expect(html).not.toContain('value="03/20/2026"');
     // Does not use browser-dependent native type="date"
     expect(html).not.toContain('type="date"');
   });
@@ -238,15 +241,15 @@ describe("DateRange Vietnamese component rendering and order integrity", () => {
     const { DateRange } = await import("@/components/ui");
     const html = renderToStaticMarkup(
       <DateRange
-        value={{ from: "2026-10-02", to: "2026-10-01" }}
+        value={{ from: "2026-03-20", to: "2026-03-05" }}
         onChange={() => {}}
       />,
     );
-    // Rendered output has earlier date in from and later date in to (01/10/2026 before 02/10/2026)
-    expect(html).toContain('value="01/10/2026"');
-    expect(html).toContain('value="02/10/2026"');
-    const fromIndex = html.indexOf('value="01/10/2026"');
-    const toIndex = html.indexOf('value="02/10/2026"');
+    // Rendered output has earlier date in from and later date in to (05/03/2026 before 20/03/2026)
+    expect(html).toContain('value="05/03/2026"');
+    expect(html).toContain('value="20/03/2026"');
+    const fromIndex = html.indexOf('value="05/03/2026"');
+    const toIndex = html.indexOf('value="20/03/2026"');
     expect(fromIndex).toBeLessThan(toIndex);
   });
 

@@ -134,7 +134,10 @@ async function nativeDatabase() {
         bootstrap.release()
         await pool.end()
         try {
-          await cluster.stop()
+          await Promise.race([
+            cluster.stop(),
+            new Promise((resolve) => setTimeout(resolve, 2000))
+          ])
         } catch (error) {
           // On Windows, embedded-postgres can return before taskkill releases file handles.
           if (error?.code !== 'EBUSY') throw error

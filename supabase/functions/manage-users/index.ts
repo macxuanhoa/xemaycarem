@@ -173,7 +173,10 @@ Deno.serve(async (request: Request) => {
         .select('id')
         .ilike('username', username)
         .maybeSingle();
-      if (lookupError) return response(503, { error: 'USER_LOOKUP_FAILED' });
+      if (lookupError) {
+        console.error('Lookup error:', lookupError);
+        return response(503, { error: 'USER_LOOKUP_FAILED', details: lookupError.message || lookupError });
+      }
       if (existingProfile) {
         return response(400, { error: 'USERNAME_EXISTS', message: 'Tên đăng nhập đã tồn tại trong hệ thống.' });
       }

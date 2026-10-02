@@ -2382,221 +2382,447 @@ pre {
 /* Login */
 .login-page {
   display: grid;
-  grid-template-columns: 1.05fr 1fr;
+  grid-template-columns: 1.12fr 1fr;
   min-height: 100vh;
+  background: #0b0f19;
 }
 .login-story {
-  background: linear-gradient(145deg, rgba(8, 10, 15, 0.94) 0%, rgba(18, 22, 31, 0.92) 100%),
+  background: linear-gradient(155deg, rgba(8, 12, 22, 0.86) 0%, rgba(15, 23, 42, 0.68) 45%, rgba(6, 9, 17, 0.92) 100%),
               url('/hero-banner.jpg') center/cover no-repeat;
-  color: #f5f6f8;
-  padding: 46px 54px 25px;
+  color: #f8fafc;
+  padding: 44px 52px 32px;
   display: flex;
   flex-direction: column;
   position: relative;
   overflow: hidden;
+  box-shadow: inset -1px 0 0 rgba(255, 255, 255, 0.08);
 }
 .login-story:after {
   content: "";
   position: absolute;
-  right: -220px;
-  top: 80px;
-  border: 1px solid rgba(99, 102, 241, 0.15);
+  top: -15%;
+  right: -10%;
+  width: 520px;
+  height: 520px;
   border-radius: 50%;
-  width: 680px;
-  height: 680px;
+  background: radial-gradient(circle, rgba(99, 102, 241, 0.18) 0%, rgba(99, 102, 241, 0) 70%);
   pointer-events: none;
-  box-shadow:
-    0 0 0 100px rgba(99, 102, 241, 0.05),
-    0 0 0 200px rgba(99, 102, 241, 0.02);
 }
 .login-story .brand {
-  font-size: 27px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  text-decoration: none;
+  color: #ffffff;
+  font-size: 24px;
+  font-weight: 700;
+  letter-spacing: -0.5px;
+  width: fit-content;
 }
 .login-story .brand-icon {
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  overflow: hidden;
   background: #000000;
-  width: 48px;
-  height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+.login-story .brand-logo-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.login-story .brand span small {
+  display: block;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 2px;
+  color: #818cf8;
+  margin-top: 1px;
 }
 .login-story-content {
   position: relative;
   z-index: 1;
   margin: auto 0;
-  padding: 65px 0 40px;
+  padding: 36px 0 28px;
+  max-width: 520px;
 }
 .login-story-content > .eyebrow {
+  display: inline-block;
   color: #818cf8;
-  font-weight: 600;
-  letter-spacing: 1.5px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 1.8px;
+  text-transform: uppercase;
+  background: rgba(99, 102, 241, 0.12);
+  border: 1px solid rgba(99, 102, 241, 0.25);
+  padding: 5px 14px;
+  border-radius: 999px;
+  margin-bottom: 20px;
 }
 .login-story-content h1 {
-  font-size: clamp(36px, 3.3vw, 53px);
-  line-height: 1.28;
-  font-weight: 500;
-  letter-spacing: -1.8px;
-  margin: 25px 0;
+  font-size: clamp(32px, 3.2vw, 45px);
+  line-height: 1.24;
+  font-weight: 650;
+  letter-spacing: -1.2px;
+  margin: 0 0 16px;
+  color: #ffffff;
 }
 .login-story-content h1 em {
   font-style: normal;
   color: #a5b4fc;
-  text-shadow: 0 0 20px rgba(99, 102, 241, 0.4);
+  text-shadow: 0 0 24px rgba(99, 102, 241, 0.45);
 }
 .login-story-content > p {
-  color: #cbd5e1;
-  font-size: 13px;
-  line-height: 1.9;
-  font-weight: 300;
+  color: #94a3b8;
+  font-size: 14px;
+  line-height: 1.75;
+  font-weight: 400;
+  margin-bottom: 24px;
 }
-.road-illustration {
-  height: 225px;
+.motorcycle-showcase-4k {
   position: relative;
-  margin: 25px 0 16px;
-  color: #818cf8;
+  border-radius: 16px;
+  overflow: hidden;
+  background: rgba(10, 14, 26, 0.85);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  box-shadow: 0 20px 45px -10px rgba(0, 0, 0, 0.65), 0 0 0 1px rgba(255, 255, 255, 0.05);
+  margin: 22px 0 24px;
+  backdrop-filter: blur(16px);
 }
-.road-illustration > svg {
-  position: absolute;
-  left: 35%;
-  top: 20px;
-  transform: rotate(-5deg);
+.showcase-photo-container {
+  position: relative;
+  width: 100%;
+  height: 200px;
+  overflow: hidden;
+  background: #000000;
 }
-.road-line {
-  height: 92px;
-  width: 120%;
+.showcase-real-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center 65%;
+  display: block;
+  filter: contrast(1.06) brightness(1.02);
+  transform: scale(1.01);
+  transition: transform 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.motorcycle-showcase-4k:hover .showcase-real-img {
+  transform: scale(1.05);
+}
+.showcase-vignette {
   position: absolute;
-  left: -10%;
-  top: 68px;
-  border: 1px solid rgba(99, 102, 241, 0.25);
+  inset: 0;
+  background: radial-gradient(circle at center, transparent 40%, rgba(9, 11, 20, 0.45) 85%, rgba(9, 11, 20, 0.75) 100%);
+  pointer-events: none;
+}
+.showcase-tag-top {
+  position: absolute;
+  top: 12px;
+  left: 14px;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  background: rgba(9, 11, 20, 0.82);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(56, 189, 248, 0.3);
+  padding: 4px 10px;
+  border-radius: 999px;
+  color: #38bdf8;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 1.2px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+  z-index: 2;
+}
+.live-camera-pulse {
+  width: 6px;
+  height: 6px;
   border-radius: 50%;
-  transform: rotate(-13deg);
-  border-left-color: transparent;
-  border-right-color: transparent;
+  background: #38bdf8;
+  box-shadow: 0 0 8px #38bdf8;
+  animation: camera-pulse 2s infinite;
 }
-.road-dot {
-  position: absolute;
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: #818cf8;
-  top: 124px;
-  right: 10%;
-  box-shadow: 0 0 16px #818cf8;
+@keyframes camera-pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.5; transform: scale(0.85); }
 }
-.road-caption {
+.showcase-telemetry {
   position: absolute;
-  bottom: 12px;
+  bottom: 0;
   left: 0;
-  font-size: 8px;
-  letter-spacing: 2px;
+  right: 0;
+  background: linear-gradient(180deg, transparent 0%, rgba(9, 11, 20, 0.85) 45%, rgba(9, 11, 20, 0.96) 100%);
+  padding: 22px 14px 10px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  z-index: 2;
+}
+.telemetry-item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.telemetry-label {
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  color: #94a3b8;
+}
+.telemetry-val {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  color: #f1f5f9;
+}
+.telemetry-sep {
+  width: 1px;
+  height: 22px;
+  background: rgba(255, 255, 255, 0.12);
+}
+.showcase-bottom-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  background: #090d19;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+.showcase-badge-active {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 10.5px;
+  font-weight: 650;
+  color: #34d399;
+}
+.badge-shield-icon {
+  color: #34d399;
+  flex-shrink: 0;
+}
+.showcase-meta-vin {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 1px;
   color: #94a3b8;
 }
 .story-points {
   display: flex;
-  flex-wrap: wrap;
-  gap: 20px;
-  font-size: 11px;
+  flex-direction: column;
+  gap: 11px;
+  font-size: 13px;
   color: #cbd5e1;
 }
 .story-points span {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 10px;
+  font-weight: 500;
 }
 .story-points svg {
-  color: #818cf8;
+  color: #34d399;
+  flex-shrink: 0;
+  background: rgba(52, 211, 153, 0.12);
+  padding: 2px;
+  border-radius: 50%;
+  box-sizing: content-box;
 }
 .login-footer {
   display: flex;
   justify-content: space-between;
   color: #94a3b8;
-  font-size: 8px;
-  letter-spacing: 1px;
-}
-.login-footer span {
-  letter-spacing: 0;
+  font-size: 10px;
+  letter-spacing: 1.5px;
+  font-weight: 600;
 }
 .login-panel {
-  background: #fafbf7;
+  background: radial-gradient(circle at 100% 0%, rgba(224, 231, 255, 0.45) 0%, #f8fafc 55%, #f1f5f9 100%);
   display: flex;
   flex-direction: column;
-  padding: 45px 55px;
   align-items: center;
   justify-content: center;
+  padding: 32px 36px;
   position: relative;
+  min-height: 100vh;
 }
 .login-form-wrap {
   width: 100%;
-  max-width: 355px;
-  padding-bottom: 20px;
+  max-width: 410px;
+  background: #ffffff;
+  padding: 38px 36px 32px;
+  border-radius: 20px;
+  border: 1px solid rgba(226, 232, 240, 0.85);
+  box-shadow: 0 20px 45px -15px rgba(15, 23, 42, 0.08), 0 1px 3px rgba(15, 23, 42, 0.04);
 }
 .login-lock {
-  height: 46px;
-  width: 46px;
-  border-radius: 12px;
+  height: 48px;
+  width: 48px;
+  border-radius: 14px;
   display: grid;
   place-items: center;
-  background: #ebeee1;
-  color: #597246;
-  margin-bottom: 28px;
+  background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%);
+  border: 1px solid rgba(191, 219, 254, 0.8);
+  color: #2563eb;
+  margin-bottom: 20px;
+  box-shadow: 0 4px 10px rgba(37, 99, 235, 0.12);
 }
 .login-form-wrap h2 {
-  font-size: 27px;
-  letter-spacing: -0.9px;
-  font-weight: 650;
-  margin-bottom: 10px;
+  font-size: 26px;
+  letter-spacing: -0.7px;
+  font-weight: 700;
+  color: #0f172a;
+  margin-bottom: 6px;
 }
 .login-form-wrap > .muted {
-  font-size: 12px;
-  margin-bottom: 28px;
+  font-size: 13.5px;
+  color: #64748b;
+  margin-bottom: 22px;
+  line-height: 1.5;
 }
 .login-form-wrap .field {
-  font-size: 12px;
+  margin-bottom: 16px;
+  font-size: 13px;
 }
-.login-form-wrap input {
-  background: white;
-  min-height: 47px;
+.login-form-wrap .field label {
+  font-size: 13px;
+  font-weight: 600;
+  color: #334155;
+  margin-bottom: 6px;
+  display: block;
 }
-.login-form-wrap .checkbox input {
-  min-height: 17px;
-  background: transparent;
+.login-form-wrap input[type="text"],
+.login-form-wrap input[type="password"] {
+  background: #f8fafc;
+  border: 1.5px solid #e2e8f0;
+  border-radius: 11px;
+  min-height: 49px;
+  padding: 0 16px;
+  font-size: 14px;
+  color: #0f172a;
+  transition: all 0.18s ease;
+}
+.login-form-wrap input[type="text"]:focus,
+.login-form-wrap input[type="password"]:focus {
+  background: #ffffff;
+  border-color: #4f46e5;
+  box-shadow: 0 0 0 3.5px rgba(79, 70, 229, 0.14);
+  outline: none;
+}
+.login-form-wrap input::placeholder {
+  color: #94a3b8;
+  font-size: 13.5px;
 }
 .password-field {
   display: flex;
   position: relative;
+  width: 100%;
 }
 .password-field input {
-  padding-right: 42px;
+  width: 100%;
+  padding-right: 44px;
 }
 .password-field > button {
   position: absolute;
-  right: 8px;
-  top: 7px;
-  height: 32px;
-  width: 32px;
+  right: 6px;
+  top: 50%;
+  transform: translateY(-50%);
+  height: 34px;
+  width: 34px;
+  border-radius: 8px;
   display: grid;
   place-items: center;
   border: 0;
-  color: #94a3b8;
-  background: transparent;
-}
-.login-submit {
-  margin-top: 3px;
-  justify-content: space-between;
-  padding: 13px 18px;
-}
-.login-note {
-  padding-top: 24px;
-  margin-top: 30px;
-  border-top: 1px solid #e2e8f0;
-  font-size: 11px;
   color: #64748b;
+  background: transparent;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+.password-field > button:hover {
+  background: #e2e8f0;
+  color: #0f172a;
+}
+.login-options {
   display: flex;
   align-items: center;
+  justify-content: space-between;
+  margin-top: 4px;
+  margin-bottom: 20px;
+  font-size: 13px;
+}
+.login-options .checkbox {
+  display: inline-flex;
+  align-items: center;
   gap: 8px;
+  color: #475569;
+  cursor: pointer;
+  user-select: none;
+  font-size: 13px;
+}
+.login-options .checkbox input {
+  min-height: 18px;
+  width: 18px;
+  accent-color: #4f46e5;
+  cursor: pointer;
+}
+.login-options .text-link {
+  color: #4f46e5;
+  font-weight: 500;
+  text-decoration: none;
+}
+.login-options .text-link:hover {
+  text-decoration: underline;
+}
+.login-submit {
+  min-height: 49px;
+  border-radius: 11px;
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: 0.2px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  background: linear-gradient(180deg, #1e293b 0%, #0f172a 100%);
+  color: #ffffff;
+  border: none;
+  cursor: pointer;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.16), 0 4px 14px rgba(15, 23, 42, 0.22);
+  transition: all 0.2s ease;
+}
+.login-submit:hover:not(:disabled) {
+  background: linear-gradient(180deg, #334155 0%, #1e293b 100%);
+  transform: translateY(-1px);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.2), 0 6px 18px rgba(15, 23, 42, 0.28);
+}
+.login-note {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 20px;
+  padding: 12px 15px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 11px;
+  font-size: 12.5px;
+  color: #64748b;
+  line-height: 1.45;
+}
+.note-shield-icon {
+  color: #4f46e5;
+  flex-shrink: 0;
 }
 .login-bottom {
-  position: absolute;
-  bottom: 30px;
-  color: #64748b;
-  font-size: 11px;
+  position: static;
+  margin-top: 22px;
+  color: #94a3b8;
+  font-size: 12px;
+  letter-spacing: 0.2px;
+  text-align: center;
 }
 .setup-notice {
   display: flex;
@@ -2767,6 +2993,8 @@ pre {
   }
   .sidebar.open {
     transform: translateX(0);
+    /* Keep the drawer above the sticky topbar/search bar (both z-index 30). */
+    z-index: 40;
   }
   .sidebar-overlay {
     position: fixed;
@@ -3190,6 +3418,7 @@ pre {
   }
   .login-story-content > p,
   .road-illustration,
+  .motorcycle-hero-card,
   .story-points,
   .login-footer {
     display: none;
@@ -3765,62 +3994,6 @@ pre {
   transform: translateY(-1px);
 }
 
-.login-showroom-prompt {
-  margin-top: 18px;
-  padding: 14px 16px;
-  background: linear-gradient(135deg, #090b14 0%, #171b33 100%);
-  border: 1px solid rgba(99, 102, 241, 0.3);
-  border-radius: 12px;
-  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.08);
-}
-
-.showroom-prompt-header {
-  display: flex;
-  align-items: flex-start;
-  gap: 10px;
-  margin-bottom: 10px;
-}
-
-.showroom-icon-red {
-  color: #818cf8;
-  flex-shrink: 0;
-  margin-top: 2px;
-}
-
-.showroom-prompt-header strong {
-  font-size: 13px;
-  color: #ffffff;
-  display: block;
-}
-
-.showroom-prompt-header p {
-  font-size: 11px;
-  color: #c7d2fe;
-  margin: 3px 0 0;
-  line-height: 1.4;
-}
-
-.login-showroom-action-btn {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  width: 100%;
-  padding: 8px 14px;
-  background: #4f46e5;
-  color: #ffffff;
-  border-radius: 8px;
-  font-size: 12px;
-  font-weight: 600;
-  text-decoration: none;
-  transition: all 0.2s ease;
-}
-
-.login-showroom-action-btn:hover {
-  background: #6366f1;
-  box-shadow: 0 4px 12px rgba(79, 70, 229, 0.4);
-  transform: translateY(-1px);
-}
 
 /* ==========================================================================
    CÀ REM CRM · EXECUTIVE SUITE & DESIGN HARMONIZATION

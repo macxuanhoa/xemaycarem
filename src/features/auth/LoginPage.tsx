@@ -6,9 +6,7 @@ import {
   Eye,
   EyeOff,
   LockKeyhole,
-  Bike,
   ShieldCheck,
-  Store,
 } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -89,46 +87,77 @@ export default function LoginPage() {
           </span>
         </Link>
         <div className="login-story-content">
-          <span className="eyebrow">MỌI CHIẾC XE. MỌI GIAO DỊCH.</span>
+          <span className="eyebrow">HỆ THỐNG VẬN HÀNH KHO XE TOÀN DIỆN</span>
           <h1>
             Nắm rõ cửa hàng.
             <br />
-            <em>Chủ động mỗi ngày.</em>
+            <em>Làm chủ giao dịch.</em>
           </h1>
           <p>
-            Từ lúc xe về đến khi giao chìa khóa.
-            <br />
-            Một nơi để quản lý kho xe, bán hàng và dòng tiền.
+            Theo dõi chi tiết từng chiếc xe từ lúc nhập kho, tân trang,
+            đến khi hoàn tất thủ tục bàn giao và đối soát dòng tiền minh bạch.
           </p>
-          <div className="road-illustration" aria-hidden="true">
-            <div className="road-line" />
-            <Bike size={160} strokeWidth={1} />
-            <span className="road-dot" />
-            <span className="road-caption">HÀNH TRÌNH CỦA MỖI CHIẾC XE</span>
+          <div className="motorcycle-showcase-4k" aria-hidden="true">
+            <div className="showcase-photo-container">
+              <img
+                src="/motorcycle-real-side.jpg"
+                alt="Mô tô phân khối lớn tại showroom Xe Máy Cà Rem"
+                className="showcase-real-img"
+              />
+              <div className="showcase-vignette" />
+              <div className="showcase-tag-top">
+                <span className="live-camera-pulse" />
+                <span>ẢNH THỰC TẾ 4K • KHO XE CÀ REM</span>
+              </div>
+              <div className="showcase-telemetry">
+                <div className="telemetry-item">
+                  <span className="telemetry-label">TÌNH TRẠNG</span>
+                  <span className="telemetry-val">NGUYÊN BẢN 100%</span>
+                </div>
+                <div className="telemetry-sep" />
+                <div className="telemetry-item">
+                  <span className="telemetry-label">KIỂM ĐỊNH</span>
+                  <span className="telemetry-val">128 HẠNG MỤC</span>
+                </div>
+                <div className="telemetry-sep" />
+                <div className="telemetry-item">
+                  <span className="telemetry-label">PHÁP LÝ</span>
+                  <span className="telemetry-val">SẴN SÀNG SANG TÊN</span>
+                </div>
+              </div>
+            </div>
+            <div className="showcase-bottom-bar">
+              <span className="showcase-badge-active">
+                <ShieldCheck size={14} className="badge-shield-icon" />
+                TIÊU CHUẨN ĐỊNH DANH KHO XE CÀ REM
+              </span>
+              <span className="showcase-meta-vin">SỐ KHUNG & SỐ MÁY CHUẨN</span>
+            </div>
           </div>
           <div className="story-points">
             <span>
-              <Check size={16} /> Kho xe rõ ràng
+              <Check size={16} /> Kiểm soát tồn kho & giấy tờ pháp lý
             </span>
             <span>
-              <Check size={16} /> Số liệu nhất quán
+              <Check size={16} /> Tự động tính giá vốn & lợi nhuận gộp
             </span>
             <span>
-              <Check size={16} /> Phân quyền an toàn
+              <Check size={16} /> Phân quyền an toàn & lưu vết giao dịch
             </span>
           </div>
         </div>
         <div className="login-footer">
-          QUẢN LÝ CỬA HÀNG XE <span>Phiên bản 1.0</span>
+          <span>HỆ THỐNG CRM XE MÁY NỘI BỘ</span>
+          <span>PHIÊN BẢN 1.0</span>
         </div>
       </div>
       <div className="login-panel">
         <div className="login-form-wrap">
           <span className="login-lock">
-            <LockKeyhole size={23} />
+            <LockKeyhole size={22} />
           </span>
           <h2>Chào mừng trở lại</h2>
-          <p className="muted">Đăng nhập để bắt đầu ngày làm việc của bạn.</p>
+          <p className="muted">Đăng nhập tài khoản nội bộ để bắt đầu ngày làm việc.</p>
           {!isConfigured ? (
             <div className="setup-notice" role="status">
               <ShieldCheck size={24} />
@@ -153,7 +182,7 @@ export default function LoginPage() {
               <input
                 type="text"
                 autoComplete="username email"
-                placeholder="VD: owner@gmail.com hoặc nguyenb"
+                placeholder="Nhập tên đăng nhập hoặc email"
                 {...register("identifier")}
                 disabled={!isConfigured}
               />
@@ -163,7 +192,7 @@ export default function LoginPage() {
                 <input
                   type={show ? "text" : "password"}
                   autoComplete="current-password"
-                  placeholder="Nhập mật khẩu của bạn"
+                  placeholder="Nhập mật khẩu"
                   {...register("password")}
                   disabled={!isConfigured}
                 />
@@ -176,10 +205,10 @@ export default function LoginPage() {
                 </button>
               </span>
             </Field>
-            <div className="row between">
+            <div className="row between login-options">
               <label className="checkbox">
-                <input type="checkbox" {...register("remember")} /> Duy trì đăng
-                nhập
+                <input type="checkbox" {...register("remember")} />
+                <span>Duy trì đăng nhập</span>
               </label>
               {import.meta.env.VITE_ENABLE_PASSWORD_RESET === "true" && (
                 <Link className="text-link" to="/forgot-password">
@@ -197,7 +226,7 @@ export default function LoginPage() {
               className="full-width login-submit"
               disabled={isSubmitting || !isConfigured}
             >
-              {isSubmitting ? "Đang đăng nhập…" : "Đăng nhập"}
+              <span>{isSubmitting ? "Đang xác thực…" : "Đăng nhập"}</span>
               <ArrowRight size={18} />
             </Button>
             {user && !profile && (
@@ -207,25 +236,12 @@ export default function LoginPage() {
             )}
           </form>
           <div className="login-note">
-            <ShieldCheck size={17} />
-            <span>Hệ thống nội bộ. Tài khoản do chủ cửa hàng cấp.</span>
-          </div>
-          <div className="login-showroom-prompt">
-            <div className="showroom-prompt-header">
-              <Store size={18} className="showroom-icon-red" />
-              <div>
-                <strong>Xem kho xe tại Showroom</strong>
-                <p>Khách hàng quan tâm có thể xem giá và đặt lịch lái thử trực tiếp</p>
-              </div>
-            </div>
-            <Link to="/showroom" className="login-showroom-action-btn">
-              <span>Đến Showroom Cà Rem</span>
-              <ArrowRight size={15} />
-            </Link>
+            <ShieldCheck size={16} className="note-shield-icon" />
+            <span>Hệ thống nội bộ. Tài khoản do Chủ cửa hàng phân quyền và quản lý.</span>
           </div>
         </div>
         <p className="login-bottom">
-          Xe Máy Cà Rem Hội An • Hotline: 0914.92.92.92
+          Cửa hàng Xe Máy Cà Rem • Hotline hỗ trợ: 0914.92.92.92
         </p>
       </div>
     </main>

@@ -34,6 +34,8 @@ site_url = "https://carem.vercel.app"
 additional_redirect_urls = [
   "https://carem.vercel.app/**",
   "https://carem.vercel.app/reset-password",
+  "https://xemaycarem.vercel.app/**",
+  "https://xemaycarem.vercel.app/reset-password",
   "http://127.0.0.1:5173/**",
   "http://127.0.0.1:5173/reset-password",
   "http://localhost:5173/**",

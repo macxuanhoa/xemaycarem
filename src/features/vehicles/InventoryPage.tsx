@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   Link,
   useLocation,
@@ -93,16 +93,19 @@ export function InventoryPage() {
   function setPage(nextPage: number) {
     updateParams({ page: nextPage > 1 ? String(nextPage) : "" }, false);
   }
-  const filters = {
-    brand: params.get("brand") ?? "",
-    year: params.get("year") ?? "",
-    min_price: params.get("min_price") ?? "",
-    max_price: params.get("max_price") ?? "",
-    date_from: params.get("date_from") ?? "",
-    date_to: params.get("date_to") ?? "",
-    cost_pending: params.get("cost_pending") ?? "",
-    min_days: params.get("min_days") ?? "",
-  };
+  const filters = useMemo(
+    () => ({
+      brand: params.get("brand") ?? "",
+      year: params.get("year") ?? "",
+      min_price: params.get("min_price") ?? "",
+      max_price: params.get("max_price") ?? "",
+      date_from: params.get("date_from") ?? "",
+      date_to: params.get("date_to") ?? "",
+      cost_pending: params.get("cost_pending") ?? "",
+      min_days: params.get("min_days") ?? "",
+    }),
+    [params],
+  );
   const [expanded, setExpanded] = useState(() =>
     Object.values(filters).some(Boolean),
   );

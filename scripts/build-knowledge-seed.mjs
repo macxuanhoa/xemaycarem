@@ -39,7 +39,6 @@ const SOURCES = [
   { path: 'docs/IMPLEMENTATION_PLAN.md', audience: 'OWNER', title: 'Kế hoạch triển khai' },
   { path: 'docs/IMPLEMENTATION_REPORT.md', audience: 'OWNER', title: 'Báo cáo triển khai' },
   { path: 'docs/AUTH_ACCEPTANCE_REPORT.md', audience: 'OWNER', title: 'Nghiệm thu phân quyền' },
-  { path: 'docs/AUTH_BACKUP_METADATA.md', audience: 'OWNER', title: 'Sao lưu metadata đăng nhập' },
   { path: 'docs/AUTH_RECOVERY_AUDIT.md', audience: 'OWNER', title: 'Kiểm kê khôi phục tài khoản' },
   { path: 'supabase/API.md', audience: 'MANAGER', title: 'Hợp đồng database và RPC' },
   { path: 'supabase/SECURITY.md', audience: 'OWNER', title: 'Mô hình bảo mật Supabase' },

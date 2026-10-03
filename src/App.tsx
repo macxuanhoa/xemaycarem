@@ -194,9 +194,10 @@ export default function App() {
               <Route element={<Protected access="manage" />}>
                 <Route path="reconciliation" element={<Navigate to="/expenses" replace />} />
                 <Route path="expenses" element={<ExpensesPage />} />
+                {/* Managers reach Nhân sự only to set roles of their juniors. */}
+                <Route path="users" element={<UsersPage />} />
               </Route>
               <Route element={<Protected access="owner" />}>
-                <Route path="users" element={<UsersPage />} />
                 <Route path="audit" element={<AuditPage />} />
               </Route>
             </Route>

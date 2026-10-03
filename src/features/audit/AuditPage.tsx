@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
-import { Clock, FileClock, History, Search, ShieldCheck, User } from "lucide-react";
+import { Clock, FileClock, History, Search, User } from "lucide-react";
 import {
   Card,
   DateRange,
@@ -138,20 +138,6 @@ export default function AuditPage() {
             </div>
           </div>
         </div>
-
-        <div className="staff-stat-card">
-          <div className="staff-stat-icon amber">
-            <ShieldCheck size={20} />
-          </div>
-          <div>
-            <div className="staff-stat-num" style={{ fontSize: "16px", marginTop: "2px" }}>
-              Bất biến &amp; Minh bạch
-            </div>
-            <div className="staff-stat-label">
-              Múi giờ Asia/Ho_Chi_Minh · Không thể sửa/xóa log
-            </div>
-          </div>
-        </div>
       </div>
 
       {/* FILTER CONTROLS */}
@@ -174,7 +160,7 @@ export default function AuditPage() {
           </div>
 
           <div className="audit-filter-controls">
-            <div className="receivables-search-wrap" style={{ flex: "1 1 260px" }}>
+            <div className="receivables-search-wrap">
               <Search size={18} className="search-icon" />
               <input
                 aria-label="Tìm lịch sử"

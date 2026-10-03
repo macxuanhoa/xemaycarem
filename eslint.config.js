@@ -12,6 +12,7 @@ export default tseslint.config(
       "playwright-report/**",
       "test-results/**",
       "scratch/**",
+      ".vercel-tmp/**",
     ],
   },
   js.configs.recommended,

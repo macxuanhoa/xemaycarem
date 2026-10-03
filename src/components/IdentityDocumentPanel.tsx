@@ -1,10 +1,12 @@
 import { useEffect, useState, type ChangeEvent } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Camera, Images, ShieldAlert } from "lucide-react";
+import { Camera, Check, Images, ShieldAlert } from "lucide-react";
 import { api } from "@/lib/api";
 import { compressImage } from "@/lib/imageCompression";
 import { Card, Loading } from "@/components/ui";
 import type { IdentityDocument, IdentitySubject } from "@/types";
+
+type Side = "front" | "back";
 
 /** Loads a private CCCD image through a short-lived signed URL, never a public link. */
 function IdentityPhoto({ path, alt }: { path: string; alt: string }) {
@@ -73,8 +75,12 @@ export function IdentityDocumentPanel({
   // Photo-only capture: the document row is created lazily, empty, right before
   // the first upload because the Storage policy requires a registered row.
   const [uploadError, setUploadError] = useState("");
+  // Sequential capture: the single pair of buttons always targets the next
+  // pending side (front, then back). Tapping a slot re-points them there for a
+  // retake, so the flow stays one camera + one gallery action for the whole card.
+  const [manualSide, setManualSide] = useState<Side | null>(null);
 
-  const uploadSide = async (side: "front" | "back", file: File) => {
+  const uploadSide = async (side: Side, file: File) => {
     setUploadError("");
     try {
       if (!query.data)
@@ -84,6 +90,7 @@ export function IdentityDocumentPanel({
       const compressed = await compressImage(file);
       await api.uploadIdentityDocumentImage(subjectType, subjectId, side, compressed);
       await client.invalidateQueries({ queryKey });
+      setManualSide(null);
     } catch (reason) {
       setUploadError(
         reason instanceof Error
@@ -93,14 +100,19 @@ export function IdentityDocumentPanel({
     }
   };
 
-  const onPick =
-    (side: "front" | "back") => (event: ChangeEvent<HTMLInputElement>) => {
-      const file = event.target.files?.[0];
-      event.target.value = "";
-      if (file) void uploadSide(side, file);
-    };
-
   const document = query.data;
+  const hasFront = Boolean(document?.front_image_path);
+  const hasBack = Boolean(document?.back_image_path);
+  const autoSide: Side = hasFront && !hasBack ? "back" : "front";
+  const target = manualSide ?? autoSide;
+  const targetLabel = target === "front" ? "Mặt trước" : "Mặt sau";
+  const targetFilled = target === "front" ? hasFront : hasBack;
+
+  const onPick = (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (file) void uploadSide(target, file);
+  };
 
   return (
     <Card>
@@ -115,53 +127,69 @@ export function IdentityDocumentPanel({
       ) : (
         <div className="stack">
           <p className="muted small">
-            Ảnh CCCD của {personLabel.toLowerCase()}, chụp hoặc chọn từ thư viện
-            ảnh. Ảnh lưu riêng tư, chỉ hiển thị qua liên kết có thời hạn ngắn.
+            Chụp hoặc chọn ảnh CCCD của {personLabel.toLowerCase()} theo thứ tự:
+            mặt trước rồi mặt sau. Ảnh lưu riêng tư, chỉ hiển thị qua liên kết có
+            thời hạn ngắn.
           </p>
 
           <div className="identity-uploads">
-            {(["front", "back"] as const).map(side => {
-              const sideLabel = side === "front" ? "mặt trước" : "mặt sau";
+            {(["front", "back"] as const).map((side, index) => {
+              const label = side === "front" ? "Mặt trước" : "Mặt sau";
               const imagePath =
                 side === "front"
                   ? document?.front_image_path
                   : document?.back_image_path;
+              const isActive = side === target;
               return (
-                <div className="identity-upload-slot" key={side}>
-                  <strong>
-                    {side === "front" ? "Mặt trước" : "Mặt sau"}
-                  </strong>
+                <button
+                  type="button"
+                  key={side}
+                  className={`identity-upload-slot${isActive ? " active" : ""}`}
+                  onClick={() => setManualSide(side)}
+                  aria-pressed={isActive}
+                  aria-label={`Chọn ${label.toLowerCase()} để chụp`}
+                >
+                  <span className="identity-slot-head">
+                    <span className="identity-step-badge">
+                      {imagePath ? <Check size={13} /> : index + 1}
+                    </span>
+                    <strong>{label}</strong>
+                  </span>
                   {imagePath ? (
-                    <IdentityPhoto path={imagePath} alt={`CCCD ${sideLabel}`} />
+                    <IdentityPhoto path={imagePath} alt={`CCCD ${label.toLowerCase()}`} />
                   ) : (
-                    <div className="image-placeholder muted">Chưa có ảnh</div>
+                    <span className="image-placeholder muted">Chưa có ảnh</span>
                   )}
-                  <div className="identity-upload-actions">
-                    <label className="button secondary upload-button">
-                      <Camera size={16} />{" "}
-                      {imagePath ? "Chụp lại" : "Chụp ảnh"}
-                      <input
-                        type="file"
-                        accept="image/jpeg,image/png,image/webp"
-                        capture="environment"
-                        aria-label={`Chụp ảnh CCCD ${sideLabel}`}
-                        onChange={onPick(side)}
-                      />
-                    </label>
-                    <label className="button secondary upload-button">
-                      <Images size={16} />{" "}
-                      {imagePath ? "Ảnh khác" : "Thư viện ảnh"}
-                      <input
-                        type="file"
-                        accept="image/*"
-                        aria-label={`Chọn ảnh CCCD ${sideLabel} từ thư viện`}
-                        onChange={onPick(side)}
-                      />
-                    </label>
-                  </div>
-                </div>
+                </button>
               );
             })}
+          </div>
+
+          <div className="identity-action-bar">
+            <span className="muted small">
+              Đang thêm: <strong>{targetLabel}</strong>
+            </span>
+            <div className="identity-upload-actions">
+              <label className="button secondary upload-button">
+                <Camera size={16} /> {targetFilled ? "Chụp lại" : "Chụp ảnh"}
+                <input
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp"
+                  capture="environment"
+                  aria-label={`Chụp ảnh CCCD ${targetLabel.toLowerCase()}`}
+                  onChange={onPick}
+                />
+              </label>
+              <label className="button secondary upload-button">
+                <Images size={16} /> {targetFilled ? "Ảnh khác" : "Thư viện ảnh"}
+                <input
+                  type="file"
+                  accept="image/*"
+                  aria-label={`Chọn ảnh CCCD ${targetLabel.toLowerCase()} từ thư viện`}
+                  onChange={onPick}
+                />
+              </label>
+            </div>
           </div>
           {uploadError && (
             <p className="field-error" role="alert">

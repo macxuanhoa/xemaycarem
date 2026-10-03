@@ -19,6 +19,44 @@ const audienceLabels: Record<KnowledgeAudience, string> = {
   OWNER: "Chủ cửa hàng",
 };
 
+/** Friendly Vietnamese names for the raw doc file paths, with a grouping order so
+ *  the most-referenced playbooks surface first. Keyed by uppercase basename. */
+const sourceMeta: Record<string, { label: string; order: number }> = {
+  "README.MD": { label: "Tổng quan cửa hàng", order: 10 },
+  "INTERNALSOPS.MD": { label: "Quy trình nội bộ", order: 20 },
+  "OPERATIONS.MD": { label: "Vận hành hằng ngày", order: 30 },
+  "SOPS.MD": { label: "Vận hành hằng ngày", order: 30 },
+  "SYSTEMREFERENCE.MD": { label: "Tham chiếu hệ thống", order: 40 },
+  "AIASSISTCONTRACT.MD": { label: "Trợ lý AI & trích dẫn", order: 50 },
+  "DECISIONS.MD": { label: "Quyết định kỹ thuật", order: 60 },
+  "COMMUNICATIONARCHITECTURE.MD": { label: "Liên lạc & thông báo", order: 70 },
+  "PRODUCTIONRELEASE.MD": { label: "Phát hành production", order: 80 },
+  "AGENTHANDOFF.MD": { label: "Bàn giao cho cộng sự", order: 90 },
+  "PROJECTSTATE.MD": { label: "Trạng thái dự án", order: 100 },
+  "IMPLEMENTATIONPLAN.MD": { label: "Kế hoạch triển khai", order: 110 },
+  "IMPLEMENTATIONREPORT.MD": { label: "Báo cáo triển khai", order: 115 },
+  "UXFRICTIONAUDIT.MD": { label: "Tinh chỉnh trải nghiệm", order: 120 },
+  "VERIFICATION.MD": { label: "Kiểm chứng & kiểm thử", order: 130 },
+  "KNOWNISSUES.MD": { label: "Lỗi đã biết", order: 140 },
+  "PRODUCTIONSHEMADRIFT.MD": { label: "Sai lệch schema", order: 150 },
+  "AUTHACCEPTANCEREPORT.MD": { label: "Nghiệm thu đăng nhập", order: 160 },
+  "AUTHRECOVERYAUDIT.MD": { label: "Khôi phục đăng nhập", order: 165 },
+  "AUTHBACKUPMETADATA.MD": { label: "Sao lưu đăng nhập", order: 170 },
+  "API.MD": { label: "Tài liệu API", order: 180 },
+  "SECURITY.MD": { label: "An toàn & phân quyền", order: 190 },
+};
+
+function sourceMetaFor(path: string): { label: string; order: number } {
+  const base = (path.split("/").pop() ?? path).toUpperCase();
+  const known = sourceMeta[base];
+  if (known) return known;
+  const pretty = (path.split("/").pop() ?? path)
+    .replace(/\.(md|markdown|txt)$/i, "")
+    .replace(/[_-]+/g, " ")
+    .trim();
+  return { label: pretty ? pretty.charAt(0).toUpperCase() + pretty.slice(1) : "Tài liệu khác", order: 500 };
+}
+
 /** Documents the store keeps about itself, served from the database and read under RLS. */
 export default function DocsPage() {
   const { slug } = useParams<{ slug?: string }>();
@@ -55,6 +93,13 @@ export default function DocsPage() {
     (accumulator[key] ??= []).push(item);
     return accumulator;
   }, {});
+  // Order groups by curated priority, then alphabetically, so the store banner
+  // surfaces the playbooks people reach for most.
+  const sortedGroups = Object.entries(groups).sort(([a], [b]) => {
+    const ma = sourceMetaFor(a);
+    const mb = sourceMetaFor(b);
+    return ma.order - mb.order || ma.label.localeCompare(mb.label, "vi");
+  });
 
   return (
     <div className="stack">
@@ -107,29 +152,35 @@ export default function DocsPage() {
             />
           ) : (
             <div className="docs-groups">
-              {Object.entries(groups).map(([source, entries]) => (
-                <section key={source}>
-                  <h2 className="section-title">{source}</h2>
-                  <ul className="docs-list">
-                    {entries.map((entry) => (
-                      <li key={entry.slug}>
-                        <Link to={`/docs/${entry.slug}`}>
-                          <BookOpen size={16} aria-hidden="true" />
-                          <span>
-                            <strong>{entry.section ?? entry.title}</strong>
-                            {/* The copilot cites the document title, so the index must show it too. */}
-                            {entry.section ? <small className="muted">{entry.title}</small> : null}
-                            {entry.excerpt ? (
-                              <small className="muted">{entry.excerpt}</small>
-                            ) : null}
-                          </span>
-                          <em className="docs-tier">{audienceLabels[entry.audience]}</em>
-                        </Link>
-                      </li>
-                    ))}
-                  </ul>
-                </section>
-              ))}
+              {sortedGroups.map(([source, entries]) => {
+                const meta = sourceMetaFor(source);
+                return (
+                  <section key={source} className="docs-group">
+                    <h2 className="docs-group-title">
+                      <span className="docs-group-name">{meta.label}</span>
+                      <span className="docs-group-count">{entries.length}</span>
+                    </h2>
+                    <ul className="docs-list">
+                      {entries.map((entry) => (
+                        <li key={entry.slug}>
+                          <Link to={`/docs/${entry.slug}`}>
+                            <BookOpen size={16} aria-hidden="true" />
+                            <span>
+                              <strong>{entry.section ?? entry.title}</strong>
+                              {/* The copilot cites the document title, so the index must show it too. */}
+                              {entry.section ? <small className="muted">{entry.title}</small> : null}
+                              {entry.excerpt ? (
+                                <small className="muted">{entry.excerpt}</small>
+                              ) : null}
+                            </span>
+                            <em className="docs-tier">{audienceLabels[entry.audience]}</em>
+                          </Link>
+                        </li>
+                      ))}
+                    </ul>
+                  </section>
+                );
+              })}
             </div>
           )}
           <p className="muted">

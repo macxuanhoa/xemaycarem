@@ -1,22 +1,11 @@
 import { useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import {
-  Clock,
-  Crown,
-  Key,
-  Lock,
-  RotateCcw,
-  Shield,
-  Trash2,
-  Unlock,
-  X,
-} from "lucide-react";
+import { Ban, Crown, Key, RotateCcw, Shield, Trash2, X } from "lucide-react";
 import { Button, ErrorState, Field } from "@/components/ui";
 import { api } from "@/lib/api";
 import { roleLabels } from "@/lib/permissions";
 import { useAuth } from "@/features/auth/AuthProvider";
 import type { Profile, Role } from "@/types";
-import { WorkingDaysPicker } from "./WorkingDaysPicker";
 
 interface StaffSettingsModalProps {
   user: Profile;
@@ -26,7 +15,43 @@ interface StaffSettingsModalProps {
   onUpdated: (msg: string) => void;
 }
 
-type TabKey = "role" | "schedule" | "security";
+type TabKey = "role" | "security";
+
+/** Ban duration presets. "today" ends at 23:59 Asia/Ho_Chi_Minh. */
+type BanPreset = "today" | "week" | "month" | "custom";
+
+const BAN_PRESETS: { key: BanPreset; label: string }[] = [
+  { key: "today", label: "Hết hôm nay" },
+  { key: "week", label: "7 ngày" },
+  { key: "month", label: "30 ngày" },
+  { key: "custom", label: "Tinh chỉnh thời gian" },
+];
+
+// Vietnam is UTC+7 year-round; derive the wall-clock end of today from that.
+const VN_OFFSET_MS = 7 * 60 * 60 * 1000;
+
+function banExpiry(preset: BanPreset, custom: string): string | null {
+  switch (preset) {
+    case "today": {
+      const vnNow = new Date(Date.now() + VN_OFFSET_MS);
+      const endOfDayUtcMs = Date.UTC(
+        vnNow.getUTCFullYear(),
+        vnNow.getUTCMonth(),
+        vnNow.getUTCDate(),
+        23,
+        59,
+        59,
+      );
+      return new Date(endOfDayUtcMs - VN_OFFSET_MS).toISOString();
+    }
+    case "week":
+      return new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
+    case "month":
+      return new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
+    case "custom":
+      return custom ? new Date(custom).toISOString() : null;
+  }
+}
 
 export function StaffSettingsModal({
   user,
@@ -39,40 +64,40 @@ export function StaffSettingsModal({
   const client = useQueryClient();
   const [activeTab, setActiveTab] = useState<TabKey>("role");
 
+  const isActorOwner = currentUser?.role === "OWNER";
+  const isActorManager = currentUser?.role === "MANAGER";
+
   // Tab 1: Role & financials
   const [role, setRole] = useState<Role>(user.role);
   const [canViewFinancials, setCanViewFinancials] = useState(
     Boolean(user.can_view_financials),
   );
 
-  // Tab 2: Schedule
-  const [allowedFrom, setAllowedFrom] = useState(
-    user.allowed_from?.slice(0, 5) || "07:00",
-  );
-  const [allowedUntil, setAllowedUntil] = useState(
-    user.allowed_until?.slice(0, 5) || "20:00",
-  );
-  const [workingDays, setWorkingDays] = useState<number[]>([
-    ...(user.working_days || [1, 2, 3, 4, 5, 6, 7]),
-  ]);
-
-  // Tab 3: Security & lock
+  // Tab 2: Security & status
   const [newPassword, setNewPassword] = useState("");
-  const [disableUntil, setDisableUntil] = useState(
-    user.disabled_until ? user.disabled_until.slice(0, 16) : "",
-  );
-  const [disableReason, setDisableReason] = useState(user.disable_reason || "");
-  const [hardDelete, setHardDelete] = useState(false);
+  const [banPreset, setBanPreset] = useState<BanPreset>("today");
+  const [banCustom, setBanCustom] = useState("");
+  const [banReason, setBanReason] = useState("");
+  const [deleteReason, setDeleteReason] = useState("");
+  const [confirmDelete, setConfirmDelete] = useState(false);
 
   const [errorMessage, setErrorMessage] = useState("");
 
-  const isLocked =
-    user.disabled_until && new Date(user.disabled_until) > new Date();
+  const isBanned =
+    Boolean(user.disabled_until) && new Date(user.disabled_until!) > new Date();
+  const isDeleted = Boolean(user.deleted_at);
+
+  // A manager may only re-assign the role of STAFF accounts (their juniors).
+  const canChooseRole =
+    !isSelf &&
+    !isDeleted &&
+    ((isActorOwner && !isOwnerAcc) ||
+      (isActorManager && user.role === "STAFF"));
 
   // Mutation 1: Update profile role & financials (via manage-users for role changes)
   const updateProfileMutation = useMutation({
     mutationFn: (data: Partial<Profile>) => {
-      // If role is changing, use manage-users edge function (OWNER-only with audit)
+      // If role is changing, use manage-users edge function (audited, hierarchy-checked)
       if (data.role && data.role !== user.role) {
         return api.manageUser({
           action: "change_role",
@@ -95,29 +120,7 @@ export function StaffSettingsModal({
     },
   });
 
-  // Mutation 2: Update schedule
-  const updateScheduleMutation = useMutation({
-    mutationFn: () =>
-      api.manageUser({
-        action: "update_schedule",
-        user_id: user.id,
-        allowed_from: allowedFrom + ":00",
-        allowed_until: allowedUntil + ":00",
-        working_days: workingDays,
-      }),
-    onSuccess: () => {
-      void client.invalidateQueries({ queryKey: ["profiles"] });
-      onUpdated(`Đã cập nhật giờ và lịch làm việc cho ${user.full_name}.`);
-      onClose();
-    },
-    onError: (err: unknown) => {
-      setErrorMessage(
-        err instanceof Error ? err.message : "Không thể cập nhật giờ làm việc.",
-      );
-    },
-  });
-
-  // Mutation 3: Reset password
+  // Mutation 2: Reset password
   const resetPasswordMutation = useMutation({
     mutationFn: () =>
       api.manageUser({
@@ -138,111 +141,67 @@ export function StaffSettingsModal({
     },
   });
 
-  // Mutation 4: Lock / Disable
-  const disableMutation = useMutation({
-    mutationFn: () =>
+  // Mutation 3: Temporary usage ban (cấm sử dụng có thời hạn)
+  const banMutation = useMutation({
+    mutationFn: (until: string) =>
       api.manageUser({
         action: "disable",
         user_id: user.id,
-        disabled_until: disableUntil ? new Date(disableUntil).toISOString() : null,
-        disable_reason: disableReason || null,
+        disabled_until: until,
+        disable_reason: banReason || null,
       }),
     onSuccess: () => {
       void client.invalidateQueries({ queryKey: ["profiles"] });
-      onUpdated(`Đã cập nhật trạng thái hoạt động của ${user.full_name}.`);
+      onUpdated(`Đã cấm ${user.full_name} sử dụng hệ thống tạm thời.`);
+      setBanReason("");
       onClose();
     },
     onError: (err: unknown) => {
       setErrorMessage(
-        err instanceof Error ? err.message : "Không thể cập nhật trạng thái khóa.",
+        err instanceof Error ? err.message : "Không thể áp dụng lệnh cấm.",
       );
     },
   });
 
-  // Mutation 5: Unlock immediately
-  const unlockMutation = useMutation({
+  // Mutation 4: Lift the ban immediately
+  const unbanMutation = useMutation({
     mutationFn: () =>
-      api.manageUser({
-        action: "disable",
-        user_id: user.id,
-        disabled_until: null,
-        disable_reason: null,
-      }),
+      api.manageUser({ action: "enable_user", user_id: user.id }),
     onSuccess: () => {
       void client.invalidateQueries({ queryKey: ["profiles"] });
-      onUpdated(`Đã mở khóa tài khoản cho ${user.full_name}.`);
+      onUpdated(`Đã gỡ lệnh cấm cho ${user.full_name}.`);
       onClose();
     },
     onError: (err: unknown) => {
       setErrorMessage(
-        err instanceof Error ? err.message : "Không thể mở khóa tài khoản.",
+        err instanceof Error ? err.message : "Không thể gỡ lệnh cấm.",
       );
     },
   });
 
-  // Mutation 6: Delete or Restore
+  // Mutation 5: Delete account (history preserved)
   const deleteMutation = useMutation({
     mutationFn: () =>
       api.manageUser({
-        action: hardDelete ? "hard_delete" : "delete",
+        action: "delete",
         user_id: user.id,
-        disable_reason: disableReason || null,
+        disable_reason: deleteReason || null,
       }),
     onSuccess: () => {
       void client.invalidateQueries({ queryKey: ["profiles"] });
-      onUpdated(`Đã hoàn tất thao tác với tài khoản ${user.full_name}.`);
+      onUpdated(`Đã xóa tài khoản của ${user.full_name}.`);
       onClose();
     },
     onError: (err: unknown) => {
       setErrorMessage(
-        err instanceof Error ? err.message : "Không thể thực hiện thao tác xóa.",
+        err instanceof Error ? err.message : "Không thể xóa tài khoản.",
       );
     },
   });
 
-  // Mutation 7: Promote to OWNER
-  const promoteToOwnerMutation = useMutation({
-    mutationFn: () =>
-      api.manageUser({
-        action: "promote_to_owner",
-        user_id: user.id,
-      }),
-    onSuccess: () => {
-      void client.invalidateQueries({ queryKey: ["profiles"] });
-      onUpdated(`Đã nâng ${user.full_name} thành Chủ cửa hàng.`);
-      onClose();
-    },
-    onError: (err: unknown) => {
-      setErrorMessage(
-        err instanceof Error ? err.message : "Không thể nâng cấp tài khoản.",
-      );
-    },
-  });
-
-  // Mutation 8: Force password change
-  const forcePasswordChangeMutation = useMutation({
-    mutationFn: () =>
-      api.manageUser({
-        action: "force_password_change",
-        user_id: user.id,
-      }),
-    onSuccess: () => {
-      void client.invalidateQueries({ queryKey: ["profiles"] });
-      onUpdated(`Đã yêu cầu ${user.full_name} đổi mật khẩu khi đăng nhập tiếp theo.`);
-    },
-    onError: (err: unknown) => {
-      setErrorMessage(
-        err instanceof Error ? err.message : "Không thể yêu cầu đổi mật khẩu.",
-      );
-    },
-  });
-
+  // Mutation 6: Restore a deleted account
   const restoreMutation = useMutation({
-    mutationFn: () =>
-      api.call("update_profile", {
-        p_id: user.id,
-        p_data: { deleted_at: null, active: true },
-      }),
+    mutationFn: () => api.manageUser({ action: "restore", user_id: user.id }),
     onSuccess: () => {
       void client.invalidateQueries({ queryKey: ["profiles"] });
       onUpdated(`Đã khôi phục tài khoản cho ${user.full_name}.`);
@@ -255,19 +214,34 @@ export function StaffSettingsModal({
     },
   });
 
+  // Mutation 7: Transfer OWNER status to this account (single owner system)
+  const transferOwnerMutation = useMutation({
+    mutationFn: () =>
+      api.manageUser({ action: "promote_to_owner", user_id: user.id }),
+    onSuccess: () => {
+      void client.invalidateQueries({ queryKey: ["profiles"] });
+      onUpdated(
+        `Đã chuyển giao quyền Chủ cửa hàng cho ${user.full_name}. Bạn làm việc với vai trò Quản lý.`,
+      );
+      onClose();
+    },
+    onError: (err: unknown) => {
+      setErrorMessage(
+        err instanceof Error ? err.message : "Không thể chuyển giao quyền Chủ cửa hàng.",
+      );
+    },
+  });
+
   const handleSaveRole = (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMessage("");
     updateProfileMutation.mutate({
       role,
-      can_view_financials: role === "MANAGER" ? canViewFinancials : false,
+      // Managers must not touch the financial-visibility flag.
+      ...(isActorOwner
+        ? { can_view_financials: role === "MANAGER" ? canViewFinancials : false }
+        : {}),
     });
-  };
-
-  const handleSaveSchedule = (e: React.FormEvent) => {
-    e.preventDefault();
-    setErrorMessage("");
-    updateScheduleMutation.mutate();
   };
 
   const handleResetPassword = (e: React.FormEvent) => {
@@ -280,16 +254,29 @@ export function StaffSettingsModal({
     resetPasswordMutation.mutate();
   };
 
+  const handleApplyBan = (e: React.FormEvent) => {
+    e.preventDefault();
+    setErrorMessage("");
+    const until = banExpiry(banPreset, banCustom);
+    if (!until) {
+      setErrorMessage("Hãy chọn thời điểm kết thúc lệnh cấm.");
+      return;
+    }
+    if (new Date(until) <= new Date()) {
+      setErrorMessage("Thời điểm kết thúc phải ở tương lai.");
+      return;
+    }
+    banMutation.mutate(until);
+  };
+
   const isBusy =
     updateProfileMutation.isPending ||
-    updateScheduleMutation.isPending ||
     resetPasswordMutation.isPending ||
-    disableMutation.isPending ||
-    unlockMutation.isPending ||
+    banMutation.isPending ||
+    unbanMutation.isPending ||
     deleteMutation.isPending ||
     restoreMutation.isPending ||
-    promoteToOwnerMutation.isPending ||
-    forcePasswordChangeMutation.isPending;
+    transferOwnerMutation.isPending;
 
   return (
     <div
@@ -310,7 +297,7 @@ export function StaffSettingsModal({
               {user.full_name.split(" ").at(-1)?.[0] ?? "U"}
             </span>
             <span
-              className={`user-modal-status-dot ${user.active && !user.deleted_at && !isLocked ? "active" : "disabled"}`}
+              className={`user-modal-status-dot ${user.active && !isDeleted && !isBanned ? "active" : "disabled"}`}
             />
           </div>
 
@@ -331,13 +318,13 @@ export function StaffSettingsModal({
               <span className="user-settings-role-tag">
                 {roleLabels[user.role]}
               </span>
-              {user.deleted_at ? (
+              {isDeleted ? (
                 <span className="badge badge-cancelled" style={{ fontSize: "10.5px" }}>
-                  Đã vô hiệu hóa
+                  Đã xóa
                 </span>
-              ) : isLocked ? (
+              ) : isBanned ? (
                 <span className="badge badge-cancelled" style={{ fontSize: "10.5px" }}>
-                  Đang khóa tạm
+                  Đang bị cấm
                 </span>
               ) : null}
             </div>
@@ -366,20 +353,7 @@ export function StaffSettingsModal({
             <span>Quyền &amp; Vai trò</span>
           </button>
 
-          {!isOwnerAcc && (
-            <button
-              type="button"
-              role="tab"
-              aria-selected={activeTab === "schedule"}
-              className={`user-tab-btn ${activeTab === "schedule" ? "active" : ""}`}
-              onClick={() => setActiveTab("schedule")}
-            >
-              <Clock size={15} />
-              <span>Giờ &amp; Lịch làm việc</span>
-            </button>
-          )}
-
-          {!isSelf && !isOwnerAcc && (
+          {isActorOwner && !isSelf && !isOwnerAcc && (
             <button
               type="button"
               role="tab"
@@ -387,8 +361,8 @@ export function StaffSettingsModal({
               className={`user-tab-btn ${activeTab === "security" ? "active" : ""}`}
               onClick={() => setActiveTab("security")}
             >
-              <Lock size={15} />
-              <span>Bảo mật &amp; Khóa</span>
+              <Ban size={15} />
+              <span>Bảo mật &amp; Trạng thái</span>
             </button>
           )}
         </div>
@@ -416,10 +390,11 @@ export function StaffSettingsModal({
                 <select
                   aria-label={`Vai trò ${user.full_name}`}
                   value={role}
-                  disabled={isBusy || isOwnerAcc || user.deleted_at !== null}
+                  disabled={!canChooseRole || isBusy}
                   onChange={(e) => setRole(e.target.value as Role)}
                 >
-                  {/* Don't show OWNER in normal dropdown - use special "Promote to OWNER" button instead */}
+                  {/* OWNER is never assigned from the dropdown; the system keeps
+                      exactly one Chủ cửa hàng, changed only via handover below. */}
                   {Object.entries(roleLabels)
                     .filter(([k]) => k !== "OWNER")
                     .map(([k, v]) => (
@@ -428,15 +403,24 @@ export function StaffSettingsModal({
                       </option>
                     ))}
                 </select>
+                {!canChooseRole && !isOwnerAcc && (
+                  <small className="muted">
+                    {isSelf
+                      ? "Bạn không thể tự thay đổi vai trò của chính mình."
+                      : isDeleted
+                        ? "Khôi phục tài khoản trước khi thay đổi vai trò."
+                        : "Chỉ Chủ cửa hàng mới được thay đổi vai trò của tài khoản này."}
+                  </small>
+                )}
               </Field>
 
-              {role === "MANAGER" && (
+              {role === "MANAGER" && isActorOwner && (
                 <div className="user-settings-subcard">
                   <label className="checkbox">
                     <input
                       type="checkbox"
                       checked={canViewFinancials}
-                      disabled={isBusy || user.deleted_at !== null}
+                      disabled={isBusy || isDeleted}
                       onChange={(e) => setCanViewFinancials(e.target.checked)}
                     />
                     <strong>Cho phép xem giá mua xe và lợi nhuận</strong>
@@ -449,91 +433,46 @@ export function StaffSettingsModal({
 
               {isOwnerAcc ? (
                 <p className="notice" style={{ margin: "8px 0" }}>
-                  Tài khoản Chủ cửa hàng (OWNER) có toàn quyền quản trị cao nhất trên toàn hệ thống Cà Rem.
+                  Đây là tài khoản Chủ cửa hàng — người phân quyền cho tất cả các vai trò còn lại.
                 </p>
               ) : (
                 <>
-                  {/* Special "Promote to OWNER" button for current OWNER */}
-                  {currentUser?.role === "OWNER" && user.role !== "OWNER" && user.active && user.deleted_at === null && (
-                    <div className="user-settings-subcard" style={{ marginBottom: "16px", padding: "12px", backgroundColor: "var(--primary-bg, #f0f9ff)", border: "1px solid var(--primary, #4f46e5)" }}>
+                  {/* Owner handover: the system keeps a single OWNER account. */}
+                  {isActorOwner && !isSelf && user.active && !isDeleted && (
+                    <div className="user-settings-subcard user-owner-handover">
                       <div className="row" style={{ gap: "8px", alignItems: "center", marginBottom: "8px" }}>
-                        <Crown size={16} style={{ color: "var(--primary, #4f46e5)" }} />
-                        <strong style={{ color: "var(--primary, #4f46e5)" }}>Quyền Chủ cửa hàng</strong>
+                        <Crown size={16} />
+                        <strong>Chuyển giao quyền Chủ cửa hàng</strong>
                       </div>
                       <p className="muted small" style={{ marginBottom: "12px" }}>
-                        Nâng cấp tài khoản này thành Chủ cửa hàng với toàn quyền quản trị hệ thống.
+                        Hệ thống chỉ giữ một tài khoản Chủ cửa hàng. Sau khi chuyển giao,
+                        bạn sẽ làm việc với vai trò Quản lý.
                       </p>
                       <Button
                         type="button"
                         variant="primary"
                         disabled={isBusy}
-                        onClick={() => promoteToOwnerMutation.mutate()}
+                        onClick={() => transferOwnerMutation.mutate()}
                       >
-                        <Crown size={14} /> Nâng thành Chủ cửa hàng
+                        <Crown size={14} /> Chuyển giao cho {user.full_name}
                       </Button>
                     </div>
                   )}
 
-                  <div className="user-tab-actions">
-                    <Button
-                      type="submit"
-                      disabled={isBusy || user.deleted_at !== null}
-                    >
-                      Lưu phân quyền
-                    </Button>
-                  </div>
+                  {canChooseRole && (
+                    <div className="user-tab-actions">
+                      <Button type="submit" disabled={isBusy}>
+                        Lưu phân quyền
+                      </Button>
+                    </div>
+                  )}
                 </>
               )}
             </form>
           )}
 
-          {/* TAB 2: SCHEDULE & HOURS */}
-          {activeTab === "schedule" && !isOwnerAcc && (
-            <form onSubmit={handleSaveSchedule} className="stack">
-              <div className="user-tab-lead">
-                <strong>Khung giờ &amp; Ngày cho phép đăng nhập</strong>
-                <p className="muted small">
-                  Ngoài khung giờ này, nhân sự sẽ không thể đăng nhập hoặc thực hiện giao dịch trên hệ thống.
-                </p>
-              </div>
-
-              <div className="form-grid">
-                <Field label="Giờ bắt đầu làm việc">
-                  <input
-                    type="time"
-                    value={allowedFrom}
-                    disabled={isBusy}
-                    onChange={(e) => setAllowedFrom(e.target.value)}
-                  />
-                </Field>
-
-                <Field label="Giờ kết thúc làm việc">
-                  <input
-                    type="time"
-                    value={allowedUntil}
-                    disabled={isBusy}
-                    onChange={(e) => setAllowedUntil(e.target.value)}
-                  />
-                </Field>
-              </div>
-
-              <Field label="Các ngày làm việc trong tuần">
-                <WorkingDaysPicker
-                  value={workingDays}
-                  onChange={(days) => setWorkingDays(days)}
-                />
-              </Field>
-
-              <div className="user-tab-actions">
-                <Button type="submit" disabled={isBusy}>
-                  Lưu lịch làm việc
-                </Button>
-              </div>
-            </form>
-          )}
-
-          {/* TAB 3: SECURITY, LOCK & STATUS */}
-          {activeTab === "security" && !isSelf && !isOwnerAcc && (
+          {/* TAB 2: SECURITY & STATUS (OWNER only) */}
+          {activeTab === "security" && isActorOwner && !isSelf && !isOwnerAcc && (
             <div className="stack" style={{ gap: "24px" }}>
               {/* Reset Password Section */}
               <div className="user-security-block">
@@ -547,7 +486,11 @@ export function StaffSettingsModal({
                   </p>
                 </div>
 
-                <form onSubmit={handleResetPassword} className="row" style={{ gap: "10px", alignItems: "flex-end" }}>
+                <form
+                  onSubmit={handleResetPassword}
+                  className="row user-pass-reset-form"
+                  style={{ gap: "10px", alignItems: "flex-end" }}
+                >
                   <div style={{ flex: 1 }}>
                     <Field label="Mật khẩu mới (tối thiểu 12 ký tự)">
                       <input
@@ -563,40 +506,27 @@ export function StaffSettingsModal({
                     Cập nhật mật khẩu
                   </Button>
                 </form>
-                <div style={{ marginTop: "12px" }}>
-                  <Button
-                    type="button"
-                    variant="secondary"
-                    disabled={isBusy}
-                    onClick={() => forcePasswordChangeMutation.mutate()}
-                  >
-                    <Key size={14} /> Yêu cầu đổi mật khẩu (không đặt mới)
-                  </Button>
-                </div>
               </div>
 
-              {/* Temporary Lock Section */}
+              {/* Temporary Usage Ban Section */}
               <div className="user-security-block">
                 <div className="user-tab-lead">
                   <div className="row" style={{ gap: "6px", alignItems: "center" }}>
-                    {isLocked ? (
-                      <Unlock size={16} style={{ color: "#10b981" }} />
-                    ) : (
-                      <Lock size={16} style={{ color: "#f59e0b" }} />
-                    )}
-                    <strong>Khóa tạm thời tài khoản</strong>
+                    <Ban size={16} style={{ color: isBanned ? "#10b981" : "#f59e0b" }} />
+                    <strong>Cấm sử dụng tạm thời</strong>
                   </div>
                   <p className="muted small">
-                    Tạm dừng quyền truy cập khi nhân sự tạm nghỉ phép hoặc cần đình chỉ tạm thời.
+                    Chặn đăng nhập và thao tác trong một khoảng thời gian (nghỉ phép,
+                    đình chỉ...). Hết thời hạn, tài khoản tự động được phép trở lại.
                   </p>
                 </div>
 
-                {isLocked ? (
+                {isBanned ? (
                   <div className="user-lock-active-banner">
                     <div>
-                      <strong>Tài khoản đang bị khóa tạm thời</strong>
+                      <strong>Tài khoản đang bị cấm sử dụng</strong>
                       <p className="small muted" style={{ margin: "2px 0 0" }}>
-                        Khóa đến:{" "}
+                        Cấm đến:{" "}
                         {new Date(user.disabled_until!).toLocaleString("vi-VN", {
                           hour: "2-digit",
                           minute: "2-digit",
@@ -610,68 +540,80 @@ export function StaffSettingsModal({
                       type="button"
                       variant="secondary"
                       disabled={isBusy}
-                      onClick={() => unlockMutation.mutate()}
+                      onClick={() => unbanMutation.mutate()}
                     >
-                      <Unlock size={15} /> Mở khóa ngay
+                      Gỡ cấm ngay
                     </Button>
                   </div>
                 ) : (
-                  <form
-                    onSubmit={(e) => {
-                      e.preventDefault();
-                      disableMutation.mutate();
-                    }}
-                    className="stack"
-                  >
-                    <Field label="Khóa tạm đến thời điểm (để trống nếu muốn khóa đến khi mở lại)">
-                      <input
-                        type="datetime-local"
-                        value={disableUntil}
-                        disabled={isBusy}
-                        onChange={(e) => setDisableUntil(e.target.value)}
-                      />
-                    </Field>
-                    <Field label="Lý do khóa">
+                  <form onSubmit={handleApplyBan} className="stack">
+                    <div className="filter-pills-bar" role="radiogroup" aria-label="Thời hạn cấm">
+                      {BAN_PRESETS.map((preset) => (
+                        <button
+                          key={preset.key}
+                          type="button"
+                          role="radio"
+                          aria-checked={banPreset === preset.key}
+                          className={`filter-pill ${banPreset === preset.key ? "active" : ""}`}
+                          disabled={isBusy}
+                          onClick={() => setBanPreset(preset.key)}
+                        >
+                          <span>{preset.label}</span>
+                        </button>
+                      ))}
+                    </div>
+
+                    {banPreset === "custom" && (
+                      <Field label="Cấm sử dụng đến thời điểm">
+                        <input
+                          type="datetime-local"
+                          value={banCustom}
+                          disabled={isBusy}
+                          onChange={(e) => setBanCustom(e.target.value)}
+                        />
+                      </Field>
+                    )}
+
+                    <Field label="Lý do cấm (tùy chọn)">
                       <input
                         type="text"
                         placeholder="Ví dụ: Nghỉ phép dài ngày..."
-                        value={disableReason}
+                        value={banReason}
                         disabled={isBusy}
-                        onChange={(e) => setDisableReason(e.target.value)}
+                        onChange={(e) => setBanReason(e.target.value)}
                       />
                     </Field>
+
                     <div>
                       <Button type="submit" variant="secondary" disabled={isBusy}>
-                        <Lock size={14} /> Xác nhận khóa tạm
+                        <Ban size={14} /> Áp dụng lệnh cấm
                       </Button>
                     </div>
                   </form>
                 )}
               </div>
 
-              {/* Deactivate or Restore Section */}
+              {/* Delete / Restore Section */}
               <div className="user-security-block user-danger-block">
                 <div className="user-tab-lead">
                   <div className="row" style={{ gap: "6px", alignItems: "center" }}>
-                    {user.deleted_at ? (
+                    {isDeleted ? (
                       <RotateCcw size={16} style={{ color: "#10b981" }} />
                     ) : (
                       <Trash2 size={16} style={{ color: "#ef4444" }} />
                     )}
                     <strong>
-                      {user.deleted_at
-                        ? "Khôi phục tài khoản nhân sự"
-                        : "Vô hiệu hóa hoặc xóa tài khoản"}
+                      {isDeleted ? "Khôi phục tài khoản nhân sự" : "Xóa tài khoản"}
                     </strong>
                   </div>
                   <p className="muted small">
-                    {user.deleted_at
+                    {isDeleted
                       ? "Khôi phục tài khoản này để nhân sự có thể tiếp tục đăng nhập và làm việc."
-                      : "Vô hiệu hóa sẽ khóa tài khoản vĩnh viễn nhưng vẫn giữ nguyên lịch sử bán hàng và chứng từ để đối soát."}
+                      : "Tài khoản sẽ ngừng hoạt động và không còn đăng nhập được; lịch sử bán hàng và chứng từ vẫn giữ nguyên để đối soát."}
                   </p>
                 </div>
 
-                {user.deleted_at ? (
+                {isDeleted ? (
                   <Button
                     type="button"
                     variant="secondary"
@@ -680,38 +622,45 @@ export function StaffSettingsModal({
                   >
                     <RotateCcw size={15} /> Khôi phục tài khoản này
                   </Button>
+                ) : confirmDelete ? (
+                  <div className="row" style={{ gap: "10px", flexWrap: "wrap" }}>
+                    <Button
+                      type="button"
+                      variant="danger"
+                      disabled={isBusy}
+                      onClick={() => deleteMutation.mutate()}
+                    >
+                      <Trash2 size={14} /> Xác nhận xóa tài khoản
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      disabled={isBusy}
+                      onClick={() => setConfirmDelete(false)}
+                    >
+                      Quay lại
+                    </Button>
+                  </div>
                 ) : (
                   <div className="stack" style={{ gap: "10px" }}>
-                    <Field label="Lý do vô hiệu hóa (tùy chọn)">
+                    <Field label="Lý do xóa (tùy chọn)">
                       <input
                         type="text"
                         placeholder="Ví dụ: Đã nghỉ việc..."
-                        value={disableReason}
+                        value={deleteReason}
                         disabled={isBusy}
-                        onChange={(e) => setDisableReason(e.target.value)}
+                        onChange={(e) => setDeleteReason(e.target.value)}
                       />
                     </Field>
-
-                    <label className="checkbox">
-                      <input
-                        type="checkbox"
-                        checked={hardDelete}
-                        disabled={isBusy}
-                        onChange={(e) => setHardDelete(e.target.checked)}
-                      />
-                      <span style={{ color: "#dc2626", fontSize: "12.5px" }}>
-                        Xóa hoàn toàn khỏi cơ sở dữ liệu (chỉ dùng nếu tài khoản chưa từng phát sinh giao dịch)
-                      </span>
-                    </label>
 
                     <div>
                       <Button
                         type="button"
                         variant="danger"
                         disabled={isBusy}
-                        onClick={() => deleteMutation.mutate()}
+                        onClick={() => setConfirmDelete(true)}
                       >
-                        <Trash2 size={14} /> Xác nhận vô hiệu hóa
+                        <Trash2 size={14} /> Xóa tài khoản
                       </Button>
                     </div>
                   </div>

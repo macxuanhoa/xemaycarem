@@ -374,6 +374,37 @@ test("Owner: audit and settings routes", async ({
   ).toBeVisible();
 });
 
+test("Owner: shared working hours live in one Settings tab, not the staff page", async ({
+  page,
+}) => {
+  await login(page);
+  // The inline card was collapsed into the owner-only "Giờ làm việc" tab.
+  await page.goto("/users");
+  await expect(
+    page.getByText("Giờ làm việc chung của Quản lý & Nhân viên"),
+  ).toHaveCount(0);
+  await page.goto("/settings");
+  await page.getByRole("button", { name: "Giờ làm việc", exact: true }).click();
+  await expect(
+    page.getByText("Giờ làm việc chung của Quản lý & Nhân viên"),
+  ).toBeVisible();
+  await page.getByLabel("Giờ bắt đầu làm việc").fill("06:00");
+  await page.getByLabel("Giờ kết thúc làm việc").fill("12:59");
+  await page
+    .getByRole("button", { name: "Lưu giờ làm việc chung", exact: true })
+    .click();
+  await expect(
+    page.getByText("Đã cập nhật giờ làm việc chung cho Quản lý và Nhân viên."),
+  ).toBeVisible();
+  // The inputs keep the saved window after the settings refetch (no revert).
+  await expect(page.getByLabel("Giờ bắt đầu làm việc")).toHaveValue("06:00");
+  await expect(page.getByLabel("Giờ kết thúc làm việc")).toHaveValue("12:59");
+  // Restore the all-day window so later logins are never gated.
+  await db.query(
+    "update public.system_settings set staff_allowed_from='00:00:00', staff_allowed_until='23:59:59'",
+  );
+});
+
 test("Offline: sale mutation is not submitted and shows a clear message", async ({
   page,
   context,

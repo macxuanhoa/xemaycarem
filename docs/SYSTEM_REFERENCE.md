@@ -20,7 +20,9 @@ Toàn bộ hàm `public` mà ứng dụng gọi được, lấy từ định ngh
 | create_showroom_lead | p_data jsonb | kiểm tra quyền riêng trong hàm |
 | daily_reconciliation | p_date date DEFAULT NULL | OWNER, MANAGER |
 | dashboard | p_from date DEFAULT (date_trunc('month'::text, (now() AT TIME ZONE 'Asia/Ho_Chi_Minh'::text)))::date, p_to date DEFAULT ((now() AT TIME ZONE 'Asia/Ho_Chi_Minh'::text))::date | OWNER, MANAGER, STAFF |
+| delete_acquisition | p_id uuid, p_reason text | OWNER, MANAGER |
 | delete_announcement | p_id uuid | OWNER |
+| delete_vehicle | p_id uuid, p_reason text | OWNER, MANAGER |
 | fail_message | p_message_id uuid, p_error_code text, p_safe_message text, p_permanent boolean DEFAULT false | OWNER, MANAGER, STAFF |
 | finish_mock_message | p_message_id uuid, p_provider_message_id text | OWNER, MANAGER, STAFF |
 | get_acquisition_for_vehicle | p_vehicle_id uuid | OWNER, MANAGER |
@@ -66,6 +68,7 @@ Toàn bộ hàm `public` mà ứng dụng gọi được, lấy từ định ngh
 | sell_vehicle | p_data jsonb | OWNER, MANAGER, STAFF |
 | set_announcement_active | p_id uuid, p_active boolean | OWNER |
 | skip_message | p_message_id uuid, p_error_code text, p_safe_message text | OWNER, MANAGER, STAFF |
+| transfer_ownership | p_target_user uuid | OWNER |
 | update_profile | p_id uuid, p_data jsonb | OWNER, MANAGER, STAFF |
 | update_sale_due_date | p_sale_id uuid, p_due_date date | OWNER, MANAGER, STAFF |
 | update_showroom_lead_status | p_id uuid, p_status text | OWNER, MANAGER, STAFF |
@@ -104,7 +107,7 @@ Trích từ cây route trong `src/App.tsx` (thành phần `Protected` kế thừ
 | `/sell` | STAFF trở lên (trong lịch làm việc) |
 | `/reconciliation` | MANAGER hoặc OWNER |
 | `/expenses` | MANAGER hoặc OWNER |
-| `/users` | chỉ OWNER |
+| `/users` | MANAGER hoặc OWNER |
 | `/audit` | chỉ OWNER |
 | `/*` | công khai (không cần đăng nhập) |
 
@@ -113,7 +116,7 @@ Trích từ cây route trong `src/App.tsx` (thành phần `Protected` kế thừ
 | Function | Vai trò |
 | --- | --- |
 | ai-assist | No service-role/database credential exists in this function. Model output is either a draft for human review or a validated plan for explicit read RPCs. |
-| manage-users | Secure administrative user management for Xe CRM. Accessible strictly by authenticated OWNER role. No service role key is exposed to browser. |
+| manage-users | Secure administrative user management for Xe CRM. OWNER performs all account administration; MANAGER may only re-assign the |
 | process-message | Provider-agnostic outbox worker. Phase 1 deliberately supports MOCK only. |
 | reset-owner | Retired recovery endpoint. Recovery uses Supabase Auth or owner-authorized manage-users operations; this endpoint can no longer alter any account. |
 

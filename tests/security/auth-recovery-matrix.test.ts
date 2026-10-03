@@ -89,16 +89,31 @@ describe('Auth Recovery & Account Control Matrix (Comprehensive Section 39 Tests
     });
   });
 
-  describe('2. Account Schedule and Lock Enforcement', () => {
-    // Simulates is_user_authorized evaluation in Asia/Ho_Chi_Minh
+  describe('2. Shared Schedule and Ban Enforcement', () => {
+    // One shared working-time setting on system_settings applies to every
+    // non-OWNER role; per-profile schedule columns are legacy and ignored.
+    interface SharedSchedule {
+      staff_allowed_from: string;
+      staff_allowed_until: string;
+      staff_working_days: number[];
+    }
+
+    const defaultSchedule: SharedSchedule = {
+      staff_allowed_from: '07:00:00',
+      staff_allowed_until: '20:00:00',
+      staff_working_days: [1, 2, 3, 4, 5, 6, 7],
+    };
+
+    // Simulates check_user_access / is_user_authorized in Asia/Ho_Chi_Minh
     const evaluateUserAccess = (
       profile: Profile,
+      schedule: SharedSchedule = defaultSchedule,
       nowUtc: Date = new Date()
     ): { allowed: boolean; code?: string } => {
       if (profile.deleted_at) return { allowed: false, code: 'ACCOUNT_DELETED' };
       if (!profile.active) return { allowed: false, code: 'ACCOUNT_INACTIVE' };
 
-      // OWNER is immune to schedule restrictions
+      // OWNER is exempt from the shared schedule and cannot be banned.
       if (profile.role === 'OWNER') return { allowed: true };
 
       if (profile.disabled_until && new Date(profile.disabled_until) > nowUtc) {
@@ -115,13 +130,11 @@ describe('Auth Recovery & Account Control Matrix (Comprehensive Section 39 Tests
       });
       const vnTime = vnFormatter.format(nowUtc);
 
-      if (profile.allowed_from && profile.allowed_until) {
-        if (vnTime < profile.allowed_from || vnTime > profile.allowed_until) {
-          return { allowed: false, code: 'OUTSIDE_HOURS' };
-        }
+      if (vnTime < schedule.staff_allowed_from || vnTime > schedule.staff_allowed_until) {
+        return { allowed: false, code: 'OUTSIDE_HOURS' };
       }
 
-      if (profile.working_days && profile.working_days.length > 0) {
+      if (schedule.staff_working_days.length > 0) {
         const vnDayFormatter = new Intl.DateTimeFormat('en-US', {
           timeZone: 'Asia/Ho_Chi_Minh',
           weekday: 'short',
@@ -137,7 +150,7 @@ describe('Auth Recovery & Account Control Matrix (Comprehensive Section 39 Tests
           Sun: 7,
         };
         const vnDay = dayMap[dayStr] || 1;
-        if (!profile.working_days.includes(vnDay)) {
+        if (!schedule.staff_working_days.includes(vnDay)) {
           return { allowed: false, code: 'OUTSIDE_DAYS' };
         }
       }
@@ -159,7 +172,7 @@ describe('Auth Recovery & Account Control Matrix (Comprehensive Section 39 Tests
       expect(access.code).toBe('ACCOUNT_DELETED');
     });
 
-    it('Temporarily locked user (disabled_until in the future) is rejected', () => {
+    it('Temporarily banned user (disabled_until in the future) is rejected', () => {
       const future = new Date(Date.now() + 3600 * 1000).toISOString();
       const user = createProfile({ disabled_until: future });
       const access = evaluateUserAccess(user);
@@ -167,57 +180,51 @@ describe('Auth Recovery & Account Control Matrix (Comprehensive Section 39 Tests
       expect(access.code).toBe('TEMP_LOCKED');
     });
 
-    it('Temporarily locked user whose lock time has expired is allowed', () => {
+    it('Temporary ban whose expiry has passed is allowed again', () => {
       const past = new Date(Date.now() - 3600 * 1000).toISOString();
       // Test at 10:00 VN time (03:00 UTC) on a Monday
       const testTime = new Date('2026-10-05T03:00:00Z');
-      const user = createProfile({
-        disabled_until: past,
-        allowed_from: '07:00:00',
-        allowed_until: '20:00:00',
-        working_days: [1, 2, 3, 4, 5],
-      });
-      const access = evaluateUserAccess(user, testTime);
+      const user = createProfile({ disabled_until: past });
+      const access = evaluateUserAccess(
+        user,
+        { staff_allowed_from: '07:00:00', staff_allowed_until: '20:00:00', staff_working_days: [1, 2, 3, 4, 5] },
+        testTime,
+      );
       expect(access.allowed).toBe(true);
     });
 
-    it('Employee outside allowed working hours is rejected', () => {
+    it('Non-owner role outside the shared working window is rejected', () => {
       // 03:00 VN time (20:00 UTC previous day)
       const lateNightUtc = new Date('2026-10-05T20:00:00Z');
-      const user = createProfile({
-        allowed_from: '07:00:00',
-        allowed_until: '20:00:00',
-        working_days: [1, 2, 3, 4, 5, 6, 7],
-      });
-      const access = evaluateUserAccess(user, lateNightUtc);
-      expect(access.allowed).toBe(false);
-      expect(access.code).toBe('OUTSIDE_HOURS');
+      const staff = createProfile({ role: 'STAFF' });
+      const manager = createProfile({ role: 'MANAGER' });
+      expect(evaluateUserAccess(staff, defaultSchedule, lateNightUtc).code).toBe('OUTSIDE_HOURS');
+      // MANAGER follows the same shared schedule as STAFF
+      expect(evaluateUserAccess(manager, defaultSchedule, lateNightUtc).allowed).toBe(false);
     });
 
-    it('Employee on unassigned day is rejected', () => {
+    it('Non-owner role on a day excluded by the shared schedule is rejected', () => {
       // Sunday in Vietnam (2026-10-11T05:00:00Z = 12:00 VN time on Sunday)
       const sundayUtc = new Date('2026-10-11T05:00:00Z');
-      const user = createProfile({
-        allowed_from: '00:00:00',
-        allowed_until: '23:59:59',
-        working_days: [1, 2, 3, 4, 5, 6], // Mon-Sat only, no Sunday (7)
-      });
-      const access = evaluateUserAccess(user, sundayUtc);
+      const user = createProfile({ role: 'STAFF' });
+      const access = evaluateUserAccess(
+        user,
+        { staff_allowed_from: '00:00:00', staff_allowed_until: '23:59:59', staff_working_days: [1, 2, 3, 4, 5, 6] },
+        sundayUtc,
+      );
       expect(access.allowed).toBe(false);
       expect(access.code).toBe('OUTSIDE_DAYS');
     });
 
-    it('OWNER is completely unaffected by employee schedule restrictions', () => {
+    it('OWNER is completely unaffected by the shared employee schedule', () => {
       // Midnight Sunday outside working hours
       const midnightSunday = new Date('2026-10-11T18:00:00Z');
-      const owner = createProfile({
-        role: 'OWNER',
-        active: true,
-        allowed_from: '08:00:00',
-        allowed_until: '17:00:00',
-        working_days: [1], // Mon only
-      });
-      const access = evaluateUserAccess(owner, midnightSunday);
+      const owner = createProfile({ role: 'OWNER', active: true });
+      const access = evaluateUserAccess(
+        owner,
+        { staff_allowed_from: '08:00:00', staff_allowed_until: '17:00:00', staff_working_days: [1] },
+        midnightSunday,
+      );
       expect(access.allowed).toBe(true);
     });
   });
@@ -276,7 +283,7 @@ describe('Auth Recovery & Account Control Matrix (Comprehensive Section 39 Tests
         return {
           canDelete: false,
           reason: 'USER_HAS_BUSINESS_HISTORY',
-          message: 'Tài khoản này đã có lịch sử nghiệp vụ. Chỉ có thể vô hiệu hóa.',
+          message: 'Tài khoản đã có lịch sử nghiệp vụ. Chỉ có thể xóa tài khoản (giữ lịch sử).',
         };
       }
       return { canDelete: true };

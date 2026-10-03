@@ -1,8 +1,7 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
-  Calendar,
-  Clock,
+  CalendarClock,
   Eye,
   Plus,
   Search,
@@ -20,12 +19,14 @@ import {
 } from "@/components/ui";
 import { useAuth } from "@/features/auth/AuthProvider";
 import { api } from "@/lib/api";
+import { isOwner } from "@/lib/permissions";
 import type { Profile } from "@/types";
 import { CreateUserModal } from "./components/CreateUserModal";
 import { StaffSettingsModal } from "./components/StaffSettingsModal";
 
 export default function UsersPage() {
   const { profile } = useAuth();
+  const owner = isOwner(profile);
   const [adding, setAdding] = useState(false);
   const [notice, setNotice] = useState("");
   const [selectedStaff, setSelectedStaff] = useState<Profile | null>(null);
@@ -70,10 +71,12 @@ export default function UsersPage() {
         title="Nhân sự"
         description="Mỗi người một tài khoản. Mỗi vai trò một quyền hạn rõ ràng."
         actions={
-          <Button onClick={() => setAdding(true)}>
-            <Plus size={18} />
-            Thêm tài khoản
-          </Button>
+          owner ? (
+            <Button onClick={() => setAdding(true)}>
+              <Plus size={18} />
+              Thêm tài khoản
+            </Button>
+          ) : undefined
         }
       />
 
@@ -99,7 +102,7 @@ export default function UsersPage() {
 
         <div className="staff-stat-card">
           <div className="staff-stat-icon emerald">
-            <Clock size={20} />
+            <CalendarClock size={20} />
           </div>
           <div>
             <div className="staff-stat-num">{activeStaff}</div>
@@ -108,26 +111,12 @@ export default function UsersPage() {
             </div>
           </div>
         </div>
-
-        <div className="staff-stat-card">
-          <div className="staff-stat-icon amber">
-            <SlidersHorizontal size={20} />
-          </div>
-          <div>
-            <div className="staff-stat-num" style={{ fontSize: "16px", marginTop: "2px" }}>
-              Asia/Ho_Chi_Minh
-            </div>
-            <div className="staff-stat-label">
-              Múi giờ chuẩn · Giới hạn truy cập giá vốn
-            </div>
-          </div>
-        </div>
       </div>
 
       {/* SEARCH & ROLE FILTER BAR */}
       <Card>
         <div className="staff-toolbar">
-          <div className="receivables-search-wrap" style={{ flex: "1 1 260px" }}>
+          <div className="receivables-search-wrap">
             <Search size={18} className="search-icon" />
             <input
               aria-label="Tìm nhân sự"
@@ -232,7 +221,7 @@ export default function UsersPage() {
                     {p.active && !p.deleted_at && !isLocked
                       ? "Hoạt động"
                       : isLocked
-                        ? "Khóa tạm"
+                        ? "Bị cấm"
                         : "Tạm dừng"}
                   </span>
                 </div>
@@ -242,32 +231,6 @@ export default function UsersPage() {
                     <Badge status={p.role} />
                   </div>
 
-                  {!isOwnerAcc && (
-                    <>
-                      <div className="user-chip-item" title="Khung giờ được phép đăng nhập">
-                        <Clock size={13} />
-                        <span>
-                          {p.allowed_from?.slice(0, 5) || "00:00"} -{" "}
-                          {p.allowed_until?.slice(0, 5) || "23:59"}
-                        </span>
-                      </div>
-
-                      <div className="user-chip-item" title="Lịch ngày làm việc">
-                        <Calendar size={13} />
-                        <span>
-                          {p.working_days && p.working_days.length > 0
-                            ? p.working_days
-                                .map((d) => {
-                                  const days = ["T2", "T3", "T4", "T5", "T6", "T7", "CN"];
-                                  return days[d - 1] || `T${d}`;
-                                })
-                                .join(", ")
-                            : "Tất cả các ngày"}
-                        </span>
-                      </div>
-                    </>
-                  )}
-
                   {p.role === "MANAGER" && p.can_view_financials && (
                     <div className="user-chip-item user-chip-accent" title="Quyền xem giá vốn & lợi nhuận">
                       <Eye size={13} />
@@ -275,7 +238,7 @@ export default function UsersPage() {
                     </div>
                   )}
 
-                  {p.must_change_password && (
+                  {!isOwnerAcc && p.must_change_password && (
                     <div className="user-chip-item user-chip-warning">
                       <span>Cần đổi MK</span>
                     </div>

@@ -1203,6 +1203,10 @@ pre {
   cursor: pointer;
   transition: all 0.15s ease-out;
   line-height: 1.2;
+  /* Phones squeeze the bar into an overflow-x scroller; without nowrap the
+     labels fold mid-word ("Hôm / nay") and the pills grow to uneven heights. */
+  white-space: nowrap;
+  flex: none;
 }
 .date-seg-btn:hover {
   color: #0f172a;
@@ -1336,33 +1340,6 @@ pre {
 }
 
 /* Dashboard Grids */
-.day-tasks-links {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  flex-wrap: wrap;
-}
-.day-tasks-links a {
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  color: #0f172a;
-  font-size: 12px;
-  font-weight: 600;
-  padding: 8px 14px;
-  background: #f1f3f7;
-  border: 1px solid #e2e8f0;
-  border-radius: 8px;
-  min-height: 36px;
-  transition: all 0.16s ease;
-}
-.day-tasks-links a:hover {
-  background: #ffffff;
-  border-color: #a5b4fc;
-  color: var(--primary, #4f46e5);
-  transform: translateY(-1px);
-}
-
 .dashboard-main-grid {
   display: grid;
   grid-template-columns: 1.75fr 1fr;
@@ -1681,35 +1658,6 @@ pre {
   font-size: 8px;
   padding: 3px 6px;
 }
-.aging-stats {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  background: #f8fafc;
-  border-radius: 8px;
-  padding: 15px 4px;
-  margin: 20px 0 9px;
-  border: 1px solid #e2e8f0;
-}
-.aging-stats > div {
-  text-align: center;
-  border-right: 1px solid #e2e8f0;
-}
-.aging-stats > div:last-child {
-  border: 0;
-}
-.aging-stats strong {
-  display: block;
-  font-size: 23px;
-  font-weight: 700;
-  color: #0f172a;
-  font-variant-numeric: tabular-nums;
-}
-.aging-stats span {
-  display: block;
-  font-size: 11px;
-  color: #64748b;
-  margin-top: 4px;
-}
 .compact-list {
   display: flex;
   flex-direction: column;
@@ -1734,16 +1682,6 @@ pre {
   color: #64748b;
   margin-top: 4px;
   font-size: 11px;
-}
-.age-badge {
-  font-size: 11px;
-  font-weight: 600;
-  padding: 4px 8px;
-  border-radius: 6px;
-  background: #fef3c7;
-  color: #b45309;
-  border: 1px solid #fde68a;
-  white-space: nowrap;
 }
 .badge {
   display: inline-flex;
@@ -2096,17 +2034,19 @@ pre {
 }
 .details-list {
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 20px;
+  /* Auto-fit spreads values horizontally on wide screens so the block stays
+     short; phones collapse to one clean column via the mobile media query. */
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 18px 24px;
 }
 .details-list dt {
-  font-size: 11px;
+  font-size: 12px;
   color: #8b997f;
   margin-bottom: 6px;
 }
 .details-list dd {
   margin: 0;
-  font-size: 13px;
+  font-size: 15px;
   font-weight: 500;
   /* Long VINs, engine numbers and phones have no break points; keep them
      inside the column and let the copy button sit on the value's line. */
@@ -2253,6 +2193,64 @@ pre {
   font-weight: 600;
   letter-spacing: -0.9px;
   color: #426d40;
+}
+/* Vehicle value strip on the detail page: figures sit side by side so the
+   money reads first, wrapping gracefully on phones. */
+.value-summary {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 14px;
+}
+.value-item {
+  background: #f8faf4;
+  border: 1px solid #e7eddd;
+  border-radius: 10px;
+  padding: 13px 16px;
+}
+.value-item span {
+  display: block;
+  font-size: 12px;
+  color: #7d8e71;
+  margin-bottom: 6px;
+}
+.value-item strong {
+  display: block;
+  font-size: 18px;
+  font-weight: 600;
+  letter-spacing: -0.3px;
+  overflow-wrap: anywhere;
+}
+.value-item.highlight {
+  background: #eef7ea;
+  border-color: #cfe3c4;
+}
+.value-item.highlight strong {
+  font-size: 24px;
+  color: #426d40;
+  letter-spacing: -0.7px;
+}
+.value-item.total strong {
+  color: #425b36;
+}
+[data-theme="dark"] .value-item {
+  background: #14161e;
+  border-color: #232531;
+}
+[data-theme="dark"] .value-item span {
+  color: #8f96a8;
+}
+[data-theme="dark"] .value-item.highlight {
+  background: #14201a;
+  border-color: #234031;
+}
+[data-theme="dark"] .value-item.highlight strong {
+  color: #7cc78f;
+}
+[data-theme="dark"] .value-item.total strong {
+  color: #a7c4b0;
+}
+[data-theme="dark"] .details-list dt {
+  color: #7f8b92;
 }
 .inset-form {
   background: #f8faf4;
@@ -2976,6 +2974,18 @@ pre {
     width: 100%;
     scrollbar-width: none;
   }
+  /* 24px pills are thumb-proofing failures on phones; grow the tap target
+     without changing the desktop look. */
+  .date-seg-btn {
+    display: inline-flex;
+    align-items: center;
+    min-height: 34px;
+    padding: 0 12px;
+  }
+  .quick-pill {
+    min-height: 36px;
+    padding: 0 13px;
+  }
   .date-range {
     width: 100%;
     gap: 6px;
@@ -3366,6 +3376,13 @@ pre {
   .cta-label-short {
     display: inline;
   }
+  /* Smallest phones: trim the banner CTA chips so labels like "Quét / Chụp"
+     keep one line instead of folding inside the button. */
+  .carem-banner-actions .carem-btn {
+    white-space: nowrap;
+    padding: 8px 10px;
+    font-size: 12px;
+  }
 }
 /* Landscape phones (any width): short viewports collapse the split layout
    and trim the hero so the form stays reachable without a full scroll. */
@@ -3436,9 +3453,6 @@ pre {
   }
 }
 /* Compact records remain usable on small screens. */
-.aging-stats {
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-}
 .price-hero > span {
   display: block;
   font-size: 12px;
@@ -3570,6 +3584,109 @@ pre {
   overflow: auto;
   animation: modalSlideUp 0.22s cubic-bezier(0.16, 1, 0.3, 1);
 }
+/* Shared modal layout scaffolding (header/body/footer). */
+.modal-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+.modal-header h3 {
+  margin: 0;
+  font-size: 18px;
+  line-height: 1.3;
+}
+.modal-subtitle {
+  margin: 4px 0 0;
+  font-size: 13px;
+  color: #64748b;
+}
+.modal-body {
+  min-width: 0;
+}
+.modal-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 18px;
+}
+/* Quick expense modal: compact width + category chips. */
+.quick-expense-modal {
+  width: min(460px, 100%);
+}
+.expense-chips-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 6px;
+}
+.expense-chip-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 6px 14px;
+  border-radius: 9999px;
+  font-size: 13px;
+  font-weight: 500;
+  color: #334155;
+  background: #f1f5f9;
+  border: 1px solid #e2e8f0;
+  cursor: pointer;
+  line-height: 1.4;
+  white-space: nowrap;
+  user-select: none;
+  transition: all 0.15s ease;
+}
+.expense-chip-btn:hover {
+  background: #e2e8f0;
+  color: #0f172a;
+  border-color: #cbd5e1;
+  transform: translateY(-1px);
+}
+.expense-chip-btn:focus-visible {
+  outline: 2px solid var(--primary, #4f46e5);
+  outline-offset: 2px;
+}
+.expense-chip-btn.active {
+  background: #eef2ff;
+  color: #4338ca;
+  border-color: #818cf8;
+  font-weight: 600;
+  box-shadow: 0 1px 3px rgba(79, 70, 229, 0.18);
+}
+.repeat-expense-bar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  padding: 8px 10px;
+  margin-bottom: 12px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+}
+.repeat-expense-bar small {
+  font-size: 12px;
+  color: #64748b;
+}
+.chip-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: 9999px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #4338ca;
+  background: #eef2ff;
+  border: 1px solid #c7d2fe;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+.chip-btn:hover {
+  background: #e0e7ff;
+}
 .mobile-home-actions {
   display: none;
 }
@@ -3646,7 +3763,59 @@ pre {
 .identity-upload-slot {
   display: grid;
   gap: 8px;
-  justify-items: start;
+  justify-items: stretch;
+  width: 100%;
+  padding: 10px;
+  text-align: left;
+  font: inherit;
+  color: inherit;
+  background: transparent;
+  border: 1px solid var(--border, #d9d9d9);
+  border-radius: 12px;
+  cursor: pointer;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+.identity-upload-slot:hover {
+  border-color: var(--accent, #6b835a);
+}
+.identity-upload-slot.active {
+  border-color: var(--accent, #6b835a);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent, #6b835a) 22%, transparent);
+}
+.identity-upload-slot .image-placeholder {
+  width: 100%;
+  height: 150px;
+  border: 1px dashed var(--border, #d9d9d9);
+  border-radius: 10px;
+}
+.identity-slot-head {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.identity-step-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--muted, #6b7280);
+  background: color-mix(in srgb, var(--accent, #6b835a) 14%, transparent);
+}
+.identity-upload-slot.active .identity-step-badge {
+  color: #fff;
+  background: var(--accent, #6b835a);
+}
+.identity-action-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-top: 2px;
 }
 .identity-upload-actions {
   display: flex;
@@ -4302,6 +4471,18 @@ pre {
     width: 100%;
     justify-content: flex-start;
   }
+  /* Action dock on phones: free-wrapping chips leave a lonely half-width
+     button on the last row; a paired grid reads deliberate instead. */
+  .carem-banner-actions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .carem-banner-actions .carem-btn {
+    justify-content: center;
+  }
+  .carem-banner-actions .carem-btn-sparkle {
+    grid-column: 1 / -1;
+  }
   .carem-quick-bar {
     padding: 10px 12px;
   }
@@ -4518,6 +4699,7 @@ pre {
   align-items: center;
   justify-content: space-between;
   gap: 14px;
+  flex-wrap: wrap;
   padding: 12px 14px;
   background: #fef2f2;
   border: 1px solid #fecaca;
@@ -4536,6 +4718,92 @@ pre {
   padding: 16px 24px;
   background: #f8fafc;
   border-top: 1px solid #e2e8f0;
+}
+
+/* Owner handover callout inside the role tab */
+.user-owner-handover {
+  background: rgba(79, 70, 229, 0.06);
+  border-color: rgba(79, 70, 229, 0.35);
+}
+.user-owner-handover strong {
+  color: var(--primary, #4f46e5);
+}
+[data-theme="dark"] .user-owner-handover {
+  background: rgba(99, 102, 241, 0.1);
+  border-color: rgba(99, 102, 241, 0.4);
+}
+[data-theme="dark"] .user-owner-handover strong {
+  color: #a5b4fc;
+}
+
+/* Temporary password reset form: input + button share one row on desktop */
+.user-pass-reset-form > button {
+  flex: 0 0 auto;
+}
+
+/* Create-user modal footer lives inside the scrolling body; it offsets the
+   body padding instead of hard-coding pixel margins in the component. */
+.user-create-footer {
+  margin: 16px -24px -24px;
+  border-radius: 0 0 20px 20px;
+}
+
+/* Mobile: the staff modal becomes a full-width bottom sheet. Tabs scroll
+   horizontally, the body owns the remaining height, and no row overflows. */
+@media (max-width: 640px) {
+  .user-modal-backdrop {
+    padding: 0;
+    align-items: flex-end;
+  }
+  .user-settings-modal,
+  .user-create-modal {
+    width: 100%;
+    max-height: 94dvh;
+    border-radius: 20px 20px 0 0;
+  }
+  .user-settings-header {
+    padding: 14px 16px;
+    gap: 12px;
+  }
+  .user-settings-meta {
+    flex-wrap: wrap;
+  }
+  .user-settings-tabs {
+    padding: 8px 12px;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  .user-settings-tabs::-webkit-scrollbar {
+    display: none;
+  }
+  .user-tab-btn {
+    flex: 0 0 auto;
+    white-space: nowrap;
+  }
+  .user-settings-body {
+    padding: 16px;
+    flex: 1 1 auto;
+    min-height: 0;
+    max-height: none;
+  }
+  .user-settings-body .form-grid {
+    grid-template-columns: 1fr;
+    gap: 14px;
+  }
+  .user-pass-reset-form {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .user-pass-reset-form > button {
+    align-self: flex-start;
+  }
+  .user-settings-footer {
+    padding: 12px 16px calc(12px + env(safe-area-inset-bottom));
+  }
+  .user-create-footer {
+    margin: 16px -16px calc(-16px - env(safe-area-inset-bottom));
+    border-radius: 0;
+  }
 }
 
 /* --- Streamlined User Card on UsersPage --- */
@@ -5769,6 +6037,51 @@ pre {
   line-height: 1.4;
 }
 
+/* Customer purchase-history KPI cards (Lịch sử mua hàng). */
+.kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 14px;
+}
+.metric-card {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 18px 20px;
+  min-width: 0;
+}
+.metric-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+}
+.metric-value {
+  font-size: 24px;
+  font-weight: 750;
+  letter-spacing: -0.5px;
+  color: #0f172a;
+  line-height: 1.2;
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+.metric-value.price {
+  font-size: 22px;
+}
+.metric-sub {
+  font-size: 12px;
+  color: #64748b;
+  line-height: 1.4;
+}
+[data-theme="dark"] .metric-title,
+[data-theme="dark"] .metric-sub {
+  color: #8f96a8;
+}
+[data-theme="dark"] .metric-value {
+  color: #e6e9f2;
+}
+
 /* 3. Receivables Page Polish */
 .receivables-filter-container {
   display: flex;
@@ -5959,10 +6272,6 @@ pre {
 .staff-stat-icon.emerald {
   background: #ecfdf5;
   color: #10b981;
-}
-.staff-stat-icon.amber {
-  background: #fffbeb;
-  color: #d97706;
 }
 .staff-stat-num {
   font-size: 22px;
@@ -6293,6 +6602,21 @@ pre {
   .audit-filter-controls {
     flex-direction: column;
     align-items: stretch;
+  }
+  /* Column mode: flex-basis drives HEIGHT, so a 260px basis turns the search
+     box into a 260px-tall gap. Reset it to content height on phones. */
+  .staff-toolbar .receivables-search-wrap,
+  .audit-filter-controls .receivables-search-wrap {
+    flex-basis: auto;
+    min-width: 0;
+  }
+  /* Cross-axis stretch keeps min-width:auto items (the scrollable pills bar and
+     the search box) at their content width — 438px of pills spill past the
+     card on phones. Pin every toolbar row to the container instead. */
+  .staff-toolbar > *,
+  .audit-filter-controls > * {
+    width: 100%;
+    min-width: 0;
   }
 }
 
@@ -6988,15 +7312,41 @@ pre {
 }
 .docs-groups {
   display: grid;
-  gap: 16px;
-  margin-top: 10px;
+  gap: 14px;
+  margin-top: 14px;
+  grid-template-columns: repeat(auto-fill, minmax(min(340px, 100%), 1fr));
+  align-items: start;
+}
+.docs-group {
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 14px 16px 16px;
+  background: var(--card, #fff);
+}
+.docs-group-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  font-weight: 700;
+  margin: 0 0 10px;
+  color: inherit;
+}
+.docs-group-count {
+  margin-left: auto;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--muted);
+  background: rgba(100, 116, 139, 0.14);
+  border-radius: 999px;
+  padding: 2px 9px;
 }
 .docs-list {
   list-style: none;
   margin: 0;
   padding: 0;
   display: grid;
-  gap: 6px;
+  gap: 8px;
 }
 .docs-list a {
   display: flex;
@@ -7007,9 +7357,11 @@ pre {
   border-radius: 10px;
   text-decoration: none;
   color: inherit;
+  transition: border-color 0.15s ease, background 0.15s ease;
 }
 .docs-list a:hover {
   border-color: var(--primary);
+  background: rgba(99, 102, 241, 0.05);
 }
 .docs-list small {
   display: block;
@@ -7028,6 +7380,11 @@ pre {
     flex-direction: column;
     align-items: stretch;
   }
+  /* The AI-mode label carried flex:1 1 260px for the desktop row; in column
+     mode that basis becomes its HEIGHT, shoving the ask button far below. */
+  .copilot-controls .row {
+    flex-basis: auto;
+  }
   .citation-list li {
     flex-wrap: wrap;
   }
@@ -7040,6 +7397,11 @@ pre {
   .citation-chip {
     padding: 3px 9px;
     font-size: 11.5px;
+  }
+  /* The revenue chart only reacts to mouse hover; telling phone users to
+     "rê chuột" is dead copy that also crowds the HUD value row. */
+  .chart-period-hint {
+    display: none;
   }
 }
 /* ==========================================================================
@@ -7152,8 +7514,7 @@ html[data-theme] {
 /* Cards and shared panels */
 [data-theme="dark"] .card,
 [data-theme="dark"] .toast,
-[data-theme="dark"] .alert-card,
-[data-theme="dark"] .aging-stats {
+[data-theme="dark"] .alert-card {
   background: #14161e;
   border-color: #232531;
 }
@@ -7383,15 +7744,6 @@ html[data-theme="dark"] .header-theme-toggle {
 }
 
 /* --- Thẻ chỉ số & biểu đồ ở Tổng quan --- */
-[data-theme="dark"] .day-tasks-links a {
-  background: #171821;
-  border-color: #262833;
-  color: #dcdfe9;
-}
-[data-theme="dark"] .day-tasks-links a:hover {
-  background: #1d1f2a;
-  color: #a5b4fc;
-}
 [data-theme="dark"] .chart-empty {
   background: #101117;
   border-color: #262833;
@@ -7419,15 +7771,6 @@ html[data-theme="dark"] .header-theme-toggle {
 [data-theme="dark"] .record-icon {
   background: rgba(16, 185, 129, 0.14);
   color: #6ee7b7;
-}
-[data-theme="dark"] .aging-stats > div {
-  border-right-color: #232531;
-}
-[data-theme="dark"] .aging-stats strong {
-  color: #eef1f8;
-}
-[data-theme="dark"] .aging-stats span {
-  color: #8f96a8;
 }
 
 /* --- Trung tâm cảnh báo (giữ lại màu phân mức, thay vì bị flatten bởi rule .alert-card chung) --- */
@@ -7645,6 +7988,41 @@ html[data-theme="dark"] .header-theme-toggle {
   color: #c7d2fe;
   box-shadow: none;
 }
+/* --- Modal nhanh chi phí + chip phân loại (dark) --- */
+[data-theme="dark"] .modal-subtitle {
+  color: #8f96a8;
+}
+[data-theme="dark"] .expense-chip-btn {
+  background: #1d1f2a;
+  border-color: #262833;
+  color: #c3c9d6;
+}
+[data-theme="dark"] .expense-chip-btn:hover {
+  background: #262833;
+  border-color: #3a3d4d;
+  color: #eef1f8;
+}
+[data-theme="dark"] .expense-chip-btn.active {
+  background: rgba(99, 102, 241, 0.28);
+  border-color: rgba(129, 140, 248, 0.55);
+  color: #c7d2fe;
+  box-shadow: none;
+}
+[data-theme="dark"] .repeat-expense-bar {
+  background: #181b24;
+  border-color: #262833;
+}
+[data-theme="dark"] .repeat-expense-bar small {
+  color: #8f96a8;
+}
+[data-theme="dark"] .chip-btn {
+  background: rgba(99, 102, 241, 0.16);
+  border-color: rgba(99, 102, 241, 0.34);
+  color: #c7d2fe;
+}
+[data-theme="dark"] .chip-btn:hover {
+  background: rgba(99, 102, 241, 0.26);
+}
 [data-theme="dark"] .money-helper-text {
   background: rgba(99, 102, 241, 0.16);
   border-color: rgba(99, 102, 241, 0.34);
@@ -7826,8 +8204,7 @@ html[data-theme="dark"] .header-theme-toggle {
   background: rgba(244, 63, 94, 0.14);
   color: #fca5a5;
 }
-[data-theme="dark"] .executive-metric-icon.amber,
-[data-theme="dark"] .staff-stat-icon.amber {
+[data-theme="dark"] .executive-metric-icon.amber {
   background: rgba(245, 158, 11, 0.15);
   color: #fcd34d;
 }

@@ -282,7 +282,7 @@ test("Quick expense keeps vehicle context, maps category to the existing enum an
   const calls = await installMock(page);
   await page.goto(`/vehicles/${vehicleId}`);
   const started = Date.now();
-  await page.getByRole("button", { name: "+ Chi phí", exact: true }).click();
+  await page.getByRole("button", { name: "Chi phí", exact: true }).click();
   const dialog = page.getByRole("dialog", {
     name: "+ Thêm chi phí xe",
     exact: true,
@@ -303,7 +303,7 @@ test("Quick expense keeps vehicle context, maps category to the existing enum an
     description: "Thay lốp xe",
     expense_date: today,
   });
-  await page.getByRole("button", { name: "+ Chi phí", exact: true }).click();
+  await page.getByRole("button", { name: "Chi phí", exact: true }).click();
   await dialog.getByRole("button", { name: /Dùng lại/ }).click();
   await expect(
     dialog.getByLabel("Số tiền chi (₫) *", { exact: true }),
@@ -381,7 +381,7 @@ test("Inventory rows use clear vehicle metadata, status, age and preset wording"
   await page.screenshot({ path: "test-results/inventory-audit-mobile.png", fullPage: true });
 });
 
-test("Temporary visual audit for staff settings and create modal", async ({ page }) => {
+test("Staff settings and create modals stay usable on desktop and mobile", async ({ page }) => {
   await installMock(page);
   await page.goto("/users");
   await expect(page.getByRole("heading", { name: "Nhân sự", exact: true })).toBeVisible();
@@ -397,6 +397,31 @@ test("Temporary visual audit for staff settings and create modal", async ({ page
   await expect(page.getByRole("dialog", { name: "Tạo tài khoản nhân viên mới" })).toBeVisible();
   await page.waitForTimeout(400);
   await page.screenshot({ path: "test-results/users-create-audit-mobile.png", fullPage: true });
+  await page.getByRole("button", { name: "Đóng", exact: true }).click();
+
+  // Regression: opening any staff member's detail modal on mobile must stay
+  // inside the viewport as a bottom sheet with no horizontal overflow.
+  await page.getByRole("button", { name: "Thiết lập nhân sự" }).first().click();
+  const staffDialog = page.getByRole("dialog", { name: "Nguyễn Nhân Viên" });
+  await expect(staffDialog).toBeVisible();
+  const roleTab = staffDialog.getByRole("tab", { name: "Quyền & Vai trò" });
+  await expect(roleTab).toBeVisible();
+  await expect(
+    staffDialog.getByRole("tab", { name: "Bảo mật & Trạng thái" }),
+  ).toBeVisible();
+  const box = await staffDialog.locator(".user-settings-modal").boundingBox();
+  expect(box.x).toBeGreaterThanOrEqual(0);
+  expect(box.x + box.width).toBeLessThanOrEqual(390.5);
+  expect(box.y).toBeGreaterThanOrEqual(0);
+  expect(box.y + box.height).toBeLessThanOrEqual(844.5);
+  await page.screenshot({ path: "test-results/users-staff-settings-mobile.png" });
+  await staffDialog.getByRole("tab", { name: "Bảo mật & Trạng thái" }).click();
+  await expect(staffDialog.getByText("Cấm sử dụng tạm thời")).toBeVisible();
+  await expect(staffDialog.getByText("Hết hôm nay")).toBeVisible();
+  await page.screenshot({ path: "test-results/users-staff-security-mobile.png" });
+  expect(
+    await page.evaluate(() => document.documentElement.scrollWidth),
+  ).toBeLessThanOrEqual(390);
 });
 
 test("Temporary visual audit for dashboard icon and spacing", async ({ page }) => {

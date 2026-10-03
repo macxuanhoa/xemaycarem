@@ -1,5 +1,24 @@
 # Kết quả kiểm chứng — 02/10/2026
 
+## Quản lý nhân sự — giờ làm chung, một Chủ cửa hàng, cấm sử dụng có thời hạn — 02/10/2026
+
+| Kiểm tra | Kết quả |
+|---|---|
+| npm run lint | Đạt; 0 lỗi (thêm `.vercel-tmp/**` vào ESLint ignore — tệp deploy sót lại gây 22 lỗi `no-undef`/`no-require-imports`) |
+| npm run typecheck | Đạt |
+| npm test | Đạt: 309 test / 26 file (viết lại `tests/security/auth-recovery-matrix.test.ts` và `tests/security/manage-users-handler.test.ts` theo mô hình role/cấm/chuyển giao mới) |
+| node scripts/check-edge-types.mjs | Đạt cho 6 tệp Edge |
+| npm run test:db | Đạt hai vòng liên tiếp (gồm vòng sau khi tái sinh seed): 30 kiểm tra tích hợp inline — test đa-OWNER cũ thay bằng hai test mô hình một-OWNER (`SINGLE_OWNER_REQUIRED` cho ghi raw, khóa giao nhau giữa `transfer_ownership` và `update_profile` giữ đúng 1 OWNER hoạt động) + 14 auth/security (thêm 6 test mới: giờ chung chặn STAFF/MANAGER miễn OWNER, input schedule do OWNER ghi và bị chặn với STAFF, cấm có thời hạn hết hạn là mở lại, MANAGER chỉ đổi role cấp dưới, chuyển giao nguyên tử một OWNER) + 35 operational + 8 knowledge + 6 copilot + 8 CCCD + 10 showroom |
+| npm run knowledge:check | Lần đầu báo seed lệch (markdown đổi) → chạy `npm run knowledge:seed` tái sinh 175 mục → đạt |
+| npx playwright test | Đạt: 84/84, 0 lỗi / 0 bỏ qua — test modal nhân sự nâng thành kiểm tra mobile thật (bottom sheet trong khung 390×844, cả hai tab, preset cấm "Hết hôm nay", `scrollWidth` ≤ 390) |
+| npm run build | Đạt; PWA generateSW, precache 57 mục |
+
+Ghi chú:
+- Một vòng chạy E2E giữa chừng báo 14 lỗi `ERR_CONNECTION_REFUSED`: tiến trình Vite con do Playwright quản lý chết giữa suite trên máy Windows (flake hạ tầng, không phải lỗi sản phẩm). `playwright.config.ts` nay đặt `reuseExistingServer: !process.env.CI`; vòng xanh chạy với dev server 4184 bền vững tách riêng, CI không ảnh hưởng.
+- Sửa hai assertion "Quick expense" nhãn cũ trong `ux-convenience.spec.mjs` (`+ Chi phí` → `Chi phí`): lệch nhãn có sẵn từ đổi tên CTA PageHeader ở VehicleDetailPage phiên trước, không liên quan đợt thay đổi này.
+- Migration mới đặt tên `20261002003600_shared_schedule_and_single_owner.sql` sau khi phát hiện trùng số hiệu `003500` với `20261002003500_no_forced_first_password_change.sql` chưa deploy (Supabase CLI coi timestamp là version duy nhất).
+- Seed `knowledge_base` tái sinh từ markdown (`docs/SYSTEM_REFERENCE.md` nay mô tả `transfer_ownership`, `/users` MANAGER-or-OWNER, mô tả mới của `manage-users`); file seed không sửa tay, migration chưa deploy nên tái sinh local là forward-only hợp lệ.
+
 ## Thu xe tốc ký (/intake) — 02/10/2026
 
 | Kiểm tra | Kết quả |

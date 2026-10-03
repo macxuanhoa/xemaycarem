@@ -9,6 +9,7 @@ import { runKnowledgeTests } from '../tests/db/knowledge.test.mjs'
 import { runCopilotGapTests } from '../tests/db/copilot-gaps.test.mjs'
 import { runIdentityDocumentTests } from '../tests/db/identity-documents.test.mjs'
 import { runShowroomTests } from '../tests/db/showroom.test.mjs'
+import { runHardDeleteTests } from '../tests/db/hard-delete.test.mjs'
 
 const engine = process.argv.includes('--pglite') ? 'pglite' : 'postgres'
 console.log(`Database integration suite: ${engine} (disposable database; no cloud credentials)`)
@@ -20,6 +21,7 @@ await runKnowledgeTests(null, { engine })
 await runCopilotGapTests(null, { engine })
 await runIdentityDocumentTests(null, { engine })
 await runShowroomTests(null, { engine })
+await runHardDeleteTests(null, { engine })
 const db = await createDatabase({ engine })
 let passed = 0
 const users = Object.fromEntries(['owner', 'manager', 'financialManager', 'staff', 'disabled'].map((role) => [role, randomUUID()]))
@@ -330,16 +332,30 @@ async function concurrencyTests() {
     assert.match(result.second.error.message, /SALE_CANCELLED/)
     assert.equal(Number((await row('SELECT count(*) AS count FROM public.payments WHERE sale_id=$1', [sold])).count), 0)
   })
-  await test('Two simultaneous OWNER demotions serialize and retain one active OWNER', async () => {
+  await test('Raw second-owner writes are rejected while an active OWNER exists', async () => {
     const secondOwner = randomUUID()
     await db.query("INSERT INTO auth.users(id,email,raw_user_meta_data) VALUES($1,'second-owner@example.test','{\"full_name\":\"Second Owner\"}')", [secondOwner])
-    await run('owner', (client) => rpc(client, 'update_profile', '$1::uuid,$2::jsonb', [secondOwner, '{"role":"OWNER","active":true}']))
-    const result = await interleave(
-      (client) => rpc(client, 'update_profile', '$1::uuid,$2::jsonb', [users.owner, '{"role":"MANAGER"}']),
-      (client) => rpc(client, 'update_profile', '$1::uuid,$2::jsonb', [secondOwner, '{"role":"MANAGER"}']),
-      false, secondOwner,
+    await assert.rejects(
+      run('owner', (client) => rpc(client, 'update_profile', '$1::uuid,$2::jsonb', [secondOwner, '{"role":"OWNER","active":true}'])),
+      /SINGLE_OWNER_REQUIRED/,
     )
-    assert.match(result.second.error.message, /LAST_OWNER_REQUIRED/)
+    await assert.rejects(
+      run('owner', (client) => rpc(client, 'update_profile', '$1::uuid,$2::jsonb', [users.owner, '{"role":"MANAGER"}'])),
+      /LAST_OWNER_REQUIRED/,
+    )
     assert.equal(Number((await row("SELECT count(*) AS count FROM public.profiles WHERE role='OWNER' AND active")).count), 1)
+  })
+  await test('Ownership handover serializes against concurrent role mutations and retains one active OWNER', async () => {
+    // The in-flight transfer holds the shared advisory lock; the manager's
+    // demotion attempt queues behind it and then sees the committed handover
+    // (the ex-owner is now MANAGER, so a junior-only manager is denied).
+    const result = await interleave(
+      (client) => rpc(client, 'transfer_ownership', '$1::uuid', [users.staff]),
+      (client) => rpc(client, 'update_profile', '$1::uuid,$2::jsonb', [users.owner, '{"role":"MANAGER"}']),
+      false, users.manager,
+    )
+    assert.match(result.second.error.message, /ACCESS_DENIED|LAST_OWNER_REQUIRED/)
+    const owners = await row("SELECT count(*) AS count FROM public.profiles WHERE role='OWNER' AND active")
+    assert.equal(Number(owners.count), 1)
   })
 }

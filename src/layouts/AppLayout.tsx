@@ -215,10 +215,11 @@ export function AppLayout() {
           </div>
         )}
         <div className="sidebar-bottom">
-          {isOwner(profile) && (
+          {canManage(profile) && (
             <>
               <p className="nav-caption">QUẢN TRỊ</p>
               <nav aria-label="Quản trị">
+                {/* Managers open Nhân sự to set roles for their juniors. */}
                 <NavLink
                   to="/users"
                   onClick={drawer.close}
@@ -228,15 +229,17 @@ export function AppLayout() {
                   <Users size={20} />
                   Nhân sự
                 </NavLink>
-                <NavLink
-                  to="/audit"
-                  onClick={drawer.close}
-                  onMouseEnter={() => preloadRoute("/audit")}
-                  onFocus={() => preloadRoute("/audit")}
-                >
-                  <ShieldCheck size={20} />
-                  Lịch sử thao tác
-                </NavLink>
+                {isOwner(profile) && (
+                  <NavLink
+                    to="/audit"
+                    onClick={drawer.close}
+                    onMouseEnter={() => preloadRoute("/audit")}
+                    onFocus={() => preloadRoute("/audit")}
+                  >
+                    <ShieldCheck size={20} />
+                    Lịch sử thao tác
+                  </NavLink>
+                )}
               </nav>
             </>
           )}

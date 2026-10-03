@@ -4,7 +4,6 @@ import { UserPlus, X } from "lucide-react";
 import { Button, ErrorState, Field } from "@/components/ui";
 import { api } from "@/lib/api";
 import { roleLabels } from "@/lib/permissions";
-import { WorkingDaysPicker } from "./WorkingDaysPicker";
 
 export function CreateUserModal({ onDone }: { onDone: () => void }) {
   const [form, setForm] = useState({
@@ -13,9 +12,6 @@ export function CreateUserModal({ onDone }: { onDone: () => void }) {
     password: "",
     role: "STAFF",
     can_view_financials: false,
-    allowed_from: "07:00:00",
-    allowed_until: "20:00:00",
-    working_days: [1, 2, 3, 4, 5, 6],
   });
   const [error, setError] = useState("");
   const m = useMutation({
@@ -46,11 +42,6 @@ export function CreateUserModal({ onDone }: { onDone: () => void }) {
       return;
     }
 
-    if (!form.working_days.length) {
-      setError("Vui lòng chọn ít nhất một ngày làm việc trong tuần.");
-      return;
-    }
-
     m.mutate();
   };
 
@@ -77,7 +68,7 @@ export function CreateUserModal({ onDone }: { onDone: () => void }) {
               Tạo tài khoản nhân viên mới
             </h2>
             <div className="user-settings-meta">
-              <span>Cấp quyền truy cập hệ thống và lịch làm việc rõ ràng</span>
+              <span>Cấp quyền truy cập hệ thống theo vai trò rõ ràng</span>
             </div>
           </div>
           <button
@@ -124,12 +115,13 @@ export function CreateUserModal({ onDone }: { onDone: () => void }) {
                 autoComplete="new-password"
                 required
                 minLength={12}
-                placeholder="Mật khẩu tạm thời"
+                placeholder="Mật khẩu ban đầu"
                 value={form.password}
                 onChange={(e) => setForm({ ...form, password: e.target.value })}
               />
               <small className="muted">
-                Nhân viên bắt buộc phải đổi mật khẩu ở lần đăng nhập đầu tiên
+                Gửi mật khẩu này cho nhân viên; nhân viên dùng ngay được và tự đổi
+                trong Cài đặt khi muốn
               </small>
             </Field>
             <Field label="Vai trò">
@@ -163,46 +155,15 @@ export function CreateUserModal({ onDone }: { onDone: () => void }) {
             </div>
           )}
 
-          <div className="form-grid">
-            <Field label="Giờ cho phép bắt đầu làm việc">
-              <input
-                type="time"
-                value={form.allowed_from ? form.allowed_from.slice(0, 5) : "07:00"}
-                onChange={(e) => {
-                  const val = e.target.value.trim();
-                  setForm({
-                    ...form,
-                    allowed_from: val ? (val.length === 5 ? val + ":00" : val) : "07:00:00",
-                  });
-                }}
-              />
-            </Field>
-            <Field label="Giờ kết thúc ca làm việc">
-              <input
-                type="time"
-                value={form.allowed_until ? form.allowed_until.slice(0, 5) : "20:00"}
-                onChange={(e) => {
-                  const val = e.target.value.trim();
-                  setForm({
-                    ...form,
-                    allowed_until: val ? (val.length === 5 ? val + ":00" : val) : "20:00:00",
-                  });
-                }}
-              />
-            </Field>
-          </div>
-
-          <Field label="Các ngày làm việc trong tuần (Asia/Ho_Chi_Minh)">
-            <WorkingDaysPicker
-              value={form.working_days}
-              onChange={(working_days) => setForm({ ...form, working_days })}
-            />
-          </Field>
+          <p className="muted small">
+            Tài khoản mới áp dụng theo giờ làm việc chung của Quản lý &amp;
+            Nhân viên (thiết lập ở trang Nhân sự).
+          </p>
 
           {error && <p className="field-error">{error}</p>}
           {!!m.error && !error && <ErrorState error={m.error} />}
 
-          <div className="user-settings-footer" style={{ margin: "16px -24px -24px", padding: "16px 24px" }}>
+          <div className="user-settings-footer user-create-footer">
             <Button variant="secondary" type="button" onClick={onDone}>
               Hủy
             </Button>

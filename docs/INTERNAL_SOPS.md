@@ -10,12 +10,12 @@ Chỉ tài khoản OWNER còn hoạt động làm được việc này, và hệ
 2. Bấm **Tạo tài khoản** để mở hộp thoại "Tạo tài khoản nhân viên mới" và điền:
    - **Họ và tên**: bắt buộc, tối đa 120 ký tự.
    - **Tên đăng nhập**: 3–30 ký tự, chỉ chữ thường, số, `_` hoặc `.` (bấm `.` cũng bị xóa khoảng trắng tự động). Nhân viên sẽ đăng nhập bằng tên này, không phải email.
-   - **Mật khẩu ban đầu**: tối thiểu 12 ký tự. Đây là mật khẩu tạm — nhân viên buộc đổi khi đăng nhập lần đầu.
+   - **Mật khẩu ban đầu**: tối thiểu 12 ký tự. Nhân viên dùng mật khẩu này đăng nhập và vào thẳng hệ thống; muốn thì tự đổi trong Cài đặt.
    - **Vai trò**: mặc định STAFF; chọn MANAGER nếu cần xem quản lý.
    - **Xem số tài chính** (tùy chọn): bật nếu nhân viên được thấy giá vốn, doanh thu, lợi nhuận.
    - **Giờ làm việc và ngày làm việc**: mặc định 07:00–20:00, thứ Hai đến thứ Bảy. Ngoài lịch này tài khoản bị chặn đăng nhập.
 3. Xác nhận. Yêu cầu đi qua Edge Function `manage-users` chạy phía server: kiểm tra OWNER còn hoạt động, chưa đổi mật khẩu lần đầu (`check_user_access`), rồi mới tạo tài khoản. Nếu khởi tạo hồ sơ thất bại, hệ thống tự hoàn tất một phần và báo lỗi để làm lại — không có trạng thái "nửa tài khoản" đăng nhập được.
-4. Gửi tên đăng nhập + mật khẩu tạm cho nhân viên qua kênh an toàn. Nhân viên đăng nhập sẽ bị chuyển ngay tới trang **Đổi mật khẩu** (`/change-password`) và phải đổi rồi mới dùng được các màn hình khác.
+4. Gửi tên đăng nhập + mật khẩu ban đầu cho nhân viên qua kênh an toàn. Nhân viên đăng nhập là vào thẳng app — **không** còn màn hình cưỡng chế đổi mật khẩu lần đầu. Khi muốn, nhân viên tự đổi tại Cài đặt → **Đổi mật khẩu**. (Màn hình **Đổi mật khẩu** `/change-password` chỉ xuất hiện khi OWNER chủ động cấp lại mật khẩu tạm hoặc bật buộc đổi cho tài khoản.)
 
 Lưu ý: Function chỉ tạo tài khoản bằng mật khẩu, không tự gửi email. Mọi thao tác của OWNER đều vào lịch sử thao tác (`/audit`).
 

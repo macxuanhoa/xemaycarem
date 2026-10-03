@@ -10,7 +10,6 @@ import {
   Handshake,
   Lock,
   MapPin,
-  Menu,
   MessageCircle,
   PhoneCall,
   Search,
@@ -70,7 +69,6 @@ function toBikeView(vehicle: ShowroomVehicle): BikeView {
 
 export default function ShowroomPage() {
   const { user } = useAuth();
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [selectedBrand, setSelectedBrand] = useState("ALL");
   const [selectedTab, setSelectedTab] = useState<"ALL" | "NEW">("ALL");
   const [searchQuery, setSearchQuery] = useState("");
@@ -284,84 +282,8 @@ export default function ShowroomPage() {
               <MessageCircle size={15} />
               <span>Chat Zalo</span>
             </a>
-            <button
-              type="button"
-              className="btn-mobile-toggle"
-              aria-label="Mở menu"
-              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-            >
-              {mobileMenuOpen ? <X size={24} /> : <Menu size={24} />}
-            </button>
           </div>
         </div>
-
-        {/* Mobile Dropdown Menu */}
-        {mobileMenuOpen && (
-          <div className="showroom-mobile-drawer">
-            <div className="mobile-drawer-links">
-              <a
-                href="#xe-dang-ban"
-                className="mobile-link"
-                onClick={() => setMobileMenuOpen(false)}
-              >
-                🏍️ Xe đang bán
-              </a>
-              <a
-                href="#xe-dang-ban"
-                className="mobile-link"
-                onClick={() => {
-                  setSelectedTab("NEW");
-                  setMobileMenuOpen(false);
-                }}
-              >
-                ✨ Xe mới về
-              </a>
-              <button
-                type="button"
-                className="mobile-link text-left"
-                onClick={() => {
-                  setMobileMenuOpen(false);
-                  setSellModalOpen(true);
-                }}
-              >
-                💰 Bán xe / Định giá xe
-              </button>
-              <a
-                href="#ve-ca-rem"
-                className="mobile-link"
-                onClick={() => setMobileMenuOpen(false)}
-              >
-                👤 Giới thiệu Anh Hậu Cà Rem
-              </a>
-              <a
-                href="#quy-trinh"
-                className="mobile-link"
-                onClick={() => setMobileMenuOpen(false)}
-              >
-                📋 Quy trình mua bán & Trả góp
-              </a>
-              <a
-                href="#lien-he"
-                className="mobile-link"
-                onClick={() => setMobileMenuOpen(false)}
-              >
-                📍 Địa chỉ 107 Nguyễn Tất Thành
-              </a>
-              <Link
-                to={user ? "/" : "/login"}
-                className="mobile-link highlight-crm"
-                onClick={() => setMobileMenuOpen(false)}
-              >
-                ⚙️ {user ? "Vào Phần mềm Quản trị CRM" : "Đăng nhập Nhân sự / Chủ xe"}
-              </Link>
-            </div>
-            <div className="mobile-drawer-footer">
-              <a href="tel:0914929292" className="mobile-hotline-btn">
-                <PhoneCall size={18} /> Gọi Hotline: 0914 929 292
-              </a>
-            </div>
-          </div>
-        )}
       </header>
 
       {/* 3. HERO BANNER SECTION (THEO TEMPLATE ẢNH 1, 3, 4) */}

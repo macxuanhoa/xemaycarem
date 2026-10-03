@@ -74,6 +74,70 @@ export async function runAuthSecurityTests({ engine = 'pglite' } = {}) {
         assert.equal(result.rows[0].allowed, allowed)
       }
     })
+    await test('Shared schedule on system_settings gates every non-OWNER role', async () => {
+      // A one-hour window two hours ahead of the Vietnam wall clock can never
+      // contain the current moment, so OUTSIDE_HOURS is deterministic.
+      const vnNow = new Date(Date.now() + 7 * 3600 * 1000)
+      const hhmm = (d) => `${String(d.getUTCHours()).padStart(2, '0')}:${String(d.getUTCMinutes()).padStart(2, '0')}:00`
+      await call('owner', 'save_settings', {
+        staff_allowed_from: hhmm(new Date(vnNow.getTime() + 2 * 3600 * 1000)),
+        staff_allowed_until: hhmm(new Date(vnNow.getTime() + 3 * 3600 * 1000)),
+      })
+      for (const name of ['staff', 'manager']) {
+        const access = await run(name, (client) => rpc(client, 'check_user_access'))
+        assert.equal(access.allowed, false)
+        assert.equal(access.code, 'OUTSIDE_HOURS')
+      }
+      assert.equal((await run('owner', (client) => rpc(client, 'check_user_access'))).allowed, true)
+      // Full-day window but today excluded isolates OUTSIDE_DAYS.
+      const vnDay = vnNow.getUTCDay() === 0 ? 7 : vnNow.getUTCDay()
+      await call('owner', 'save_settings', {
+        staff_allowed_from: '00:00:00', staff_allowed_until: '23:59:59',
+        staff_working_days: [1, 2, 3, 4, 5, 6, 7].filter((d) => d !== vnDay),
+      })
+      const dayAccess = await run('staff', (client) => rpc(client, 'check_user_access'))
+      assert.equal(dayAccess.allowed, false)
+      assert.equal(dayAccess.code, 'OUTSIDE_DAYS')
+      await call('owner', 'save_settings', { staff_working_days: [1, 2, 3, 4, 5, 6, 7] })
+      assert.equal((await run('staff', (client) => rpc(client, 'check_user_access'))).allowed, true)
+    })
+    await test('Shared schedule input is validated and OWNER-only to write', async () => {
+      for (const bad of [{ staff_allowed_from: '25:00:00' }, { staff_allowed_until: '' }, { staff_working_days: [9] }]) {
+        await assert.rejects(call('owner', 'save_settings', bad), /INVALID_SCHEDULE/)
+      }
+      await assert.rejects(call('staff', 'save_settings', { staff_allowed_from: '00:00:00' }), /ACCESS_DENIED/)
+      // The rejected writes must not have changed the shared row.
+      const settings = await run('staff', (client) => rpc(client, 'get_settings'))
+      assert.equal(settings.staff_allowed_from, '00:00:00')
+      assert.deepEqual(settings.staff_working_days, [1, 2, 3, 4, 5, 6, 7])
+    })
+    await test('Bounded temporary ban blocks logins only until its expiry', async () => {
+      const future = new Date(Date.now() + 3600 * 1000).toISOString()
+      await run('owner', (client) => rpc(client, 'update_profile', '$1::uuid,$2::jsonb',
+        [ids.staff, JSON.stringify({ active: true, disabled_until: future, disable_reason: 'Cấm thử nghiệm' })]))
+      const banned = await run('staff', (client) => rpc(client, 'check_user_access'))
+      assert.equal(banned.allowed, false)
+      assert.equal(banned.code, 'TEMP_LOCKED')
+      // An already-expired ban no longer blocks; lifting clears it entirely.
+      await run('owner', (client) => rpc(client, 'update_profile', '$1::uuid,$2::jsonb',
+        [ids.staff, JSON.stringify({ disabled_until: new Date(Date.now() - 60 * 1000).toISOString() })]))
+      assert.equal((await run('staff', (client) => rpc(client, 'check_user_access'))).allowed, true)
+      await run('owner', (client) => rpc(client, 'update_profile', '$1::uuid,$2::jsonb',
+        [ids.staff, JSON.stringify({ disabled_until: null })]))
+    })
+    await test('MANAGER may only change the role of STAFF accounts', async () => {
+      const update = (actor, id, data) => run(actor, (client) => rpc(client, 'update_profile', '$1::uuid,$2::jsonb', [id, JSON.stringify(data)]))
+      await assert.rejects(update('manager', ids.staff, { full_name: 'Đổi bởi quản lý' }), /ACCESS_DENIED/)
+      await assert.rejects(update('manager', ids.finance, { role: 'STAFF' }), /ACCESS_DENIED/)
+      await assert.rejects(update('manager', ids.manager, { role: 'STAFF' }), /ACCESS_DENIED/)
+      await assert.rejects(update('manager', ids.staff, { role: 'OWNER' }), /ACCESS_DENIED/)
+      await update('manager', ids.staff, { role: 'MANAGER' })
+      await update('owner', ids.staff, { role: 'STAFF' })
+      // STAFF keeps editing only their own name, never roles.
+      await update('staff', ids.staff, { full_name: 'Nguyễn Nhân Viên' })
+      await assert.rejects(update('staff', ids.manager, { full_name: 'X' }), /ACCESS_DENIED/)
+      await assert.rejects(update('staff', ids.staff, { role: 'MANAGER' }), /ACCESS_DENIED/)
+    })
     await test('No browser role can read password fingerprints or anonymous completion RPC', async () => {
       for (const name of ['owner', 'staff']) {
         await assert.rejects(run(name, (client) => client.query('SELECT * FROM private.required_password_changes')), /permission denied/)
@@ -115,6 +179,29 @@ export async function runAuthSecurityTests({ engine = 'pglite' } = {}) {
         [ids.owner, '{"deleted_at":"2026-09-30T00:00:00Z"}'])), /LAST_OWNER_REQUIRED/)
       const functions = await db.query("SELECT proname FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace WHERE n.nspname='private' AND proname IN ('delete_auth_user','cleanup_deleted_accounts')")
       assert.equal(functions.rows.length, 0)
+    })
+    await test('Ownership transfers atomically and the system keeps exactly one active OWNER', async () => {
+      const ghost = randomUUID()
+      await db.query('INSERT INTO auth.users(id,email,encrypted_password,raw_user_meta_data) VALUES($1,$2,$3,$4::jsonb)',
+        [ghost, 'ghost@example.test', 'disposable-auth-hash', JSON.stringify({ full_name: 'ghost' })])
+      await db.query('UPDATE public.profiles SET role=$1,active=false WHERE id=$2', ['STAFF', ghost])
+      await assert.rejects(run('owner', (client) => rpc(client, 'transfer_ownership', '$1::uuid', [ids.owner])), /SELF_TRANSFER/)
+      await assert.rejects(run('owner', (client) => rpc(client, 'transfer_ownership', '$1::uuid', [ghost])), /TARGET_NOT_ACTIVE/)
+      // Hand over to the staff account: exactly one active OWNER, old owner demoted.
+      await run('owner', (client) => rpc(client, 'transfer_ownership', '$1::uuid', [ids.staff]))
+      const roles = await db.query("SELECT id,role,active FROM public.profiles WHERE id IN ($1,$2)", [ids.owner, ids.staff])
+      assert.deepEqual(Object.fromEntries(roles.rows.map((r) => [r.id, r.role])), { [ids.owner]: 'MANAGER', [ids.staff]: 'OWNER' })
+      const owners = await db.query("SELECT count(*)::int AS n FROM public.profiles WHERE role='OWNER' AND active AND deleted_at IS NULL")
+      assert.equal(owners.rows[0].n, 1)
+      // Raw role writes can never create a second owner while one is active.
+      await assert.rejects(run('staff', (client) => rpc(client, 'update_profile', '$1::uuid,$2::jsonb',
+        [ids.finance, '{"role":"OWNER"}'])), /SINGLE_OWNER_REQUIRED/)
+      // Hand back to the baseline owner and restore the fixture roles.
+      await run('staff', (client) => rpc(client, 'transfer_ownership', '$1::uuid', [ids.owner]))
+      await run('owner', (client) => rpc(client, 'update_profile', '$1::uuid,$2::jsonb', [ids.staff, '{"role":"STAFF"}']))
+      const finalOwners = await db.query("SELECT count(*)::int AS n FROM public.profiles WHERE role='OWNER' AND active AND deleted_at IS NULL")
+      assert.equal(finalOwners.rows[0].n, 1)
+      assert.equal((await run('owner', (client) => rpc(client, 'check_user_access'))).role, 'OWNER')
     })
     console.log(`${passed} auth database security checks passed on ${engine}.`)
   } finally {

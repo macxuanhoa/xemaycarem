@@ -27,6 +27,10 @@ export function friendlyError(error: unknown): string {
     return "Nội dung thông báo không hợp lệ. Vui lòng nhập từ 1 đến 500 ký tự.";
   if (/VEHICLE_EXPENSE_LOCKED/i.test(value))
     return "Chi phí của xe đã bán hoặc đã hủy đang bị khóa. Vui lòng kiểm tra trạng thái xe.";
+  if (/SALE_HISTORY_EXISTS/i.test(value))
+    return "Xe này đã có lịch sử mua bán nên không thể xóa cứng. Hãy dùng thao tác hủy để giữ lại vết kiểm toán.";
+  if (/DELETION_REASON_REQUIRED/i.test(value))
+    return "Vui lòng nhập lý do xóa (từ 3 đến 1000 ký tự).";
   if (/FUTURE_DATE/i.test(value))
     return "Ngày ghi nhận không được nằm trong tương lai.";
   if (/SALE_BEFORE_EXPENSE/i.test(value))

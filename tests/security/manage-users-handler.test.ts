@@ -120,45 +120,73 @@ describe('Actual manage-users Edge handler security and partial failures', () =>
   })
 })
 
-describe('OWNER-only role management security', () => {
+describe('Role hierarchy and ownership security', () => {
   it('STAFF cannot promote anyone to OWNER', async () => {
     const h = harness({ role: 'STAFF' })
     const response = await h.invoke({ action: 'promote_to_owner', user_id: userId })
     expect(response.status).toBe(403)
   })
 
-  it('MANAGER cannot change roles', async () => {
-    const h = harness({ role: 'MANAGER' })
+  it('MANAGER can change the role of a STAFF account (junior only)', async () => {
+    const h = harness({ role: 'MANAGER', targetRole: 'STAFF' })
+    const response = await h.invoke({ action: 'change_role', user_id: userId, role: 'MANAGER' })
+    expect(response.status).toBe(200)
+  })
+
+  it('MANAGER cannot change the role of another MANAGER', async () => {
+    const h = harness({ role: 'MANAGER', targetRole: 'MANAGER' })
     const response = await h.invoke({ action: 'change_role', user_id: userId, role: 'STAFF' })
     expect(response.status).toBe(403)
   })
 
-  it('OWNER can promote STAFF to OWNER', async () => {
+  it('MANAGER cannot touch the OWNER account', async () => {
+    const h = harness({ role: 'MANAGER', targetRole: 'OWNER' })
+    const response = await h.invoke({ action: 'change_role', user_id: userId, role: 'STAFF' })
+    expect(response.status).toBe(403)
+  })
+
+  it('MANAGER cannot ban, delete, or reset passwords', async () => {
+    const future = new Date(Date.now() + 3600 * 1000).toISOString()
+    for (const body of [
+      { action: 'disable', user_id: userId, disabled_until: future },
+      { action: 'delete', user_id: userId },
+      { action: 'reset_password', user_id: userId, password },
+      { action: 'promote_to_owner', user_id: userId },
+    ]) {
+      const h = harness({ role: 'MANAGER', targetRole: 'STAFF' })
+      expect((await h.invoke(body)).status).toBe(403)
+    }
+  })
+
+  it('OWNER transfers ownership through the atomic transfer_ownership RPC', async () => {
     const h = harness({ role: 'OWNER', targetRole: 'STAFF' })
     const response = await h.invoke({ action: 'promote_to_owner', user_id: userId })
     expect(response.status).toBe(200)
+    expect(h.caller.rpc).toHaveBeenCalledWith('transfer_ownership', { p_target_user: userId })
   })
 
-  it('OWNER can demote another OWNER when >=2 active owners exist', async () => {
-    const h = harness({ role: 'OWNER', targetRole: 'OWNER', activeOwnerCount: 2 })
-    const response = await h.invoke({ action: 'demote_owner', user_id: userId, role: 'STAFF' })
-    // With 2 owners, demotion should be allowed (status should not be 400 for final owner error)
-    // Since our mock may not perfectly simulate the count, we just verify the endpoint is accessible
-    expect(response.status).not.toBe(403) // Not denied by auth
-  })
-
-  it('final active OWNER cannot be demoted', async () => {
-    const h = harness({ role: 'OWNER', targetRole: 'OWNER', activeOwnerCount: 1 })
-    const response = await h.invoke({ action: 'demote_owner', user_id: userId, role: 'STAFF' })
+  it('OWNER cannot demote the OWNER account through change_role', async () => {
+    const h = harness({ role: 'OWNER', targetRole: 'OWNER' })
+    const response = await h.invoke({ action: 'change_role', user_id: userId, role: 'STAFF' })
     expect(response.status).toBe(400)
-    expect((await response.json()).error).toBe('CANNOT_DEMOTE_FINAL_OWNER')
+    expect((await response.json()).error).toBe('OWNER_ROLE_VIA_HANDOVER')
   })
 
-  it('final active OWNER cannot be disabled', async () => {
-    const h = harness({ role: 'OWNER', targetRole: 'OWNER', activeOwnerCount: 1 })
-    const response = await h.invoke({ action: 'disable', user_id: userId, disabled_until: null })
+  it('Temporary ban must carry a future expiry', async () => {
+    const h = harness({ role: 'OWNER', targetRole: 'STAFF' })
+    const missing = await h.invoke({ action: 'disable', user_id: userId, disabled_until: null })
+    expect(missing.status).toBe(400)
+    expect((await missing.json()).error).toBe('BAN_DURATION_REQUIRED')
+    const past = await h.invoke({ action: 'disable', user_id: userId, disabled_until: new Date(Date.now() - 3600 * 1000).toISOString() })
+    expect(past.status).toBe(400)
+    expect((await past.json()).error).toBe('BAN_DURATION_REQUIRED')
+  })
+
+  it('OWNER account cannot be banned', async () => {
+    const h = harness({ role: 'OWNER', targetRole: 'OWNER' })
+    const response = await h.invoke({ action: 'disable', user_id: userId, disabled_until: new Date(Date.now() + 3600 * 1000).toISOString() })
     expect(response.status).toBe(400)
-    expect((await response.json()).error).toBe('CANNOT_DISABLE_FINAL_OWNER')
+    expect((await response.json()).error).toBe('CANNOT_BAN_OWNER')
   })
 
   it('final active OWNER cannot be deleted', async () => {
@@ -175,16 +203,26 @@ describe('OWNER-only role management security', () => {
     expect(response.status).toBe(403)
   })
 
-  it('OWNER can force password change on any user', async () => {
+  it('OWNER cannot transfer ownership to self', async () => {
     const h = harness({ role: 'OWNER' })
-    const response = await h.invoke({ action: 'force_password_change', user_id: userId })
-    expect(response.status).toBe(200)
+    const response = await h.invoke({ action: 'promote_to_owner', user_id: callerId })
+    expect(response.status).toBe(400)
+    expect((await response.json()).error).toBe('SELF_TRANSFER_NOT_ALLOWED')
   })
 
-  it('OWNER can enable a disabled user', async () => {
+  it('OWNER can lift a ban with enable_user', async () => {
     const h = harness({ role: 'OWNER', targetRole: 'STAFF' })
     const response = await h.invoke({ action: 'enable_user', user_id: userId })
     expect(response.status).toBe(200)
+  })
+
+  it('removed actions are rejected as INVALID_ACTION', async () => {
+    for (const action of ['update_schedule', 'demote_owner', 'force_password_change']) {
+      const h = harness({ role: 'OWNER' })
+      const response = await h.invoke({ action, user_id: userId })
+      expect(response.status).toBe(400)
+      expect((await response.json()).error).toBe('INVALID_ACTION')
+    }
   })
 
   it('audit logs are created for privileged actions', async () => {

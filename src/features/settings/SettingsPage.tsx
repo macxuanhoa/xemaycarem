@@ -15,6 +15,7 @@ import { supabase } from "@/lib/supabase";
 import { AppError } from "@/lib/errors";
 import { toast } from "@/lib/toast";
 import { isOwner, roleLabels } from "@/lib/permissions";
+import { SharedScheduleCard } from "@/features/users/components/SharedScheduleCard";
 import { AnnouncementManager } from "./AnnouncementManager";
 interface InstallPrompt extends Event {
   prompt: () => Promise<void>;
@@ -39,7 +40,7 @@ export default function SettingsPage() {
     [currentPassword, setCurrentPassword] = useState(""),
     [prompt, setPrompt] = useState<InstallPrompt | null>(null);
   const [activeTab, setActiveTab] = useState<
-    "PROFILE" | "STORE" | "MESSAGES" | "DEVICE"
+    "PROFILE" | "STORE" | "SCHEDULE" | "MESSAGES" | "DEVICE"
   >("PROFILE");
 
   const client = useQueryClient();
@@ -91,6 +92,7 @@ export default function SettingsPage() {
   });
 
   const showStore = isOwner(profile) && activeTab === "STORE";
+  const showSchedule = isOwner(profile) && activeTab === "SCHEDULE";
   const showMessages = isOwner(profile) && activeTab === "MESSAGES";
 
   return (
@@ -120,6 +122,15 @@ export default function SettingsPage() {
             onClick={() => setActiveTab("STORE")}
           >
             <span>Thông tin cửa hàng</span>
+          </button>
+        )}
+        {isOwner(profile) && (
+          <button
+            type="button"
+            className={`settings-nav-item ${activeTab === "SCHEDULE" ? "active" : ""}`}
+            onClick={() => setActiveTab("SCHEDULE")}
+          >
+            <span>Giờ làm việc</span>
           </button>
         )}
         {isOwner(profile) && (
@@ -236,6 +247,12 @@ export default function SettingsPage() {
             />
           )
         ))}
+
+      {showSchedule && (
+        <SharedScheduleCard
+          onSaved={(msg) => toast.success(msg)}
+        />
+      )}
 
       {showMessages && <AnnouncementManager />}
 

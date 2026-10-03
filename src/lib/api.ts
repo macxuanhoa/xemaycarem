@@ -268,19 +268,13 @@ async function manageUser(input: {
     | "restore"
     | "delete"
     | "hard_delete"
-    | "update_schedule"
     | "change_role"
     | "promote_to_owner"
-    | "demote_owner"
-    | "enable_user"
-    | "force_password_change";
+    | "enable_user";
   user_id: string;
   password?: string;
   disabled_until?: string | null;
   disable_reason?: string | null;
-  allowed_from?: string;
-  allowed_until?: string;
-  working_days?: number[];
   role?: string;
 }) {
   ensureOnline();
@@ -336,6 +330,12 @@ export const api = {
     }),
   deleteAnnouncement: async (id: string) =>
     call<void>("delete_announcement", { p_id: id }),
+  /** Xóa cứng xe kho (OWNER/MANAGER). Bị chặn nếu xe từng có giao dịch bán. */
+  deleteVehicle: async (id: string, reason: string) =>
+    call<void>("delete_vehicle", { p_id: id, p_reason: reason }),
+  /** Xóa cứng phiếu thu kèm xe đã thu (OWNER/MANAGER). */
+  deleteAcquisition: async (id: string, reason: string) =>
+    call<void>("delete_acquisition", { p_id: id, p_reason: reason }),
   processMessage: async (messageId: string): Promise<void> => {
     if (!supabase) return;
     const { error } = await supabase.functions.invoke("process-message", { body: { message_id: messageId } });

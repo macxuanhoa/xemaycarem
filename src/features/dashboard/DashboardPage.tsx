@@ -6,7 +6,6 @@ import {
   AlertTriangle,
   ArrowDownLeft,
   ArrowRight,
-  ArrowUpRight,
   CalendarDays,
   CheckCircle2,
   Clock3,
@@ -24,13 +23,12 @@ import {
   Loading,
 } from "@/components/ui";
 import { api } from "@/lib/api";
-import { canFinance, canManage, canOperate } from "@/lib/permissions";
+import { canFinance, canManage } from "@/lib/permissions";
 import { resolveInventoryStatus } from "@/lib/inventory-status";
 import {
   compactMoney,
   dateLabel,
   datePreset,
-  daysInStock,
   money,
   today,
 } from "@/lib/format";
@@ -247,7 +245,7 @@ export default function DashboardPage() {
               </div>
             </section>
 
-            {/* ═══ SUPPORT CARDS: CẦN XỬ LÝ · TUỔI TỒN KHO ═══ */}
+            {/* ═══ SUPPORT CARDS: CẦN XỬ LÝ ═══ */}
             <div className="digest-support-grid">
                 {/* 1.2 THẺ VIỆC CẦN XỬ LÝ NGAY (ACTIONABLE ALERTS) */}
                 <Card>
@@ -356,47 +354,10 @@ export default function DashboardPage() {
                     </div>
                   )}
                 </Card>
-
-                {/* 1.3 THẺ TUỔI TỒN KHO & XE LƯU KHO LÂU NHẤT */}
-                <Card>
-                  <div className="section-heading" style={{ marginBottom: "10px" }}>
-                    <div>
-                      <h3 style={{ fontSize: "14.5px", margin: 0 }}>Tuổi tồn kho</h3>
-                      <p className="muted small" style={{ margin: 0 }}>Chủ động luân chuyển xe</p>
-                    </div>
-                    <Clock3 size={17} style={{ color: "#64748b" }} />
-                  </div>
-
-                  <div className="aging-stats">
-                    {(d.aging ?? []).map((a) => (
-                      <div key={a.bucket}>
-                        <strong>{a.count}</strong>
-                        <span>{a.bucket} ngày</span>
-                      </div>
-                    ))}
-                  </div>
-
-                  {d.longest_stock?.length ? (
-                    <div className="compact-list" style={{ marginTop: "12px" }}>
-                      <span className="small muted" style={{ fontWeight: 600 }}>Xe lưu kho lâu nhất:</span>
-                      {d.longest_stock.slice(0, 3).map((v) => (
-                        <Link className="compact-row" key={v.id} to={"/vehicles/" + v.id}>
-                          <div>
-                            <strong>{v.brand} {v.model}</strong>
-                            <small>{v.license_plate || v.frame_number || v.internal_code}</small>
-                          </div>
-                          <span className="age-badge">
-                            {v.days_in_inventory ?? daysInStock(v.purchase_date)} ngày
-                          </span>
-                        </Link>
-                      ))}
-                    </div>
-                  ) : null}
-                </Card>
               </div>
 
                 {/* 2.2 BIỂU ĐỒ NHỊP KINH DOANH TRONG KỲ */}
-                {canManage(profile) ? (
+                {canManage(profile) && (
                   <Card className="revenue-card">
                     <div className="section-heading">
                       <div>
@@ -414,23 +375,6 @@ export default function DashboardPage() {
                       <span>{d.sales_count} xe đã bán</span>
                     </div>
                     <RevenueChart points={d.daily_sales ?? []} />
-                  </Card>
-                ) : (
-                  <Card>
-                    <h2>Công việc trong ngày</h2>
-                    <p className="muted">
-                      Tìm nhanh xe trong kho, bổ sung thông tin xe hoặc ghi nhận giao dịch khi khách nhận xe.
-                    </p>
-                    <div className="day-tasks-links" style={{ marginTop: 18 }}>
-                      <Link to="/vehicles">
-                        Mở kho xe <ArrowRight size={16} />
-                      </Link>
-                      {canOperate(profile) && (
-                        <Link to="/sell">
-                          Tạo giao dịch bán <ArrowUpRight size={16} />
-                        </Link>
-                      )}
-                    </div>
                   </Card>
                 )}
 

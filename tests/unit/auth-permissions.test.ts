@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { canFinance, canManage, canOperate, isOwner, roleLabels } from '@/lib/permissions'
+import { canDeleteVehicle, canFinance, canManage, canOperate, isOwner, roleLabels } from '@/lib/permissions'
 import { FICTIONAL_PROFILES } from '../fixtures/fictional-data'
 import type { Profile, Role } from '@/types'
 
@@ -90,6 +90,21 @@ describe('Role and Permission Security (Unit: UI and Permission Helpers)', () =>
       expect(canFinance(null)).toBe(false)
       expect(canManage(null)).toBe(false)
       expect(canOperate(null)).toBe(false)
+    })
+  })
+
+  describe('canDeleteVehicle (hard-delete gate)', () => {
+    it('allows OWNER and MANAGER regardless of financial flag', () => {
+      expect(canDeleteVehicle(makeProfile('OWNER', true))).toBe(true)
+      expect(canDeleteVehicle(makeProfile('MANAGER', false))).toBe(true)
+      expect(canDeleteVehicle(makeProfile('MANAGER', true))).toBe(true)
+    })
+
+    it('denies STAFF, inactive high-level accounts, and unauthenticated users', () => {
+      expect(canDeleteVehicle(makeProfile('STAFF', true))).toBe(false)
+      expect(canDeleteVehicle(makeProfile('OWNER', true, false))).toBe(false)
+      expect(canDeleteVehicle(makeProfile('MANAGER', true, false))).toBe(false)
+      expect(canDeleteVehicle(null)).toBe(false)
     })
   })
 

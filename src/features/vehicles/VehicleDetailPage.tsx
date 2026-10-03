@@ -1,6 +1,10 @@
 import { useEffect, useState } from "react";
-import { Link, useLocation, useParams } from "react-router-dom";
-import { useQuery } from "@tanstack/react-query";
+import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
+import {
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from "@tanstack/react-query";
 import {
   ArrowLeft,
   ArrowRight,
@@ -9,17 +13,26 @@ import {
   Pencil,
   ShoppingBag,
   Copy,
+  Trash2,
+  X,
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { money, dateLabel, daysInStock } from "@/lib/format";
-import { canFinance, canManage, canOperate } from "@/lib/permissions";
+import {
+  canDeleteVehicle,
+  canFinance,
+  canManage,
+  canOperate,
+} from "@/lib/permissions";
 import { useAuth } from "@/features/auth/AuthProvider";
+import { toast } from "@/lib/toast";
 import {
   Badge,
   Button,
   Card,
   EmptyState,
   ErrorState,
+  Field,
   Loading,
   PageHeader,
 } from "@/components/ui";
@@ -37,7 +50,9 @@ export function VehicleDetailPage() {
   const { id } = useParams();
   const { profile } = useAuth();
   const location = useLocation();
+  const navigate = useNavigate();
   const [expenseOpen, setExpenseOpen] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
   const [message, setMessage] = useState("");
 
   const query = useQuery({
@@ -87,6 +102,7 @@ export function VehicleDetailPage() {
   const activeSale = vehicle.sales?.find((sale) => sale.status === "COMPLETED");
   const available = ["IN_STOCK", "RESERVED"].includes(vehicle.status);
   const financial = canFinance(profile);
+  const hasSales = !!vehicle.sales?.length;
 
   return (
     <div className="stack">
@@ -99,12 +115,12 @@ export function VehicleDetailPage() {
       </Link>
       <PageHeader
         title={`${vehicle.brand} ${vehicle.model}`}
-        description={`Số khung: ${vehicle.frame_number || "—"} · ${vehicle.license_plate || "Chưa có biển số"} · ${vehicle.internal_code}`}
+        description={`Số khung: ${vehicle.frame_number || "—"} · ${vehicle.license_plate || "Chưa có biển số"}`}
         actions={
           <div className="row">
             {canManage(profile) && available && (
               <Button variant="secondary" onClick={() => setExpenseOpen(true)}>
-                <CirclePlus size={16} /> + Chi phí
+                <CirclePlus size={16} /> Chi phí
               </Button>
             )}
             {canOperate(profile) &&
@@ -121,6 +137,14 @@ export function VehicleDetailPage() {
               <Link className="button primary" to={`/vehicles/${id}/sell`}>
                 <ShoppingBag size={17} /> Bán xe này
               </Link>
+            )}
+            {canDeleteVehicle(profile) && !hasSales && (
+              <Button
+                variant="danger"
+                onClick={() => setDeleteOpen(true)}
+              >
+                <Trash2 size={16} /> Xóa xe khỏi kho
+              </Button>
             )}
           </div>
         }
@@ -172,6 +196,41 @@ export function VehicleDetailPage() {
           )}
         </p>
       )}
+      {/* Vehicle value leads the page: one horizontal strip so the money
+          figures are the first thing owners scan, on every screen size. */}
+      <Card>
+        <h2 className="section-title">Giá trị xe</h2>
+        <div className="value-summary">
+          <div className="value-item highlight">
+            <span>Giá bán dự kiến</span>
+            <strong>{money(vehicle.asking_price)}</strong>
+          </div>
+          {financial && (
+            <>
+              <div className="value-item">
+                <span>Giá mua</span>
+                <strong>
+                  {vehicle.cost_pending
+                    ? "Chờ bổ sung"
+                    : money(vehicle.purchase_price)}
+                </strong>
+              </div>
+              <div className="value-item">
+                <span>Chi phí phát sinh</span>
+                <strong>{money(vehicle.expense_total ?? 0)}</strong>
+              </div>
+              <div className="value-item total">
+                <span>Tổng giá vốn</span>
+                <strong>
+                  {vehicle.cost_pending
+                    ? "Chờ bổ sung"
+                    : money(vehicle.total_cost)}
+                </strong>
+              </div>
+            </>
+          )}
+        </div>
+      </Card>
       <div className="detail-grid">
         <div className="stack">
           <section id="photos">
@@ -216,7 +275,6 @@ export function VehicleDetailPage() {
                 ],
                 ["Số khung", vehicle.frame_number],
                 ["Số máy", vehicle.engine_number],
-                ["Mã xe", vehicle.internal_code],
                 ["Ngày nhập kho", dateLabel(vehicle.purchase_date)],
                 ["Nhà cung cấp", vehicle.supplier_name],
                 ["SĐT nhà cung cấp", vehicle.supplier_phone],
@@ -231,7 +289,6 @@ export function VehicleDetailPage() {
                         "Biển số",
                         "Số khung",
                         "Số máy",
-                        "Mã xe",
                         "SĐT nhà cung cấp",
                       ].includes(String(label)) && (
                         <button
@@ -339,37 +396,6 @@ export function VehicleDetailPage() {
         </div>
         <aside className="stack">
           <VehicleQr vehicle={vehicle} />
-          <Card>
-            <h2 className="section-title">Giá trị xe</h2>
-            <div className="price-hero">
-              <span className="muted">Giá bán dự kiến</span>
-              <strong>{money(vehicle.asking_price)}</strong>
-            </div>
-            {financial && (
-              <dl className="summary-list">
-                <div>
-                  <dt>Giá mua</dt>
-                  <dd>
-                    {vehicle.cost_pending
-                      ? "Chờ bổ sung"
-                      : money(vehicle.purchase_price)}
-                  </dd>
-                </div>
-                <div>
-                  <dt>Chi phí phát sinh</dt>
-                  <dd>{money(vehicle.expense_total ?? 0)}</dd>
-                </div>
-                <div className="summary-total">
-                  <dt>Tổng giá vốn</dt>
-                  <dd>
-                    {vehicle.cost_pending
-                      ? "Chờ bổ sung"
-                      : money(vehicle.total_cost)}
-                  </dd>
-                </div>
-              </dl>
-            )}
-          </Card>
           {activeSale && (
             <Card>
               <h2 className="section-title">Giao dịch bán xe</h2>
@@ -433,6 +459,16 @@ export function VehicleDetailPage() {
           )}
         </aside>
       </div>
+      {deleteOpen && (
+        <DeleteVehicleDialog
+          vehicle={vehicle}
+          onClose={() => setDeleteOpen(false)}
+          onDeleted={() => {
+            toast.success("Đã xóa xe khỏi kho.");
+            navigate("/vehicles", { state: { fromInventory: true } });
+          }}
+        />
+      )}
       <QuickExpenseModal
         vehicleId={vehicle.id}
         vehicleName={`${vehicle.brand} ${vehicle.model}`}
@@ -443,5 +479,94 @@ export function VehicleDetailPage() {
         onSuccess={() => setMessage("Đã lưu chi phí cho xe.")}
       />
     </div>
+  );
+}
+
+// Xóa cứng xe kho: chỉ OWNER/MANAGER, xe chưa từng có giao dịch bán.
+// Thao tác không thể hoàn tác — toàn bộ chi phí, ảnh, lịch sử xe bị gỡ khỏi
+// hệ thống (vết kiểm toán vẫn giữ trong audit_logs).
+function DeleteVehicleDialog({
+  vehicle,
+  onClose,
+  onDeleted,
+}: {
+  vehicle: Vehicle;
+  onClose: () => void;
+  onDeleted: () => void;
+}) {
+  const client = useQueryClient();
+  const [reason, setReason] = useState("");
+  const remove = useMutation({
+    mutationFn: () => api.deleteVehicle(vehicle.id, reason.trim()),
+    onSuccess: async () => {
+      await client.invalidateQueries({ queryKey: ["vehicles"] });
+      await client.invalidateQueries({ queryKey: ["acquisitions"] });
+      await client.invalidateQueries({ queryKey: ["dashboard"] });
+      onDeleted();
+    },
+  });
+
+  return (
+    <Card style={{ borderLeft: "4px solid #dc2626" }}>
+      <div className="row between">
+        <h2 className="section-title" style={{ color: "#dc2626" }}>
+          Xóa xe khỏi kho
+        </h2>
+        <Button variant="ghost" aria-label="Đóng bảng xóa xe" onClick={onClose}>
+          <X size={18} />
+        </Button>
+      </div>
+      <p className="notice" style={{ marginTop: "6px" }}>
+        Bạn sắp xóa cứng <strong>{vehicle.brand} {vehicle.model}</strong> ({vehicle.frame_number}).{" "}
+        Toàn bộ phiếu thu, chi phí, hình ảnh và lịch sử của xe sẽ bị gỡ vĩnh viễn và
+        không thể hoàn tác. Hãy dùng thao tác hủy nếu muốn giữ lại vết kiểm toán.
+      </p>
+      <form
+        className="stack"
+        style={{ marginTop: "12px" }}
+        onSubmit={(event) => {
+          event.preventDefault();
+          if (reason.trim().length >= 3 && !remove.isPending) remove.mutate();
+        }}
+      >
+        <Field
+          label="Lý do xóa (ít nhất 3 ký tự) *"
+          error={
+            reason.length > 0 && reason.trim().length < 3
+              ? "Lý do xóa cần ít nhất 3 ký tự."
+              : undefined
+          }
+        >
+          <textarea
+            minLength={3}
+            maxLength={1000}
+            required
+            disabled={remove.isPending}
+            value={reason}
+            onChange={(event) => setReason(event.target.value)}
+            placeholder="Ví dụ: Nhập nhầm xe, trùng lặp phiếu, xe không còn giữ…"
+            rows={2}
+          />
+        </Field>
+        {remove.isError && <ErrorState error={remove.error} />}
+        <div className="form-actions">
+          <Button
+            type="button"
+            variant="secondary"
+            onClick={onClose}
+            disabled={remove.isPending}
+          >
+            Giữ lại
+          </Button>
+          <Button
+            type="submit"
+            variant="danger"
+            disabled={remove.isPending || reason.trim().length < 3}
+          >
+            {remove.isPending ? "Đang xóa…" : "Xác nhận xóa xe"}
+          </Button>
+        </div>
+      </form>
+    </Card>
   );
 }

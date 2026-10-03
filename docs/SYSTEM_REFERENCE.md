@@ -82,7 +82,6 @@ Trích từ cây route trong `src/App.tsx` (thành phần `Protected` kế thừ
 | --- | --- |
 | `/login` | công khai (không cần đăng nhập) |
 | `/showroom` | công khai (không cần đăng nhập) |
-| `/forgot-password` | công khai (không cần đăng nhập) |
 | `/reset-password` | công khai (không cần đăng nhập) |
 | `/change-password` | công khai (không cần đăng nhập) |
 | `/` | đăng nhập |
@@ -105,7 +104,6 @@ Trích từ cây route trong `src/App.tsx` (thành phần `Protected` kế thừ
 | `/vehicles/:id/edit` | STAFF trở lên (trong lịch làm việc) |
 | `/vehicles/:id/sell` | STAFF trở lên (trong lịch làm việc) |
 | `/sell` | STAFF trở lên (trong lịch làm việc) |
-| `/reconciliation` | MANAGER hoặc OWNER |
 | `/expenses` | MANAGER hoặc OWNER |
 | `/users` | MANAGER hoặc OWNER |
 | `/audit` | chỉ OWNER |

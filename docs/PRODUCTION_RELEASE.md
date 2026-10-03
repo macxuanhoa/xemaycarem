@@ -23,7 +23,9 @@ Last reviewed: 2026-10-02 (Asia/Saigon) — release-prep pass 4 (backend product
 
 ## Migration inventory and reconciliation
 
-Local files: versions `20260930000100` (001) through `20261001003100` (031), 31 total. The 2026-10-02 production capture (`backups/carem-prod-20261002-091111-migration-history.txt`) shows production has **001–025 applied** and therefore **026–031 pending**. Version 018 is present in that ledger, which is why it is kept locally as a neutralized no-op placeholder so `db push` sees it already-applied and executes nothing. The captured RLS policies are the pre-reconciliation (025-era) bodies, which is exactly the drift migration 031 re-applies. Production status is `CONFIRMED via local capture` for 001–025 and `PENDING` for 026–031, but the project-ref provenance of the capture is not independently verified here. The disposable database replay (31 migrations, incl. 026–031) is a local test only. Versions 026–031 (the pending set):
+> **2026-10-03 status update (verified via Supabase CLI):** Production migration ledger 001–037 are **APPLIED** on project `atsgqtarxhmxrsugulva` (xemaycarem, Singapore). `db push --dry-run` reports “Remote database is up to date.” The earlier snapshot below (“001–025 applied, 026–031 pending”) was captured when CLI access was unavailable and is now historically accurate only at the time of writing. The migration table rows that say “UNVERIFIED” or “No — reconcile ledger/target first” for migrations 001–037 are superseded: they were applied safely under the backup → dry-run → push → verify protocol.
+
+Local files at the time of the original audit: versions `20260930000100` (001) through `20261001003100` (031), 31 total. The 2026-10-02 production capture (`backups/carem-prod-20261002-091111-migration-history.txt`) showed production had **001–025 applied** and **026–031 pending**. Version 018 is present in that ledger, which is why it is kept locally as a neutralized no-op placeholder so `db push` sees it already-applied and executes nothing. The captured RLS policies are the pre-reconciliation (025-era) bodies, which is exactly the drift migration 031 re-applies. Since that capture, migrations 026–037 have been successfully applied.
 
 | Version | Local purpose | Static safety review | Production status | Safe to apply now? |
 |---|---|---|---|---|
@@ -62,12 +64,12 @@ Local files: versions `20260930000100` (001) through `20261001003100` (031), 31 
 | 024 | Operational integrity constraints and concurrency behavior | Review existing data for conflicts/locks before any apply | UNVERIFIED | No |
 | 025 | Password-change proof and financial visibility controls | **Review required**; adds private tracking/trigger behavior, changes authorization/policy surface, removes legacy helpers | UNVERIFIED | No |
 
-No production-only migrations, manually applied migrations, duplicate versions, or remote-only versions could be confirmed or ruled out. There are no duplicate local version prefixes in the 25-file directory. Historical Auth and business SQL has been statically inspected; a missing remote ledger means we cannot identify the pending subset or certify any row safe to apply. Do not infer production state from file presence or local test replay.
+No production-only migrations, manually applied migrations, duplicate versions, or remote-only versions could be confirmed or ruled out at the time of the original audit. There are no duplicate local version prefixes. Historical Auth and business SQL has been statically inspected. The remote ledger was subsequently queried successfully via the Supabase CLI (2026-10-03) and all 001–037 are confirmed applied with no orphan remote versions.
 
 ## Backup and recovery
 
-- Current production backup/PITR plan/retention: **not verified**.
-- Current usable restore point: **not verified**.
+- Current production backup/PITR plan/retention: **FREE plan — no PITR, no scheduled backups** (verified read-only 2026-10-03).
+- Current usable restore point: manual logical dumps (`backups/carem-prod-20261002-091111-*`, `backups/carem-prod-2026-10-03-083109-*`).
 - Restore drill or recovery test: **not performed**.
 - Generic procedure: `docs/OPERATIONS.md`; it does not establish current production capability.
 - Database and Storage recovery must be considered together. Before schema changes, verify the Supabase plan's backup/PITR and retention in the live Dashboard, record a usable checkpoint, and document the forward recovery for each reviewed migration. Do not invent down migrations for destructive data changes.
@@ -76,9 +78,9 @@ No production-only migrations, manually applied migrations, duplicate versions, 
 
 | Function | Purpose | Local status | Required runtime configuration | Deployed? | Production-tested? |
 |---|---|---|---|---|---|
-| `manage-users` | OWNER account administration (user create/update/reset/disable flows) | Local code and tests present; runtime CORS/auth/role flows not hosted-verified | Supabase URL and public/anon key, server-side administrative key; CORS now enforces the `ALLOWED_ORIGINS` env list (exact origins; unset falls back to SDK defaults for local development only) | Unknown / not verified | No |
-| `ai-assist` | Optional authenticated, role-aware read-only assistant | Local code present; remains disabled | `AI_ENABLED=true`, `AI_PROVIDER_API_KEY`, `AI_MODEL` plus Supabase runtime configuration | Unknown / not verified; should remain undeployed until separately reviewed | No |
-| `reset-owner` | Retired endpoint | Local handler returns HTTP 410 | None | Must not deploy | No |
+| `manage-users` | OWNER account administration (user create/update/reset/disable flows) | Local code and tests present; deployed v10 ACTIVE (2026-10-02); runtime behavior parity with post-refactor committed source (`4cc3ff9`) is UNVERIFIED | Supabase URL and public/anon key, server-side administrative key; CORS now enforces the `ALLOWED_ORIGINS` env list (exact origins; unset falls back to SDK defaults for local development only) | Yes — v10 | Parity check pending |
+| `ai-assist` | Optional authenticated, role-aware read-only assistant | Local code present; deployed v3 ACTIVE (2026-10-02) | `AI_ENABLED=true`, `AI_PROVIDER_API_KEY`, `AI_MODEL` plus Supabase runtime configuration | Yes — v3 | Deterministic path exercised; LLM path unconfigured |
+| `reset-owner` | Retired endpoint | Local handler returns HTTP 410 | None | Correctly not deployed | No |
 
 `process-message` requires explicit `verify_jwt = true` (declared in `supabase/config.toml`) and authenticated worker invocation; messaging remains MOCK-only and it must not block the CRM release.
 
@@ -86,7 +88,7 @@ Never place service/admin or provider credentials in client code, migration noti
 
 ## Production smoke tests
 
-All hosted checks below are **NOT TESTED** because no authenticated production connection/deployment was available. No real records or users were created/modified.
+The Vercel production smoke script (`scripts/smoke-vercel-prod.mjs`) passes on `xemaycarem.vercel.app` (verified 2026-10-03). The following deeper hosted checks remain partially or fully untested:
 
 | Area | Status | Safe next verification |
 |---|---|---|
@@ -105,6 +107,6 @@ Local gates recorded in `docs/VERIFICATION.md` remain separate from production r
 
 ## Next safe action
 
-Make Supabase CLI access available using the approved local authentication flow without sharing tokens in chat. Then verify the live project ref and query `migration list --linked` read-only. In parallel, verify backup/PITR and restore point in the Dashboard. Reconcile all local/remote versions, including the deliberately omitted unsafe version 018, and prepare an exact reviewed migration plan before considering any production mutation. Stop if identity, ledger, or recovery evidence does not match.
+Supabase CLI access is available and the live project ref has been verified (see 2026-10-03 status update above). Future production writes still require: re-confirm target identity, take a same-day pre-write dump, run `db push --dry-run`, apply only explicitly authorized forward migrations, verify post-apply state, and update this document. `manage-users` deployed-version parity with the `4cc3ff9` committed source is the top pending hosted-verification item.
 
 

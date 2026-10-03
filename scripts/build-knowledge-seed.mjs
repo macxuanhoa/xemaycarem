@@ -7,20 +7,31 @@
  * databases get the same rows without touching the filesystem at runtime).
  *
  * Usage:
- *   node scripts/build-knowledge-seed.mjs                 # write the fixed seed migration
- *   node scripts/build-knowledge-seed.mjs --out <path>     # write elsewhere (inspection)
+ *   node scripts/build-knowledge-seed.mjs                 # write the mutable seed migration (038)
+ *   node scripts/build-knowledge-seed.mjs --out <path>     # write elsewhere (explicit forward reseed)
  *   node scripts/build-knowledge-seed.mjs --stdout          # print without writing
  *   node scripts/build-knowledge-seed.mjs --check           # fail if the committed seed is stale
+ *
+ * SAFETY: the generator refuses to write to historical applied migrations
+ * (see HISTORICAL_SEED_FILES). Use --out with a new forward migration number
+ * when you need to create a subsequent reseed.
  *
  * Each `## ` heading becomes one row so a citation can link straight to the section.
  * Audience tiers follow private.knowledge_visible(): ALL, STAFF, MANAGER, OWNER.
  */
 import { readFile, writeFile, mkdir } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
-import { dirname, join, basename } from 'node:path';
+import { dirname, join, basename, resolve } from 'node:path';
 
 const root = dirname(dirname(fileURLToPath(import.meta.url)));
-const SEED_FILE = '20261001002900_knowledge_seed.sql';
+// The mutable canonical seed migration that the generator writes to.
+// Future doc changes go here, NOT into a historical applied migration.
+const SEED_FILE = '20261002003800_knowledge_reseed.sql';
+// Historical seed migrations that are already applied in production and must
+// never be overwritten. The generator refuses to target these.
+const HISTORICAL_SEED_FILES = new Set([
+  '20261001002900_knowledge_seed.sql',
+]);
 const MAX_BODY = 58_000;
 
 /** source_path -> { audience, title } */
@@ -185,8 +196,18 @@ if (args.includes('--stdout')) {
   }
 } else {
   const outIndex = args.indexOf('--out');
-  const target = outIndex >= 0 ? args[outIndex + 1] : join(root, 'supabase', 'migrations', SEED_FILE);
+  const target = outIndex >= 0
+    ? resolve(root, args[outIndex + 1])
+    : join(root, 'supabase', 'migrations', SEED_FILE);
+  // Safety guard: refuse to overwrite a historical applied migration.
+  const targetBase = basename(target);
+  if (HISTORICAL_SEED_FILES.has(targetBase)) {
+    console.error(`\nERROR: refusing to write to historical applied migration '${targetBase}'.`);
+    console.error(`This migration is live in production and must not be modified.`);
+    console.error(`Use the default target or --out <forward-reseed-path> instead.\n`);
+    process.exit(1);
+  }
   await mkdir(dirname(target), { recursive: true });
   await writeFile(target, sql, 'utf8');
-  console.log(`knowledge_base seed: ${count} documentation sections.`);
+  console.log(`knowledge_base seed: ${count} documentation sections → ${targetBase}`);
 }

@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { CalendarClock } from "lucide-react";
 import { Button, Card, ErrorState, Field } from "@/components/ui";
 import { api } from "@/lib/api";
+import { friendlyError } from "@/lib/errors";
 import { WorkingDaysPicker } from "./WorkingDaysPicker";
 
 /** Shared working-time settings live on system_settings and apply to every
@@ -55,9 +56,9 @@ export function SharedScheduleCard({ onSaved }: { onSaved: (msg: string) => void
       onSaved("Đã cập nhật giờ làm việc chung cho Quản lý và Nhân viên.");
     },
     onError: (err: unknown) => {
-      setError(
-        err instanceof Error ? err.message : "Không thể lưu giờ làm việc chung.",
-      );
+      // PostgREST rejects with plain objects sometimes; surface the real cause
+      // instead of the generic fallback so owners know what to fix.
+      setError(friendlyError(err) || "Không thể lưu giờ làm việc chung.");
     },
   });
 

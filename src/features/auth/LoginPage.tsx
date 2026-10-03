@@ -154,11 +154,6 @@ export default function LoginPage() {
                 <input type="checkbox" {...register("remember")} />
                 <span>Duy trì đăng nhập</span>
               </label>
-              {import.meta.env.VITE_ENABLE_PASSWORD_RESET === "true" && (
-                <Link className="text-link" to="/forgot-password">
-                  Quên mật khẩu?
-                </Link>
-              )}
             </div>
             {!!(error || authError) && (
               <p className="field-error" role="alert">
@@ -191,10 +186,11 @@ export default function LoginPage() {
     </main>
   );
 }
-export function PasswordPage({ reset = false }: { reset?: boolean }) {
+// Supabase Auth recovery landing: the user arrives here already signed in via
+// the emailed recovery link and only needs to set a new password.
+export function PasswordPage() {
   const { user } = useAuth();
-  const [email, setEmail] = useState(""),
-    [password, setPassword] = useState(""),
+  const [password, setPassword] = useState(""),
     [message, setMessage] = useState(""),
     [error, setError] = useState<unknown>(null),
     [busy, setBusy] = useState(false);
@@ -204,17 +200,9 @@ export function PasswordPage({ reset = false }: { reset?: boolean }) {
     setBusy(true);
     setError(null);
     try {
-      const { error } = reset
-        ? await supabase.auth.updateUser({ password })
-        : await supabase.auth.resetPasswordForEmail(email, {
-            redirectTo: location.origin + "/reset-password",
-          });
+      const { error } = await supabase.auth.updateUser({ password });
       if (error) throw error;
-      setMessage(
-        reset
-          ? "Mật khẩu đã được cập nhật."
-          : "Nếu email có trong hệ thống, hướng dẫn đặt lại mật khẩu sẽ được gửi tới bạn.",
-      );
+      setMessage("Mật khẩu đã được cập nhật.");
     } catch (e) {
       setError(e);
     } finally {
@@ -224,32 +212,21 @@ export function PasswordPage({ reset = false }: { reset?: boolean }) {
   return (
     <div className="auth-simple">
       <div className="card stack">
-        <h1>{reset ? "Đặt lại mật khẩu" : "Quên mật khẩu"}</h1>
-        {reset && !user ? (
+        <h1>Đặt lại mật khẩu</h1>
+        {!user ? (
           <p>Vui lòng mở liên kết đặt lại mật khẩu hợp lệ từ email.</p>
         ) : (
           <form className="stack" onSubmit={submit}>
-            {reset ? (
-              <Field label="Mật khẩu mới">
-                <input
-                  type="password"
-                  autoComplete="new-password"
-                  minLength={12}
-                  required
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                />
-              </Field>
-            ) : (
-              <Field label="Email">
-                <input
-                  type="email"
-                  required
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                />
-              </Field>
-            )}
+            <Field label="Mật khẩu mới">
+              <input
+                type="password"
+                autoComplete="new-password"
+                minLength={12}
+                required
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+              />
+            </Field>
             <Button type="submit" disabled={busy || !isConfigured}>
               Tiếp tục
             </Button>

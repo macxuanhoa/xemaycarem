@@ -156,10 +156,10 @@ export default function App() {
         <Routes>
           <Route path="/login" element={<LoginPage />} />
           <Route path="/showroom" element={<ShowroomPage />} />
-          {import.meta.env.VITE_ENABLE_PASSWORD_RESET === "true" && (
-            <Route path="/forgot-password" element={<PasswordPage />} />
-          )}
-          <Route path="/reset-password" element={<PasswordPage reset />} />
+          {/* Password recovery is OWNER/admin-initiated; this route is the
+              Supabase Auth recovery callback where the signed-in user sets a new
+              password. Self-service email reset is obsolete for internal accounts. */}
+          <Route path="/reset-password" element={<PasswordPage />} />
           <Route path="/change-password" element={<ChangePasswordPage />} />
           <Route element={<Protected />}>
             <Route element={<AppLayout />}>
@@ -192,7 +192,6 @@ export default function App() {
                 <Route path="sell" element={<SellVehiclePage />} />
               </Route>
               <Route element={<Protected access="manage" />}>
-                <Route path="reconciliation" element={<Navigate to="/expenses" replace />} />
                 <Route path="expenses" element={<ExpensesPage />} />
                 {/* Managers reach Nhân sự only to set roles of their juniors. */}
                 <Route path="users" element={<UsersPage />} />

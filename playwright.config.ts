@@ -21,7 +21,6 @@ export default defineConfig({
     env: {
       VITE_SUPABASE_URL: "https://xe-test.supabase.co",
       VITE_SUPABASE_ANON_KEY: "e2e-public-placeholder",
-      VITE_ENABLE_PASSWORD_RESET: "false",
     },
   },
 });

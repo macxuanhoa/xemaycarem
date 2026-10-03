@@ -8,7 +8,7 @@ import { api } from "@/lib/api";
 import { AppError } from "@/lib/errors";
 import { today } from "@/lib/format";
 import { useDebouncedValue } from "@/lib/useDebouncedValue";
-import { canFinance, canManage, canCreateVehicle, canEditVehicle } from "@/lib/permissions";
+import { canFinance, canManage, canOperate } from "@/lib/permissions";
 import { useAuth } from "@/features/auth/AuthProvider";
 import {
   Button,
@@ -45,7 +45,7 @@ export function VehicleFormPage() {
   });
 
   const isEditing = !!id;
-  const hasPermission = isEditing ? canEditVehicle(profile) : canCreateVehicle(profile);
+  const hasPermission = canOperate(profile);
 
   if (!hasPermission)
     return (

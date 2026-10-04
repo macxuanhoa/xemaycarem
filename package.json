@@ -20,6 +20,9 @@
     "knowledge:seed": "npm run knowledge:system && node scripts/build-knowledge-seed.mjs",
     "knowledge:check": "node scripts/build-system-docs.mjs --check && node scripts/build-knowledge-seed.mjs --check",
     "test:pwa": "node scripts/check-pwa.mjs",
+    "backup:prod": "node scripts/backup-prod.mjs",
+    "backup:verify": "node scripts/backup-verify.mjs",
+    "backup:status": "node scripts/backup-status.mjs",
     "format": "prettier --write src tests playwright.config.ts vitest.config.ts vite.config.ts",
     "check": "npm run lint && npm run typecheck && npm run test && npm run knowledge:check && npm run test:db && npm run build",
     "db:types": "supabase gen types typescript --local > src/types/database.generated.ts"

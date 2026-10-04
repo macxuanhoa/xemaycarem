@@ -53,9 +53,13 @@ export function CreateUserModal({ onDone }: { onDone: () => void }) {
       aria-modal="true"
       aria-labelledby="create-user-title"
     >
-      <div
+      {/* The <form> wraps the whole sheet so the action footer can sit as a
+          sibling of the scrolling body — same pattern as StaffSettingsModal.
+          A footer inside the scroll container clipped off-screen on phones. */}
+      <form
         className="modal-card user-create-modal"
         onClick={(e) => e.stopPropagation()}
+        onSubmit={handleSubmit}
       >
         <div className="user-settings-header">
           <div className="user-settings-avatar-wrap">
@@ -81,7 +85,7 @@ export function CreateUserModal({ onDone }: { onDone: () => void }) {
           </button>
         </div>
 
-        <form className="user-settings-body stack" onSubmit={handleSubmit}>
+        <div className="user-settings-body stack">
           <div className="form-grid">
             <Field label="Họ và tên nhân viên">
               <input
@@ -162,17 +166,17 @@ export function CreateUserModal({ onDone }: { onDone: () => void }) {
 
           {error && <p className="field-error">{error}</p>}
           {!!m.error && !error && <ErrorState error={m.error} />}
+        </div>
 
-          <div className="user-settings-footer user-create-footer">
-            <Button variant="secondary" type="button" onClick={onDone}>
-              Hủy
-            </Button>
-            <Button type="submit" disabled={m.isPending}>
-              {m.isPending ? "Đang khởi tạo…" : "Tạo tài khoản"}
-            </Button>
-          </div>
-        </form>
-      </div>
+        <div className="user-settings-footer user-create-footer">
+          <Button variant="secondary" type="button" onClick={onDone}>
+            Hủy
+          </Button>
+          <Button type="submit" disabled={m.isPending}>
+            {m.isPending ? "Đang khởi tạo…" : "Tạo tài khoản"}
+          </Button>
+        </div>
+      </form>
     </div>
   );
 }

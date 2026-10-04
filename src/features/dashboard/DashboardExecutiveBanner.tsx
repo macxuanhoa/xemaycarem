@@ -82,7 +82,9 @@ export function DashboardExecutiveBanner({
             <span>Quét / Chụp</span>
           </Link>
 
-          <Link to="/assist" className="carem-btn carem-btn-sparkle">
+          {/* Trợ lý AI thật nằm ở sidebar (/copilot); trang /assist cũ dựa
+              provider chưa cấu hình nên không còn dùng được nữa. */}
+          <Link to="/copilot" className="carem-btn carem-btn-sparkle">
             <Sparkles size={15} />
             <span>Hỏi Cà Rem AI</span>
           </Link>

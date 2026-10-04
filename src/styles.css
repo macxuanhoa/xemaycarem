@@ -2777,9 +2777,12 @@ pre {
        capped at 88% so a dim backdrop always remains tappable). */
     width: min(max(80vw, 260px), 88vw);
     /* Safe-area padding keeps content clear of the notch/home indicator
-       while the drawer background still covers the full viewport. */
+       while the drawer background still covers the full viewport.
+       The drawer paints over the bottom nav (z 60 vs 25), so no extra
+       75px clearance is needed — it just left a dead band under the
+       store card. 18px mirrors the top padding for visual balance. */
     padding: max(18px, env(safe-area-inset-top)) 14px
-      calc(75px + env(safe-area-inset-bottom));
+      calc(18px + env(safe-area-inset-bottom));
   }
   .sidebar.open {
     transform: translateX(0);
@@ -3319,6 +3322,10 @@ pre {
   .field > input,
   .field > select,
   .field > textarea,
+  /* AutocompleteInput nests its <input> in a wrapper, so the child-combinator
+     rules above miss it and it inherits .field's 13px — enough for iOS to
+     punch the viewport in on focus. */
+  .field .autocomplete-input,
   .global-search input,
   .date-range select,
   .date-range input {
@@ -4455,7 +4462,10 @@ pre {
     width: 100%;
     min-width: 0;
     flex: 1;
-    font-size: 13px;
+    /* 16px floor: iOS Safari auto-zooms the viewport when a focused input is
+       smaller than 16px. Keep the search box at 16px so tapping it no longer
+       punches in; same guard the other mobile inputs already use. */
+    font-size: 16px;
   }
   .search-palette-badge {
     display: none !important;
@@ -4741,10 +4751,10 @@ pre {
   flex: 0 0 auto;
 }
 
-/* Create-user modal footer lives inside the scrolling body; it offsets the
-   body padding instead of hard-coding pixel margins in the component. */
+/* Create-user modal footer is a sibling of the scrolling body (like the staff
+   settings sheet); the negative side margins bleed it past the body padding. */
 .user-create-footer {
-  margin: 16px -24px -24px;
+  margin: 0 -24px -24px;
   border-radius: 0 0 20px 20px;
 }
 
@@ -4799,9 +4809,10 @@ pre {
   }
   .user-settings-footer {
     padding: 12px 16px calc(12px + env(safe-area-inset-bottom));
+    flex-shrink: 0;
   }
   .user-create-footer {
-    margin: 16px -16px calc(-16px - env(safe-area-inset-bottom));
+    margin: 0 -16px;
     border-radius: 0;
   }
 }
@@ -8408,6 +8419,106 @@ html[data-theme="dark"] .header-theme-toggle {
   flex-wrap: wrap;
   margin-top: 12px;
 }
+
+/* --- Công thức viết tắt luôn hiển thị phía trên ô dán ghi chú ---
+   A placeholder disappears on the first keystroke, but that is exactly when
+   someone mid-note needs to check how "niemyet" was spelled. */
+.intake-guide {
+  border: 1px solid var(--line, #e2e8f0);
+  background: #f8fafc;
+  border-radius: 12px;
+  padding: 10px 12px;
+  margin-bottom: 10px;
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+}
+.intake-notes-card > .section-title {
+  margin-bottom: 10px;
+}
+.intake-guide-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.intake-guide-title {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: #435b4e;
+}
+.intake-guide-fill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid #c7d2fe;
+  background: #fff;
+  color: #3730a3;
+  border-radius: 999px;
+  padding: 5px 11px;
+  min-height: 32px;
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+  transition:
+    background 150ms ease,
+    transform 150ms ease;
+}
+.intake-guide-fill:hover {
+  background: #eef2ff;
+  transform: translateY(-1px);
+}
+.intake-guide-lines {
+  list-style: none;
+  margin: 0;
+  padding: 5px 8px;
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+  background: #fff;
+  border-left: 2px solid #cfd6e2;
+  border-radius: 0 8px 8px 0;
+}
+.intake-guide-lines code {
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 11.5px;
+  line-height: 1.5;
+  color: #1f2937;
+  overflow-wrap: anywhere;
+}
+.intake-guide-legend {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.intake-guide-legend li {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 4px;
+  min-width: 0;
+  font-size: 11px;
+  color: #64748b;
+  background: #fff;
+  border: 1px solid #e6e9f0;
+  border-radius: 999px;
+  padding: 2px 8px;
+}
+.intake-guide-legend code {
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 10.5px;
+  color: #334155;
+}
+/* "=" between the shorthand and its meaning, so the chips do not read as one
+   run-on phrase ("bs biển số"). */
+.intake-guide-legend span::before {
+  content: "=";
+  margin-right: 4px;
+  color: #a9b3c4;
+}
 .intake-source {
   margin: 2px 0 12px;
   overflow-wrap: anywhere;
@@ -8588,10 +8699,102 @@ html[data-theme="dark"] .header-theme-toggle {
     justify-content: center;
   }
 }
+/* Review-card compaction, keyed to the app's own mobile breakpoint (768px,
+   see useMobileDrawer) rather than the 640px sheet rules above. */
+@media (max-width: 768px) {
+  /* Fourteen single-column fields made each vehicle card about 1.65m tall, so
+     pairing the short ones halves how far anyone has to scroll. */
+  .intake-page {
+    gap: 14px;
+  }
+  .intake-entry {
+    padding: 16px 14px;
+  }
+  .intake-entry .section-heading {
+    margin-bottom: 10px;
+  }
+  .intake-entry .field {
+    gap: 5px;
+  }
+  .intake-entry-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px 10px;
+  }
+  .intake-entry-grid .intake-span2 {
+    grid-column: 1 / -1;
+  }
+  .intake-lesson-form {
+    grid-template-columns: 1fr;
+  }
+  /* "Bỏ" was a 20px-tall sliver and the chip actions 23px — both well under a
+     fingertip. Negative margins widen the hit area without stretching the row. */
+  .intake-remove {
+    min-height: 44px;
+    padding: 10px 8px;
+    margin: -10px -8px -10px 0;
+  }
+  .intake-token-chip button,
+  .intake-hint {
+    min-height: 36px;
+  }
+  .intake-token-chip button {
+    padding: 6px 11px;
+  }
+  .intake-guide-fill {
+    min-height: 40px;
+    /* white-space: nowrap stops the label being crushed into three lines; the
+       head then simply drops it onto its own row and lets it fill the width. */
+    flex: 1 1 auto;
+    justify-content: center;
+  }
+}
+/* Smallest phones (iPhone SE class): a sample line that wraps triples this
+   panel's height and pushes the paste box off the first screen. */
+@media (max-width: 380px) {
+  .intake-guide-lines code {
+    font-size: 10.5px;
+  }
+  .intake-guide-legend li {
+    font-size: 10.5px;
+  }
+  .intake-guide-legend code {
+    font-size: 10px;
+  }
+}
 [data-theme="dark"] .intake-notes {
   background: #14161e;
   color: #e2e5ee;
   border-color: #262833;
+}
+[data-theme="dark"] .intake-guide {
+  background: #14161e;
+  border-color: #262833;
+}
+[data-theme="dark"] .intake-guide-title {
+  color: #9fd4b4;
+}
+[data-theme="dark"] .intake-guide-lines {
+  background: #171821;
+  border-left-color: #33394b;
+}
+[data-theme="dark"] .intake-guide-lines code {
+  color: #d7dcea;
+}
+[data-theme="dark"] .intake-guide-legend li {
+  background: #171821;
+  border-color: #262833;
+  color: #8a93a6;
+}
+[data-theme="dark"] .intake-guide-legend code {
+  color: #c4cad8;
+}
+[data-theme="dark"] .intake-guide-fill {
+  background: #1d1f38;
+  border-color: #37397a;
+  color: #c7d2fe;
+}
+[data-theme="dark"] .intake-guide-fill:hover {
+  background: #232646;
 }
 [data-theme="dark"] .intake-token-chip {
   background: #171821;

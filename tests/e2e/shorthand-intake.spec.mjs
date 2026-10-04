@@ -135,3 +135,64 @@ test('staff without financial rights never sees or sends the purchase price', as
   expect('purchase_price' in row).toBe(false)
   expect(row).toMatchObject({ brand: 'Honda', model: 'Vision', asking_price: 25000000 })
 })
+
+test('the shorthand recipe stays on screen above the paste box', async ({ page }) => {
+  // A placeholder vanishes on the first keystroke, which is exactly when
+  // someone mid-note needs to check how an abbreviation was spelled.
+  await setupFixtures(page)
+  await page.goto('/intake')
+  const guide = page.locator('.intake-guide')
+  await expect(guide).toBeVisible()
+  await expect(guide.locator('.intake-guide-lines li')).toHaveCount(3)
+  const [guideBox, notesBox] = await Promise.all([
+    guide.boundingBox(),
+    page.locator('textarea.intake-notes').boundingBox(),
+  ])
+  expect(guideBox.y + guideBox.height).toBeLessThanOrEqual(notesBox.y)
+
+  // The sample must actually parse, or it teaches the wrong syntax.
+  await page.getByRole('button', { name: 'Chèn mẫu 3 xe' }).click()
+  const pasted = await page.locator('textarea.intake-notes').inputValue()
+  expect(pasted.split(String.fromCharCode(10))).toHaveLength(3)
+  await page.getByRole('button', { name: 'Tách thành danh sách' }).click()
+  await expect(page.locator('.intake-entry')).toHaveCount(3)
+  await expect(page.locator('.intake-notes-actions .muted')).toContainText('0 từ chưa nhận diện')
+})
+
+test('mobile review cards stay two-up, tappable and free of iOS zoom', async ({ page }) => {
+  // Regression: the cards were one long single-column stack of 13px inputs,
+  // so every field punched the viewport in on focus and three vehicles meant
+  // scrolling ~6 screens.
+  await setupFixtures(page)
+  await page.setViewportSize({ width: 390, height: 844 })
+  await page.goto('/intake')
+  await page.locator('textarea.intake-notes').fill('sh den bs 29b1-123.45 gia 18tr5\nex abs trang 27tr niemyet 32tr')
+  await page.getByRole('button', { name: 'Tách thành danh sách' }).click()
+  const card = page.locator('.intake-entry').first()
+  await expect(card).toBeVisible()
+
+  // Short fields pair up; the identifier fields keep a full row to themselves.
+  const columns = await card.locator('.intake-entry-grid').evaluate((node) => {
+    const fields = [...node.querySelectorAll(':scope > .field')]
+    const left = fields[2].getBoundingClientRect()
+    const right = fields[3].getBoundingClientRect()
+    const wide = fields[0].getBoundingClientRect()
+    const grid = node.getBoundingClientRect()
+    return { sideBySide: Math.abs(left.top - right.top) < 2, wideSpansGrid: Math.abs(wide.width - grid.width) < 2 }
+  })
+  expect(columns).toEqual({ sideBySide: true, wideSpansGrid: true })
+
+  // 16px floor on every control, including the nested autocomplete inputs.
+  const small = await card.evaluate((node) =>
+    [...node.querySelectorAll('input, textarea, select')]
+      .map((el) => parseFloat(getComputedStyle(el).fontSize))
+      .filter((size) => size < 16))
+  expect(small).toEqual([])
+
+  // Fingertip-sized actions.
+  expect(await card.locator('.intake-remove').evaluate((n) => n.getBoundingClientRect().height)).toBeGreaterThanOrEqual(44)
+
+  // Nothing may hang off the edge of the screen.
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390)
+})
+

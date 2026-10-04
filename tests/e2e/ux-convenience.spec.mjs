@@ -424,6 +424,32 @@ test("Staff settings and create modals stay usable on desktop and mobile", async
   ).toBeLessThanOrEqual(390);
 });
 
+test("Create-account footer stays pinned inside short mobile viewports", async ({
+  page,
+}) => {
+  // Regression: the footer used to live inside the scrolling body with a
+  // negative bottom margin, so on narrow/short phones "Hủy"/"Tạo tài khoản"
+  // were clipped past the sheet edge and could not be reached at all.
+  await installMock(page);
+  for (const viewport of [
+    { width: 360, height: 600 },
+    { width: 390, height: 844 },
+  ]) {
+    await page.setViewportSize(viewport);
+    await page.goto("/users");
+    await page.getByRole("button", { name: "Thêm tài khoản", exact: true }).click();
+    const dialog = page.getByRole("dialog", { name: "Tạo tài khoản nhân viên mới" });
+    await expect(dialog).toBeVisible();
+    await page.waitForTimeout(400);
+    const submit = dialog.getByRole("button", { name: "Tạo tài khoản", exact: true });
+    await expect(submit).toBeInViewport();
+    await expect(dialog.getByRole("button", { name: "Hủy", exact: true })).toBeInViewport();
+    // Scrolling the body must not move the footer out of view.
+    await dialog.locator(".user-settings-body").evaluate((node) => node.scrollTo(0, node.scrollHeight));
+    await expect(submit).toBeInViewport();
+  }
+});
+
 test("Temporary visual audit for dashboard icon and spacing", async ({ page }) => {
   await installMock(page);
   await page.goto("/");
@@ -472,4 +498,20 @@ test("Desktop search responds while typing with one debounced request and keyboa
   await page.keyboard.press("Enter");
   await expect(page).toHaveURL(new RegExp(`/vehicles/${vehicleId}$`));
   await expect(page.locator(".search-palette-popover")).toHaveCount(0);
+});
+
+test("Mobile search box keeps a 16px font so iOS does not auto-zoom on tap", async ({
+  page,
+}) => {
+  // Regression: a later @media rule had dropped the search input to 13px,
+  // which makes iOS Safari punch the viewport in when the box is focused.
+  await installMock(page);
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("/");
+  const input = page.getByLabel("Tìm xe toàn hệ thống", { exact: true });
+  await expect(input).toBeVisible();
+  const size = await input.evaluate((node) =>
+    parseFloat(getComputedStyle(node).fontSize),
+  );
+  expect(size).toBeGreaterThanOrEqual(16);
 });

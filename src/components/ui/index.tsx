@@ -54,13 +54,16 @@ export function Field({
   label,
   error,
   children,
+  className = "",
 }: {
   label: string;
   error?: string;
   children: ReactNode;
+  /** Extra hook for grid placement (e.g. a field that spans both columns). */
+  className?: string;
 }) {
   return (
-    <label className="field">
+    <label className={`field ${className}`.trim()}>
       <span>{label}</span>
       {children}
       {error && (

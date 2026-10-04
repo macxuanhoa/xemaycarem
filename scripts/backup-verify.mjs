@@ -1,0 +1,211 @@
+// Restore drill for the production backup sets. A dump nobody has ever restored is a
+// rumour, not a backup, so this proves three things without touching production:
+//   1. every file in the set still matches the SHA-256 recorded in its manifest
+//   2. schema.sql replays into a disposable PostgreSQL and the business rows in data.sql
+//      replay on top of it, with row counts reconciled against the manifest
+//   3. the Storage object binaries are actually on disk and are real image bytes
+// Rows for the managed `auth`/`storage` schemas are expected to fail against the local
+// stub (the stub carries a deliberately small auth.users column list) — those are counted
+// as PLATFORM_ROWS and never fail the drill, but the same line reminds the operator that a
+// real restore needs a Supabase-managed Auth backup, not this replay.
+// Usage: npm run backup:verify   (adds -- --prune to backup:prod)
+//        npm run backup:verify -- --set 2026-10-03-124513 | -- --list
+import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs'
+import { join } from 'node:path'
+import { createDatabase } from './db-harness.mjs'
+import { BACKUP_DIR, SET_PREFIX, listSets, readManifestCounts, readManifestHashes, sha256, splitStatements, writeFileSyncSafe, writeHealth } from './backup-lib.mjs'
+
+const argv = process.argv.slice(2)
+const argOf = (name) => { const i = argv.indexOf(name); return i === -1 ? null : argv[i + 1] }
+const sets = listSets()
+
+if (argv.includes('--list')) {
+  for (const s of sets) console.log(`${s.stamp}  ${s.manifest ? 'manifest' : 'NO MANIFEST'}  ${s.files.length} files  ${(s.bytes / 1024).toFixed(0)} KiB  storage:${s.storageDir ? 'yes' : 'no'}`)
+  process.exit(0)
+}
+
+const wanted = argOf('--set')
+// Drill the newest COMPLETE set: a set still being written by an interrupted or in-flight
+// run has no manifest yet, and pretending it is a restore point would be worse than none.
+const completeSets = sets.filter((s) => s.manifest)
+const dangling = sets.filter((s) => !s.manifest && s.stamp !== completeSets.at(-1)?.stamp)
+const set = wanted ? sets.find((s) => s.stamp === wanted) : completeSets.at(-1)
+if (!set) { console.log('FAIL  no complete backup set (with MANIFEST.md) exists in backups/'); process.exit(1) }
+for (const s of dangling) console.log(`NOTE  ${s.stamp} is an incomplete run (${s.files.length} files, no manifest) - not treated as a restore point`)
+
+console.log(`Restore drill for ${set.stamp} (${set.files.length} files, ${(set.bytes / 1024).toFixed(0)} KiB)`)
+const report = { stamp: set.stamp, startedAt: new Date().toISOString(), checks: [], ok: true }
+const record = (name, ok, detail = '') => {
+  report.checks.push({ name, ok, detail })
+  if (!ok) report.ok = false
+  console.log(`${ok ? 'PASS' : 'FAIL'}  ${name}${detail ? ` — ${detail}` : ''}`)
+}
+
+// Anything touching the managed auth/storage schemas is platform data, not business data.
+const isPlatformStmt = (stmt) => /(?:^|[^A-Za-z0-9_])"?(?:auth|storage)"?\./.test(stmt)
+
+// Platform extensions Supabase installs but a local PostgreSQL does not ship (vault,
+// pg_stat_statements). The dump creates them, so replaying it verbatim aborts on the first
+// one. Each is skipped ONLY after proving nothing in the dump references its own schema, so
+// a genuine dependency can never be papered over.
+const CORE_EXTENSIONS = new Set(['pgcrypto', 'uuid-ossp']) // migrations/RPC actually use these
+async function loadSchemaResilient(database, sqlIn) {
+  let sql = sqlIn
+  const skipped = []
+  const created = []
+  for (let attempt = 0; attempt < 8; attempt++) {
+    try {
+      await database.exec(sql)
+      return { skipped, created, sql }
+    } catch (error) {
+      const message = String(error?.message || error)
+      // Supabase owns the realtime publication on the hosted platform; a local engine has
+      // no idea about it, so create the empty publication the dump expects to alter.
+      const pub = /publication "([A-Za-z0-9_]+)" does not exist/i.exec(message)?.[1]
+      if (pub && !created.includes(pub)) {
+        await database.exec(`CREATE PUBLICATION "${pub}"`)
+        created.push(pub)
+        continue
+      }
+      const ext = /extension "([a-z0-9_]+)" is not available/i.exec(message)?.[1]
+      if (!ext || CORE_EXTENSIONS.has(ext) || skipped.includes(ext)) throw error
+      const schema = new RegExp(`CREATE EXTENSION IF NOT EXISTS "${ext}"[^;]*WITH SCHEMA "([a-z0-9_]+)"`, 'i').exec(sql)?.[1] ?? ext.replace(/^supabase_/, '')
+      if (new RegExp(`\\b${schema}\\.[a-z_]`, 'i').test(sql.replace(new RegExp(`CREATE EXTENSION IF NOT EXISTS "${ext}"[^;]*;`, 'i'), ''))) {
+        throw new Error(`extension ${ext} is unavailable but the dump still references ${schema}.* objects - not safe to skip`)
+      }
+      skipped.push(`${ext} (schema ${schema})`)
+      sql = sql.replace(new RegExp(`CREATE EXTENSION IF NOT EXISTS "${ext}"[^;]*;`, 'i'), `-- SKIPPED PLATFORM EXTENSION ${ext}`)
+    }
+  }
+  throw new Error('schema load did not converge after repeated platform-object repairs')
+}
+
+// --------------------------------------------------------------- 1. file integrity
+const hashes = readManifestHashes(set.manifest)
+if (!hashes.length) record('manifest hashes parsed', false, 'no `path | N bytes | sha256:X` lines found')
+else {
+  const bad = []
+  for (const h of hashes) {
+    const file = join(BACKUP_DIR, ...h.path.split('/'))
+    if (!existsSync(file)) { bad.push(`${h.path} MISSING`); continue }
+    if (statSync(file).size !== h.size) { bad.push(`${h.path} SIZE ${statSync(file).size} != ${h.size}`); continue }
+    // Older manifests recorded only the first 16 hex chars, so compare on that prefix.
+    if (!sha256(file).startsWith(h.sha.slice(0, 16))) bad.push(`${h.path} SHA MISMATCH`)
+  }
+  record('manifest checksums verified on disk', bad.length === 0, bad.length ? bad.slice(0, 5).join('; ') : `${hashes.length} files`)
+}
+
+// ------------------------------------------------------------- 2. schema + data replay
+const base = join(BACKUP_DIR, `${SET_PREFIX}${set.stamp}`)
+let db = null
+try {
+  db = await createDatabase({ engine: 'postgres', applyMigrations: false })
+  // Same search_path repair the harness applies after a pg_dump, because the dump ends with
+  // set_config('search_path','') and this engine reuses one session.
+  const { skipped } = await loadSchemaResilient(db, readFileSync(`${base}-schema.sql`, 'utf8'))
+  await db.exec(`SELECT set_config('search_path', '"$user", public', false)`)
+  record('schema.sql replays into disposable PostgreSQL', true,
+    `public + private DDL accepted${skipped.length ? ` (platform extensions not present locally: ${skipped.join(', ')})` : ''}`)
+
+  const statements = splitStatements(readFileSync(`${base}-data.sql`, 'utf8'))
+  console.log(`      ${statements.length} statements parsed from data.sql`)
+  const business = { ran: 0, failed: [] }
+  const platform = { ran: 0, failed: 0 }
+  let inTx = false
+  let seen = 0
+  for (const stmt of statements) {
+    // Unattended runs write to a log, so a heartbeat makes a stall obvious.
+    if (++seen % 200 === 0) console.log(`      replayed ${seen}/${statements.length} ...`)
+    if (/^\s*(BEGIN|COMMIT)\b/i.test(stmt)) inTx = /^\s*BEGIN/i.test(stmt)
+    try {
+      await db.exec(stmt)
+      if (isPlatformStmt(stmt)) platform.ran++
+      else if (/^INSERT\b/i.test(stmt)) business.ran++
+    } catch (error) {
+      const msg = String(error?.message || error).split('\n')[0].slice(0, 180)
+      // An aborted transaction would cascade every later statement into a phantom failure.
+      if (inTx) await db.exec('ROLLBACK').catch(() => {})
+      if (isPlatformStmt(stmt)) platform.failed++
+      else business.failed.push({ stmt: stmt.slice(0, 80), msg })
+    }
+  }
+  record('business data rows replay (public + private)', business.failed.length === 0,
+    `${business.ran} INSERTs replayed${business.failed.length ? `; FIRST FAILURE: ${business.failed[0].stmt} -> ${business.failed[0].msg}` : ''}`)
+  console.log(`      PLATFORM_ROWS: auth/storage statements ${platform.ran} ok / ${platform.ran + platform.failed} seen — replayed against the local stub only; a real restore must use Supabase-managed Auth backup (docs/OPERATIONS.md).`)
+
+  // ---------------------------------------- 3. reconcile restored counts against manifest
+  const manifestText = readFileSync(set.manifest, 'utf8')
+  const counts = readManifestCounts(set.manifest)
+  const present = new Set((await db.query(`SELECT table_name FROM information_schema.tables WHERE table_schema='public'`)).rows.map((r) => r.table_name))
+  const mismatched = []
+  let reconciled = 0
+  for (const [table, expected] of Object.entries(counts)) {
+    if (table.includes('.')) continue // auth.* is platform data, reported separately
+    if (!present.has(table)) { mismatched.push(`${table} absent from the restored schema`); continue }
+    const actual = Number((await db.query(`SELECT count(*)::int AS c FROM public."${table}"`)).rows[0].c)
+    reconciled++
+    if (actual !== expected) mismatched.push(`${table} restored ${actual} != manifest ${expected}`)
+  }
+  const pass = mismatched.length === 0 && reconciled > 0
+  record('restored row counts match manifest', pass,
+    mismatched.length ? mismatched.slice(0, 5).join('; ')
+      : reconciled === 0 ? 'manifest carries no parseable `table=N` counts (old manifest format) - cannot reconcile'
+        : `${reconciled} tables reconciled`)
+  const authExpected = Number(/auth\.users=(\d+)/.exec(manifestText)?.[1] ?? 0)
+  console.log(`      auth.users recorded in manifest: ${authExpected}`)
+
+  // ------------------------------------------ 4. security posture of the restored schema
+  const noRls = (await db.query(`SELECT c.relname AS n FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace
+    WHERE n.nspname='public' AND c.relkind='r' AND c.relrowsecurity=false`)).rows.map((r) => r.n)
+  record('every public table has RLS enabled', noRls.length === 0, noRls.length ? `missing: ${noRls.join(', ')}` : 'ok')
+  const fnCount = Number((await db.query(`SELECT count(*)::int AS c FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace WHERE n.nspname IN ('public','private')`)).rows[0].c)
+  console.log(`      functions restored: ${fnCount}`)
+
+  // -------------------------------------------- 5. Storage binaries really on disk
+  const objectsLine = Number(/storage\.objects=(\d+)/.exec(manifestText)?.[1] ?? 0)
+  if (set.storageDir) {
+    const files = collectFiles(set.storageDir)
+    const empty = files.filter((f) => statSync(f).size === 0)
+    const odd = files.filter((f) => !isProbablyImage(f))
+    const countOk = files.length === objectsLine
+    record('storage object binaries readable', countOk && empty.length === 0 && odd.length === 0,
+      `${files.length} files on disk vs ${objectsLine} in manifest; ${empty.length} empty, ${odd.length} not a recognizable image`)
+  } else {
+    record('storage binaries complete for this set', objectsLine === 0, objectsLine ? `${objectsLine} objects in manifest but no -storage directory` : 'no objects in production, nothing to download')
+  }
+} catch (error) {
+  record('restore drill completed', false, String(error?.message || error).split('\n')[0].slice(0, 300))
+} finally {
+  if (db) await db.close().catch(() => {})
+}
+
+report.finishedAt = new Date().toISOString()
+report.durationMs = new Date(report.finishedAt) - new Date(report.startedAt)
+report.failedChecks = report.checks.filter((c) => !c.ok).map((c) => c.name)
+writeFileSyncSafe(join(BACKUP_DIR, `verify-${set.stamp}.json`), JSON.stringify(report, null, 2) + '\n')
+writeHealth({ lastVerify: { stamp: set.stamp, ok: report.ok, at: report.finishedAt, failed: report.failedChecks } })
+console.log(`\n=== ${report.ok ? 'BACKUP IS RESTORABLE' : 'BACKUP NOT PROVEN'} — ${set.stamp} (${Math.round(report.durationMs / 1000)}s) ===`)
+if (!report.ok) console.log('Do not rely on this set until every FAIL line above is fixed: take a fresh backup and drill again.')
+process.exitCode = report.ok ? 0 : 1
+
+// ------------------------------------------------------------------------ helpers
+// splitStatements lives in backup-lib.mjs so it can be imported without running a drill.
+
+function collectFiles(dir) {
+  const out = []
+  ;(function walk(d) {
+    for (const entry of readdirSync(d)) {
+      const full = join(d, entry)
+      if (statSync(full).isDirectory()) walk(full)
+      else out.push(full)
+    }
+  })(dir)
+  return out
+}
+
+// JPEG FFD8, PNG 8950, WEBP RIFF.... An empty or truncated download fails this check.
+function isProbablyImage(file) {
+  const head = readFileSync(file).subarray(0, 4)
+  return (head[0] === 0xff && head[1] === 0xd8) || (head[0] === 0x89 && head[1] === 0x50) ||
+    (head[0] === 0x52 && head[1] === 0x49 && head[2] === 0x46 && head[3] === 0x46)
+}

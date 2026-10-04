@@ -37,6 +37,7 @@ import { Loading } from "@/components/ui";
 import { useMobileDrawer } from "@/lib/useMobileDrawer";
 import { GlobalSearchPalette } from "@/components/search/GlobalSearchPalette";
 import { AnnouncementBar } from "@/components/AnnouncementBar";
+import { NotificationBell } from "@/components/NotificationBell";
 import { preloadRoute } from "@/lib/routePreload";
 import { currentTheme, toggleTheme, type Theme } from "@/lib/theme";
 
@@ -344,6 +345,7 @@ export function AppLayout() {
                 <small>{roleLabels[profile!.role]}</small>
               </span>
             </Link>
+            <NotificationBell />
             <button
               className="icon-button header-theme-toggle"
               aria-label={theme === "dark" ? "Chuyển sang nền sáng" : "Chuyển sang nền tối"}

@@ -433,3 +433,45 @@ export type KnowledgeSearchHit = KnowledgeIndexItem & {
   rank: number;
   excerpt: string;
 };
+
+/**
+ * In-app business bell notice (migration 20261004003900). Titles and bodies are
+ * rendered server-side in Vietnamese at write time, already money-gated per
+ * recipient role — the client never recomputes them.
+ */
+export type NotificationAction =
+  | "CREATE_ACQUISITION"
+  | "CANCEL_ACQUISITION"
+  | "CREATE_SALE"
+  | "CANCEL_SALE"
+  | "CREATE_PAYMENT"
+  | "VOID_PAYMENT"
+  | "CREATE_VEHICLE"
+  | "UPDATE_VEHICLE";
+
+export type NotificationItem = {
+  id: string;
+  action: NotificationAction;
+  entity_type: string | null;
+  entity_id: string | null;
+  vehicle_id: string | null;
+  title: string;
+  body: string | null;
+  deep_link: string | null;
+  read_at: string | null;
+  created_at: string;
+  actor_id: string | null;
+  actor_name: string | null;
+};
+
+export type NotificationList = {
+  items: NotificationItem[];
+  total: number;
+  unread_count: number;
+};
+
+/** One time bucket ("Nãy", "Hôm nay"…) inside the bell panel. */
+export type NotificationGroup = {
+  label: string;
+  items: NotificationItem[];
+};

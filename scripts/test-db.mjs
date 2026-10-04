@@ -10,6 +10,7 @@ import { runCopilotGapTests } from '../tests/db/copilot-gaps.test.mjs'
 import { runIdentityDocumentTests } from '../tests/db/identity-documents.test.mjs'
 import { runShowroomTests } from '../tests/db/showroom.test.mjs'
 import { runHardDeleteTests } from '../tests/db/hard-delete.test.mjs'
+import { runNotificationsTests } from '../tests/db/notifications.test.mjs'
 
 const engine = process.argv.includes('--pglite') ? 'pglite' : 'postgres'
 console.log(`Database integration suite: ${engine} (disposable database; no cloud credentials)`)
@@ -22,6 +23,7 @@ await runCopilotGapTests(null, { engine })
 await runIdentityDocumentTests(null, { engine })
 await runShowroomTests(null, { engine })
 await runHardDeleteTests(null, { engine })
+await runNotificationsTests(null, { engine })
 const db = await createDatabase({ engine })
 let passed = 0
 const users = Object.fromEntries(['owner', 'manager', 'financialManager', 'staff', 'disabled'].map((role) => [role, randomUUID()]))

@@ -72,6 +72,11 @@ Câu trả lời của `/copilot` và `/docs` lấy từ `public.knowledge_base`
 | Bật chế độ AI mà vẫn chỉ có tra cứu | Chưa phải OWNER, hoặc `AI_ENABLED`/`AI_PROVIDER_API_KEY`/`AI_MODEL` chưa set |
 | Tài liệu mới không xuất hiện ở `/docs` | Chưa chạy `npm run knowledge:seed` + `db push`, hoặc file chưa có trong `SOURCES` |
 | Không có nút cài PWA | HTTPS/localhost, manifest/service worker, Chrome/Edge hỗ trợ, app đã cài chưa |
+| Chuông báo không hiện số mới | Người nhận có `active`? Tài khoản có `user_id` khớp `auth.uid()`? Mở DevTools → Network, tìm WS `realtime/v1/websocket`; nếu socket fail thì fallback poll 60s sẽ bù — chờ 1 nhịp và reload |
+| Chuông hiện nhưng danh sách trống | `list_notifications` chỉ trả dòng `user_id = auth.uid()`. Nếu trigger `notify_after_audit` chưa ghi dòng nào, kiểm `audit_logs` có sự kiện tương ứng và `notifications` có hàng cùng `entity_id`. Actor null chỉ fan OWNER/MANAGER, STAFF không nhận |
+| STAFF thấy giá vốn/giá bán trong thông báo | Sai. `can_view_financials` đã bị bỏ qua khi trigger ghi — kiểm tra `private.can_financials()` và profile `MANAGER`/`OWNER`; nếu thấy, đây là bug cần điều tra ngay |
+| Xóa/đổi role nhân viên mà thông báo cũ vẫn hiện tên | `actor_id ON DELETE SET NULL` giữ dòng nhưng mất tên; dòng sẽ hiển thị "Hệ thống". Đây là hành vi chấp nhận được — không xóa lịch sử thông báo để "làm sạch" |
+| Realtime publication thiếu `notifications` | Supabase local `db push` có guard `IF EXISTS(pg_publication 'supabase_realtime')`; chạy `ALTER PUBLICATION supabase_realtime ADD TABLE public.notifications;` thủ công nếu CLI bỏ sót |
 
 Auth/Edge/Storage hosted không được giả định đã kiểm thử chỉ vì unit test hoặc PostgreSQL cục bộ chạy thành công. Theo dõi log không chứa mật khẩu/token và ghi lại các lỗi giao dịch cần đối chiếu.
 

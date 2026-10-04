@@ -5,6 +5,14 @@ import {
 } from "@supabase/supabase-js";
 import { supabase } from "./supabase";
 import { AppError } from "./errors";
+import {
+  IDENTITY_DOCUMENT_BUCKET,
+  IDENTITY_DOCUMENT_URL_TTL_SECONDS,
+  VEHICLE_IMAGE_BUCKET,
+  VEHICLE_IMAGE_URL_TTL_SECONDS,
+  signedImageUrl,
+  uploadImage,
+} from "./storageGateway";
 
 async function handleEdgeFunctionError(
   functionName: string,
@@ -158,44 +166,26 @@ async function callAll<T>(
   }
   return { ...envelope, items, total };
 }
+// Ảnh đi qua cổng lưu trữ tập trung (storageGateway) — mọi knowledge về bucket,
+// đường dẫn và signed URL nằm ở đó, tại đây chỉ còn bước đăng ký nghiệp vụ.
 async function uploadVehicleImage(vehicleId: string, file: File) {
   ensureOnline();
-  if (!supabase) throw new AppError("Chưa kết nối cơ sở dữ liệu.");
-  if (
-    !["image/jpeg", "image/png", "image/webp"].includes(file.type) ||
-    file.size > 5 * 1024 * 1024
-  )
-    throw new AppError("Chọn ảnh JPG, PNG hoặc WebP, tối đa 5 MB.");
-  const suffix =
-    file.type === "image/jpeg"
-      ? "jpg"
-      : file.type === "image/png"
-        ? "png"
-        : "webp";
-  const path = `${vehicleId}/${crypto.randomUUID()}.${suffix}`;
-  const { error } = await supabase.storage
-    .from("vehicle-images")
-    .upload(path, file, { upsert: false, contentType: file.type });
-  if (error) throw error;
-  // Unregistered uploads stay private; an administrator can prune orphan objects
-  // under the retention policy. Browser roles intentionally cannot hard-delete.
+  const path = await uploadImage(VEHICLE_IMAGE_BUCKET, vehicleId, file);
   await call("register_vehicle_image", {
     p_vehicle_id: vehicleId,
     p_storage_path: path,
   });
 }
 async function imageUrl(path: string) {
-  if (!supabase) throw new AppError("Chưa kết nối cơ sở dữ liệu.");
-  const { data, error } = await supabase.storage
-    .from("vehicle-images")
-    .createSignedUrl(path, 300);
-  if (error) throw error;
-  return data.signedUrl;
+  return signedImageUrl(
+    VEHICLE_IMAGE_BUCKET,
+    path,
+    VEHICLE_IMAGE_URL_TTL_SECONDS,
+  );
 }
-// CCCD card photos live in a private bucket. Upload targets `<subject-id>/<uuid>.<ext>`
-// so the Storage RLS can bind the object to its acquisition/sale; viewing uses a short
-// 120-second signed URL, never a public link. The document row must exist first
-// (created by `save_identity_document`).
+// CCCD card photos live in a private bucket. The document row must exist first
+// (created by `save_identity_document`); viewing uses a short 120-second signed
+// URL from the gateway, never a public link.
 async function uploadIdentityDocumentImage(
   subjectType: "acquisition" | "sale",
   subjectId: string,
@@ -203,23 +193,7 @@ async function uploadIdentityDocumentImage(
   file: File,
 ) {
   ensureOnline();
-  if (!supabase) throw new AppError("Chưa kết nối cơ sở dữ liệu.");
-  if (
-    !["image/jpeg", "image/png", "image/webp"].includes(file.type) ||
-    file.size > 5 * 1024 * 1024
-  )
-    throw new AppError("Chọn ảnh JPG, PNG hoặc WebP, tối đa 5 MB.");
-  const suffix =
-    file.type === "image/jpeg"
-      ? "jpg"
-      : file.type === "image/png"
-        ? "png"
-        : "webp";
-  const path = `${subjectId}/${crypto.randomUUID()}.${suffix}`;
-  const { error } = await supabase.storage
-    .from("identity-documents")
-    .upload(path, file, { upsert: false, contentType: file.type });
-  if (error) throw error;
+  const path = await uploadImage(IDENTITY_DOCUMENT_BUCKET, subjectId, file);
   await call("register_identity_document_image", {
     p_subject_type: subjectType,
     p_subject_id: subjectId,
@@ -228,12 +202,11 @@ async function uploadIdentityDocumentImage(
   });
 }
 async function identityImageUrl(path: string) {
-  if (!supabase) throw new AppError("Chưa kết nối cơ sở dữ liệu.");
-  const { data, error } = await supabase.storage
-    .from("identity-documents")
-    .createSignedUrl(path, 120);
-  if (error) throw error;
-  return data.signedUrl;
+  return signedImageUrl(
+    IDENTITY_DOCUMENT_BUCKET,
+    path,
+    IDENTITY_DOCUMENT_URL_TTL_SECONDS,
+  );
 }
 async function createUser(input: {
   username: string;
@@ -330,6 +303,15 @@ export const api = {
     }),
   deleteAnnouncement: async (id: string) =>
     call<void>("delete_announcement", { p_id: id }),
+  /** Business bell: only the caller's own rows; server caps page size at 100. */
+  listNotifications: async (filters: Record<string, unknown> = {}) =>
+    call<import("@/types").NotificationList>("list_notifications", {
+      p_filters: filters,
+    }),
+  markNotificationsRead: async (ids: string[]) =>
+    call<number>("mark_notifications_read", { p_ids: ids }),
+  markAllNotificationsRead: async () =>
+    call<number>("mark_all_notifications_read"),
   /** Xóa cứng xe kho (OWNER/MANAGER). Bị chặn nếu xe từng có giao dịch bán. */
   deleteVehicle: async (id: string, reason: string) =>
     call<void>("delete_vehicle", { p_id: id, p_reason: reason }),

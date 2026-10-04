@@ -1,0 +1,245 @@
+import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
+import { useNavigate } from "react-router-dom";
+import {
+  ArrowDownLeft,
+  ArrowUpRight,
+  Banknote,
+  Bell,
+  Bike,
+  CircleSlash,
+  Undo2,
+  X,
+} from "lucide-react";
+import { useNotifications } from "@/lib/useNotifications";
+import { badgeLabel, groupNotifications, relativeTime } from "@/lib/notifications";
+import type { NotificationAction, NotificationItem } from "@/types";
+
+/**
+ * Business activity bell. Fans out from the audit trail (server-side), so this
+ * component only renders what list_notifications returns for the signed-in
+ * recipient — copy and money gating already happened in the database.
+ * The panel is portalled to <body> with fixed positioning so the topbar's
+ * z-index stacking context can never clip it.
+ */
+
+const ACTION_ICON: Record<NotificationAction, typeof Bell> = {
+  CREATE_ACQUISITION: ArrowDownLeft,
+  CANCEL_ACQUISITION: CircleSlash,
+  CREATE_SALE: ArrowUpRight,
+  CANCEL_SALE: CircleSlash,
+  CREATE_PAYMENT: Banknote,
+  VOID_PAYMENT: Undo2,
+  CREATE_VEHICLE: Bike,
+  UPDATE_VEHICLE: Bike,
+};
+
+// Facebook-style buckets: acquisitions and payments read as gains, cancels as
+// warnings, everything else neutral.
+const ACTION_TONE: Record<NotificationAction, "success" | "warning" | "neutral"> = {
+  CREATE_ACQUISITION: "success",
+  CREATE_SALE: "success",
+  CREATE_PAYMENT: "success",
+  CANCEL_ACQUISITION: "warning",
+  CANCEL_SALE: "warning",
+  VOID_PAYMENT: "warning",
+  CREATE_VEHICLE: "neutral",
+  UPDATE_VEHICLE: "neutral",
+};
+
+function Row({
+  item,
+  now,
+  onOpen,
+}: {
+  item: NotificationItem;
+  now: Date;
+  onOpen: (item: NotificationItem) => void;
+}) {
+  const Icon = ACTION_ICON[item.action] ?? Bell;
+  const unread = item.read_at === null;
+  return (
+    <button
+      type="button"
+      className={`notification-row${unread ? " unread" : ""}`}
+      data-tone={ACTION_TONE[item.action] ?? "neutral"}
+      onClick={() => onOpen(item)}
+    >
+      <span className="notification-row-icon">
+        <Icon size={15} />
+      </span>
+      <span className="notification-row-text">
+        <span className="notification-row-title">{item.title}</span>
+        {item.body && <span className="notification-row-body">{item.body}</span>}
+        <span className="notification-row-time">{relativeTime(item.created_at, now)}</span>
+      </span>
+      {unread && <span className="notification-row-dot" aria-hidden="true" />}
+    </button>
+  );
+}
+
+export function NotificationBell() {
+  const {
+    items,
+    unreadCount,
+    isLoading,
+    hasMore,
+    loadMore,
+    markRead,
+    markAll,
+    markAllPending,
+  } = useNotifications();
+  const navigate = useNavigate();
+  const buttonRef = useRef<HTMLButtonElement>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
+  const [open, setOpen] = useState(false);
+  const [ringing, setRinging] = useState(false);
+  const [anchor, setAnchor] = useState<{ top: number; right: number } | null>(null);
+  const prevUnread = useRef(unreadCount);
+
+  // One short ring whenever a genuinely new unread event lands while closed.
+  useEffect(() => {
+    if (unreadCount > prevUnread.current && !open) {
+      setRinging(true);
+      const t = window.setTimeout(() => setRinging(false), 900);
+      prevUnread.current = unreadCount;
+      return () => window.clearTimeout(t);
+    }
+    prevUnread.current = unreadCount;
+  }, [unreadCount, open]);
+
+  // Keep the panel pinned under the bell across resizes/scrolls while open.
+  useEffect(() => {
+    if (!open) return;
+    const place = () => {
+      const rect = buttonRef.current?.getBoundingClientRect();
+      if (!rect) return;
+      setAnchor({
+        top: rect.bottom + 8,
+        right: Math.max(12, window.innerWidth - rect.right),
+      });
+    };
+    place();
+    window.addEventListener("resize", place);
+    window.addEventListener("scroll", place, true);
+    return () => {
+      window.removeEventListener("resize", place);
+      window.removeEventListener("scroll", place, true);
+    };
+  }, [open]);
+
+  // Dismiss on outside click or Escape (popover semantics — no focus trap and
+  // no body-scroll lock, unlike modals).
+  useEffect(() => {
+    if (!open) return;
+    const onPointerDown = (event: PointerEvent) => {
+      const target = event.target as Node;
+      if (panelRef.current?.contains(target) || buttonRef.current?.contains(target)) return;
+      setOpen(false);
+    };
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        event.stopPropagation();
+        setOpen(false);
+      }
+    };
+    document.addEventListener("pointerdown", onPointerDown);
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("pointerdown", onPointerDown);
+      document.removeEventListener("keydown", onKeyDown);
+    };
+  }, [open]);
+
+  const badge = badgeLabel(unreadCount);
+
+  const openItem = (item: NotificationItem) => {
+    if (item.read_at === null) void markRead(item.id);
+    setOpen(false);
+    if (item.deep_link) navigate(item.deep_link);
+  };
+
+  return (
+    <div className="notification-bell-wrap">
+      <button
+        ref={buttonRef}
+        type="button"
+        className={`icon-button header-notification-toggle${ringing ? " ringing" : ""}`}
+        aria-label={
+          unreadCount > 0 ? `Thông báo, ${unreadCount} chưa đọc` : "Thông báo"
+        }
+        aria-expanded={open}
+        title="Thông báo"
+        onClick={() => setOpen((v) => !v)}
+      >
+        <Bell size={18} />
+        {badge && (
+          <span className="notification-badge" aria-hidden="true">
+            {badge}
+          </span>
+        )}
+      </button>
+
+      {open &&
+        anchor &&
+        createPortal(
+          <>
+            <div className="notification-overlay" aria-hidden="true" />
+            <div
+              ref={panelRef}
+              className="notification-panel"
+              role="dialog"
+              aria-label="Thông báo"
+              style={{ top: anchor.top, right: anchor.right }}
+            >
+              <div className="notification-panel-header">
+                <h2>Thông báo</h2>
+                <div className="notification-panel-actions">
+                  {unreadCount > 0 && (
+                    <button
+                      type="button"
+                      className="notification-mark-all"
+                      disabled={markAllPending}
+                      onClick={() => markAll()}
+                    >
+                      Đánh dấu tất cả đã đọc
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    className="notification-panel-close"
+                    aria-label="Đóng thông báo"
+                    onClick={() => setOpen(false)}
+                  >
+                    <X size={16} />
+                  </button>
+                </div>
+              </div>
+              <div className="notification-panel-body">
+                {isLoading ? (
+                  <p className="notification-empty">Đang tải…</p>
+                ) : items.length === 0 ? (
+                  <p className="notification-empty">Chưa có thông báo nào.</p>
+                ) : (
+                  groupNotifications(items).map((group) => (
+                    <div key={group.label} className="notification-group">
+                      <div className="notification-group-label">{group.label}</div>
+                      {group.items.map((item) => (
+                        <Row key={item.id} item={item} now={new Date()} onOpen={openItem} />
+                      ))}
+                    </div>
+                  ))
+                )}
+                {hasMore && (
+                  <button type="button" className="notification-load-more" onClick={loadMore}>
+                    Xem thêm
+                  </button>
+                )}
+              </div>
+            </div>
+          </>,
+          document.body,
+        )}
+    </div>
+  );
+}

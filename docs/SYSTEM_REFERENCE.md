@@ -44,6 +44,7 @@ Toàn bộ hàm `public` mà ứng dụng gọi được, lấy từ định ngh
 | list_customers | p_filters jsonb DEFAULT '{}'::jsonb | OWNER, MANAGER, STAFF |
 | list_expenses | p_filters jsonb default '{}' | OWNER, MANAGER |
 | list_knowledge | không tham số | OWNER, MANAGER, STAFF |
+| list_notifications | p_filters jsonb DEFAULT '{}'::jsonb | OWNER, MANAGER, STAFF |
 | list_profiles | không tham số | OWNER |
 | list_receivables | p_filters jsonb DEFAULT '{}'::jsonb | OWNER, MANAGER, STAFF |
 | list_sales | p_filters jsonb DEFAULT '{}'::jsonb | OWNER, MANAGER, STAFF |
@@ -51,6 +52,8 @@ Toàn bộ hàm `public` mà ứng dụng gọi được, lấy từ định ngh
 | list_showroom_vehicles | p_filters jsonb DEFAULT '{}' | kiểm tra quyền riêng trong hàm |
 | list_vehicles | p_filters jsonb DEFAULT '{}'::jsonb | OWNER, MANAGER, STAFF |
 | log_copilot_gap | p_question text | OWNER, MANAGER, STAFF |
+| mark_all_notifications_read | không tham số | OWNER, MANAGER, STAFF |
+| mark_notifications_read | p_ids uuid[] | OWNER, MANAGER, STAFF |
 | register_identity_document_image | p_subject_type text, p_subject_id uuid, p_side text, p_storage_path text | OWNER, MANAGER |
 | register_vehicle_image | p_vehicle_id uuid,p_storage_path text,p_display_order integer default 0 | OWNER, MANAGER, STAFF |
 | remove_identity_document_image | p_subject_type text, p_subject_id uuid, p_side text | OWNER, MANAGER |

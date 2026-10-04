@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { Ban, Crown, Key, RotateCcw, Shield, Trash2, X } from "lucide-react";
+import { Ban, Key, RotateCcw, Shield, Trash2, X } from "lucide-react";
 import { Button, ErrorState, Field } from "@/components/ui";
 import { api } from "@/lib/api";
 import { roleLabels } from "@/lib/permissions";
@@ -15,7 +15,8 @@ interface StaffSettingsModalProps {
   onUpdated: (msg: string) => void;
 }
 
-type TabKey = "role" | "security";
+// Security actions live in their own tabs so each flow stays short on mobile.
+type TabKey = "role" | "password" | "ban" | "delete";
 
 /** Ban duration presets. "today" ends at 23:59 Asia/Ho_Chi_Minh. */
 type BanPreset = "today" | "week" | "month" | "custom";
@@ -73,7 +74,7 @@ export function StaffSettingsModal({
     Boolean(user.can_view_financials),
   );
 
-  // Tab 2: Security & status
+  // Security tabs: password reset, temporary ban, delete/restore
   const [newPassword, setNewPassword] = useState("");
   const [banPreset, setBanPreset] = useState<BanPreset>("today");
   const [banCustom, setBanCustom] = useState("");
@@ -214,24 +215,6 @@ export function StaffSettingsModal({
     },
   });
 
-  // Mutation 7: Transfer OWNER status to this account (single owner system)
-  const transferOwnerMutation = useMutation({
-    mutationFn: () =>
-      api.manageUser({ action: "promote_to_owner", user_id: user.id }),
-    onSuccess: () => {
-      void client.invalidateQueries({ queryKey: ["profiles"] });
-      onUpdated(
-        `Đã chuyển giao quyền Chủ cửa hàng cho ${user.full_name}. Bạn làm việc với vai trò Quản lý.`,
-      );
-      onClose();
-    },
-    onError: (err: unknown) => {
-      setErrorMessage(
-        err instanceof Error ? err.message : "Không thể chuyển giao quyền Chủ cửa hàng.",
-      );
-    },
-  });
-
   const handleSaveRole = (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMessage("");
@@ -275,8 +258,10 @@ export function StaffSettingsModal({
     banMutation.isPending ||
     unbanMutation.isPending ||
     deleteMutation.isPending ||
-    restoreMutation.isPending ||
-    transferOwnerMutation.isPending;
+    restoreMutation.isPending;
+
+  // Security tabs are only for managing other non-OWNER accounts.
+  const showSecurityTabs = isActorOwner && !isSelf && !isOwnerAcc;
 
   return (
     <div
@@ -353,16 +338,40 @@ export function StaffSettingsModal({
             <span>Quyền &amp; Vai trò</span>
           </button>
 
-          {isActorOwner && !isSelf && !isOwnerAcc && (
+          {showSecurityTabs && (
             <button
               type="button"
               role="tab"
-              aria-selected={activeTab === "security"}
-              className={`user-tab-btn ${activeTab === "security" ? "active" : ""}`}
-              onClick={() => setActiveTab("security")}
+              aria-selected={activeTab === "password"}
+              className={`user-tab-btn ${activeTab === "password" ? "active" : ""}`}
+              onClick={() => setActiveTab("password")}
+            >
+              <Key size={15} />
+              <span>Mật khẩu</span>
+            </button>
+          )}
+          {showSecurityTabs && (
+            <button
+              type="button"
+              role="tab"
+              aria-selected={activeTab === "ban"}
+              className={`user-tab-btn ${activeTab === "ban" ? "active" : ""}`}
+              onClick={() => setActiveTab("ban")}
             >
               <Ban size={15} />
-              <span>Bảo mật &amp; Trạng thái</span>
+              <span>Cấm sử dụng</span>
+            </button>
+          )}
+          {showSecurityTabs && (
+            <button
+              type="button"
+              role="tab"
+              aria-selected={activeTab === "delete"}
+              className={`user-tab-btn ${activeTab === "delete" ? "active" : ""}`}
+              onClick={() => setActiveTab("delete")}
+            >
+              <Trash2 size={15} />
+              <span>Xóa tài khoản</span>
             </button>
           )}
         </div>
@@ -394,7 +403,7 @@ export function StaffSettingsModal({
                   onChange={(e) => setRole(e.target.value as Role)}
                 >
                   {/* OWNER is never assigned from the dropdown; the system keeps
-                      exactly one Chủ cửa hàng, changed only via handover below. */}
+                      exactly one Chủ cửa hàng (server-side transfer only). */}
                   {Object.entries(roleLabels)
                     .filter(([k]) => k !== "OWNER")
                     .map(([k, v]) => (
@@ -436,45 +445,19 @@ export function StaffSettingsModal({
                   Đây là tài khoản Chủ cửa hàng — người phân quyền cho tất cả các vai trò còn lại.
                 </p>
               ) : (
-                <>
-                  {/* Owner handover: the system keeps a single OWNER account. */}
-                  {isActorOwner && !isSelf && user.active && !isDeleted && (
-                    <div className="user-settings-subcard user-owner-handover">
-                      <div className="row" style={{ gap: "8px", alignItems: "center", marginBottom: "8px" }}>
-                        <Crown size={16} />
-                        <strong>Chuyển giao quyền Chủ cửa hàng</strong>
-                      </div>
-                      <p className="muted small" style={{ marginBottom: "12px" }}>
-                        Hệ thống chỉ giữ một tài khoản Chủ cửa hàng. Sau khi chuyển giao,
-                        bạn sẽ làm việc với vai trò Quản lý.
-                      </p>
-                      <Button
-                        type="button"
-                        variant="primary"
-                        disabled={isBusy}
-                        onClick={() => transferOwnerMutation.mutate()}
-                      >
-                        <Crown size={14} /> Chuyển giao cho {user.full_name}
-                      </Button>
-                    </div>
-                  )}
-
-                  {canChooseRole && (
-                    <div className="user-tab-actions">
-                      <Button type="submit" disabled={isBusy}>
-                        Lưu phân quyền
-                      </Button>
-                    </div>
-                  )}
-                </>
+                canChooseRole && (
+                  <div className="user-tab-actions">
+                    <Button type="submit" disabled={isBusy}>
+                      Lưu phân quyền
+                    </Button>
+                  </div>
+                )
               )}
             </form>
           )}
 
-          {/* TAB 2: SECURITY & STATUS (OWNER only) */}
-          {activeTab === "security" && isActorOwner && !isSelf && !isOwnerAcc && (
-            <div className="stack" style={{ gap: "24px" }}>
-              {/* Reset Password Section */}
+          {/* TAB 2: PASSWORD RESET (OWNER only) */}
+          {activeTab === "password" && showSecurityTabs && (
               <div className="user-security-block">
                 <div className="user-tab-lead">
                   <div className="row" style={{ gap: "6px", alignItems: "center" }}>
@@ -507,8 +490,10 @@ export function StaffSettingsModal({
                   </Button>
                 </form>
               </div>
+          )}
 
-              {/* Temporary Usage Ban Section */}
+          {/* TAB 3: TEMPORARY USAGE BAN (OWNER only) */}
+          {activeTab === "ban" && showSecurityTabs && (
               <div className="user-security-block">
                 <div className="user-tab-lead">
                   <div className="row" style={{ gap: "6px", alignItems: "center" }}>
@@ -592,8 +577,10 @@ export function StaffSettingsModal({
                   </form>
                 )}
               </div>
+          )}
 
-              {/* Delete / Restore Section */}
+          {/* TAB 4: DELETE / RESTORE (OWNER only) */}
+          {activeTab === "delete" && showSecurityTabs && (
               <div className="user-security-block user-danger-block">
                 <div className="user-tab-lead">
                   <div className="row" style={{ gap: "6px", alignItems: "center" }}>
@@ -666,7 +653,6 @@ export function StaffSettingsModal({
                   </div>
                 )}
               </div>
-            </div>
           )}
         </div>
 

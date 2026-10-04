@@ -4730,22 +4730,6 @@ pre {
   border-top: 1px solid #e2e8f0;
 }
 
-/* Owner handover callout inside the role tab */
-.user-owner-handover {
-  background: rgba(79, 70, 229, 0.06);
-  border-color: rgba(79, 70, 229, 0.35);
-}
-.user-owner-handover strong {
-  color: var(--primary, #4f46e5);
-}
-[data-theme="dark"] .user-owner-handover {
-  background: rgba(99, 102, 241, 0.1);
-  border-color: rgba(99, 102, 241, 0.4);
-}
-[data-theme="dark"] .user-owner-handover strong {
-  color: #a5b4fc;
-}
-
 /* Temporary password reset form: input + button share one row on desktop */
 .user-pass-reset-form > button {
   flex: 0 0 auto;

@@ -406,19 +406,23 @@ test("Staff settings and create modals stay usable on desktop and mobile", async
   await expect(staffDialog).toBeVisible();
   const roleTab = staffDialog.getByRole("tab", { name: "Quyền & Vai trò" });
   await expect(roleTab).toBeVisible();
-  await expect(
-    staffDialog.getByRole("tab", { name: "Bảo mật & Trạng thái" }),
-  ).toBeVisible();
+  await expect(staffDialog.getByRole("tab", { name: "Mật khẩu" })).toBeVisible();
+  await expect(staffDialog.getByRole("tab", { name: "Cấm sử dụng" })).toBeVisible();
+  await expect(staffDialog.getByRole("tab", { name: "Xóa tài khoản" })).toBeVisible();
   const box = await staffDialog.locator(".user-settings-modal").boundingBox();
   expect(box.x).toBeGreaterThanOrEqual(0);
   expect(box.x + box.width).toBeLessThanOrEqual(390.5);
   expect(box.y).toBeGreaterThanOrEqual(0);
   expect(box.y + box.height).toBeLessThanOrEqual(844.5);
   await page.screenshot({ path: "test-results/users-staff-settings-mobile.png" });
-  await staffDialog.getByRole("tab", { name: "Bảo mật & Trạng thái" }).click();
+  await staffDialog.getByRole("tab", { name: "Mật khẩu" }).click();
+  await expect(staffDialog.getByText("Đặt lại mật khẩu tạm thời")).toBeVisible();
+  await page.screenshot({ path: "test-results/users-staff-security-mobile.png" });
+  await staffDialog.getByRole("tab", { name: "Cấm sử dụng" }).click();
   await expect(staffDialog.getByText("Cấm sử dụng tạm thời")).toBeVisible();
   await expect(staffDialog.getByText("Hết hôm nay")).toBeVisible();
-  await page.screenshot({ path: "test-results/users-staff-security-mobile.png" });
+  await staffDialog.getByRole("tab", { name: "Xóa tài khoản" }).click();
+  await expect(staffDialog.getByText("Lý do xóa (tùy chọn)")).toBeVisible();
   expect(
     await page.evaluate(() => document.documentElement.scrollWidth),
   ).toBeLessThanOrEqual(390);

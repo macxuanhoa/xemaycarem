@@ -80,17 +80,16 @@ const SAMPLE_LINES = [
 const SAMPLE = SAMPLE_LINES.join("\n");
 
 /**
- * Only the tokens that are genuinely not guessable; colours, brands and "km"
- * already read off the sample lines themselves.
+ * Only the five tokens that are genuinely not guessable at a glance. Brand
+ * shortenings ("sh", "ex", "wave"), colours, plain prices ("12tr") and "km"
+ * already read straight off the sample lines, so repeating them here just
+ * pushed the guide panel taller than the paste box underneath.
  */
 const SAMPLE_LEGEND: [string, string][] = [
-  ["sh", "Honda SH"],
-  ["29b1 123.45", "biển số (không cần 'bs')"],
-  ["21", "năm 2021 (không cần 'nam')"],
+  ["29b1 123.45", "biển số"],
+  ["21", "năm SX"],
   ["gia 18tr5", "giá thu"],
-  ["niemyet 22tr", "giá niêm yết"],
-  ["sdt 0901…", "SĐT người bán"],
-  ["35000km", "số km"],
+  ["niemyet 22tr", "niêm yết"],
   ["#chinh chu", "ghi chú"],
 ];
 
@@ -271,7 +270,7 @@ export default function ShorthandIntakePage() {
       </Link>
       <PageHeader
         title="Thu xe tốc ký"
-        description="Dán tin nhắn bán xe, mỗi dòng một xe. Cà Rem tách thành danh sách để bạn kiểm tra rồi thu hàng loạt."
+        description="Dán tin nhắn — mỗi dòng một xe."
       />
 
       <Card className="intake-notes-card">
@@ -316,7 +315,7 @@ export default function ShorthandIntakePage() {
           rows={4}
           value={text}
           onChange={(event) => setText(event.target.value)}
-          placeholder="Mỗi dòng một xe. Viết tắt thoải mái — xem mẫu ở khung phía trên."
+          placeholder="sh den 29b1 123.45 21 gia 18tr5"
           aria-label="Ghi chú tốc ký danh sách xe cần thu"
         />
         <div className="row intake-notes-actions">
@@ -326,7 +325,7 @@ export default function ShorthandIntakePage() {
           <span className="muted small">
             {entries.length
               ? `${entries.length} xe đã tách · ${unknownCount} từ chưa nhận diện`
-              : "Mỗi dòng một xe. Càng sửa, lần sau tách càng đúng."}
+              : "Càng sửa, lần sau tách càng đúng."}
           </span>
         </div>
         {dictionaryChanged && entries.length > 0 && (

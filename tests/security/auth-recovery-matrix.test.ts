@@ -181,9 +181,12 @@ describe('Auth Recovery & Account Control Matrix (Comprehensive Section 39 Tests
     });
 
     it('Temporary ban whose expiry has passed is allowed again', () => {
-      const past = new Date(Date.now() - 3600 * 1000).toISOString();
       // Test at 10:00 VN time (03:00 UTC) on a Monday
       const testTime = new Date('2026-10-05T03:00:00Z');
+      // `disabled_until` must be relative to `testTime` (the clock the
+      // evaluator uses), not the real wall clock — otherwise the same
+      // assertion flips green/red depending on when the suite runs.
+      const past = new Date(testTime.getTime() - 3600 * 1000).toISOString();
       const user = createProfile({ disabled_until: past });
       const access = evaluateUserAccess(
         user,

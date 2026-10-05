@@ -1881,6 +1881,9 @@ pre {
   scrollbar-width: thin;
 }
 .tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   padding: 14px 4px 16px;
   background: none;
   border: 0;
@@ -1892,6 +1895,13 @@ pre {
   min-height: 44px;
   transition: all 0.15s ease;
   cursor: pointer;
+}
+/* Icons inside a tab are centered against the label by the flex row above, so
+   they no longer need a per-glyph baseline nudge — the old inline
+   verticalAlign hack left differently-shaped icons (Bike vs Store) sitting at
+   unequal heights. */
+.tab > svg {
+  flex-shrink: 0;
 }
 .tab:hover {
   color: #0f172a;

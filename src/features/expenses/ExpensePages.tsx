@@ -199,7 +199,7 @@ export function ExpensesPage({
             aria-pressed={kind === "vehicle"}
             onClick={() => changeKind("vehicle")}
           >
-            <Bike size={16} style={{ verticalAlign: "-2px", marginRight: 6 }} />
+            <Bike size={16} />
             Chi phí xe
           </button>
           <button
@@ -207,7 +207,7 @@ export function ExpensesPage({
             aria-pressed={kind === "business"}
             onClick={() => changeKind("business")}
           >
-            <Store size={16} style={{ verticalAlign: "-2px", marginRight: 6 }} />
+            <Store size={16} />
             Chi phí cửa hàng
           </button>
         </div>
@@ -717,7 +717,7 @@ function ExpenseEditor({
               form.setValue("type", "PARTS");
             }}
           >
-            <Bike size={15} style={{ verticalAlign: "-2px", marginRight: 5 }} />
+            <Bike size={15} />
             Chi phí xe
           </button>
           <button
@@ -729,7 +729,7 @@ function ExpenseEditor({
               form.clearErrors("vehicle_id");
             }}
           >
-            <Store size={15} style={{ verticalAlign: "-2px", marginRight: 5 }} />
+            <Store size={15} />
             Chi phí cửa hàng
           </button>
         </div>

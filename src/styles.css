@@ -3525,6 +3525,51 @@ pre {
     }
   }
 }
+/* AutocompleteInput wraps its <input> and suggestion <ul> in a positioned box
+   so the list floats over the next field. Without this the <ul> falls into
+   normal flow and recent values appear as raw text pushed under the input. */
+.autocomplete-wrap {
+  position: relative;
+}
+.autocomplete-dropdown {
+  position: absolute;
+  z-index: 30;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  max-height: 220px;
+  overflow-y: auto;
+  margin: 0;
+  padding: 4px;
+  list-style: none;
+  background: #fff;
+  border: 1px solid var(--line, #e2e8f0);
+  border-radius: 10px;
+  box-shadow: 0 12px 28px -14px rgba(15, 23, 42, 0.28);
+}
+.autocomplete-item {
+  padding: 8px 10px;
+  font-size: 13px;
+  color: #1f2937;
+  border-radius: 7px;
+  cursor: pointer;
+}
+.autocomplete-item:hover,
+.autocomplete-item.highlighted {
+  background: #eef2ff;
+}
+[data-theme="dark"] .autocomplete-dropdown {
+  background: #14161e;
+  border-color: #262833;
+  box-shadow: 0 12px 28px -14px rgba(0, 0, 0, 0.6);
+}
+[data-theme="dark"] .autocomplete-item {
+  color: #e2e5ee;
+}
+[data-theme="dark"] .autocomplete-item:hover,
+[data-theme="dark"] .autocomplete-item.highlighted {
+  background: #232634;
+}
 /* Dense headers (two or more action buttons, e.g. vehicle detail): a single
    primary CTA still owns the title row above, while the crowded cluster takes
    a full-width line instead of stacking into a tall column. */

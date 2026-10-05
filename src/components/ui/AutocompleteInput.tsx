@@ -96,7 +96,9 @@ export function AutocompleteInput({
           setHighlightedIndex(-1);
         }}
         onFocus={(event) => {
-          if (filtered.length > 0) setIsOpen(true);
+          // Only surface suggestions once the user has typed something. Just
+          // focusing an empty field must not drop a recent-values list under it.
+          if (value && filtered.length > 0) setIsOpen(true);
           onFocus?.(event);
         }}
         onBlur={(event) => {

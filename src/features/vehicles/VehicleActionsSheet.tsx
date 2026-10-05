@@ -65,7 +65,7 @@ export function VehicleActionsSheet({
               className="button secondary"
               onClick={onExpense}
             >
-              <CirclePlus size={17} /> + Chi phí
+              <CirclePlus size={17} /> Chi phí
             </button>
           )}
           {canOperate(profile) && available && !vehicle.cost_pending && (
@@ -85,13 +85,6 @@ export function VehicleActionsSheet({
               Thêm ảnh
             </Link>
           )}
-          <Link
-            className="button ghost"
-            to={`/vehicles/${vehicle.id}#vehicle-history`}
-            state={state}
-          >
-            Lịch sử
-          </Link>
         </div>
       </div>
     </div>

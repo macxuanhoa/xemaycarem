@@ -230,8 +230,8 @@ export function StaffSettingsModal({
   const handleResetPassword = (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMessage("");
-    if (newPassword.length < 12) {
-      setErrorMessage("Mật khẩu mới phải có tối thiểu 12 ký tự.");
+    if (newPassword.length < 7) {
+      setErrorMessage("Mật khẩu mới phải có tối thiểu 7 ký tự.");
       return;
     }
     resetPasswordMutation.mutate();
@@ -465,7 +465,9 @@ export function StaffSettingsModal({
                     <strong>Đặt lại mật khẩu tạm thời</strong>
                   </div>
                   <p className="muted small">
-                    Cung cấp mật khẩu mới cho nhân sự khi quên hoặc cấp lại tài khoản.
+                    Cấp mật khẩu mới khi nhân sự quên mật khẩu. Sau lần đăng nhập
+                    đầu bằng mật khẩu tạm này, hệ thống sẽ buộc đổi sang mật khẩu
+                    riêng để bảo vệ tài khoản.
                   </p>
                 </div>
 
@@ -475,17 +477,17 @@ export function StaffSettingsModal({
                   style={{ gap: "10px", alignItems: "flex-end" }}
                 >
                   <div style={{ flex: 1 }}>
-                    <Field label="Mật khẩu mới (tối thiểu 12 ký tự)">
+                    <Field label="Mật khẩu mới (tối thiểu 7 ký tự)">
                       <input
                         type="password"
-                        placeholder="••••••••••••"
+                        placeholder="•••••••"
                         value={newPassword}
                         disabled={isBusy}
                         onChange={(e) => setNewPassword(e.target.value)}
                       />
                     </Field>
                   </div>
-                  <Button type="submit" disabled={isBusy || newPassword.length < 12}>
+                  <Button type="submit" disabled={isBusy || newPassword.length < 7}>
                     Cập nhật mật khẩu
                   </Button>
                 </form>

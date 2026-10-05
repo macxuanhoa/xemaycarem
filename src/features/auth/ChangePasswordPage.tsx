@@ -12,7 +12,7 @@ const changePasswordSchema = z
   .object({
     newPassword: z
       .string()
-      .min(12, "Mật khẩu phải có ít nhất 12 ký tự")
+      .min(7, "Mật khẩu phải có ít nhất 7 ký tự")
       .max(128, "Mật khẩu tối đa 128 ký tự"),
     confirmPassword: z.string(),
   })
@@ -109,7 +109,7 @@ export default function ChangePasswordPage() {
             <input
               type="password"
               autoComplete="new-password"
-              placeholder="Nhập mật khẩu mới (tối thiểu 12 ký tự)"
+              placeholder="Nhập mật khẩu mới (tối thiểu 7 ký tự)"
               {...register("newPassword")}
             />
           </Field>

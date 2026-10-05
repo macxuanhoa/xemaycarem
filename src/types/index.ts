@@ -470,7 +470,7 @@ export type NotificationList = {
   unread_count: number;
 };
 
-/** One time bucket ("Nãy", "Hôm nay"…) inside the bell panel. */
+/** One time bucket ("Vừa xong", "Hôm nay"…) inside the bell panel. */
 export type NotificationGroup = {
   label: string;
   items: NotificationItem[];

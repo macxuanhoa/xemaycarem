@@ -48,7 +48,7 @@ test('parses shorthand notes, requires review and imports the whole batch in one
   const first = page.locator('.intake-entry').nth(0)
   await expect(first.getByLabel('Hãng xe')).toHaveValue('Honda')
   await expect(first.getByLabel('Dòng xe')).toHaveValue('SH')
-  await expect(first.getByLabel('Biển số')).toHaveValue('29B1-123.45')
+  await expect(first.getByLabel('Biển số')).toHaveValue('29-B1 123.45')
   await expect(first.getByLabel('Màu sắc')).toHaveValue('Đen')
   await expect(first.getByLabel('Giá thu')).toHaveValue('18500000')
   await expect(first.getByText(/=\s*18\.500\.000/)).toBeVisible()
@@ -75,7 +75,7 @@ test('parses shorthand notes, requires review and imports the whole batch in one
   const rows = calls.imports[0].p_vehicles
   expect(rows).toHaveLength(2)
   expect(rows[0]).toMatchObject({ brand: 'Honda', model: 'SH', frame_number: 'RLH-E2E-001',
-    license_plate: '29B1-123.45', color: 'Đen', purchase_price: 18500000 })
+    license_plate: '29-B1 123.45', color: 'Đen', purchase_price: 18500000 })
   expect(rows[1]).toMatchObject({ model: 'Wave RSX', frame_number: 'RLH-E2E-002', purchase_price: 9500000,
     asking_price: 12000000 })
 })

@@ -6,6 +6,7 @@ import {
   ArrowUpRight,
   Banknote,
   Bell,
+  BellOff,
   Bike,
   CircleSlash,
   Undo2,
@@ -184,7 +185,13 @@ export function NotificationBell() {
         anchor &&
         createPortal(
           <>
-            <div className="notification-overlay" aria-hidden="true" />
+            <button
+              type="button"
+              className="notification-overlay"
+              aria-label="Đóng thông báo"
+              tabIndex={-1}
+              onClick={() => setOpen(false)}
+            />
             <div
               ref={panelRef}
               className="notification-panel"
@@ -192,8 +199,16 @@ export function NotificationBell() {
               aria-label="Thông báo"
               style={{ top: anchor.top, right: anchor.right }}
             >
+              <span className="notification-sheet-handle" aria-hidden="true" />
               <div className="notification-panel-header">
-                <h2>Thông báo</h2>
+                <h2>
+                  Thông báo
+                  {unreadCount > 0 && (
+                    <span className="notification-panel-count">
+                      {unreadCount} mới
+                    </span>
+                  )}
+                </h2>
                 <div className="notification-panel-actions">
                   {unreadCount > 0 && (
                     <button
@@ -211,7 +226,7 @@ export function NotificationBell() {
                     aria-label="Đóng thông báo"
                     onClick={() => setOpen(false)}
                   >
-                    <X size={16} />
+                    <X size={18} />
                   </button>
                 </div>
               </div>
@@ -219,7 +234,15 @@ export function NotificationBell() {
                 {isLoading ? (
                   <p className="notification-empty">Đang tải…</p>
                 ) : items.length === 0 ? (
-                  <p className="notification-empty">Chưa có thông báo nào.</p>
+                  <div className="notification-empty-state">
+                    <span className="notification-empty-icon" aria-hidden="true">
+                      <BellOff size={20} />
+                    </span>
+                    <p className="notification-empty">Chưa có thông báo nào.</p>
+                    <small>
+                      Mỗi khi có thu xe, bán xe hoặc thanh toán mới, bạn sẽ thấy ở đây.
+                    </small>
+                  </div>
                 ) : (
                   groupNotifications(items).map((group) => (
                     <div key={group.label} className="notification-group">
@@ -232,7 +255,7 @@ export function NotificationBell() {
                 )}
                 {hasMore && (
                   <button type="button" className="notification-load-more" onClick={loadMore}>
-                    Xem thêm
+                    Xem thêm thông báo cũ
                   </button>
                 )}
               </div>

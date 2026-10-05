@@ -17,6 +17,7 @@ import {
   VARIANT_TOKENS,
   normalizeKey,
 } from "./vocabulary";
+import { normalizePlate } from "@/lib/plate";
 
 export type IntakeFieldKey =
   | "brand"
@@ -114,18 +115,10 @@ function parseShorthandKm(raw: string): number | null {
     : null;
 }
 
-/** Vietnamese plate: 29b1 123.45 / 51X1-887.65 / 29-A1-1234 → "29B1-123.45". */
-export function normalizePlate(raw: string): string | null {
-  const compact = raw.toUpperCase().replace(/[^A-Z0-9]/g, "");
-  const m = compact.match(/^(\d{2})([A-Z]{1,2})(\d{5,7})$/);
-  if (!m) return null;
-  const [, prov, letters, rest] = m;
-  if (rest.length === 5) return `${prov}${letters}${rest[0]}-${rest.slice(1)}`;
-  const tail = rest.slice(-2);
-  const middle = rest.slice(-5, -2);
-  const series = rest.slice(0, rest.length - 5);
-  return `${prov}${letters}${series}-${middle}.${tail}`;
-}
+/** Vietnamese plate: 29b1 123.45 / 51X1-887.65 / 29-A1-1234 → "29-B1 123.45".
+ *  The canonical implementation lives in `@/lib/plate`; re-exported here so the
+ *  shorthand parser and its callers keep a single source of truth. */
+export { normalizePlate };
 
 function isoDate(raw: string): string | null {
   const m = raw.match(/^(\d{1,2})[/\-.](\d{1,2})(?:[/\-.](\d{2,4}))?$/);
@@ -227,10 +220,42 @@ function parseLine(
     const key = normalizeKey(token);
     if (!key) continue;
 
+    // "#ghi chú" flips the rest of the line into the Ghi chú field (and the
+    // text glued after "#" seeds it too). A line-leading "#" is still a
+    // heading/comment handled by the caller above — this only fires inline.
+    if (token.startsWith("#")) {
+      const inline = token.slice(1).trim();
+      if (inline) noteChunks.push(inline);
+      pending = { field: "notes" };
+      continue;
+    }
+
     // "ghichu: ..." swallows the remainder of the line verbatim.
     if (pending?.field === "notes") {
       noteChunks.push(token);
       continue;
+    }
+
+    // Plate first and greedily: staff shouldn't need to write "bs", and a
+    // plate typed with a space between series and serial ("59a1 234.56")
+    // must not leak into the odometer/year buckets. If the current token
+    // alone isn't a plate but joining it with the next token is, consume
+    // both so "bs" is truly optional.
+    const plateSingle = normalizePlate(token);
+    if (plateSingle) {
+      assign(entry, "license_plate", plateSingle, token);
+      if (pending?.field === "license_plate") pending = null;
+      continue;
+    }
+    if (i + 1 < tokens.length) {
+      const next = token_surface(tokens[i + 1]);
+      const joined = normalizePlate(token + next);
+      if (joined) {
+        assign(entry, "license_plate", joined, `${token} ${next}`);
+        if (pending?.field === "license_plate") pending = null;
+        i++;
+        continue;
+      }
     }
 
     // A keyword arms the next token for a specific field.
@@ -270,12 +295,10 @@ function parseLine(
 
     if (STOP_TOKENS.has(key)) continue;
 
-    // Strong patterns first: plate, phone, date, km, money, year.
-    const plate = normalizePlate(token);
-    if (plate) {
-      assign(entry, "license_plate", plate, token);
-      continue;
-    }
+    // Plate was already tested at the top of the loop (with the 2-token
+    // look-ahead); these remaining strong patterns are ordered so a phone
+    // or date token is never mistaken for money, and a money token is
+    // never mistaken for a bare year.
     const phone = parsePhone(token);
     if (phone) {
       // A second phone number lands in unknownTokens via assign(), never as a price.
@@ -461,8 +484,12 @@ function tryAssignTyped(
     return assign(entry, "odometer", key, token);
   }
   if (field === "license_plate") {
-    const plate = normalizePlate(token) ?? token.toUpperCase();
-    if (!/\d/.test(plate)) return false;
+    // Strict: the top-of-loop plate detector already tried both the single
+    // token and the 2-token join. If we're here, neither worked, so "bs <x>"
+    // with a garbage x must NOT become a bogus plate — leave the token for
+    // normal classification / unknown-token review instead.
+    const plate = normalizePlate(token);
+    if (!plate) return false;
     return assign(entry, "license_plate", plate, token);
   }
   if (field === "frame_number" || field === "engine_number") {

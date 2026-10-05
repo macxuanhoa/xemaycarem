@@ -221,8 +221,9 @@ export function PasswordPage() {
               <input
                 type="password"
                 autoComplete="new-password"
-                minLength={12}
+                minLength={7}
                 required
+                placeholder="Tối thiểu 7 ký tự"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
               />

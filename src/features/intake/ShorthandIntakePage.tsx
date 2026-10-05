@@ -22,9 +22,10 @@ import {
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { canFinance } from "@/lib/permissions";
-import { money, today } from "@/lib/format";
+import { isoToDisplayDate, displayToIsoDate, money } from "@/lib/format";
+import { canonicalizePlate, PLATE_EXAMPLE } from "@/lib/plate";
 import { toast } from "@/lib/toast";
-import { Button, Card, Field, PageHeader } from "@/components/ui";
+import { Button, Card, ColorSwatchAction, Field, PageHeader } from "@/components/ui";
 import { AutocompleteInput } from "@/components/ui/AutocompleteInput";
 import { confirmAction } from "@/components/ui/ConfirmDialog";
 import { useAuth } from "@/features/auth/AuthProvider";
@@ -68,11 +69,13 @@ const TEACHABLE_FIELDS = new Set<IntakeFieldKey>([
  * straight over the placeholder and then have nothing to check the spelling
  * of an abbreviation against. Lines stay under ~31 characters so none of them
  * wraps on a 360px phone — a wrapping sample doubles the panel's height.
+ * Plates, years and `#ghi chú` all auto-detect so the keywords "bs" and
+ * "nam" are no longer required in the samples.
  */
 const SAMPLE_LINES = [
-  "sh den bs 29b1-123.45 gia 18tr5",
-  "wave rsx trang nam 21 12tr",
-  "ex abs trang 27tr niemyet 32tr",
+  "sh den 29b1 123.45 21 gia 18tr5",
+  "wave rsx trang 12tr niemyet 22tr",
+  "ex abs xanh 27tr #chinh chu ban",
 ];
 const SAMPLE = SAMPLE_LINES.join("\n");
 
@@ -82,13 +85,30 @@ const SAMPLE = SAMPLE_LINES.join("\n");
  */
 const SAMPLE_LEGEND: [string, string][] = [
   ["sh", "Honda SH"],
-  ["bs", "biển số"],
-  ["nam 21", "đời xe"],
+  ["29b1 123.45", "biển số (không cần 'bs')"],
+  ["21", "năm 2021 (không cần 'nam')"],
   ["gia 18tr5", "giá thu"],
-  ["niemyet 32tr", "giá niêm yết"],
+  ["niemyet 22tr", "giá niêm yết"],
   ["sdt 0901…", "SĐT người bán"],
   ["35000km", "số km"],
+  ["#chinh chu", "ghi chú"],
 ];
+
+/** ISO (yyyy-mm-dd) → "dd/mm/yyyy" for display; partial user text passes through. */
+function dateDisplay(raw: string): string {
+  return /^\d{4}-\d{2}-\d{2}$/.test(raw) ? isoToDisplayDate(raw) : raw;
+}
+/** Parse user text (dd/mm/yy or dd/mm/yyyy) back to ISO on blur. */
+function dateBlur(raw: string): string {
+  const trimmed = raw.trim();
+  if (!trimmed) return "";
+  if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) return trimmed;
+  const m = trimmed.match(/^(\d{1,2})[/.-](\d{1,2})[/.-](\d{2,4})$/);
+  if (!m) return trimmed;
+  let year = m[3];
+  if (year.length === 2) year = (+year > 80 ? "19" : "20") + year;
+  return displayToIsoDate(`${m[1]}/${m[2]}/${year}`) || trimmed;
+}
 
 export default function ShorthandIntakePage() {
   const { profile } = useAuth();
@@ -350,7 +370,7 @@ export default function ShorthandIntakePage() {
             </div>
             <p className="muted small intake-source">Gốc: {entry.sourceLine}</p>
             <div className="form-grid intake-entry-grid">
-              <Field label="Hãng xe *" className="intake-span2">
+              <Field label="Hãng xe" className="intake-span2">
                 <AutocompleteInput
                   value={entry.fields.brand ?? ""}
                   suggestions={suggestionsFor("brand", entry)}
@@ -366,7 +386,7 @@ export default function ShorthandIntakePage() {
                   placeholder="SH 160i"
                 />
               </Field>
-              <Field label="Số khung *">
+              <Field label="Số khung">
                 <input
                   value={entry.fields.frame_number ?? ""}
                   onChange={(event) =>
@@ -382,12 +402,30 @@ export default function ShorthandIntakePage() {
                   onChange={(event) =>
                     updateField(entry.id, "license_plate", event.target.value.toUpperCase())
                   }
+                  onBlur={(event) => {
+                    if (event.target.value.trim()) {
+                      updateField(
+                        entry.id,
+                        "license_plate",
+                        canonicalizePlate(event.target.value),
+                      );
+                    }
+                  }}
                   autoCapitalize="characters"
-                  placeholder="29B1-123.45"
+                  placeholder={PLATE_EXAMPLE}
                 />
               </Field>
-              <Field label="Màu sắc">
+              <Field
+                label="Màu sắc"
+                labelAction={
+                  <ColorSwatchAction
+                    value={entry.fields.color ?? ""}
+                    onPick={(word) => updateField(entry.id, "color", word)}
+                  />
+                }
+              >
                 <AutocompleteInput
+                  aria-label="Màu sắc"
                   value={entry.fields.color ?? ""}
                   suggestions={suggestionsFor("color", entry)}
                   onChange={(value) => updateField(entry.id, "color", value)}
@@ -444,12 +482,19 @@ export default function ShorthandIntakePage() {
               </Field>
               <Field label="Ngày thu">
                 <input
-                  type="date"
-                  max={today()}
-                  value={entry.fields.purchase_date ?? ""}
+                  value={dateDisplay(entry.fields.purchase_date ?? "")}
                   onChange={(event) =>
                     updateField(entry.id, "purchase_date", event.target.value)
                   }
+                  onBlur={(event) => {
+                    const iso = dateBlur(event.target.value);
+                    if (iso !== entry.fields.purchase_date) {
+                      updateField(entry.id, "purchase_date", iso);
+                    }
+                  }}
+                  inputMode="numeric"
+                  placeholder="dd/mm/yyyy"
+                  autoCorrect="off"
                 />
               </Field>
               <Field label="Số máy">
@@ -559,8 +604,8 @@ export default function ShorthandIntakePage() {
           </div>
           {blockingCount > 0 && (
             <p className="notice danger" role="status">
-              {blockingCount} xe còn thiếu thông tin bắt buộc (số khung, hãng, dòng
-              xe{financial ? ", giá thu" : ""}). Xem cảnh báo đỏ ở từng thẻ xe.
+              {blockingCount} xe còn thiếu thông tin bắt buộc (dòng xe
+              {financial ? ", giá thu" : ""}). Xem cảnh báo đỏ ở từng thẻ xe.
             </p>
           )}
           {unknownCount > 0 && (

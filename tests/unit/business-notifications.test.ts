@@ -46,9 +46,9 @@ describe("notification badge", () => {
 });
 
 describe("notification time buckets", () => {
-  it("groups anything under 15 minutes as Nãy", () => {
-    expect(groupLabel(iso(0), NOW)).toBe("Nãy");
-    expect(groupLabel(iso(14), NOW)).toBe("Nãy");
+  it("groups anything under 15 minutes as Vừa xong", () => {
+    expect(groupLabel(iso(0), NOW)).toBe("Vừa xong");
+    expect(groupLabel(iso(14), NOW)).toBe("Vừa xong");
   });
   it("splits today and yesterday on Vietnam midnight, not UTC", () => {
     // 17:30Z Oct 3 is 00:30 local Oct 4: already "today" in Vietnam although
@@ -82,7 +82,7 @@ describe("groupNotifications", () => {
       ],
       NOW,
     );
-    expect(groups.map((g) => g.label)).toEqual(["Nãy", "Hôm nay", "Hôm qua"]);
+    expect(groups.map((g) => g.label)).toEqual(["Vừa xong", "Hôm nay", "Hôm qua"]);
     expect(groups[0].items.map((i) => i.id)).toEqual(["a"]);
     expect(groups[2].items.map((i) => i.id)).toEqual(["c"]);
   });

@@ -46,4 +46,19 @@ export default defineConfig({
     }),
   ],
   resolve: { alias: { "@": fileURLToPath(new URL("./src", import.meta.url)) } },
+  build: {
+    rollupOptions: {
+      output: {
+        // Carve the stable, large third-party libraries out of the entry chunk
+        // so the browser downloads them in parallel and keeps them cached across
+        // app deploys (their content hash only changes when the lib changes).
+        // This trims repeat-visit payload and speeds first-load parsing.
+        manualChunks: {
+          react: ["react", "react-dom", "react-router-dom"],
+          query: ["@tanstack/react-query"],
+          supabase: ["@supabase/supabase-js"],
+        },
+      },
+    },
+  },
 });

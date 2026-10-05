@@ -1,11 +1,13 @@
 import { useState } from "react";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { UserPlus, X } from "lucide-react";
 import { Button, ErrorState, Field } from "@/components/ui";
 import { api } from "@/lib/api";
+import { toast } from "@/lib/toast";
 import { roleLabels } from "@/lib/permissions";
 
 export function CreateUserModal({ onDone }: { onDone: () => void }) {
+  const client = useQueryClient();
   const [form, setForm] = useState({
     full_name: "",
     username: "",
@@ -16,7 +18,16 @@ export function CreateUserModal({ onDone }: { onDone: () => void }) {
   const [error, setError] = useState("");
   const m = useMutation({
     mutationFn: () => api.createUser(form),
-    onSuccess: onDone,
+    onSuccess: () => {
+      // Refresh the staff grid so the new account is on-screen immediately —
+      // no manual reload required. Toast confirms; inline banner is retired.
+      void client.invalidateQueries({ queryKey: ["profiles"] });
+      toast.success(`Đã tạo tài khoản cho ${form.full_name || form.username}`, {
+        description:
+          "Chuyển mật khẩu ban đầu cho nhân viên qua kênh bảo mật.",
+      });
+      onDone();
+    },
     onError: (err: unknown) => {
       if (err instanceof Error) {
         setError(err.message);
@@ -37,8 +48,8 @@ export function CreateUserModal({ onDone }: { onDone: () => void }) {
       return;
     }
 
-    if (form.password.length < 12) {
-      setError("Mật khẩu ban đầu phải có ít nhất 12 ký tự.");
+    if (form.password.length < 7) {
+      setError("Mật khẩu ban đầu phải có ít nhất 7 ký tự.");
       return;
     }
 
@@ -113,19 +124,19 @@ export function CreateUserModal({ onDone }: { onDone: () => void }) {
                 Nhân viên dùng tên này để đăng nhập vào hệ thống
               </small>
             </Field>
-            <Field label="Mật khẩu ban đầu (tối thiểu 12 ký tự)">
+            <Field label="Mật khẩu ban đầu (tối thiểu 7 ký tự)">
               <input
                 type="password"
                 autoComplete="new-password"
                 required
-                minLength={12}
+                minLength={7}
                 placeholder="Mật khẩu ban đầu"
                 value={form.password}
                 onChange={(e) => setForm({ ...form, password: e.target.value })}
               />
               <small className="muted">
-                Gửi mật khẩu này cho nhân viên; nhân viên dùng ngay được và tự đổi
-                trong Cài đặt khi muốn
+                Nhân viên dùng mật khẩu này đăng nhập ngay — không bị chặn đổi
+                mật khẩu lần đầu; có thể tự đổi trong Cài đặt khi muốn.
               </small>
             </Field>
             <Field label="Vai trò">

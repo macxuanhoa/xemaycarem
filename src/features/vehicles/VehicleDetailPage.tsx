@@ -370,22 +370,24 @@ export function VehicleDetailPage() {
             <Card>
               <h2 className="section-title">Lịch sử hoạt động</h2>
               {vehicle.activity?.length ? (
-                <ol className="timeline">
-                  {vehicle.activity.map((entry) => (
-                    <li key={entry.id}>
-                      <span className="timeline-dot" />
-                      <div>
-                        <strong>
-                          {actionLabels[entry.action] ?? "Cập nhật dữ liệu xe"}
-                        </strong>
-                        <p>
-                          {entry.actor_name || "Người dùng hệ thống"} ·{" "}
-                          {dateLabel(entry.created_at)}
-                        </p>
-                      </div>
-                    </li>
-                  ))}
-                </ol>
+                <div className="timeline-scroll">
+                  <ol className="timeline">
+                    {vehicle.activity.map((entry) => (
+                      <li key={entry.id}>
+                        <span className="timeline-dot" />
+                        <div>
+                          <strong>
+                            {actionLabels[entry.action] ?? "Cập nhật dữ liệu xe"}
+                          </strong>
+                          <p>
+                            {entry.actor_name || "Người dùng hệ thống"} ·{" "}
+                            {dateLabel(entry.created_at)}
+                          </p>
+                        </div>
+                      </li>
+                    ))}
+                  </ol>
+                </div>
               ) : (
                 <p className="muted">
                   Lịch sử được ghi nhận tự động khi có thay đổi.

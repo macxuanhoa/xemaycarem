@@ -234,7 +234,7 @@ test("FLOW A: OWNER full lifecycle (create vehicle -> inventory -> expense -> se
 
   // 1. Add vehicle
   await page.goto("/vehicles/new");
-  await page.getByLabel("Hãng xe *", { exact: true }).fill("Yamaha");
+  await page.getByLabel("Hãng xe", { exact: true }).fill("Yamaha");
   await page.getByLabel("Dòng xe *", { exact: true }).fill("Exciter 155 Flow A");
   await page.getByLabel("Giá mua (₫) *", { exact: false }).fill("40000000");
   await page.getByLabel("Giá niêm yết (₫) *", { exact: false }).fill("48000000");
@@ -279,7 +279,7 @@ test("FLOW B: Partial payment -> second payment -> fully paid", async ({ page })
 
   // Create vehicle with price 50M
   await page.goto("/vehicles/new");
-  await page.getByLabel("Hãng xe *", { exact: true }).fill("Honda");
+  await page.getByLabel("Hãng xe", { exact: true }).fill("Honda");
   await page.getByLabel("Dòng xe *", { exact: true }).fill("Air Blade Flow B");
   await page.getByLabel("Giá mua (₫) *", { exact: false }).fill("28000000");
   await page.getByLabel("Giá niêm yết (₫) *", { exact: false }).fill("50000000");

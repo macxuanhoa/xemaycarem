@@ -125,8 +125,9 @@ test('staff document draft opens a review form without financial fields or autom
   await page.getByRole('link', { name: 'Kiểm tra trong phiếu thu xe' }).click()
   await expect(page).toHaveURL(/\/acquisitions\/new$/)
   // The inline duplicate-chassis feedback extends the input's accessible name
-  // ("Số khung * Số khung chưa có trong hệ thống"), so match by prefix.
-  await expect(page.getByLabel(/^Số khung \*/)).toHaveValue('RLHNEW123')
+  // ("Số khung Số khung chưa có trong hệ thống"), so match by prefix. Số
+  // khung became an optional field in migration 20261005000000 — no asterisk.
+  await expect(page.getByLabel(/^Số khung/)).toHaveValue('RLHNEW123')
   await expect(page.getByLabel('Giá thu (₫) *', { exact: true })).toHaveCount(0)
   expect(calls.writes).toHaveLength(0)
 })

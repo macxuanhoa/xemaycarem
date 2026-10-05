@@ -225,10 +225,17 @@ export async function runOperationalTests(externalDb, { engine = 'postgres' } = 
     })
     const importRow = (overrides = {}) => ({ frame_number: `${suite}-IMPORT-${randomUUID().slice(0, 8)}`, brand: 'Yamaha', model: 'Xe nhập thử', purchase_date: day, purchase_price: 12_000_000, asking_price: 15_000_000, ...overrides })
     await test('import server preview rejects negative/fractional/garbage money and malformed date/year/enum', async () => {
-      for (const values of [{ purchase_price: -1 }, { purchase_price: 1.2 }, { purchase_price: 'abc' }, { purchase_price: 1_000_000_000_001 }, { purchase_date: '2026-02-30' }, { purchase_date: '1/2/2026' }, { purchase_date: tomorrow }, { year: '2023abc' }, { year: 1800 }, { odometer: -5 }, { status: 'SOLD' }, { brand: '' }]) {
+      // Brand and frame_number are optional as of migration 20261005000000,
+      // so an empty brand must NOT be flagged as an error. Keep the other
+      // invalid payloads and add a positive assertion for blank brand/frame.
+      for (const values of [{ purchase_price: -1 }, { purchase_price: 1.2 }, { purchase_price: 'abc' }, { purchase_price: 1_000_000_000_001 }, { purchase_date: '2026-02-30' }, { purchase_date: '1/2/2026' }, { purchase_date: tomorrow }, { year: '2023abc' }, { year: 1800 }, { odometer: -5 }, { status: 'SOLD' }]) {
         const data = await call('owner', 'validate_import_vehicles', [importRow(values)])
         assert.ok(data.errors.length > 0, `Accepted invalid ${JSON.stringify(values)}`)
       }
+      const blankBrand = await call('owner', 'validate_import_vehicles', [importRow({ brand: '' })])
+      assert.equal(blankBrand.errors.length, 0, 'Empty brand should now be accepted')
+      const blankFrame = await call('owner', 'validate_import_vehicles', [importRow({ frame_number: '' })])
+      assert.equal(blankFrame.errors.length, 0, 'Empty frame should now be accepted')
       await deny(() => call('owner', 'validate_import_vehicles', {}), /INVALID_INPUT/)
       await deny(() => call('owner', 'validate_import_vehicles', Array.from({ length: 501 }, () => importRow())), /IMPORT_BATCH_TOO_LARGE/)
     })

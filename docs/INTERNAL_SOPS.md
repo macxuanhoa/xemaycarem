@@ -10,7 +10,7 @@ Chỉ tài khoản OWNER còn hoạt động làm được việc này, và hệ
 2. Bấm **Tạo tài khoản** để mở hộp thoại "Tạo tài khoản nhân viên mới" và điền:
    - **Họ và tên**: bắt buộc, tối đa 120 ký tự.
    - **Tên đăng nhập**: 3–30 ký tự, chỉ chữ thường, số, `_` hoặc `.` (bấm `.` cũng bị xóa khoảng trắng tự động). Nhân viên sẽ đăng nhập bằng tên này, không phải email.
-   - **Mật khẩu ban đầu**: tối thiểu 12 ký tự. Nhân viên dùng mật khẩu này đăng nhập và vào thẳng hệ thống; muốn thì tự đổi trong Cài đặt.
+   - **Mật khẩu ban đầu**: tối thiểu 7 ký tự (toàn bộ mật khẩu cấp cho user trong dự án dùng chung ngưỡng này). Nhân viên dùng mật khẩu này đăng nhập và vào thẳng hệ thống; muốn thì tự đổi trong Cài đặt.
    - **Vai trò**: mặc định STAFF; chọn MANAGER nếu cần xem quản lý.
    - **Xem số tài chính** (tùy chọn): bật nếu nhân viên được thấy giá vốn, doanh thu, lợi nhuận.
    - **Giờ làm việc và ngày làm việc**: mặc định 07:00–20:00, thứ Hai đến thứ Bảy. Ngoài lịch này tài khoản bị chặn đăng nhập.
@@ -26,10 +26,11 @@ Tất cả đi qua cùng Edge Function `manage-users` với các hành động: 
 ## Ghi nhận xe thu vào (STAFF trở lên, trong lịch làm việc)
 
 1. Mở **Thu vào** (`/acquisitions`) để xem danh sách; bấm tạo mới để vào form (`/acquisitions/new`).
-2. Điền thông tin xe: biển số, số khung, số máy, thương hiệu, đời, giá mua, chi phí sang tên/linh tinh, ngày thu, người bán.
+2. Điền thông tin xe: **dòng xe** là bắt buộc; hãng, số khung, biển số, số máy, đời, màu, km, giá mua, chi phí linh tinh, ngày thu, người bán có thể để trống nếu chưa có ngay lúc thu.
 3. Ảnh CCCD của người bán (khi thu xe) chụp và tải trực tiếp trong form: ảnh chỉ lưu ở bucket riêng tư `identity-documents`, liên kết theo hồ sơ thu qua `save_identity_document` + `register_identity_document_image`; người có quyền chỉ xem được bằng liên kết tạm 120 giây. Không lưu ảnh CCCD vào nơi khác.
 4. Bấm Lưu. Giao dịch được ghi bằng RPC `acquire_vehicle` — một transaction duy nhất tạo xe + chi phí + hồ sơ; hoặc có thể thêm xe bằng form Tồn kho (`save_vehicle`) rồi bổ sung chi phí sau.
 5. Giá mua chưa xác định được thì để trống: xe ở trạng thái "chờ giá vốn" (`cost_pending`), **chưa bán được** cho tới khi người có quyền tài chính nhập giá mua thật.
+6. Số khung để trống: hệ thống tự sinh mã nội bộ `GEN-<uuid>` để xe vẫn lưu được mà không phá chỉ số UNIQUE. Khi có giấy tờ, mở lại form Tồn kho → điền số khung thật → hệ thống kiểm tra trùng như bình thường.
 
 ## Thu xe tốc ký — nhập nhiều xe cùng lúc từ tin nhắn viết tắt (STAFF trở lên)
 
@@ -41,12 +42,31 @@ Khi có một danh sách nhiều xe cần thu (tin nhắn Notes/Zalo), dùng tra
 4. Tiền viết tắt: `18tr5` = 18.500.000, `1.2ty` = 1.200.000.000, `450k` = 450.000, hoặc số đầy đủ `18.000.000`.
 5. Từ không nhận diện được **không bao giờ bị đoán vào trường tiền**; chúng hiện ở mục "từ chưa nhận diện" để bạn gán vào Ghi chú hoặc dạy cho máy.
 6. **Dạy viết tắt**: sửa một giá trị (hãng, dòng, phiên bản, màu, tên người bán) khác token gốc sẽ hiện nút dạy; xác nhận là lần sau dán lại tự đúng. Bộ nhớ viết tắt lưu **theo tài khoản ngay trên máy đó** (localStorage), không đồng bộ sang máy khác; xem và xóa từng quy tắc trong bảng "Bộ nhớ viết tắt" cuối trang.
-7. Trước khi lưu, mỗi thẻ xe tự kiểm tra: bắt buộc có **số khung, hãng xe, dòng xe**; nếu bạn có quyền tài chính thì **bắt buộc giá thu**; năm 1900–2100; km 0–10.000.000; biển số ≤ 30 ký tự; ngày thu không ở tương lai. Nhân viên không có quyền tài chính không ghi giá thu (chủ/nhân viên quản lý có quyền sẽ nhập sau; xe chờ giá vốn không bán được).
+7. Trước khi lưu, mỗi thẻ xe tự kiểm tra: bắt buộc có **dòng xe**; nếu bạn có quyền tài chính thì **bắt buộc giá thu**; số khung/hãng xe được phép để trống (khung trống → server tự sinh `GEN-<uuid>`); năm 1900–2100; km 0–10.000.000; biển số ≤ 30 ký tự; ngày thu không ở tương lai. Nhân viên không có quyền tài chính không ghi giá thu (chủ/nhân viên quản lý có quyền sẽ nhập sau; xe chờ giá vốn không bán được).
 8. Bấm **Xác nhận thu xe**: hệ thống gửi cả lô cho `validate_import_vehicles` kiểm tra trùng lặp và tính hợp lệ phía server. Nếu có bất kỳ lỗi/trùng nào → báo ngay trên từng thẻ, **không lưu gì cả** để bạn sửa. Khi sạch lỗi → `import_vehicles` lưu toàn bộ xe + phiếu thu trong một giao dịch rồi chuyển về danh sách Thu vào.
 
 ## Cập nhật xe trong tồn kho
 
 Mở **Tồn kho** (`/vehicles`), bấm vào xe để xem chi tiết (`/vehicles/:id`), bấm **Sửa** (`/vehicles/:id/edit`). Form dùng RPC `save_vehicle`; các trường số tiền là VND nguyên (không dấu phẩy). Ảnh xe tải lên bucket riêng tư `vehicle-images` (JPG/PNG/WebP, tối đa 5 MB mỗi ảnh trong app), đăng ký qua `register_vehicle_image`; xóa ảnh chỉ gỡ tham chiếu (soft delete), ảnh gốc giữ cho kiểm kê/sao lưu và quản trị viên dọn sau. Ảnh chưa đăng ký không ai đọc được.
+
+## Tùy chỉnh chip "Chọn nhanh hãng & dòng xe"
+
+Form **Thu vào** (`/acquisitions/new`) và **Nhập xe mới** (`/vehicles/new`, `/vehicles/:id/edit`) hiển thị hai hàng chip: **Chọn nhanh hãng xe** và **Chọn nhanh dòng xe** (chỉ hiện sau khi đã chọn hãng). Chip giúp nhân viên một chạm điền đúng tên hãng/dòng, giảm sai chính tả (`honda`/`Hoong da`) trong autocomplete.
+
+- Mặc định mở hàng: Honda (SH 125i, SH 150i, SH 160i, SH Mode, Vision, Air Blade, Lead, Wave, Future, Dax ST125), Piaggio (Vespa Sprint, Vespa Primavera), Suzuki (Satria, Raider), Yamaha (Exciter).
+- OWNER chỉnh trong **Cài đặt → Chọn nhanh xe**: mỗi hãng một dòng theo khuôn `Honda: SH 125i, Vision`. Dòng trống bị bỏ qua; mỗi tên tự cắt khoảng trắng và khử trùng lặp không phân biệt hoa/thường. Bấm **Khôi phục mặc định** để quay về danh sách mở hàng, rồi **Lưu danh mục**.
+- Danh mục lưu ở `system_settings.quickpick_brands` (mảng text) và `quickpick_models` (JSONB `{ "honda": [...] }`, key là hãng đã lowercase). Ghi qua `save_settings` — **chỉ OWNER**, các vai trò khác nhận `ACCESS_DENIED`. Sai định dạng trả `INVALID_INPUT` (quá 30 hãng, quá 60 mẫu/hãng, tên rỗng, tên quá dài).
+- `get_settings` trả nguyên hàng `system_settings`, nên STAFF/MANAGER đọc được chip mà không cần quyền ghi. Cache dùng chung query key `["settings"]` — khi OWNER lưu từ Cài đặt, chip ở form đang mở sẽ đổi ngay sau khi React Query refresh.
+- Autocomplete vẫn hoạt động song song với chip: nhân viên có thể gõ tay hoặc bấm lịch sử xe gần nhất (`recentVehicles`) nếu mẫu chưa nằm trong danh mục.
+
+## Chọn màu xe bằng ô màu (thay cho chip "Chọn màu nhanh")
+
+Form **Thu vào**, **Nhập xe mới**, và **Thu tốc ký** hiển thị một **ô tròn nhỏ (swatch)** ngay cạnh nhãn **Màu sắc**. Bấm vào swatch mở bảng màu hệ điều hành; màu chọn được **khớp về từ tiếng Việt gần nhất** (`Đen`, `Đen nhám`, `Trắng`, `Trắng ngà`, `Bạc`, `Xám`, `Xám khói`, `Đỏ`, `Đỏ đô`, `Cam`, `Vàng`, `Kem`, `Nâu`, `Hồng`, `Tím`, `Xanh lá`, `Xanh mint`, `Xanh ngọc`, `Xanh dương`, `Xanh navy` — xem `src/lib/colorWords.ts`) rồi **điền vào ô text** để nhân viên có thể tiếp tục gõ chữ (`"Đen nhám bóng"`, `"Trắng ngọc trai"`, v.v.). Thuật toán khớp: khoảng cách Euclid có trọng số `2·ΔR² + 4·ΔG² + 3·ΔB²` (xấp xỉ cảm nhận thị giác, ưu tiên phân biệt sáng/tối).
+
+- Swatch luôn hiển thị lại màu của từ đang lưu (tra `COLOR_ANCHORS`); nếu ô đang chứa từ tự do không có trong bảng, swatch hiện xám `#808080` — chỉ là gợi ý trực quan, không ghi đè text.
+- Không dùng chip hàng loạt nữa. `COLOR_CHIPS` đã gỡ khỏi `QuickChips.tsx`; mọi form chỉ render `ColorSwatchAction` (component mới, nằm cạnh `Field` label qua prop `labelAction`).
+- Giá trị cuối vẫn là **text tiếng Việt thuần**, không phải hex — giữ báo cáo/in phiếu dễ đọc, không cần bảng tra.
+- Nhân viên có thể bỏ qua swatch và gõ thẳng tên màu như trước; `AutocompleteInput` vẫn suggestion từ `recentVehicles`.
 
 ## Bán xe (STAFF trở lên, trong lịch làm việc)
 
@@ -74,6 +94,8 @@ Trang `/showroom` hiển thị xe đang có thật cho người ngoài xem (ch�
 ## Thông báo nội bộ
 
 OWNER/MANAGER soạn tin trên **Cài đặt** → tab Thông báo (`save_announcement`, bật/tắt `set_announcement_active`, xóa `delete_announcement`). Tin đang bật hiện trên thanh dọc của **mọi** người dùng (`list_active_announcements`) cho tới khi tắt. Cài đặt chung của cửa hàng (tên, SĐT, ngưỡng tồn kho) lưu qua `save_settings`.
+
+Chuông **thông báo nghiệp vụ** (góc phải trên) liệt kê thu/bán/thanh toán theo quyền người xem. Trên điện thoại, panel mở lên thành **tấm trượt từ đáy (bottom sheet)**: bấm vào một dòng để mở giao dịch liên quan (đồng thời đánh dấu đã đọc), bấm "Đánh dấu tất cả đã đọc" để xóa huy hiệu, và đóng bằng nút ✕, phím Esc, hoặc **chạm vùng nền mờ phía trên tấm**. Không cần kéo thả; vùng nền mờ luôn còn trống nên luôn bấm ra ngoài được kể cả khi danh sách dài.
 
 ## Dùng Trợ lý AI đúng cách
 

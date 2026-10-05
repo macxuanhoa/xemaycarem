@@ -7,17 +7,22 @@ import {
   ChevronRight,
   Clock,
   CreditCard,
+  FileText,
+  Gem,
   Handshake,
   Lock,
   MapPin,
+  Menu,
   MessageCircle,
   PhoneCall,
+  RefreshCw,
   Search,
   ShieldCheck,
   Sparkles,
   Star,
   Store,
   Tag,
+  Wrench,
   X,
 } from "lucide-react";
 import { useAuth } from "@/features/auth/AuthProvider";
@@ -73,6 +78,7 @@ export default function ShowroomPage() {
   const [selectedTab, setSelectedTab] = useState<"ALL" | "NEW">("ALL");
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedBike, setSelectedBike] = useState<BikeView | null>(null);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [sellModalOpen, setSellModalOpen] = useState(false);
   const [sellForm, setSellForm] = useState({
     customerName: "",
@@ -252,7 +258,7 @@ export default function ShowroomPage() {
             <a href="#quy-trinh" className="nav-item">
               Thu mua xe
             </a>
-            <a href="#quy-trinh" className="nav-item">
+            <a href="#lien-he" className="nav-item">
               Hỗ trợ trả góp
             </a>
             <a href="#ve-ca-rem" className="nav-item">
@@ -282,9 +288,84 @@ export default function ShowroomPage() {
               <MessageCircle size={15} />
               <span>Chat Zalo</span>
             </a>
+            <button
+              type="button"
+              className="btn-mobile-toggle"
+              aria-label="Mở menu"
+              aria-expanded={mobileMenuOpen}
+              onClick={() => setMobileMenuOpen((v) => !v)}
+            >
+              {mobileMenuOpen ? <X size={22} /> : <Menu size={22} />}
+            </button>
           </div>
         </div>
       </header>
+
+      {/* Mobile Drawer */}
+      {mobileMenuOpen && (
+        <div className="showroom-mobile-drawer">
+          <nav className="mobile-drawer-links">
+            <a
+              href="#xe-dang-ban"
+              className="mobile-link"
+              onClick={() => { setSelectedTab("ALL"); setMobileMenuOpen(false); }}
+            >
+              Xe đang bán
+            </a>
+            <a
+              href="#xe-dang-ban"
+              className="mobile-link"
+              onClick={() => { setSelectedTab("NEW"); setMobileMenuOpen(false); }}
+            >
+              Xe mới về
+            </a>
+            <a
+              href="#quy-trinh"
+              className="mobile-link"
+              onClick={() => setMobileMenuOpen(false)}
+            >
+              Thu mua xe
+            </a>
+            <a
+              href="#lien-he"
+              className="mobile-link"
+              onClick={() => setMobileMenuOpen(false)}
+            >
+              Hỗ trợ trả góp
+            </a>
+            <a
+              href="#ve-ca-rem"
+              className="mobile-link"
+              onClick={() => setMobileMenuOpen(false)}
+            >
+              Về Cà Rem
+            </a>
+            <a
+              href="#lien-he"
+              className="mobile-link"
+              onClick={() => setMobileMenuOpen(false)}
+            >
+              Liên hệ
+            </a>
+            <Link
+              to={user ? "/" : "/login"}
+              className="mobile-link highlight-crm"
+              onClick={() => setMobileMenuOpen(false)}
+            >
+              {user ? "Vào Quản Trị CRM" : "Đăng nhập CRM"}
+            </Link>
+          </nav>
+          <div className="mobile-drawer-footer">
+            <button
+              type="button"
+              className="mobile-hotline-btn"
+              onClick={() => { setSellModalOpen(true); setMobileMenuOpen(false); }}
+            >
+              <Tag size={16} /> Định giá xe cần bán
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* 3. HERO BANNER SECTION (THEO TEMPLATE ẢNH 1, 3, 4) */}
       <section className="showroom-hero-section">
@@ -300,7 +381,7 @@ export default function ShowroomPage() {
 
         <div className="showroom-container hero-content-wrapper">
           <div className="hero-badge-tag">
-            <span className="badge-shield-icon">🛡️</span>
+            <ShieldCheck size={14} className="badge-shield-icon" />
             <span>MUA BÁN XE MÁY CŨ UY TÍN TẠI HỘI AN</span>
           </div>
 
@@ -394,9 +475,9 @@ export default function ShowroomPage() {
               </span>
             </a>
 
-            <div className="neon-card" onClick={() => setSellModalOpen(true)}>
+            <a href="#lien-he" className="neon-card">
               <div className="neon-card-icon">
-                <Handshake size={32} />
+                <CreditCard size={32} />
               </div>
               <h3 className="neon-card-title">Hỗ trợ trả góp</h3>
               <p className="neon-card-desc">
@@ -405,11 +486,11 @@ export default function ShowroomPage() {
               <span className="neon-card-link">
                 Tư vấn trả góp <ChevronRight size={15} />
               </span>
-            </div>
+            </a>
 
             <div className="neon-card highlight" onClick={() => setSellModalOpen(true)}>
               <div className="neon-card-icon">
-                <Store size={32} />
+                <Handshake size={32} />
               </div>
               <h3 className="neon-card-title">Thu mua xe cũ</h3>
               <p className="neon-card-desc">
@@ -453,7 +534,7 @@ export default function ShowroomPage() {
                 className={`inv-tab ${selectedTab === "NEW" ? "active" : ""}`}
                 onClick={() => setSelectedTab("NEW")}
               >
-                🔥 Xe mới về
+                <Sparkles size={13} /> Xe mới về ({bikes.filter((b) => b.isNew).length})
               </button>
             </div>
 
@@ -647,7 +728,7 @@ export default function ShowroomPage() {
               </div>
               <div className="owner-contact-pill">
                 <strong>Hậu · Cà Rem Hội An</strong>
-                <a href="tel:0914929292">📞 0914.92.92.92</a>
+                <a href="tel:0914929292"><PhoneCall size={13} /> 0914.92.92.92</a>
               </div>
             </div>
 
@@ -667,7 +748,7 @@ export default function ShowroomPage() {
 
               <div className="commitments-grid">
                 <div className="commit-box">
-                  <span className="commit-icon">💎</span>
+                  <Gem size={22} className="commit-icon" />
                   <div>
                     <strong>Chất lượng thật 100%</strong>
                     <p>
@@ -678,7 +759,7 @@ export default function ShowroomPage() {
                 </div>
 
                 <div className="commit-box">
-                  <span className="commit-icon">📜</span>
+                  <FileText size={22} className="commit-icon" />
                   <div>
                     <strong>Pháp lý chuẩn chỉ</strong>
                     <p>
@@ -689,7 +770,7 @@ export default function ShowroomPage() {
                 </div>
 
                 <div className="commit-box">
-                  <span className="commit-icon">🛠️</span>
+                  <Wrench size={22} className="commit-icon" />
                   <div>
                     <strong>Bảo hành chu đáo</strong>
                     <p>
@@ -700,7 +781,7 @@ export default function ShowroomPage() {
                 </div>
 
                 <div className="commit-box">
-                  <span className="commit-icon">🔄</span>
+                  <RefreshCw size={22} className="commit-icon" />
                   <div>
                     <strong>Bao quay đầu linh hoạt</strong>
                     <p>
@@ -995,7 +1076,11 @@ export default function ShowroomPage() {
       {selectedBike && (
         <div
           className="showroom-modal-backdrop"
+          role="dialog"
+          aria-modal="true"
+          aria-label={`Chi tiết xe ${selectedBike.name}`}
           onClick={() => setSelectedBike(null)}
+          onKeyDown={(e) => e.key === "Escape" && setSelectedBike(null)}
         >
           <div
             className="showroom-modal-card"
@@ -1095,7 +1180,11 @@ export default function ShowroomPage() {
       {sellModalOpen && (
         <div
           className="showroom-modal-backdrop"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Gửi thông tin xe cần bán"
           onClick={closeSellModal}
+          onKeyDown={(e) => e.key === "Escape" && closeSellModal()}
         >
           <div
             className="showroom-modal-card sell-modal"
@@ -1272,7 +1361,7 @@ export default function ShowroomPage() {
                   </button>
 
                   <p className="privacy-note">
-                    🔒 Thông tin của bạn được bảo mật tuyệt đối, chỉ dùng để Cà
+                    <Lock size={12} /> Thông tin của bạn được bảo mật tuyệt đối, chỉ dùng để Cà
                     Rem liên hệ báo giá.
                   </p>
                 </form>

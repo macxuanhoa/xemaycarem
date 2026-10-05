@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { dateValue, moneyValue } from "@/lib/validation";
+import { isValidMotorbikePlate, PLATE_INVALID_MESSAGE } from "@/lib/plate";
 
 // Re-export validation primitives
 export { moneyValue, dateValue };
@@ -17,10 +18,14 @@ export {
 } from "@/features/expenses/expenseSchema";
 
 export const vehicleSchema = z.object({
-  brand: z.string().trim().min(1, "Nhập hãng xe.").max(80),
+  brand: z.string().trim().max(80),
   model: z.string().trim().min(1, "Nhập dòng xe.").max(120),
   variant: z.string().trim().max(120),
-  license_plate: z.string().trim().max(30),
+  license_plate: z
+    .string()
+    .trim()
+    .max(30)
+    .refine(isValidMotorbikePlate, PLATE_INVALID_MESSAGE),
   year: z
     .number({ error: "Nhập năm sản xuất hợp lệ." })
     .int()

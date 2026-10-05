@@ -45,7 +45,7 @@ jwt_expiry = 3600
 # Global signup endpoint is disabled; accounts are created via Auth Admin/manage-users only.
 enable_signup = false
 enable_anonymous_sign_ins = false
-minimum_password_length = 12
+minimum_password_length = 7
 
 [auth.email]
 # IMPORTANT: this flag controls the email PROVIDER (logins included), not only

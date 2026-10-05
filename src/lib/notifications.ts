@@ -41,10 +41,12 @@ const shortDate = (date: Date) => {
   return `${day}/${month}`;
 };
 
-/** Facebook-style section bucket: Nãy / Hôm nay / Hôm qua / dd/MM(/yyyy). */
+/** Facebook-style section bucket: Vừa xong / Hôm nay / Hôm qua / dd/MM(/yyyy).
+ *  "Vừa xong" reads cleaner than the southern-only "Nãy" and mirrors the
+ *  row-level `relativeTime()` wording for the freshest items. */
 export function groupLabel(iso: string, now = new Date()): string {
   const then = new Date(iso);
-  if (now.getTime() - then.getTime() < 15 * MINUTE) return "Nãy";
+  if (now.getTime() - then.getTime() < 15 * MINUTE) return "Vừa xong";
   const key = dayKey(then);
   if (key === dayKey(now)) return "Hôm nay";
   if (key === dayKey(new Date(now.getTime() - DAY))) return "Hôm qua";

@@ -10,12 +10,28 @@
     />
     <link rel="icon" type="image/jpeg" href="/logo.jpg" />
     <link rel="apple-touch-icon" href="/icon-192.png" />
+    <!-- Warm the connections the cold start depends on: the API origin for the
+         auth round-trips, and the font hosts. Doing the DNS + TLS handshake
+         early is a real win on mobile networks. -->
+    <link rel="preconnect" href="https://atsgqtarxhmxrsugulva.supabase.co" crossorigin />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <!-- Load the font stylesheet without blocking first paint: `media="print"`
+         drops it out of the render path, then it swaps to `all` once fetched.
+         The URL already requests `display=swap`, so text paints immediately in
+         the fallback face and upgrades when the webfont lands. -->
     <link
       href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Plus+Jakarta+Sans:ital,wght@0,300..800;1,300..800&display=swap"
       rel="stylesheet"
+      media="print"
+      onload="this.media='all'"
     />
+    <noscript>
+      <link
+        href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Plus+Jakarta+Sans:ital,wght@0,300..800;1,300..800&display=swap"
+        rel="stylesheet"
+      />
+    </noscript>
     <title>Cà Rem · Quản Lý Cửa Hàng Xe Máy</title>
     <script>
       // Apply the saved (or system) theme before first paint to avoid a flash.

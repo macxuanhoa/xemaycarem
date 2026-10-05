@@ -6,6 +6,7 @@
 import type { IntakeEntry, IntakeFieldKey } from "./parseIntakeNotes";
 import { parseShorthandMoney } from "./parseIntakeNotes";
 import { today } from "@/lib/format";
+import { canonicalizePlate, isValidMotorbikePlate, PLATE_INVALID_MESSAGE } from "@/lib/plate";
 
 const MAX_PLATE = 30;
 const MAX_FRAME = 100;
@@ -24,15 +25,19 @@ export function validateIntakeEntry(
 ): string[] {
   const errors: string[] = [];
   const f = entry.fields;
-  if (!f.frame_number?.trim()) errors.push("Thiếu số khung.");
-  else if (f.frame_number.trim().length > MAX_FRAME)
+  // Số khung và Hãng xe không còn bắt buộc — chỉ kiểm tra độ dài khi người
+  // dùng có nhập. Server sinh placeholder "GEN-…" khi khung trống.
+  if (f.frame_number && f.frame_number.trim().length > MAX_FRAME)
     errors.push(`Số khung tối đa ${MAX_FRAME} ký tự.`);
-  if (!f.brand?.trim()) errors.push("Thiếu hãng xe.");
-  else if (f.brand.trim().length > 80) errors.push("Hãng xe tối đa 80 ký tự.");
+  if (f.brand && f.brand.trim().length > 80)
+    errors.push("Hãng xe tối đa 80 ký tự.");
   if (!f.model?.trim()) errors.push("Thiếu dòng xe.");
   else if (f.model.trim().length > 120) errors.push("Dòng xe tối đa 120 ký tự.");
-  if ((f.license_plate ?? "").length > MAX_PLATE)
-    errors.push(`Biển số tối đa ${MAX_PLATE} ký tự.`);
+  // Biển số không bắt buộc, nhưng nếu có thì phải đúng format xe máy VN —
+  // tránh nhập bậy vẫn được nhận. Rỗng/whitespace luôn hợp lệ.
+  const plate = (f.license_plate ?? "").trim();
+  if (plate.length > MAX_PLATE) errors.push(`Biển số tối đa ${MAX_PLATE} ký tự.`);
+  else if (!isValidMotorbikePlate(plate)) errors.push(PLATE_INVALID_MESSAGE);
   if (f.year) {
     const year = Number(f.year);
     if (!/^\d{4}$/.test(f.year.trim()) || year < 1900 || year > 2100)
@@ -43,8 +48,12 @@ export function validateIntakeEntry(
     if (!/^\d+$/.test(f.odometer.trim()) || km < 0 || km > 10_000_000)
       errors.push("Số km phải từ 0 đến 10.000.000.");
   }
-  if (f.purchase_date && f.purchase_date > today())
-    errors.push("Ngày thu không được ở tương lai.");
+  if (f.purchase_date) {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(f.purchase_date))
+      errors.push("Ngày thu không hợp lệ (định dạng dd/mm/yyyy).");
+    else if (f.purchase_date > today())
+      errors.push("Ngày thu không được ở tương lai.");
+  }
   const purchase = moneyOf(entry, "purchase_price");
   if (purchase === "invalid") errors.push("Giá thu không hợp lệ (vd: 18tr5).");
   if (financial && purchase === null) errors.push("Cần nhập giá thu xe.");
@@ -65,7 +74,7 @@ export function entryToImportRow(
   const row: Record<string, unknown> = {
     frame_number: (f.frame_number ?? "").trim().toUpperCase(),
     engine_number: (f.engine_number ?? "").trim().toUpperCase(),
-    license_plate: (f.license_plate ?? "").trim().toUpperCase(),
+    license_plate: canonicalizePlate(f.license_plate ?? ""),
     brand: (f.brand ?? "").trim(),
     model: (f.model ?? "").trim(),
     variant: (f.variant ?? "").trim(),
@@ -94,7 +103,7 @@ export function entryToAcquisitionDraft(entry: IntakeEntry): Record<string, unkn
   const draft: Record<string, unknown> = {
     frame_number: (f.frame_number ?? "").trim().toUpperCase(),
     engine_number: (f.engine_number ?? "").trim().toUpperCase(),
-    license_plate: (f.license_plate ?? "").trim().toUpperCase(),
+    license_plate: canonicalizePlate(f.license_plate ?? ""),
     brand: (f.brand ?? "").trim(),
     model: (f.model ?? "").trim(),
     variant: (f.variant ?? "").trim(),

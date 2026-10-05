@@ -399,8 +399,8 @@ export function AppLayout() {
           onMouseEnter={() => preloadRoute("/")}
           onTouchStart={() => preloadRoute("/")}
         >
-          <House size={21} />
-          Tổng quan
+          <span className="bottom-nav-icon"><House size={22} /></span>
+          <span className="bottom-nav-label">Tổng quan</span>
         </NavLink>
         {canOperate(profile) && (
           <NavLink
@@ -408,8 +408,8 @@ export function AppLayout() {
             onMouseEnter={() => preloadRoute("/acquisitions/new")}
             onTouchStart={() => preloadRoute("/acquisitions/new")}
           >
-            <Plus size={22} />
-            Thu xe
+            <span className="bottom-nav-icon"><Plus size={22} /></span>
+            <span className="bottom-nav-label">Thu xe</span>
           </NavLink>
         )}
         <NavLink
@@ -417,25 +417,17 @@ export function AppLayout() {
           onMouseEnter={() => preloadRoute("/vehicles")}
           onTouchStart={() => preloadRoute("/vehicles")}
         >
-          <Bike size={21} />
-          Tồn kho
+          <span className="bottom-nav-icon"><Bike size={22} /></span>
+          <span className="bottom-nav-label">Tồn kho</span>
         </NavLink>
         <NavLink
           to="/sales"
           onMouseEnter={() => preloadRoute("/sales")}
           onTouchStart={() => preloadRoute("/sales")}
         >
-          <Receipt size={21} />
-          Bán ra
+          <span className="bottom-nav-icon"><Receipt size={22} /></span>
+          <span className="bottom-nav-label">Bán ra</span>
         </NavLink>
-        <button
-          aria-expanded={drawer.active}
-          aria-controls="main-navigation"
-          onClick={(event) => drawer.show(event.currentTarget)}
-        >
-          <Menu size={21} />
-          Menu
-        </button>
       </nav>
     </div>
   );

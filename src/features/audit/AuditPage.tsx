@@ -13,51 +13,92 @@ import {
 import { api } from "@/lib/api";
 import { dateLabel, monthRange } from "@/lib/format";
 import type { Activity } from "@/types";
-import { actionLabels } from "@/features/vehicles/vehicleSchema";
+import {
+  actionChip,
+  changedFields,
+  describeAction,
+  entityLabel,
+  recordSubject,
+  summarizeFields,
+} from "./auditLabels";
 
-function renderChangedKeys(oldData: unknown, newData: unknown) {
-  if (
-    !oldData ||
-    !newData ||
-    typeof oldData !== "object" ||
-    typeof newData !== "object"
-  ) {
-    return null;
-  }
-  const oldObj = oldData as Record<string, unknown>;
-  const newObj = newData as Record<string, unknown>;
-  const allKeys = Array.from(
-    new Set([...Object.keys(oldObj), ...Object.keys(newObj)]),
-  );
-  const changed = allKeys.filter(
-    (k) => JSON.stringify(oldObj[k]) !== JSON.stringify(newObj[k]),
-  );
-  if (!changed.length) return null;
+/**
+ * Reads an audit row the way a person would describe it: who did what, which
+ * fields changed (old → new) in plain Vietnamese. The raw before/after JSON is
+ * kept behind a collapsed panel so nothing is lost for forensic review.
+ */
+function AuditRecordBody({ a }: { a: Activity }) {
+  const oldData = (a.old_data ?? null) as Record<string, unknown> | null;
+  const newData = (a.new_data ?? null) as Record<string, unknown> | null;
+  const actor = a.actor_name ?? a.full_name ?? "Hệ thống";
+  const sentence = describeAction(a.action, actor);
+  const subject = recordSubject(newData ?? oldData);
+
+  const diffs = changedFields(oldData, newData);
+  // Create (only new) / delete (only old) have no diff — list the key fields.
+  const snapshot = diffs.length
+    ? []
+    : summarizeFields(newData ?? oldData);
 
   return (
-    <div className="audit-diff-summary">
-      <span className="small muted" style={{ fontWeight: 600 }}>
-        Các trường dữ liệu đã thay đổi:
-      </span>
-      {changed.slice(0, 6).map((k) => (
-        <div key={k} className="audit-diff-line">
-          <span className="audit-diff-key">{k}:</span>
-          <span className="audit-diff-old">
-            {typeof oldObj[k] === "object"
-              ? JSON.stringify(oldObj[k])
-              : String(oldObj[k] ?? "—")}
+    <div className="audit-record-body">
+      <p className="audit-lead">
+        {sentence}
+        {subject ? <span className="audit-lead-subject">: “{subject}”</span> : null}
+      </p>
+
+      {diffs.length > 0 && (
+        <div className="audit-diff-summary">
+          <span className="small muted" style={{ fontWeight: 600 }}>
+            Những thay đổi:
           </span>
-          <span className="audit-diff-arrow">→</span>
-          <span className="audit-diff-new">
-            {typeof newObj[k] === "object"
-              ? JSON.stringify(newObj[k])
-              : String(newObj[k] ?? "—")}
-          </span>
+          {diffs.map((d) => (
+            <div key={d.label} className="audit-diff-line">
+              <span className="audit-diff-key">{d.label}:</span>
+              <span className="audit-diff-old">{d.old}</span>
+              <span className="audit-diff-arrow">→</span>
+              <span className="audit-diff-new">{d.next}</span>
+            </div>
+          ))}
         </div>
-      ))}
-      {changed.length > 6 && (
-        <small className="muted">+ {changed.length - 6} trường khác</small>
       )}
+
+      {snapshot.length > 0 && (
+        <div className="audit-diff-summary">
+          <span className="small muted" style={{ fontWeight: 600 }}>
+            Thông tin ghi nhận:
+          </span>
+          {snapshot.map((f) => (
+            <div key={f.key} className="audit-diff-line">
+              <span className="audit-diff-key">{f.key}:</span>
+              <span className="audit-diff-value">{f.value}</span>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {diffs.length === 0 && snapshot.length === 0 && (
+        <p className="muted small">
+          Thao tác này không ghi nhận thay đổi trường dữ liệu nào.
+        </p>
+      )}
+
+      <details className="audit-raw">
+        <summary className="small muted">Xem dữ liệu thô (JSON)</summary>
+        <p className="small muted audit-record-id">
+          Mã định danh đối tượng: <code>{a.entity_id ?? "—"}</code>
+        </p>
+        <div className="audit-diff">
+          <div>
+            <h3>Trước thay đổi</h3>
+            <pre>{JSON.stringify(a.old_data ?? null, null, 2)}</pre>
+          </div>
+          <div>
+            <h3>Sau thay đổi</h3>
+            <pre>{JSON.stringify(a.new_data ?? null, null, 2)}</pre>
+          </div>
+        </div>
+      </details>
     </div>
   );
 }
@@ -210,7 +251,7 @@ export default function AuditPage() {
                   <details key={a.id} className="audit-record">
                     <summary>
                       <span className={getActionChipClass(a.action)}>
-                        {actionLabels[a.action] ?? a.action}
+                        {actionChip(a.action)}
                       </span>
                       <div className="audit-record-main">
                         <div className="audit-record-actor">
@@ -219,7 +260,9 @@ export default function AuditPage() {
                             {a.actor_name ?? a.full_name ?? a.user_id}
                           </strong>
                           <span className="muted small">·</span>
-                          <span className="muted small">{a.entity_type}</span>
+                          <span className="muted small">
+                            {entityLabel(a.entity_type)}
+                          </span>
                         </div>
                       </div>
                       <time className="audit-record-time small">
@@ -233,28 +276,7 @@ export default function AuditPage() {
                       </time>
                     </summary>
 
-                    <div className="audit-record-body">
-                      <p className="small muted audit-record-id">
-                        Mã định danh đối tượng: <code>{a.entity_id}</code>
-                      </p>
-
-                      {renderChangedKeys(a.old_data, a.new_data)}
-
-                      <div className="audit-diff">
-                        <div>
-                          <h3>Trước thay đổi</h3>
-                          <pre>
-                            {JSON.stringify(a.old_data, null, 2) ?? "Không có"}
-                          </pre>
-                        </div>
-                        <div>
-                          <h3>Sau thay đổi</h3>
-                          <pre>
-                            {JSON.stringify(a.new_data, null, 2) ?? "Không có"}
-                          </pre>
-                        </div>
-                      </div>
-                    </div>
+                    <AuditRecordBody a={a} />
                   </details>
                 ))}
               </div>

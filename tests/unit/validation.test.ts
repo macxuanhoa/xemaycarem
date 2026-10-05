@@ -101,9 +101,11 @@ describe('Vehicle form input validation (vehicleSchema)', () => {
     expect(parsed.purchase_price).toBeUndefined()
   })
 
-  it('rejects empty or whitespace-only brand or model', () => {
-    expect(vehicleSchema.safeParse({ ...baseVehicle, brand: '' }).success).toBe(false)
-    expect(vehicleSchema.safeParse({ ...baseVehicle, brand: '   ' }).success).toBe(false)
+  it('rejects empty or whitespace-only model but tolerates blank brand', () => {
+    // Brand became optional in migration 20261005000000 — staff often don't
+    // recognise the badge at intake time. Model is still mandatory.
+    expect(vehicleSchema.safeParse({ ...baseVehicle, brand: '' }).success).toBe(true)
+    expect(vehicleSchema.safeParse({ ...baseVehicle, brand: '   ' }).success).toBe(true)
     expect(vehicleSchema.safeParse({ ...baseVehicle, model: '' }).success).toBe(false)
     expect(vehicleSchema.safeParse({ ...baseVehicle, model: '   ' }).success).toBe(false)
   })
@@ -190,9 +192,12 @@ describe('Acquisition form input validation (acquisitionSchema)', () => {
     expect(parsed.asking_price).toBeUndefined()
   })
 
-  it('rejects missing or empty frame_number, brand, model, or acquisition_date', () => {
-    expect(acquisitionSchema.safeParse({ ...baseAcquisition, frame_number: '' }).success).toBe(false)
-    expect(acquisitionSchema.safeParse({ ...baseAcquisition, brand: '' }).success).toBe(false)
+  it('still rejects model and acquisition_date, but tolerates blank frame_number and brand', () => {
+    // Migration 20261005000000 made số khung + hãng optional because intake
+    // often happens before the seller can produce papers. Model and the
+    // acquisition date remain required.
+    expect(acquisitionSchema.safeParse({ ...baseAcquisition, frame_number: '' }).success).toBe(true)
+    expect(acquisitionSchema.safeParse({ ...baseAcquisition, brand: '' }).success).toBe(true)
     expect(acquisitionSchema.safeParse({ ...baseAcquisition, model: '' }).success).toBe(false)
     expect(acquisitionSchema.safeParse({ ...baseAcquisition, acquisition_date: 'invalid' }).success).toBe(false)
   })

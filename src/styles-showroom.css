@@ -299,7 +299,14 @@
   border: 0;
   color: #fff;
   cursor: pointer;
-  padding: 4px;
+  padding: 6px;
+  border-radius: 8px;
+  transition: background 0.15s;
+  flex-shrink: 0;
+}
+
+.btn-mobile-toggle:hover {
+  background: rgba(255, 255, 255, 0.1);
 }
 
 /* Mobile Drawer */
@@ -308,6 +315,9 @@
   border-bottom: 2px solid var(--sr-red);
   padding: 16px 20px 24px;
   animation: srSlideDown 0.2s ease-out;
+  position: sticky;
+  top: 72px;
+  z-index: 99;
 }
 
 @keyframes srSlideDown {
@@ -351,10 +361,18 @@
   padding: 12px;
   background: var(--sr-red);
   color: #fff;
+  border: 0;
   border-radius: 8px;
+  font-size: 14px;
   font-weight: 700;
+  cursor: pointer;
   text-decoration: none;
   box-shadow: var(--sr-red-glow);
+  transition: filter 0.15s;
+}
+
+.mobile-hotline-btn:hover {
+  filter: brightness(1.1);
 }
 
 /* ==========================================================================
@@ -432,6 +450,11 @@
   text-transform: uppercase;
 }
 
+.badge-shield-icon {
+  color: #ff4d6d;
+  flex-shrink: 0;
+}
+
 .hero-main-title {
   font-size: 48px;
   font-weight: 950;
@@ -445,6 +468,7 @@
 .title-highlight {
   background: linear-gradient(90deg, #ff3366, #ff1744, #ff809b);
   -webkit-background-clip: text;
+  background-clip: text;
   -webkit-text-fill-color: transparent;
   filter: drop-shadow(0 0 20px rgba(225, 29, 72, 0.6));
 }
@@ -678,6 +702,7 @@
   letter-spacing: -0.8px;
   color: #fff;
   margin: 0 0 10px;
+  text-wrap: balance;
 }
 
 .text-red {
@@ -721,6 +746,9 @@
   font-weight: 700;
   cursor: pointer;
   transition: all 0.2s;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
 }
 
 .inv-tab:hover {
@@ -1099,10 +1127,18 @@
 }
 
 .owner-contact-pill a {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
   color: #ff4d6d;
   font-size: 13px;
   font-weight: 700;
   text-decoration: none;
+  transition: color 0.15s;
+}
+
+.owner-contact-pill a:hover {
+  color: #ff3366;
 }
 
 .eyebrow-red {
@@ -1150,8 +1186,9 @@
 }
 
 .commit-icon {
-  font-size: 24px;
-  line-height: 1;
+  color: var(--sr-red);
+  flex-shrink: 0;
+  margin-top: 1px;
 }
 
 .commit-box strong {
@@ -1286,8 +1323,8 @@
 }
 
 .gallery-card.featured-img {
-  aspect-ratio: auto;
-  height: 100%;
+  aspect-ratio: 4 / 3;
+  height: auto;
 }
 
 .gallery-img {
@@ -1405,6 +1442,12 @@
 .link-zalo {
   color: #60a5fa;
   font-weight: 600;
+  text-decoration: none;
+  transition: color 0.15s;
+}
+
+.link-zalo:hover {
+  color: #93c5fd;
   text-decoration: underline;
 }
 
@@ -1848,6 +1891,10 @@
   color: #64748b;
   text-align: center;
   margin: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
 }
 
 .sell-success-box {
@@ -1884,13 +1931,24 @@
     grid-template-columns: repeat(2, 1fr);
   }
 
+  .section-title-large {
+    font-size: 28px;
+  }
+
   .about-carem-card {
     grid-template-columns: 1fr;
     text-align: center;
+    gap: 28px;
+    padding: 30px 24px;
   }
 
   .about-media-col {
-    margin-bottom: 10px;
+    margin-bottom: 0;
+  }
+
+  .owner-avatar-frame {
+    width: 200px;
+    height: 200px;
   }
 
   .commitments-grid {
@@ -1903,6 +1961,10 @@
 
   .contact-map-col {
     min-height: 280px;
+  }
+
+  .contact-info-col {
+    padding: 28px 24px;
   }
 
   .footer-top-row {
@@ -1924,17 +1986,32 @@
     display: none;
   }
 
+  .showroom-hero-section {
+    min-height: 380px;
+    padding: 40px 0;
+  }
+
   .hero-main-title {
-    font-size: 34px;
+    font-size: 30px;
   }
 
   .hero-slogan {
-    font-size: 19px;
+    font-size: 18px;
+  }
+
+  .hero-description {
+    font-size: 13px;
   }
 
   .hero-cta-group {
     flex-direction: column;
     align-items: stretch;
+  }
+
+  .hero-badge-tag {
+    font-size: 10px;
+    padding: 5px 12px;
+    margin-bottom: 14px;
   }
 
   .hero-trust-bar {
@@ -1961,6 +2038,10 @@
     grid-template-columns: 1fr;
   }
 
+  .about-carem-card {
+    padding: 24px 18px;
+  }
+
   .modal-bike-layout {
     grid-template-columns: 1fr;
   }
@@ -1971,6 +2052,108 @@
 
   .footer-top-row {
     grid-template-columns: 1fr;
+  }
+
+  .footer-bottom-bar {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 6px;
+  }
+
+  /* iOS auto-zoom prevention: all inputs must be ≥16px on mobile */
+  .showroom-search-box input {
+    font-size: 16px;
+  }
+
+  .form-group input,
+  .form-group textarea {
+    font-size: 16px;
+  }
+
+  /* Filter bar stacks cleanly on tablet/mobile */
+  .showroom-filter-bar {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 12px;
+  }
+
+  .inventory-tabs {
+    width: 100%;
+  }
+
+  .inv-tab {
+    flex: 1;
+    justify-content: center;
+  }
+
+  .showroom-search-box {
+    min-width: 0;
+    width: 100%;
+  }
+
+  /* Modal card tighter padding on mobile */
+  .showroom-modal-card {
+    padding: 20px 16px;
+    max-height: 95vh;
+    border-radius: 12px;
+  }
+
+  .sell-modal {
+    max-width: 100%;
+  }
+
+  .form-row-2 {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 480px) {
+  /* Hide CRM pill + divider to prevent top-bar overflow on very small screens */
+  .divider-vert,
+  .crm-login-pill {
+    display: none;
+  }
+
+  .top-bar-content {
+    justify-content: center;
+  }
+
+  .top-bar-right {
+    gap: 8px;
+  }
+
+  .showroom-hero-section {
+    min-height: 300px;
+    padding: 32px 0;
+  }
+
+  .hero-main-title {
+    font-size: 26px;
+  }
+
+  .hero-slogan {
+    font-size: 16px;
+  }
+
+  .hero-description {
+    font-size: 13px;
+  }
+
+  .section-title-large {
+    font-size: 26px;
+  }
+
+  .about-title {
+    font-size: 22px;
+  }
+
+  .contact-title {
+    font-size: 24px;
+  }
+
+  .owner-avatar-frame {
+    width: 180px;
+    height: 180px;
   }
 }
 

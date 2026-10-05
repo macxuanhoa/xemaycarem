@@ -227,7 +227,7 @@ test("Owner: login, persistent session, add/edit vehicle, expense, sale, payment
     fullPage: true,
   });
   await page.goto("/vehicles/new");
-  await page.getByLabel("Hãng xe *", { exact: true }).fill("Honda");
+  await page.getByLabel("Hãng xe", { exact: true }).fill("Honda");
   await page.getByLabel("Dòng xe *", { exact: true }).fill("SH Kiểm thử UI");
   await page.getByLabel("Giá mua (₫) *", { exact: false }).fill("80000000");
   await page.getByLabel("Giá niêm yết (₫) *", { exact: false }).fill("90000000");
@@ -341,6 +341,12 @@ test("Owner: audit and settings routes", async ({
   await page.goto("/audit");
   await expect(page.locator(".audit-record").first()).toBeVisible();
   await page.locator(".audit-record summary").first().click();
+  // The record body now leads with a plain-language sentence and keeps the raw
+  // before/after JSON behind a collapsed "dữ liệu thô" panel for forensics.
+  await expect(
+    page.locator(".audit-record-body .audit-lead").first(),
+  ).toBeVisible();
+  await page.locator(".audit-raw > summary").first().click();
   await expect(
     page.getByText("Trước thay đổi", { exact: true }).first(),
   ).toBeVisible();

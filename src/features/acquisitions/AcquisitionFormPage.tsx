@@ -17,11 +17,13 @@ import { api } from "@/lib/api";
 import { AppError } from "@/lib/errors";
 import { canFinance, canOperate } from "@/lib/permissions";
 import { dateLabel, money, today } from "@/lib/format";
+import { canonicalizePlate, PLATE_EXAMPLE } from "@/lib/plate";
 import { formatVndApproxText, formatVndWords } from "@/lib/moneyHelper";
 import { useAuth } from "@/features/auth/AuthProvider";
 import {
   Button,
   Card,
+  ColorSwatchAction,
   DatePicker,
   EmptyState,
   ErrorState,
@@ -30,14 +32,11 @@ import {
 } from "@/components/ui";
 import { MoneyInput } from "@/components/ui/MoneyInput";
 import { AutocompleteInput } from "@/components/ui/AutocompleteInput";
-import {
-  BRAND_CHIPS,
-  COLOR_CHIPS,
-  QuickChips,
-} from "@/components/ui/QuickChips";
+import { QuickChips } from "@/components/ui/QuickChips";
 import { saveRecentValue } from "@/lib/recentVehicles";
 import { useDebouncedValue } from "@/lib/useDebouncedValue";
 import { vehicleSuggestions } from "@/lib/vehicleSuggestions";
+import { useQuickPick } from "@/lib/useQuickPick";
 import { useFormDraft } from "@/lib/useFormDraft";
 import { draftFields } from "@/lib/formDrafts";
 import { useDialog } from "@/lib/useDialog";
@@ -107,6 +106,8 @@ function AcquisitionEditor() {
       }),
     staleTime: 5 * 60 * 1000,
   });
+
+  const quickPick = useQuickPick();
 
   const duplicateQuery = useQuery({
     queryKey: ["vehicle-frame-check", profile?.id, checkedFrame],
@@ -193,7 +194,7 @@ function AcquisitionEditor() {
       ...values,
       frame_number: values.frame_number.trim().toUpperCase(),
       engine_number: values.engine_number.trim().toUpperCase(),
-      license_plate: values.license_plate.trim().toUpperCase(),
+      license_plate: canonicalizePlate(values.license_plate),
       brand: values.brand.trim(),
       model: values.model.trim(),
       variant: values.variant.trim(),
@@ -301,13 +302,8 @@ function AcquisitionEditor() {
           {/* Card 1: Thông tin xe & định giá */}
           <Card>
             <h2 className="section-title">1. Thông tin xe</h2>
-            {!financial && (
-              <p className="notice" style={{ marginBottom: "16px" }}>
-                Người có quyền tài chính sẽ bổ sung giá thu trước khi bán xe.
-              </p>
-            )}
             <div className="form-grid">
-              <Field label="Số khung *" error={error("frame_number")}>
+              <Field label="Số khung" error={error("frame_number")}>
                 <input
                   autoFocus
                   autoCapitalize="characters"
@@ -322,7 +318,7 @@ function AcquisitionEditor() {
                       { shouldValidate: true },
                     );
                   }}
-                  placeholder="Nhập số khung xe (bắt buộc)"
+                  placeholder="Nhập số khung (nếu có)"
                 />
                 {checkedFrame.length >= 3 &&
                   !duplicateQuery.isFetching &&
@@ -399,21 +395,21 @@ function AcquisitionEditor() {
                   {...form.register("license_plate")}
                   onBlur={() => {
                     const val = form.getValues("license_plate");
-                    if (val) {
+                    if (val.trim()) {
                       form.setValue(
                         "license_plate",
-                        val.trim().toUpperCase(),
+                        canonicalizePlate(val),
                         { shouldValidate: !!error("license_plate") },
                       );
                     }
                   }}
-                  placeholder="59-A1 123.45"
+                  placeholder={PLATE_EXAMPLE}
                 />
               </Field>
 
-              <Field label="Hãng xe *" error={error("brand")}>
+              <Field label="Hãng xe" error={error("brand")}>
                 <AutocompleteInput
-                  aria-label="Hãng xe *"
+                  aria-label="Hãng xe"
                   value={brand}
                   onChange={(value) => setText("brand", value)}
                   onBlur={() => {
@@ -478,10 +474,18 @@ function AcquisitionEditor() {
 
             <QuickChips
               label="Chọn nhanh hãng xe"
-              options={BRAND_CHIPS}
+              options={quickPick.brandChips}
               selected={brand}
               onSelect={(value) => setText("brand", value)}
             />
+            {brand.trim() && quickPick.modelsFor(brand).length > 0 && (
+              <QuickChips
+                label="Chọn nhanh dòng xe"
+                options={quickPick.modelsFor(brand)}
+                selected={form.watch("model")}
+                onSelect={(value) => setText("model", value)}
+              />
+            )}
           </Card>
 
           {/* Card 2: Thông tin người bán */}
@@ -568,7 +572,16 @@ function AcquisitionEditor() {
                     })}
                   />
                 </Field>
-                <Field label="Màu sắc" error={error("color")}>
+                <Field
+                  label="Màu sắc"
+                  error={error("color")}
+                  labelAction={
+                    <ColorSwatchAction
+                      value={form.watch("color")}
+                      onPick={(word) => setText("color", word)}
+                    />
+                  }
+                >
                   <AutocompleteInput
                     aria-label="Màu sắc"
                     value={form.watch("color")}
@@ -612,13 +625,6 @@ function AcquisitionEditor() {
                   />
                 </Field>
               </div>
-
-              <QuickChips
-                label="Chọn nhanh màu xe"
-                options={COLOR_CHIPS}
-                selected={form.watch("color")}
-                onSelect={(value) => setText("color", value)}
-              />
 
               <Field label="Ghi chú" error={error("notes")}>
                 <textarea

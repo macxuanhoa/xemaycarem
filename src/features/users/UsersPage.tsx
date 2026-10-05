@@ -161,9 +161,6 @@ export default function UsersPage() {
         <CreateUserModal
           onDone={() => {
             setAdding(false);
-            setNotice(
-              "Tài khoản đã được tạo. Chuyển mật khẩu ban đầu cho nhân viên qua kênh bảo mật.",
-            );
           }}
         />
       )}

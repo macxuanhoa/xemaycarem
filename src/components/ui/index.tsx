@@ -10,10 +10,11 @@ import {
 } from "lucide-react";
 import { Button } from "./button";
 import { DatePicker } from "./DatePicker";
+import { ColorSwatchAction } from "./ColorSwatchAction";
 import { friendlyError } from "@/lib/errors";
 import { datePreset } from "@/lib/format";
 import type { DateFilter } from "@/types";
-export { Button, DatePicker };
+export { Button, DatePicker, ColorSwatchAction };
 export function PageHeader({
   title,
   description,
@@ -55,16 +56,26 @@ export function Field({
   error,
   children,
   className = "",
+  labelAction,
 }: {
   label: string;
   error?: string;
   children: ReactNode;
   /** Extra hook for grid placement (e.g. a field that spans both columns). */
   className?: string;
+  /** Optional widget rendered inline with the label (e.g. a colour swatch). */
+  labelAction?: ReactNode;
 }) {
   return (
     <label className={`field ${className}`.trim()}>
-      <span>{label}</span>
+      {labelAction ? (
+        <span className="field-label-row">
+          <span className="field-label-text">{label}</span>
+          {labelAction}
+        </span>
+      ) : (
+        <span>{label}</span>
+      )}
       {children}
       {error && (
         <span className="field-error" role="alert">

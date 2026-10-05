@@ -47,11 +47,11 @@ describe("parseShorthandMoney", () => {
 });
 
 describe("normalizePlate", () => {
-  it("normalizes common phone-note spellings", () => {
-    expect(normalizePlate("29b1-123.45")).toBe("29B1-123.45");
-    expect(normalizePlate("51X1-887.65")).toBe("51X1-887.65");
-    expect(normalizePlate("29-A1-1234")).toBe("29A1-1234");
-    expect(normalizePlate("29b1.123.45")).toBe("29B1-123.45");
+  it("normalizes common phone-note spellings to the real VN format", () => {
+    expect(normalizePlate("29b1-123.45")).toBe("29-B1 123.45");
+    expect(normalizePlate("51X1-887.65")).toBe("51-X1 887.65");
+    expect(normalizePlate("29-A1-1234")).toBe("29-A1 1234");
+    expect(normalizePlate("29b1.123.45")).toBe("29-B1 123.45");
   });
   it("does not treat frames or plain numbers as plates", () => {
     expect(normalizePlate("RLH160-001")).toBeNull();
@@ -66,7 +66,7 @@ describe("parseIntakeNotes", () => {
       brand: "Honda",
       model: "SH",
       color: "Đen",
-      license_plate: "29B1-123.45",
+      license_plate: "29-B1 123.45",
       year: "2022",
       odometer: "20000",
       purchase_price: "18500000",
@@ -137,6 +137,28 @@ describe("parseIntakeNotes", () => {
     expect(entries[0].fields.supplier_phone).toBe("0901234567");
     expect(entries[0].unknownTokens).toContain("0987654321");
   });
+  it("detects a plate without the 'bs' keyword, joining a space-split serial", () => {
+    // Regression: "29b1 123.45" used to leak "123.45" into the odometer
+    // bucket because the parser only looked at a single token.
+    const fields = parseFirst("sh den 29b1 123.45 gia 18tr5");
+    expect(fields.license_plate).toBe("29-B1 123.45");
+    expect(fields.odometer).toBeUndefined();
+    expect(fields.purchase_price).toBe("18500000");
+  });
+  it("treats a bare 2- or 4-digit number as the production year", () => {
+    expect(parseFirst("vision den 21 18tr").year).toBe("2021");
+    expect(parseFirst("vision den 2021 18tr").year).toBe("2021");
+  });
+  it("routes a mid-line `#token` and everything after it into notes", () => {
+    const fields = parseFirst("ex abs xanh 27tr #chinh chu ban");
+    expect(fields.notes).toBe("chinh chu ban");
+    expect(fields.purchase_price).toBe("27000000");
+    expect(fields.variant).toBe("ABS");
+  });
+  it("rejects garbage after 'bs' instead of storing it as a plate", () => {
+    const fields = parseFirst("sh den bs abcxyz");
+    expect(fields.license_plate).toBeUndefined();
+  });
 });
 
 describe("learnedDictionary", () => {
@@ -170,12 +192,15 @@ describe("learnedDictionary", () => {
 describe("intake payload", () => {
   const entry = parseIntakeNotes("sh den 29b1-123.45 gia 18tr5 fk RLH160-001")[0];
 
-  it("requires frame, brand, model and price (for finance) before import", () => {
+  it("requires model and price (for finance) but not frame or brand", () => {
     expect(validateIntakeEntry(entry, true)).toEqual([]);
     expect(validateIntakeEntry(entry, false)).toEqual([]);
+    // Số khung + Hãng xe optional: an entry that only has brand should still
+    // complain about missing model and (for finance) missing giá thu, but
+    // must not flag "số khung" anymore.
     const missing = { ...entry, fields: { brand: "Honda" } };
     const errors = validateIntakeEntry(missing, true);
-    expect(errors.join(" ")).toMatch(/khung/);
+    expect(errors.join(" ")).not.toMatch(/số khung/);
     expect(errors.join(" ")).toMatch(/dòng xe/);
     expect(errors.join(" ")).toMatch(/giá thu/);
   });
@@ -190,7 +215,19 @@ describe("intake payload", () => {
   it("maps supplier fields to the single-vehicle form names", () => {
     const draft = entryToAcquisitionDraft(entry);
     expect(draft.frame_number).toBe("RLH160-001");
-    expect(draft.license_plate).toBe("29B1-123.45");
+    expect(draft.license_plate).toBe("29-B1 123.45");
+  });
+  it("rejects a garbage plate but keeps the field optional", () => {
+    const garbage = {
+      ...entry,
+      fields: { ...entry.fields, license_plate: "abc xyz" },
+    };
+    expect(validateIntakeEntry(garbage, true).join(" ")).toMatch(/Biển số/);
+    const blank = {
+      ...entry,
+      fields: { ...entry.fields, license_plate: "   " },
+    };
+    expect(validateIntakeEntry(blank, true)).toEqual([]);
   });
   it("INTAKE_FIELDS covers every editable field", () => {
     expect(INTAKE_FIELDS.length).toBe(15);

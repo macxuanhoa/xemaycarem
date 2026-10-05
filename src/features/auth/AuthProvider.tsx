@@ -60,14 +60,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           "Không thể kết nối. Hãy mở lại ứng dụng khi có mạng để kiểm tra quyền truy cập.",
         );
       }
-      const { data: row, error: profileError } = await supabase
-        .from("profiles")
-        .select(
-          "id,full_name,username,role,active,can_view_financials,must_change_password,disabled_until,allowed_from,allowed_until,working_days,deleted_at",
-        )
-        .eq("id", data.session.user.id)
-        .maybeSingle();
+      // The profile row and the authoritative access RPC depend only on the
+      // resolved session, so fetch them concurrently. This drops one full
+      // network round-trip from the cold-start gate that keeps the app on the
+      // loading screen; every validation below still runs in the same order.
+      const uid = data.session.user.id;
+      const [profileRes, accessRes] = await Promise.all([
+        supabase
+          .from("profiles")
+          .select(
+            "id,full_name,username,role,active,can_view_financials,must_change_password,disabled_until,allowed_from,allowed_until,working_days,deleted_at",
+          )
+          .eq("id", uid)
+          .maybeSingle(),
+        supabase.rpc("check_user_access"),
+      ]);
       if (version !== refreshVersion.current) return;
+      const { data: row, error: profileError } = profileRes;
       if (profileError) throw profileError;
 
       // Check if profile exists
@@ -101,8 +110,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
 
       // Check authoritative server access evaluation
-      const { data: accessData, error: accessErr } =
-        await supabase.rpc("check_user_access");
+      const { data: accessData, error: accessErr } = accessRes;
       if (accessErr) {
         throw new AppError(
           "Không thể kiểm tra quyền truy cập. Vui lòng thử lại khi có kết nối.",

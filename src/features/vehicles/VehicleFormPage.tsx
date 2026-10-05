@@ -7,12 +7,14 @@ import { ArrowLeft } from "lucide-react";
 import { api } from "@/lib/api";
 import { AppError } from "@/lib/errors";
 import { today } from "@/lib/format";
+import { canonicalizePlate, PLATE_EXAMPLE } from "@/lib/plate";
 import { useDebouncedValue } from "@/lib/useDebouncedValue";
 import { canFinance, canManage, canOperate } from "@/lib/permissions";
 import { useAuth } from "@/features/auth/AuthProvider";
 import {
   Button,
   Card,
+  ColorSwatchAction,
   DatePicker,
   EmptyState,
   ErrorState,
@@ -24,14 +26,11 @@ import type { Vehicle } from "@/types";
 import { vehicleSchema, type VehicleFormValues } from "./vehicleSchema";
 import { MoneyInput } from "@/components/ui/MoneyInput";
 import { AutocompleteInput } from "@/components/ui/AutocompleteInput";
-import {
-  BRAND_CHIPS,
-  COLOR_CHIPS,
-  QuickChips,
-} from "@/components/ui/QuickChips";
+import { QuickChips } from "@/components/ui/QuickChips";
 import { saveRecentValue } from "@/lib/recentVehicles";
 import { useFormDraft } from "@/lib/useFormDraft";
 import { vehicleSuggestions } from "@/lib/vehicleSuggestions";
+import { useQuickPick } from "@/lib/useQuickPick";
 import { compressImage } from "@/lib/imageCompression";
 import type { Paged } from "@/types";
 
@@ -161,6 +160,7 @@ function VehicleEditor({ vehicle }: { vehicle?: Vehicle }) {
       }),
     staleTime: 5 * 60 * 1000,
   });
+  const quickPick = useQuickPick();
   const suggestions = (field: "brand" | "model" | "variant" | "color") =>
     vehicleSuggestions(catalog.data?.items ?? [], field, profile?.id, brand);
   const setText = (
@@ -182,6 +182,7 @@ function VehicleEditor({ vehicle }: { vehicle?: Vehicle }) {
         );
       const data: Record<string, unknown> = {
         ...values,
+        license_plate: canonicalizePlate(values.license_plate),
         year: values.year ?? null,
       };
       if (!financial) delete data.purchase_price;
@@ -272,12 +273,12 @@ function VehicleEditor({ vehicle }: { vehicle?: Vehicle }) {
           <Card>
             <div className="section-heading">
               <h2 className="section-title" style={{ margin: 0 }}>1. Thông tin cơ bản</h2>
-              <span className="muted small">Bắt buộc: Hãng, Dòng xe</span>
+              <span className="muted small">Bắt buộc: Dòng xe</span>
             </div>
             <div className="form-grid">
-              <Field label="Hãng xe *" error={error("brand")}>
+              <Field label="Hãng xe" error={error("brand")}>
                 <AutocompleteInput
-                  aria-label="Hãng xe *"
+                  aria-label="Hãng xe"
                   value={brand}
                   onChange={(value) => setText("brand", value)}
                   onBlur={() => void form.trigger("brand")}
@@ -307,7 +308,17 @@ function VehicleEditor({ vehicle }: { vehicle?: Vehicle }) {
               <Field label="Biển số" error={error("license_plate")}>
                 <input
                   {...form.register("license_plate")}
-                  placeholder="59-A1 123.45"
+                  autoCapitalize="characters"
+                  placeholder={PLATE_EXAMPLE}
+                  onBlur={(event) => {
+                    if (event.target.value.trim()) {
+                      form.setValue(
+                        "license_plate",
+                        canonicalizePlate(event.target.value),
+                        { shouldValidate: true, shouldDirty: true },
+                      );
+                    }
+                  }}
                 />
               </Field>
               <Field label="Năm sản xuất" error={error("year")}>
@@ -320,12 +331,22 @@ function VehicleEditor({ vehicle }: { vehicle?: Vehicle }) {
                   })}
                 />
               </Field>
-              <Field label="Màu sắc" error={error("color")}>
+              <Field
+                label="Màu sắc"
+                error={error("color")}
+                labelAction={
+                  <ColorSwatchAction
+                    value={form.watch("color")}
+                    onPick={(word) => setText("color", word)}
+                  />
+                }
+              >
                 <AutocompleteInput
                   aria-label="Màu sắc"
                   value={form.watch("color")}
                   onChange={(value) => setText("color", value)}
                   suggestions={suggestions("color")}
+                  placeholder="VD: Đen, Trắng ngọc trai"
                 />
               </Field>
               <Field label="Số khung" error={error("frame_number")}>
@@ -370,16 +391,18 @@ function VehicleEditor({ vehicle }: { vehicle?: Vehicle }) {
             </div>
             <QuickChips
               label="Chọn hãng nhanh"
-              options={BRAND_CHIPS}
+              options={quickPick.brandChips}
               selected={brand}
               onSelect={(value) => setText("brand", value)}
             />
-            <QuickChips
-              label="Chọn màu nhanh"
-              options={COLOR_CHIPS}
-              selected={form.watch("color")}
-              onSelect={(value) => setText("color", value)}
-            />
+            {brand.trim() && quickPick.modelsFor(brand).length > 0 && (
+              <QuickChips
+                label="Chọn dòng nhanh"
+                options={quickPick.modelsFor(brand)}
+                selected={form.watch("model")}
+                onSelect={(value) => setText("model", value)}
+              />
+            )}
           </Card>
           <Card>
             <div className="section-heading">

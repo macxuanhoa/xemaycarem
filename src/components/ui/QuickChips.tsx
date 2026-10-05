@@ -42,58 +42,51 @@ export function QuickChips({
   );
 }
 
-// Predefined high-frequency catalogs for Vietnam motorcycle shops
-export const BRAND_CHIPS = [
+// Default catalogs tuned for Cà Rem's frequent stock. OWNER can override the
+// whole list from Cài đặt → "Chọn nhanh xe"; the forms read the shop's saved
+// catalog through `useQuickPick` and fall back to these defaults on first run
+// or when the settings row is missing.
+export const BRAND_CHIPS: Array<{ value: string; label: string }> = [
   { value: "Honda", label: "Honda" },
-  { value: "Yamaha", label: "Yamaha" },
+  { value: "Piaggio", label: "Piaggio" },
   { value: "Suzuki", label: "Suzuki" },
-  { value: "SYM", label: "SYM" },
-  { value: "Piaggio", label: "Piaggio / Vespa" },
+  { value: "Yamaha", label: "Yamaha" },
 ];
 
-export const COLOR_CHIPS = [
-  { value: "Trắng", label: "Trắng" },
-  { value: "Đen", label: "Đen" },
-  { value: "Đỏ", label: "Đỏ" },
-  { value: "Xám", label: "Xám" },
-  { value: "Xanh", label: "Xanh" },
-  { value: "Bạc", label: "Bạc" },
-];
+// Colour quick-pick chips were replaced with an inline `<input type="color">`
+// swatch rendered next to the "Màu sắc" field label (see
+// `src/components/ui/ColorSwatchAction.tsx`). Staff now pick the paint tone
+// visually and the app stores the nearest Vietnamese word via
+// `src/lib/colorWords.ts`.
 
+// Keys are lowercase brand names — always look up via
+// `COMMON_MODELS_BY_BRAND[brand.trim().toLowerCase()]`.
 export const COMMON_MODELS_BY_BRAND: Record<string, string[]> = {
   honda: [
-    "SH 160i",
     "SH 125i",
+    "SH 150i",
+    "SH 160i",
     "SH Mode",
     "Vision",
-    "Air Blade 125",
-    "Air Blade 160",
-    "Wave Alpha",
-    "Wave RSX",
-    "Future 125",
+    "Air Blade",
     "Lead",
-    "Winner X",
-    "Vario 160",
+    "Wave",
+    "Future",
+    "Dax ST125",
   ],
-  yamaha: [
-    "Exciter 155",
-    "Grande",
-    "Janus",
-    "NVX 155",
-    "Sirius",
-    "Jupiter",
-    "Latte",
-  ],
-  piaggio: [
-    "Vespa Sprint",
-    "Vespa Primavera",
-    "Vespa GTS",
-    "Liberty 125",
-    "Medley",
-  ],
-  suzuki: ["Raider 150", "Satria 150", "Burgman Street"],
-  sym: ["Attila", "Galaxy 50", "Elegant 50"],
+  piaggio: ["Vespa Sprint", "Vespa Primavera"],
+  suzuki: ["Satria", "Raider"],
+  yamaha: ["Exciter"],
 };
+
+/** Canonical plain-text form used by the Settings editor and reset button.
+ *  One brand per line: "<Brand>: <model>, <model>, …". */
+export const DEFAULT_QUICKPICK_TEXT = [
+  "Honda: SH 125i, SH 150i, SH 160i, SH Mode, Vision, Air Blade, Lead, Wave, Future, Dax ST125",
+  "Piaggio: Vespa Sprint, Vespa Primavera",
+  "Suzuki: Satria, Raider",
+  "Yamaha: Exciter",
+].join("\n");
 
 export const VEHICLE_EXPENSE_CHIPS = [
   { type: "REPAIR", label: "Sửa chữa", defaultDesc: "Sửa chữa kỹ thuật" },

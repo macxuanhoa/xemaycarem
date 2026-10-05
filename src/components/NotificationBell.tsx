@@ -48,6 +48,13 @@ const ACTION_TONE: Record<NotificationAction, "success" | "warning" | "neutral">
   UPDATE_VEHICLE: "neutral",
 };
 
+// Keep a trailing currency unit from being orphaned on its own line when the
+// body wraps on narrow phones — glue "…000 đ" together with a non-breaking
+// space so the amount and its unit always travel as one token.
+function tidyBody(text: string) {
+  return text.replace(/(\d)\s+([\u20AB\u0111])/g, "$1\u00A0$2");
+}
+
 function Row({
   item,
   now,
@@ -71,7 +78,7 @@ function Row({
       </span>
       <span className="notification-row-text">
         <span className="notification-row-title">{item.title}</span>
-        {item.body && <span className="notification-row-body">{item.body}</span>}
+        {item.body && <span className="notification-row-body">{tidyBody(item.body)}</span>}
         <span className="notification-row-time">{relativeTime(item.created_at, now)}</span>
       </span>
       {unread && <span className="notification-row-dot" aria-hidden="true" />}

@@ -1233,17 +1233,18 @@ pre {
 [data-theme="dark"] .row-action.row-danger:hover {
   background: #2c1718;
 }
-/* Delete-acquisition popup: a real centered modal (was an inline red card). */
-.delete-acq-dialog {
+/* Shared destructive-delete popup: a real centered modal (was an inline red
+   card). Used by both the acquisition-receipt and hard vehicle deletes. */
+.delete-dialog {
   padding: 0;
 }
-.delete-acq-head {
+.delete-dialog-head {
   display: flex;
   align-items: flex-start;
   gap: 12px;
   padding: 20px 22px 0;
 }
-.delete-acq-icon {
+.delete-dialog-icon {
   display: inline-grid;
   place-items: center;
   width: 40px;
@@ -1253,26 +1254,26 @@ pre {
   background: rgba(180, 35, 31, 0.1);
   color: #b4231f;
 }
-.delete-acq-heading {
+.delete-dialog-heading {
   flex: 1;
   min-width: 0;
 }
-.delete-acq-heading h2 {
+.delete-dialog-heading h2 {
   margin: 0;
   font-size: 17px;
   font-weight: 700;
   color: #1f2937;
 }
-.delete-acq-heading p {
+.delete-dialog-heading p {
   margin: 3px 0 0;
   font-size: 13px;
   color: #66756e;
   overflow-wrap: anywhere;
 }
-.delete-acq-head .icon-button {
+.delete-dialog-head .icon-button {
   align-self: flex-start;
 }
-.delete-acq-warn {
+.delete-dialog-warn {
   margin: 14px 22px 0;
   padding: 11px 13px;
   font-size: 13px;
@@ -1282,21 +1283,21 @@ pre {
   border: 1px solid #f0d3cf;
   border-radius: 11px;
 }
-.delete-acq-dialog form {
+.delete-dialog form {
   padding: 16px 22px 20px;
   margin-top: 4px;
 }
-[data-theme="dark"] .delete-acq-icon {
+[data-theme="dark"] .delete-dialog-icon {
   background: rgba(240, 120, 120, 0.14);
   color: #f0a3a3;
 }
-[data-theme="dark"] .delete-acq-heading h2 {
+[data-theme="dark"] .delete-dialog-heading h2 {
   color: #e7e9f0;
 }
-[data-theme="dark"] .delete-acq-heading p {
+[data-theme="dark"] .delete-dialog-heading p {
   color: #9aa3b5;
 }
-[data-theme="dark"] .delete-acq-warn {
+[data-theme="dark"] .delete-dialog-warn {
   background: #241416;
   border-color: #4a2626;
   color: #e8b4b0;

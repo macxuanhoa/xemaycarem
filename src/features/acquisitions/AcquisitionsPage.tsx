@@ -302,18 +302,18 @@ function DeleteAcquisitionDialog({
   return (
     <div className="dialog-backdrop" onClick={close} role="presentation">
       <div
-        className="dialog-panel delete-acq-dialog"
+        className="dialog-panel delete-dialog"
         role="alertdialog"
         aria-modal="true"
         aria-labelledby="delete-acq-title"
         ref={panelRef}
         onClick={(event) => event.stopPropagation()}
       >
-        <div className="delete-acq-head">
-          <span className="delete-acq-icon" aria-hidden="true">
+        <div className="delete-dialog-head">
+          <span className="delete-dialog-icon" aria-hidden="true">
             <TriangleAlert size={20} />
           </span>
-          <div className="delete-acq-heading">
+          <div className="delete-dialog-heading">
             <h2 id="delete-acq-title">Xóa phiếu thu</h2>
             <p>
               {acquisition.brand} {acquisition.model}
@@ -330,7 +330,7 @@ function DeleteAcquisitionDialog({
             <X size={18} />
           </button>
         </div>
-        <p className="delete-acq-warn">
+        <p className="delete-dialog-warn">
           Xóa phiếu thu sẽ xóa vĩnh viễn chiếc xe đã thu cùng toàn bộ chi phí,
           hình ảnh và lịch sử liên quan. Không thể hoàn tác. Nếu xe đã bán, hệ
           thống sẽ chặn thao tác này.

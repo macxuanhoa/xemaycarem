@@ -14,9 +14,11 @@ import {
   ShoppingBag,
   Copy,
   Trash2,
+  TriangleAlert,
   X,
 } from "lucide-react";
 import { api } from "@/lib/api";
+import { useDialog } from "@/lib/useDialog";
 import { money, dateLabel, daysInStock } from "@/lib/format";
 import {
   canDeleteVehicle,
@@ -495,68 +497,93 @@ function DeleteVehicleDialog({
       onDeleted();
     },
   });
+  const close = () => {
+    if (!remove.isPending) onClose();
+  };
+  const panelRef = useDialog(true, close, remove.isPending);
 
   return (
-    <Card style={{ borderLeft: "4px solid #dc2626" }}>
-      <div className="row between">
-        <h2 className="section-title" style={{ color: "#dc2626" }}>
-          Xóa xe khỏi kho
-        </h2>
-        <Button variant="ghost" aria-label="Đóng bảng xóa xe" onClick={onClose}>
-          <X size={18} />
-        </Button>
-      </div>
-      <p className="notice" style={{ marginTop: "6px" }}>
-        Bạn sắp xóa cứng <strong>{vehicle.brand} {vehicle.model}</strong> ({vehicle.frame_number}).{" "}
-        Toàn bộ phiếu thu, chi phí, hình ảnh và lịch sử của xe sẽ bị gỡ vĩnh viễn và
-        không thể hoàn tác. Hãy dùng thao tác hủy nếu muốn giữ lại vết kiểm toán.
-      </p>
-      <form
-        className="stack"
-        style={{ marginTop: "12px" }}
-        onSubmit={(event) => {
-          event.preventDefault();
-          if (reason.trim().length >= 3 && !remove.isPending) remove.mutate();
-        }}
+    <div className="dialog-backdrop" onClick={close} role="presentation">
+      <div
+        className="dialog-panel delete-dialog"
+        role="alertdialog"
+        aria-modal="true"
+        aria-labelledby="delete-vehicle-title"
+        ref={panelRef}
+        onClick={(event) => event.stopPropagation()}
       >
-        <Field
-          label="Lý do xóa (ít nhất 3 ký tự) *"
-          error={
-            reason.length > 0 && reason.trim().length < 3
-              ? "Lý do xóa cần ít nhất 3 ký tự."
-              : undefined
-          }
-        >
-          <textarea
-            minLength={3}
-            maxLength={1000}
-            required
-            disabled={remove.isPending}
-            value={reason}
-            onChange={(event) => setReason(event.target.value)}
-            placeholder="Ví dụ: Nhập nhầm xe, trùng lặp phiếu, xe không còn giữ…"
-            rows={2}
-          />
-        </Field>
-        {remove.isError && <ErrorState error={remove.error} />}
-        <div className="form-actions">
-          <Button
+        <div className="delete-dialog-head">
+          <span className="delete-dialog-icon" aria-hidden="true">
+            <TriangleAlert size={20} />
+          </span>
+          <div className="delete-dialog-heading">
+            <h2 id="delete-vehicle-title">Xóa xe khỏi kho</h2>
+            <p>
+              {vehicle.brand} {vehicle.model}
+              {vehicle.frame_number ? ` · ${vehicle.frame_number}` : ""}
+            </p>
+          </div>
+          <button
             type="button"
-            variant="secondary"
-            onClick={onClose}
+            className="icon-button"
+            onClick={close}
             disabled={remove.isPending}
+            aria-label="Đóng"
           >
-            Giữ lại
-          </Button>
-          <Button
-            type="submit"
-            variant="danger"
-            disabled={remove.isPending || reason.trim().length < 3}
-          >
-            {remove.isPending ? "Đang xóa…" : "Xác nhận xóa xe"}
-          </Button>
+            <X size={18} />
+          </button>
         </div>
-      </form>
-    </Card>
+        <p className="delete-dialog-warn">
+          Toàn bộ phiếu thu, chi phí, hình ảnh và lịch sử của xe sẽ bị gỡ vĩnh
+          viễn và không thể hoàn tác. Hãy dùng thao tác hủy nếu muốn giữ lại vết
+          kiểm toán.
+        </p>
+        <form
+          className="stack"
+          onSubmit={(event) => {
+            event.preventDefault();
+            if (reason.trim().length >= 3 && !remove.isPending) remove.mutate();
+          }}
+        >
+          <Field
+            label="Lý do xóa (ít nhất 3 ký tự) *"
+            error={
+              reason.length > 0 && reason.trim().length < 3
+                ? "Lý do xóa cần ít nhất 3 ký tự."
+                : undefined
+            }
+          >
+            <textarea
+              minLength={3}
+              maxLength={1000}
+              required
+              disabled={remove.isPending}
+              value={reason}
+              onChange={(event) => setReason(event.target.value)}
+              placeholder="Ví dụ: Nhập nhầm xe, trùng lặp phiếu, xe không còn giữ…"
+              rows={2}
+            />
+          </Field>
+          {remove.isError && <ErrorState error={remove.error} />}
+          <div className="form-actions">
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={close}
+              disabled={remove.isPending}
+            >
+              Giữ lại
+            </Button>
+            <Button
+              type="submit"
+              variant="danger"
+              disabled={remove.isPending || reason.trim().length < 3}
+            >
+              {remove.isPending ? "Đang xóa…" : "Xác nhận xóa xe"}
+            </Button>
+          </div>
+        </form>
+      </div>
+    </div>
   );
 }

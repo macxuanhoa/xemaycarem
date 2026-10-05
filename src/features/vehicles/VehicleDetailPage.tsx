@@ -184,18 +184,6 @@ export function VehicleDetailPage() {
           </span>
         )}
       </div>
-      {vehicle.cost_pending && (
-        <p className="notice">
-          Xe đang chờ bổ sung giá nhập.{" "}
-          {financial ? (
-            <Link to={`/vehicles/${id}/edit`}>
-              Cập nhật giá nhập để có thể bán xe.
-            </Link>
-          ) : (
-            "Liên hệ người có quyền tài chính để hoàn tất thông tin."
-          )}
-        </p>
-      )}
       {/* Vehicle value leads the page: one horizontal strip so the money
           figures are the first thing owners scan, on every screen size. */}
       <Card>

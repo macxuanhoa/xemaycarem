@@ -201,7 +201,7 @@ export default function SettingsPage() {
           <Card>
             <h2>Đổi mật khẩu</h2>
             <p className="muted small" style={{ marginBottom: "16px" }}>
-              Đặt mật khẩu an toàn với tối thiểu 7 ký tự để bảo vệ tài khoản
+              Đặt mật khẩu an toàn với tối thiểu 6 ký tự để bảo vệ tài khoản
               cửa hàng.
             </p>
             <form
@@ -224,9 +224,9 @@ export default function SettingsPage() {
                 <input
                   type="password"
                   autoComplete="new-password"
-                  minLength={7}
+                  minLength={6}
                   required
-                  placeholder="Tối thiểu 7 ký tự"
+                  placeholder="Tối thiểu 6 ký tự"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                 />

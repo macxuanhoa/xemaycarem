@@ -76,12 +76,12 @@ Local draft/recent values are scoped to the authenticated user and exclude finan
 - Cơ chế `must_change_password` GIỮ NGUYÊN cho hành động chủ động của OWNER: `reset_password` (cấp mật khẩu tạm mới vẫn buộc đổi). Các tài khoản đang có `reset_pending` không bị migration giải phóng — đảm bảo fail-closed: mật khẩu tạm chưa được xoay thật thì cổng vẫn đóng. Trang `/change-password` và RPC `complete_password_change` vẫn tồn tại phục vụ luồng đó; nhân viên chủ động đổi trong Cài đặt → **Đổi mật khẩu** (`supabase.auth.updateUser`, không cần RPC cổng). *(Ghi chú cập nhật: hành động `force_password_change` đã bị gỡ ở đợt Quản lý nhân sự bên dưới — điều khoản này không còn hiệu lực với action đó.)*
 - Hệ quả chấp nhận: mật khẩu ban đầu do OWNER đặt tồn tại lâu hơn trong môi trường tin nhắn nội bộ — đổi lại là đánh đổi được chủ cửa hàng yêu cầu rõ ràng, không mặc định siết lại.
 
-## Ngưỡng mật khẩu tối thiểu toàn dự án: 7 ký tự ("trên 6")
+## Ngưỡng mật khẩu tối thiểu toàn dự án: 6 ký tự
 
-- Chủ cửa hàng yêu cầu mọi mật khẩu cấp cho user trong dự án chỉ cần **trên 6 ký tự** (≥7). Trước đó ngưỡng cục bộ là 12 — quá cao so với thực tế sử dụng nội bộ, gây khó khi đọc/ghi qua tin nhắn.
-- Điểm sửa đồng bộ: Edge Function `manage-users` (nhánh `create` và `reset_password`), `supabase/config.toml → minimum_password_length`, và 4 màn hình frontend — `CreateUserModal`, `StaffSettingsModal` (tab *Đặt lại mật khẩu*), `ChangePasswordPage`, `SettingsPage` (tự đổi) cùng trang `PasswordPage` khôi phục qua email.
+- Chủ cửa hàng yêu cầu mọi mật khẩu cấp cho user trong dự án chỉ cần **từ 6 ký tự trở lên** (≥6). Trước đó ngưỡng cục bộ là 12 rồi hạ xuống 7 — vẫn cao hơn thực tế sử dụng nội bộ, gây khó khi đọc/ghi qua tin nhắn.
+- Điểm sửa đồng bộ: Edge Function `manage-users` (nhánh `create` và `reset_password`), `supabase/config.toml → minimum_password_length`, và các màn hình frontend — `CreateUserModal`, `StaffSettingsModal` (tab *Đặt lại mật khẩu*), `ChangePasswordPage`, `SettingsPage` (tự đổi), `LoginPage` (đặt lại qua email).
 - **Không** đổi logic nghiệp vụ: cơ chế `must_change_password` vẫn giữ nguyên ý nghĩa (create = vào thẳng, reset = buộc đổi lần đầu). Chỉ hạ ngưỡng độ dài.
-- Ràng buộc production: hosted Supabase Auth hiện vẫn để `minimum_password_length = 12`. **Cần hạ thủ công** ở Dashboard → *Authentication → Providers → Email → Security* (hoặc qua Management API) về 7, và deploy lại Edge Function `manage-users` cho bản sửa này có tác dụng; nếu không, mật khẩu 7 ký tự sẽ bị GoTrue trả 422. `supabase/config.toml` chỉ ảnh hưởng `supabase start` cục bộ.
+- Ràng buộc production: ngưỡng thật do hosted Supabase Auth quyết định (`minimum_password_length`). Phải đặt Dashboard → *Authentication → Providers → Email → Security* (hoặc qua Management API) về **6** để khớp với code; nếu hosted vẫn để cao hơn (ví dụ 12), mật khẩu 6 ký tự sẽ bị GoTrue trả về lỗi "Password should be at least N characters." và `friendlyError` chỉ dịch lại thành tiếng Việt theo đúng số N mà server báo. `supabase/config.toml` chỉ ảnh hưởng `supabase start` cục bộ.
 - Kèm theo: bản sửa này cũng đồng bộ hoá code với điều khoản ở mục trên — Edge Function `create` trước đó vẫn gửi `must_change_password: true` (drift với DECISIONS), ni được gỡ để nhân viên tạo mới đăng nhập vào thẳng.
 
 ## Quản lý nhân sự: giờ làm chung, một Chủ cửa hàng, cấm sử dụng có thời hạn

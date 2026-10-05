@@ -49,8 +49,8 @@ export function CreateUserModal({ onDone }: { onDone: () => void }) {
       return;
     }
 
-    if (form.password.length < 7) {
-      setError("Mật khẩu ban đầu phải có ít nhất 7 ký tự.");
+    if (form.password.length < 6) {
+      setError("Mật khẩu ban đầu phải có ít nhất 6 ký tự.");
       return;
     }
 
@@ -125,12 +125,12 @@ export function CreateUserModal({ onDone }: { onDone: () => void }) {
                 Nhân viên dùng tên này để đăng nhập vào hệ thống
               </small>
             </Field>
-            <Field label="Mật khẩu ban đầu (tối thiểu 7 ký tự)">
+            <Field label="Mật khẩu ban đầu (tối thiểu 6 ký tự)">
               <input
                 type="password"
                 autoComplete="new-password"
                 required
-                minLength={7}
+                minLength={6}
                 placeholder="Mật khẩu ban đầu"
                 value={form.password}
                 onChange={(e) => setForm({ ...form, password: e.target.value })}

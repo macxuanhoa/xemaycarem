@@ -176,8 +176,8 @@ Deno.serve(async (request: Request) => {
         return response(400, { error: 'INVALID_NAME', message: 'Họ và tên từ 1 đến 120 ký tự.' });
       }
 
-      if (password.length < 7 || password.length > 128) {
-        return response(400, { error: 'INVALID_PASSWORD', message: 'Mật khẩu từ 7 đến 128 ký tự.' });
+      if (password.length < 6 || password.length > 128) {
+        return response(400, { error: 'INVALID_PASSWORD', message: 'Mật khẩu từ 6 đến 128 ký tự.' });
       }
 
       // Check username uniqueness beforehand
@@ -267,8 +267,8 @@ Deno.serve(async (request: Request) => {
     // 2. RESET TEMPORARY PASSWORD (OWNER ONLY)
     if (action === 'reset_password') {
       if (callerRole !== 'OWNER') return requireOwner();
-      if (password.length < 7 || password.length > 128) {
-        return response(400, { error: 'INVALID_INPUT', message: 'Mật khẩu từ 7 đến 128 ký tự.' });
+      if (password.length < 6 || password.length > 128) {
+        return response(400, { error: 'INVALID_INPUT', message: 'Mật khẩu từ 6 đến 128 ký tự.' });
       }
       if (userId === authData.user.id) {
         return response(400, { error: 'SELF_RESET_NOT_ALLOWED', message: 'Dùng chức năng đổi mật khẩu hoặc khôi phục qua email cho tài khoản của bạn.' });

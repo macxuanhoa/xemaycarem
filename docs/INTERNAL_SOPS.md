@@ -10,7 +10,7 @@ Chỉ tài khoản OWNER còn hoạt động làm được việc này, và hệ
 2. Bấm **Tạo tài khoản** để mở hộp thoại "Tạo tài khoản nhân viên mới" và điền:
    - **Họ và tên**: bắt buộc, tối đa 120 ký tự.
    - **Tên đăng nhập**: 3–30 ký tự, chỉ chữ thường, số, `_` hoặc `.` (bấm `.` cũng bị xóa khoảng trắng tự động). Nhân viên sẽ đăng nhập bằng tên này, không phải email.
-   - **Mật khẩu ban đầu**: tối thiểu 7 ký tự (toàn bộ mật khẩu cấp cho user trong dự án dùng chung ngưỡng này). Nhân viên dùng mật khẩu này đăng nhập và vào thẳng hệ thống; muốn thì tự đổi trong Cài đặt.
+   - **Mật khẩu ban đầu**: tối thiểu 6 ký tự (toàn bộ mật khẩu cấp cho user trong dự án dùng chung ngưỡng này). Nhân viên dùng mật khẩu này đăng nhập và vào thẳng hệ thống; muốn thì tự đổi trong Cài đặt.
    - **Vai trò**: mặc định STAFF; chọn MANAGER nếu cần xem quản lý.
    - **Xem số tài chính** (tùy chọn): bật nếu nhân viên được thấy giá vốn, doanh thu, lợi nhuận.
    - **Giờ làm việc và ngày làm việc**: mặc định 07:00–20:00, thứ Hai đến thứ Bảy. Ngoài lịch này tài khoản bị chặn đăng nhập.

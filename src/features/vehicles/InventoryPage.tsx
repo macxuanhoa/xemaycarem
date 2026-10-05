@@ -11,7 +11,6 @@ import {
   useQueryClient,
 } from "@tanstack/react-query";
 import {
-  ArrowRight,
   Bike,
   ChevronDown,
   CirclePlus,
@@ -35,6 +34,7 @@ import {
   PageHeader,
   Pagination,
 } from "@/components/ui";
+import { RowViewAction } from "@/components/ui/RowActions";
 import type { Paged, Vehicle, VehicleStatusFilter } from "@/types";
 import {
   VEHICLE_STATUS_OPTIONS,
@@ -517,15 +517,12 @@ export function InventoryPage() {
                         {money(vehicle.asking_price)}
                       </td>
                       <td>
-                        <Link
-                          className="icon-button"
+                        <RowViewAction
                           to={`/vehicles/${vehicle.id}`}
                           state={{ fromInventory: returnTo }}
                           onClick={rememberPosition}
-                          aria-label={`Xem ${vehicle.internal_code}`}
-                        >
-                          <ArrowRight size={18} />
-                        </Link>
+                          label={`xe ${vehicle.brand} ${vehicle.model}`}
+                        />
                       </td>
                     </tr>
                   ))}

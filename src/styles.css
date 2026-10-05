@@ -1158,6 +1158,149 @@ pre {
   outline-offset: 2px;
   background: #eff3e8;
 }
+/* Row actions — the shared "Chi tiết" / "Xóa" pills used by both the
+   Thu vào (acquisitions) and Tồn kho (inventory) tables. A soft labelled pill
+   reads as a finished affordance instead of the old bare arrow / raw trash. */
+.row-actions {
+  display: inline-flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.row-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 32px;
+  padding: 0 11px;
+  border-radius: 9px;
+  border: 1px solid #e6ebf2;
+  background: #fff;
+  color: #4b5b6b;
+  font-size: 12.5px;
+  font-weight: 600;
+  line-height: 1;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background 0.16s ease, border-color 0.16s ease, color 0.16s ease,
+    box-shadow 0.16s ease;
+}
+.row-action svg {
+  flex-shrink: 0;
+}
+.row-action:hover {
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.06);
+}
+.row-action:focus-visible {
+  outline: 2px solid var(--primary, #4f46e5);
+  outline-offset: 2px;
+}
+.row-action.row-view {
+  color: #2f6f4f;
+  border-color: #d5e7db;
+  background: #f2f8f3;
+}
+.row-action.row-view:hover {
+  background: #e8f2ea;
+  border-color: #c2ddca;
+}
+.row-action.row-danger {
+  color: #b4231f;
+  border-color: #f0d3cf;
+  background: #fdf2f1;
+}
+.row-action.row-danger:hover {
+  background: #fbe6e4;
+  border-color: #f3bdb7;
+}
+[data-theme="dark"] .row-action {
+  background: #181a22;
+  border-color: #2a2d38;
+  color: #c3c9d6;
+}
+[data-theme="dark"] .row-action.row-view {
+  background: #16241c;
+  border-color: #274132;
+  color: #8fd3a8;
+}
+[data-theme="dark"] .row-action.row-view:hover {
+  background: #1a2c22;
+}
+[data-theme="dark"] .row-action.row-danger {
+  background: #241416;
+  border-color: #4a2626;
+  color: #f0a3a3;
+}
+[data-theme="dark"] .row-action.row-danger:hover {
+  background: #2c1718;
+}
+/* Delete-acquisition popup: a real centered modal (was an inline red card). */
+.delete-acq-dialog {
+  padding: 0;
+}
+.delete-acq-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 20px 22px 0;
+}
+.delete-acq-icon {
+  display: inline-grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  flex-shrink: 0;
+  background: rgba(180, 35, 31, 0.1);
+  color: #b4231f;
+}
+.delete-acq-heading {
+  flex: 1;
+  min-width: 0;
+}
+.delete-acq-heading h2 {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 700;
+  color: #1f2937;
+}
+.delete-acq-heading p {
+  margin: 3px 0 0;
+  font-size: 13px;
+  color: #66756e;
+  overflow-wrap: anywhere;
+}
+.delete-acq-head .icon-button {
+  align-self: flex-start;
+}
+.delete-acq-warn {
+  margin: 14px 22px 0;
+  padding: 11px 13px;
+  font-size: 13px;
+  line-height: 1.5;
+  color: #8a3d38;
+  background: #fdf2f1;
+  border: 1px solid #f0d3cf;
+  border-radius: 11px;
+}
+.delete-acq-dialog form {
+  padding: 16px 22px 20px;
+  margin-top: 4px;
+}
+[data-theme="dark"] .delete-acq-icon {
+  background: rgba(240, 120, 120, 0.14);
+  color: #f0a3a3;
+}
+[data-theme="dark"] .delete-acq-heading h2 {
+  color: #e7e9f0;
+}
+[data-theme="dark"] .delete-acq-heading p {
+  color: #9aa3b5;
+}
+[data-theme="dark"] .delete-acq-warn {
+  background: #241416;
+  border-color: #4a2626;
+  color: #e8b4b0;
+}
 /* Sun/moon switch — visible on every breakpoint (desktop & phone), morphs its
    own color alongside the theme instead of hiding on desktop. */
 .header-theme-toggle {

@@ -7,17 +7,17 @@ import {
   useQueryClient,
 } from "@tanstack/react-query";
 import {
-  ArrowRight,
   CirclePlus,
   NotebookPen,
   Search,
-  Trash2,
+  TriangleAlert,
   X,
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { canDeleteVehicle, canFinance, canOperate } from "@/lib/permissions";
 import { dateLabel, money, today } from "@/lib/format";
 import { useDebouncedValue } from "@/lib/useDebouncedValue";
+import { useDialog } from "@/lib/useDialog";
 import { useAuth } from "@/features/auth/AuthProvider";
 import { toast } from "@/lib/toast";
 import {
@@ -32,6 +32,7 @@ import {
   PageHeader,
   Pagination,
 } from "@/components/ui";
+import { RowDeleteAction, RowViewAction } from "@/components/ui/RowActions";
 import type { Acquisition, Paged } from "@/types";
 
 const pageSize = 6;
@@ -198,26 +199,17 @@ export function AcquisitionsPage() {
                       <Badge status={acq.status} />
                     </td>
                     <td>
-                      <div className="row" style={{ gap: 4 }}>
-                        <Link
-                          className="icon-button"
-                          aria-label={`Xem chi tiết xe ${acq.brand} ${acq.model}`}
-                          title={`Xem chi tiết xe ${acq.brand} ${acq.model}`}
+                      <div className="row-actions">
+                        <RowViewAction
                           to={`/vehicles/${acq.vehicle_id}`}
-                        >
-                          <ArrowRight size={18} />
-                        </Link>
+                          label={`xe ${acq.brand} ${acq.model}`}
+                        />
                         {canDeleteVehicle(profile) && (
-                          <button
-                            type="button"
-                            className="icon-button"
-                            style={{ color: "#dc2626" }}
-                            aria-label={`Xóa phiếu thu xe ${acq.brand} ${acq.model}`}
+                          <RowDeleteAction
+                            label={`phiếu thu xe ${acq.brand} ${acq.model}`}
                             title="Xóa phiếu thu (kèm xóa xe đã thu, không hoàn tác)"
                             onClick={() => setDeleting(acq)}
-                          >
-                            <Trash2 size={18} />
-                          </button>
+                          />
                         )}
                       </div>
                     </td>
@@ -302,73 +294,93 @@ function DeleteAcquisitionDialog({
       onClose();
     },
   });
+  const close = () => {
+    if (!remove.isPending) onClose();
+  };
+  const panelRef = useDialog(true, close, remove.isPending);
 
   return (
-    <Card style={{ borderLeft: "4px solid #dc2626" }}>
-      <div className="row between">
-        <h2 className="section-title" style={{ color: "#dc2626" }}>
-          Xóa phiếu thu
-        </h2>
-        <Button
-          variant="ghost"
-          aria-label="Đóng bảng xóa phiếu thu"
-          onClick={onClose}
-        >
-          <X size={18} />
-        </Button>
-      </div>
-      <p className="notice" style={{ marginTop: "6px" }}>
-        Xóa phiếu thu của <strong>{acquisition.brand} {acquisition.model}</strong>{" "}
-        ({acquisition.frame_number}) sẽ xóa vĩnh viễn chiếc xe đã thu cùng toàn bộ
-        chi phí, hình ảnh và lịch sử liên quan. Không thể hoàn tác. Nếu xe đã bán,
-        hệ thống sẽ chặn thao tác này.
-      </p>
-      <form
-        className="stack"
-        style={{ marginTop: "12px" }}
-        onSubmit={(event) => {
-          event.preventDefault();
-          if (reason.trim().length >= 3 && !remove.isPending) remove.mutate();
-        }}
+    <div className="dialog-backdrop" onClick={close} role="presentation">
+      <div
+        className="dialog-panel delete-acq-dialog"
+        role="alertdialog"
+        aria-modal="true"
+        aria-labelledby="delete-acq-title"
+        ref={panelRef}
+        onClick={(event) => event.stopPropagation()}
       >
-        <Field
-          label="Lý do xóa (ít nhất 3 ký tự) *"
-          error={
-            reason.length > 0 && reason.trim().length < 3
-              ? "Lý do xóa cần ít nhất 3 ký tự."
-              : undefined
-          }
-        >
-          <textarea
-            minLength={3}
-            maxLength={1000}
-            required
-            disabled={remove.isPending}
-            value={reason}
-            onChange={(event) => setReason(event.target.value)}
-            placeholder="Ví dụ: Thu nhầm xe, trùng lặp phiếu, hủy thương vụ…"
-            rows={2}
-          />
-        </Field>
-        {remove.isError && <ErrorState error={remove.error} />}
-        <div className="form-actions">
-          <Button
+        <div className="delete-acq-head">
+          <span className="delete-acq-icon" aria-hidden="true">
+            <TriangleAlert size={20} />
+          </span>
+          <div className="delete-acq-heading">
+            <h2 id="delete-acq-title">Xóa phiếu thu</h2>
+            <p>
+              {acquisition.brand} {acquisition.model}
+              {acquisition.frame_number ? ` · ${acquisition.frame_number}` : ""}
+            </p>
+          </div>
+          <button
             type="button"
-            variant="secondary"
-            onClick={onClose}
+            className="icon-button"
+            onClick={close}
             disabled={remove.isPending}
+            aria-label="Đóng"
           >
-            Giữ lại
-          </Button>
-          <Button
-            type="submit"
-            variant="danger"
-            disabled={remove.isPending || reason.trim().length < 3}
-          >
-            {remove.isPending ? "Đang xóa…" : "Xác nhận xóa phiếu thu"}
-          </Button>
+            <X size={18} />
+          </button>
         </div>
-      </form>
-    </Card>
+        <p className="delete-acq-warn">
+          Xóa phiếu thu sẽ xóa vĩnh viễn chiếc xe đã thu cùng toàn bộ chi phí,
+          hình ảnh và lịch sử liên quan. Không thể hoàn tác. Nếu xe đã bán, hệ
+          thống sẽ chặn thao tác này.
+        </p>
+        <form
+          className="stack"
+          onSubmit={(event) => {
+            event.preventDefault();
+            if (reason.trim().length >= 3 && !remove.isPending) remove.mutate();
+          }}
+        >
+          <Field
+            label="Lý do xóa (ít nhất 3 ký tự) *"
+            error={
+              reason.length > 0 && reason.trim().length < 3
+                ? "Lý do xóa cần ít nhất 3 ký tự."
+                : undefined
+            }
+          >
+            <textarea
+              minLength={3}
+              maxLength={1000}
+              required
+              disabled={remove.isPending}
+              value={reason}
+              onChange={(event) => setReason(event.target.value)}
+              placeholder="Ví dụ: Thu nhầm xe, trùng lặp phiếu, hủy thương vụ…"
+              rows={2}
+            />
+          </Field>
+          {remove.isError && <ErrorState error={remove.error} />}
+          <div className="form-actions">
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={close}
+              disabled={remove.isPending}
+            >
+              Giữ lại
+            </Button>
+            <Button
+              type="submit"
+              variant="danger"
+              disabled={remove.isPending || reason.trim().length < 3}
+            >
+              {remove.isPending ? "Đang xóa…" : "Xác nhận xóa phiếu thu"}
+            </Button>
+          </div>
+        </form>
+      </div>
+    </div>
   );
 }

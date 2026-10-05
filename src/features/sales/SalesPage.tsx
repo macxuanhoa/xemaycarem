@@ -128,7 +128,7 @@ export function SalesPage({
           className={`tab ${currentTab === "sales" ? "active" : ""}`}
           onClick={() => switchTab("sales")}
         >
-          <Receipt size={17} style={{ verticalAlign: "-3px", marginRight: 6 }} />
+          <Receipt size={17} />
           Đơn bán xe
         </button>
         <button
@@ -138,13 +138,12 @@ export function SalesPage({
           className={`tab ${currentTab === "receivables" ? "active" : ""}`}
           onClick={() => switchTab("receivables")}
         >
-          <CreditCard size={17} style={{ verticalAlign: "-3px", marginRight: 6 }} />
+          <CreditCard size={17} />
           Sổ nợ cần thu
           {overdueCount > 0 && (
             <span
               className="badge danger small"
               style={{
-                marginLeft: 8,
                 fontSize: "11px",
                 padding: "2px 7px",
                 borderRadius: "999px",

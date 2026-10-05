@@ -13,7 +13,7 @@ import {
   X,
 } from "lucide-react";
 import { useNotifications } from "@/lib/useNotifications";
-import { badgeLabel, groupNotifications, relativeTime } from "@/lib/notifications";
+import { badgeLabel, groupNotifications, relativeTime, withTodayGroup } from "@/lib/notifications";
 import type { NotificationAction, NotificationItem } from "@/types";
 
 /**
@@ -251,12 +251,18 @@ export function NotificationBell() {
                     </small>
                   </div>
                 ) : (
-                  groupNotifications(items).map((group) => (
+                  withTodayGroup(groupNotifications(items)).map((group) => (
                     <div key={group.label} className="notification-group">
                       <div className="notification-group-label">{group.label}</div>
-                      {group.items.map((item) => (
-                        <Row key={item.id} item={item} now={new Date()} onOpen={openItem} />
-                      ))}
+                      {group.items.length === 0 ? (
+                        <p className="notification-group-empty">
+                          Chưa có thông báo nào hôm nay.
+                        </p>
+                      ) : (
+                        group.items.map((item) => (
+                          <Row key={item.id} item={item} now={new Date()} onOpen={openItem} />
+                        ))
+                      )}
                     </div>
                   ))
                 )}

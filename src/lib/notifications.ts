@@ -84,3 +84,18 @@ export function groupNotifications(
   }
   return groups;
 }
+
+/** Labels that count as "today": the freshest bucket plus the day bucket. */
+const TODAY_LABELS = new Set(["Vừa xong", "Hôm nay"]);
+
+/**
+ * Guarantees the panel always leads with a "Hôm nay" section. When no
+ * notification was created today an empty group is prepended, so the UI can
+ * show a "chưa có" hint instead of jumping straight to "Hôm qua".
+ */
+export function withTodayGroup(
+  groups: NotificationGroup[],
+): NotificationGroup[] {
+  if (groups.some((group) => TODAY_LABELS.has(group.label))) return groups;
+  return [{ label: "Hôm nay", items: [] }, ...groups];
+}

@@ -9358,6 +9358,12 @@ html[data-theme="dark"] .header-theme-toggle {
 .notification-group + .notification-group .notification-group-label {
   padding-top: 14px;
 }
+.notification-group-empty {
+  margin: 0;
+  padding: 2px 16px 12px;
+  font-size: 12.5px;
+  color: var(--muted);
+}
 .notification-row {
   display: flex;
   align-items: flex-start;
@@ -9664,6 +9670,9 @@ html[data-theme="dark"] .header-theme-toggle {
 }
 [data-theme="dark"] .notification-group-label {
   color: #67718a;
+}
+[data-theme="dark"] .notification-group-empty {
+  color: #8a93a6;
 }
 [data-theme="dark"] .notification-empty {
   color: #8a93a6;

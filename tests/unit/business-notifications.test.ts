@@ -5,6 +5,7 @@ import {
   groupLabel,
   groupNotifications,
   relativeTime,
+  withTodayGroup,
 } from "@/lib/notifications";
 import type { NotificationItem } from "@/types";
 
@@ -89,5 +90,28 @@ describe("groupNotifications", () => {
 
   it("returns nothing for an empty list", () => {
     expect(groupNotifications([], NOW)).toEqual([]);
+  });
+});
+
+describe("withTodayGroup", () => {
+  it("prepends an empty 'Hôm nay' group when nothing happened today", () => {
+    const yesterday = new Date("2026-10-03T05:00:00Z").toISOString();
+    const groups = groupNotifications([make({ created_at: yesterday })], NOW);
+    expect(groups.map((g) => g.label)).toEqual(["Hôm qua"]);
+    const withToday = withTodayGroup(groups);
+    expect(withToday.map((g) => g.label)).toEqual(["Hôm nay", "Hôm qua"]);
+    expect(withToday[0].items).toEqual([]);
+  });
+
+  it("leaves the groups untouched when a 'Hôm nay' bucket already exists", () => {
+    const groups = groupNotifications([make({ created_at: iso(30) })], NOW);
+    expect(groups.map((g) => g.label)).toEqual(["Hôm nay"]);
+    expect(withTodayGroup(groups)).toBe(groups);
+  });
+
+  it("counts 'Vừa xong' as today so no empty header is added", () => {
+    const groups = groupNotifications([make({ created_at: iso(1) })], NOW);
+    expect(groups.map((g) => g.label)).toEqual(["Vừa xong"]);
+    expect(withTodayGroup(groups).map((g) => g.label)).toEqual(["Vừa xong"]);
   });
 });

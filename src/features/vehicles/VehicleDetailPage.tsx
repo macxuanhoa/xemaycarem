@@ -356,6 +356,9 @@ export function VehicleDetailPage() {
               )}
             </Card>
           )}
+        </div>
+        <aside className="stack">
+          <VehicleQr vehicle={vehicle} />
           <section id="vehicle-history">
             <Card>
               <h2 className="section-title">Lịch sử hoạt động</h2>
@@ -385,9 +388,6 @@ export function VehicleDetailPage() {
               )}
             </Card>
           </section>
-        </div>
-        <aside className="stack">
-          <VehicleQr vehicle={vehicle} />
           {activeSale && (
             <Card>
               <h2 className="section-title">Giao dịch bán xe</h2>

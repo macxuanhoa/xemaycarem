@@ -136,29 +136,6 @@ test('staff without financial rights never sees or sends the purchase price', as
   expect(row).toMatchObject({ brand: 'Honda', model: 'Vision', asking_price: 25000000 })
 })
 
-test('the shorthand recipe stays on screen above the paste box', async ({ page }) => {
-  // A placeholder vanishes on the first keystroke, which is exactly when
-  // someone mid-note needs to check how an abbreviation was spelled.
-  await setupFixtures(page)
-  await page.goto('/intake')
-  const guide = page.locator('.intake-guide')
-  await expect(guide).toBeVisible()
-  await expect(guide.locator('.intake-guide-lines li')).toHaveCount(3)
-  const [guideBox, notesBox] = await Promise.all([
-    guide.boundingBox(),
-    page.locator('textarea.intake-notes').boundingBox(),
-  ])
-  expect(guideBox.y + guideBox.height).toBeLessThanOrEqual(notesBox.y)
-
-  // The sample must actually parse, or it teaches the wrong syntax.
-  await page.getByRole('button', { name: 'Chèn mẫu 3 xe' }).click()
-  const pasted = await page.locator('textarea.intake-notes').inputValue()
-  expect(pasted.split(String.fromCharCode(10))).toHaveLength(3)
-  await page.getByRole('button', { name: 'Tách thành danh sách' }).click()
-  await expect(page.locator('.intake-entry')).toHaveCount(3)
-  await expect(page.locator('.intake-notes-actions .muted')).toContainText('0 từ chưa nhận diện')
-})
-
 test('mobile review cards stay two-up, tappable and free of iOS zoom', async ({ page }) => {
   // Regression: the cards were one long single-column stack of 13px inputs,
   // so every field punched the viewport in on focus and three vehicles meant

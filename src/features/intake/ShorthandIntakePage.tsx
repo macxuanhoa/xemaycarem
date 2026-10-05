@@ -13,7 +13,6 @@ import {
 import {
   ArrowLeft,
   CheckCircle2,
-  ClipboardPaste,
   GraduationCap,
   NotebookPen,
   Plus,
@@ -63,35 +62,6 @@ const TEACHABLE_FIELDS = new Set<IntakeFieldKey>([
   "color",
   "supplier_name",
 ]);
-
-/**
- * The recipe has to live ABOVE the box, not in its placeholder: staff type
- * straight over the placeholder and then have nothing to check the spelling
- * of an abbreviation against. Lines stay under ~31 characters so none of them
- * wraps on a 360px phone — a wrapping sample doubles the panel's height.
- * Plates, years and `#ghi chú` all auto-detect so the keywords "bs" and
- * "nam" are no longer required in the samples.
- */
-const SAMPLE_LINES = [
-  "sh den 29b1 123.45 21 gia 18tr5",
-  "wave rsx trang 12tr giaban 22tr",
-  "ex abs xanh 27tr #chinh chu ban",
-];
-const SAMPLE = SAMPLE_LINES.join("\n");
-
-/**
- * Only the five tokens that are genuinely not guessable at a glance. Brand
- * shortenings ("sh", "ex", "wave"), colours, plain prices ("12tr") and "km"
- * already read straight off the sample lines, so repeating them here just
- * pushed the guide panel taller than the paste box underneath.
- */
-const SAMPLE_LEGEND: [string, string][] = [
-  ["29b1 123.45", "biển số"],
-  ["21", "năm SX"],
-  ["gia 18tr5", "giá thu"],
-  ["giaban 22tr", "giá bán dự kiến"],
-  ["#chinh chu", "ghi chú"],
-];
 
 /** ISO (yyyy-mm-dd) → "dd/mm/yyyy" for display; partial user text passes through. */
 function dateDisplay(raw: string): string {
@@ -155,14 +125,6 @@ export default function ShorthandIntakePage() {
     setDictionaryChanged(false);
     if (!parsed.length)
       toast.info("Chưa tách được dòng nào. Mỗi dòng là một xe, ví dụ: \"sh đen 18tr5\".");
-  };
-
-  /** Drop the three sample lines into the box, keeping anything already typed. */
-  const insertSample = () => {
-    setText((prev) =>
-      prev.trim() ? `${prev.replace(/\s+$/, "")}\n${SAMPLE}` : SAMPLE,
-    );
-    requestAnimationFrame(() => notesRef.current?.focus());
   };
 
   const updateField = (id: string, field: IntakeFieldKey, value: string) => {
@@ -277,37 +239,6 @@ export default function ShorthandIntakePage() {
         <h2 className="section-title">
           <NotebookPen size={16} aria-hidden="true" /> 1. Dán ghi chú
         </h2>
-
-        {/* Stays on screen while typing — a placeholder vanishes the moment the
-            first character lands, and the whole point is to check an
-            abbreviation's spelling mid-note. */}
-        <div className="intake-guide">
-          <div className="intake-guide-head">
-            <span className="intake-guide-title">Viết tắt tùy tay, mỗi dòng một xe</span>
-            <button
-              type="button"
-              className="intake-guide-fill"
-              onClick={insertSample}
-            >
-              <ClipboardPaste size={13} aria-hidden="true" /> Chèn mẫu 3 xe
-            </button>
-          </div>
-          <ul className="intake-guide-lines">
-            {SAMPLE_LINES.map((line) => (
-              <li key={line}>
-                <code>{line}</code>
-              </li>
-            ))}
-          </ul>
-          <ul className="intake-guide-legend">
-            {SAMPLE_LEGEND.map(([token, meaning]) => (
-              <li key={token}>
-                <code>{token}</code>
-                <span>{meaning}</span>
-              </li>
-            ))}
-          </ul>
-        </div>
 
         <textarea
           ref={notesRef}

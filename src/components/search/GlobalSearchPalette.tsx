@@ -14,6 +14,7 @@ import { useAuth } from "@/features/auth/AuthProvider";
 import { canManage, canOperate } from "@/lib/permissions";
 import { useDebouncedValue } from "@/lib/useDebouncedValue";
 import { getRecentVehicles, formatRelativeTime } from "@/lib/recentVehicles";
+import { Highlight } from "@/components/search/Highlight";
 import type { GlobalSearchResult } from "@/types";
 
 const normalizeCommand = (value: string) =>
@@ -96,6 +97,9 @@ export function GlobalSearchPalette() {
     setQuery("");
     navigate(to);
   };
+  // The term actually used for the rendered results — same value on desktop
+  // and mobile, so highlights land identically regardless of screen size.
+  const term = debouncedQuery;
   const matchingCommands = commands.filter(
     (command) =>
       !query.trim() ||
@@ -183,7 +187,7 @@ export function GlobalSearchPalette() {
                     key={command.to}
                     onClick={() => open(command.to)}
                   >
-                    {command.label}
+                    <Highlight text={command.label} query={term} />
                     <ArrowRight size={16} />
                   </button>
                 ))}
@@ -225,11 +229,14 @@ export function GlobalSearchPalette() {
                   <Bike size={20} />
                   <span className="result-info">
                     <strong>
-                      {vehicle.brand} {vehicle.model}
+                      <Highlight text={`${vehicle.brand} ${vehicle.model}`} query={term} />
                     </strong>
                     <small>
-                      {vehicle.license_plate || vehicle.internal_code} · SK:{" "}
-                      {vehicle.frame_number}
+                      <Highlight
+                        text={vehicle.license_plate || vehicle.internal_code}
+                        query={term}
+                      />{" "}
+                      · SK: <Highlight text={vehicle.frame_number} query={term} />
                     </small>
                   </span>
                   <Badge status={vehicle.status} />
@@ -247,9 +254,10 @@ export function GlobalSearchPalette() {
                   }
                 >
                   <span className="result-info">
-                    <strong>{customer.customer_name}</strong>
+                    <strong><Highlight text={customer.customer_name} query={term} /></strong>
                     <small>
-                      {customer.customer_phone} · {customer.purchases_count} xe
+                      <Highlight text={customer.customer_phone} query={term} /> ·{" "}
+                      {customer.purchases_count} xe
                     </small>
                   </span>
                   <ArrowRight size={16} />
@@ -264,10 +272,12 @@ export function GlobalSearchPalette() {
                 >
                   <span className="result-info">
                     <strong>
-                      {sale.sale_code} · {sale.vehicle_name}
+                      <Highlight text={sale.sale_code} query={term} /> ·{" "}
+                      <Highlight text={sale.vehicle_name} query={term} />
                     </strong>
                     <small>
-                      {sale.customer_name} · {sale.license_plate}
+                      <Highlight text={sale.customer_name} query={term} /> ·{" "}
+                      <Highlight text={sale.license_plate} query={term} />
                     </small>
                   </span>
                   <Badge status={sale.status} />

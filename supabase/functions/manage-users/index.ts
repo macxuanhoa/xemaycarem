@@ -207,7 +207,17 @@ Deno.serve(async (request: Request) => {
 
       if (createAuthError || !createdAuth.user) {
         console.error('User provisioning failed', createAuthError);
-        return response(400, { error: 'USER_CREATION_FAILED', message: createAuthError?.message || 'Không thể tạo tài khoản.' });
+        // GoTrue surfaces policy errors (e.g. minimum password length) in
+        // English. Never forward them raw — map the known ones and fall back
+        // to a neutral Vietnamese message so the UI stays in one language.
+        const raw = createAuthError?.message ?? '';
+        const pwMin = /password should be at least (\d+) characters?/i.exec(raw);
+        const friendly = pwMin
+          ? `Mật khẩu phải có ít nhất ${pwMin[1]} ký tự.`
+          : /already|exists|duplicate/i.test(raw)
+            ? 'Tài khoản với thông tin này đã tồn tại.'
+            : 'Không thể tạo tài khoản. Vui lòng kiểm tra lại thông tin.';
+        return response(400, { error: 'USER_CREATION_FAILED', message: friendly });
       }
 
       const newUserId = createdAuth.user.id;

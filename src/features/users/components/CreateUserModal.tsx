@@ -3,6 +3,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { UserPlus, X } from "lucide-react";
 import { Button, ErrorState, Field } from "@/components/ui";
 import { api } from "@/lib/api";
+import { friendlyError } from "@/lib/errors";
 import { toast } from "@/lib/toast";
 import { roleLabels } from "@/lib/permissions";
 
@@ -30,7 +31,7 @@ export function CreateUserModal({ onDone }: { onDone: () => void }) {
     },
     onError: (err: unknown) => {
       if (err instanceof Error) {
-        setError(err.message);
+        setError(friendlyError(err));
       } else {
         setError("Không thể tạo tài khoản. Vui lòng kiểm tra lại thông tin.");
       }

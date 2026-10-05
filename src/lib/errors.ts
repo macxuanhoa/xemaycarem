@@ -1,10 +1,19 @@
 export class AppError extends Error {}
 export function friendlyError(error: unknown): string {
-  if (error instanceof AppError) return error.message;
   const value =
     error && typeof error === "object" && "message" in error
       ? String(error.message)
-      : "";
+      : error instanceof Error
+        ? error.message
+        : "";
+  // Supabase Auth returns a handful of policy errors verbatim in English (for
+  // example the minimum-length rejection from updateUser / createUser). Catch
+  // them here, before the AppError short-circuit below, so a raw GoTrue string
+  // that got wrapped in an AppError still surfaces in Vietnamese.
+  const passwordMin = /password should be at least (\d+) characters?/i.exec(value);
+  if (passwordMin)
+    return `Mật khẩu phải có ít nhất ${passwordMin[1]} ký tự.`;
+  if (error instanceof AppError) return error.message;
   if (!navigator.onLine || /fetch|network/i.test(value))
     return "Không thể kết nối. Giao dịch chưa được xác nhận; hãy kiểm tra lại danh sách trước khi thử lại.";
   if (/invalid login credentials/i.test(value))

@@ -174,20 +174,21 @@ test("Bell shows on desktop and mobile with unread badge and grouped panel", asy
     expect(box.x).toBeGreaterThanOrEqual(0);
     expect(box.x + box.width).toBeLessThanOrEqual(viewport.width + 0.5);
     if (viewport.width <= 768) {
-      // Bottom sheet: must leave a visible backdrop strip above the sheet so
-      // the tap-to-dismiss target is not hidden behind the list.
-      expect(box.y).toBeGreaterThanOrEqual(100);
-      // The sheet is anchored to the bottom edge; `viewport-fit=cover` makes
-      // Chromium report a small safe-area inset, so allow a few px of slack.
-      expect(box.y + box.height).toBeLessThanOrEqual(viewport.height + 10);
-      // Fingertip-sized close affordance on the sheet header.
+      // Phone: a floating card anchored just under the top bar (where the bell
+      // is). It opens downward from the tap point, so it must stay near the top
+      // and above the fold, leaving the dismissible backdrop BELOW the card
+      // rather than a stranded blank gap up top.
+      expect(box.y).toBeGreaterThanOrEqual(0);
+      expect(box.y).toBeLessThanOrEqual(200);
+      expect(box.y + box.height).toBeLessThanOrEqual(viewport.height + 2);
+      // Fingertip-sized close affordance on the card header.
       const closeBox = await panel.locator(".notification-panel-close").boundingBox();
       expect(closeBox.width).toBeGreaterThanOrEqual(36);
       expect(closeBox.height).toBeGreaterThanOrEqual(36);
     }
-    // Tapping outside closes the popover. On mobile the panel is a bottom
-    // sheet, so the visible backdrop lives above the sheet, not below it.
-    const dismissY = viewport.width <= 768 ? 130 : viewport.height - 60;
+    // Tapping outside closes the popover. The dismissible backdrop lives to the
+    // far side on desktop and below the floating card on phones.
+    const dismissY = viewport.height - 40;
     await page.mouse.click(viewport.width / 4, dismissY);
     await expect(panel).toHaveCount(0);
     await expect(bell(page)).toBeVisible();

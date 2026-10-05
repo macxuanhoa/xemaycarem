@@ -144,7 +144,7 @@ export const auditFieldLabels: Record<string, string> = {
   odometer: "Số km đã đi",
   purchase_date: "Ngày thu",
   purchase_price: "Giá thu",
-  asking_price: "Giá niêm yết",
+  asking_price: "Giá bán dự kiến",
   supplier_name: "Người bán",
   supplier_phone: "SĐT người bán",
   notes: "Ghi chú",

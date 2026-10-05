@@ -54,7 +54,7 @@ test('parses shorthand notes, requires review and imports the whole batch in one
   await expect(first.getByText(/=\s*18\.500\.000/)).toBeVisible()
   const second = page.locator('.intake-entry').nth(1)
   await expect(second.getByLabel('Dòng xe')).toHaveValue('Wave RSX')
-  await expect(second.getByLabel('Giá niêm yết')).toHaveValue('12000000')
+  await expect(second.getByLabel('Giá bán dự kiến')).toHaveValue('12000000')
 
   // Blocking: chassis and purchase price are missing, so nothing can be sent yet.
   await expect(page.getByRole('button', { name: /Thu 2 xe vào kho/ })).toBeDisabled()
@@ -126,7 +126,7 @@ test('staff without financial rights never sees or sends the purchase price', as
   await page.getByRole('button', { name: 'Tách thành danh sách' }).click()
   const card = page.locator('.intake-entry').first()
   await expect(card.getByLabel('Giá thu')).toHaveCount(0)
-  await card.getByLabel('Giá niêm yết').fill('25tr')
+  await card.getByLabel('Giá bán dự kiến').fill('25tr')
   await page.getByRole('button', { name: /Thu 1 xe vào kho/ }).click()
   const dialog = page.getByRole('alertdialog')
   await dialog.getByRole('button', { name: 'Xác nhận thu xe' }).click()

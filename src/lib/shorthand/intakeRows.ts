@@ -58,7 +58,7 @@ export function validateIntakeEntry(
   if (purchase === "invalid") errors.push("Giá thu không hợp lệ (vd: 18tr5).");
   if (financial && purchase === null) errors.push("Cần nhập giá thu xe.");
   const asking = moneyOf(entry, "asking_price");
-  if (asking === "invalid") errors.push("Giá niêm yết không hợp lệ (vd: 22tr).");
+  if (asking === "invalid") errors.push("Giá bán dự kiến không hợp lệ (vd: 22tr).");
   if ((f.supplier_name ?? "").length > 200) errors.push("Tên người bán quá dài.");
   if ((f.supplier_phone ?? "").length > 40) errors.push("SĐT người bán quá dài.");
   if ((f.notes ?? "").length > 10_000) errors.push("Ghi chú quá dài.");

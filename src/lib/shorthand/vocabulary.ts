@@ -139,6 +139,7 @@ export const KEYWORD_FIELDS: Record<string, string> = {
   giathu: "price",
   thu: "price",
   giasale: "price2",
+  giaban: "price2",
   giabannoi: "price2",
   niemyet: "price2",
   banra: "price2",

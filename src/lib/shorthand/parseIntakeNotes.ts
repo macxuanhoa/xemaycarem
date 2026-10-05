@@ -48,7 +48,7 @@ export const INTAKE_FIELDS: { key: IntakeFieldKey; label: string }[] = [
   { key: "odometer", label: "Số km" },
   { key: "purchase_date", label: "Ngày thu" },
   { key: "purchase_price", label: "Giá thu" },
-  { key: "asking_price", label: "Giá niêm yết" },
+  { key: "asking_price", label: "Giá bán dự kiến" },
   { key: "supplier_name", label: "Tên người bán" },
   { key: "supplier_phone", label: "SĐT người bán" },
   { key: "notes", label: "Ghi chú" },

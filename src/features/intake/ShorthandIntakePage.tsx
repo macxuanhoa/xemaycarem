@@ -74,7 +74,7 @@ const TEACHABLE_FIELDS = new Set<IntakeFieldKey>([
  */
 const SAMPLE_LINES = [
   "sh den 29b1 123.45 21 gia 18tr5",
-  "wave rsx trang 12tr niemyet 22tr",
+  "wave rsx trang 12tr giaban 22tr",
   "ex abs xanh 27tr #chinh chu ban",
 ];
 const SAMPLE = SAMPLE_LINES.join("\n");
@@ -89,7 +89,7 @@ const SAMPLE_LEGEND: [string, string][] = [
   ["29b1 123.45", "biển số"],
   ["21", "năm SX"],
   ["gia 18tr5", "giá thu"],
-  ["niemyet 22tr", "niêm yết"],
+  ["giaban 22tr", "giá bán dự kiến"],
   ["#chinh chu", "ghi chú"],
 ];
 
@@ -395,6 +395,16 @@ export default function ShorthandIntakePage() {
                   placeholder="RLH160…"
                 />
               </Field>
+              <Field label="Số máy">
+                <input
+                  value={entry.fields.engine_number ?? ""}
+                  onChange={(event) =>
+                    updateField(entry.id, "engine_number", event.target.value.toUpperCase())
+                  }
+                  autoCapitalize="characters"
+                  placeholder="KF160…"
+                />
+              </Field>
               <Field label="Biển số">
                 <input
                   value={entry.fields.license_plate ?? ""}
@@ -439,30 +449,6 @@ export default function ShorthandIntakePage() {
                   placeholder="ABS"
                 />
               </Field>
-              {financial && (
-                <Field label="Giá thu *">
-                  <input
-                    value={entry.fields.purchase_price ?? ""}
-                    onChange={(event) =>
-                      updateField(entry.id, "purchase_price", event.target.value)
-                    }
-                    inputMode="numeric"
-                    placeholder="18tr5"
-                  />
-                  {moneyHint(entry.fields.purchase_price)}
-                </Field>
-              )}
-              <Field label="Giá niêm yết">
-                <input
-                  value={entry.fields.asking_price ?? ""}
-                  onChange={(event) =>
-                    updateField(entry.id, "asking_price", event.target.value)
-                  }
-                  inputMode="numeric"
-                  placeholder="22tr"
-                />
-                {moneyHint(entry.fields.asking_price)}
-              </Field>
               <Field label="Năm sản xuất">
                 <input
                   value={entry.fields.year ?? ""}
@@ -496,15 +482,29 @@ export default function ShorthandIntakePage() {
                   autoCorrect="off"
                 />
               </Field>
-              <Field label="Số máy">
+              {financial && (
+                <Field label="Giá thu *">
+                  <input
+                    value={entry.fields.purchase_price ?? ""}
+                    onChange={(event) =>
+                      updateField(entry.id, "purchase_price", event.target.value)
+                    }
+                    inputMode="numeric"
+                    placeholder="18tr5"
+                  />
+                  {moneyHint(entry.fields.purchase_price)}
+                </Field>
+              )}
+              <Field label="Giá bán dự kiến">
                 <input
-                  value={entry.fields.engine_number ?? ""}
+                  value={entry.fields.asking_price ?? ""}
                   onChange={(event) =>
-                    updateField(entry.id, "engine_number", event.target.value.toUpperCase())
+                    updateField(entry.id, "asking_price", event.target.value)
                   }
-                  autoCapitalize="characters"
-                  placeholder="KF160…"
+                  inputMode="numeric"
+                  placeholder="22tr"
                 />
+                {moneyHint(entry.fields.asking_price)}
               </Field>
               <Field label="Tên người bán">
                 <input

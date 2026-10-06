@@ -4,7 +4,7 @@
 import { canFinance, canManage } from './contracts.ts'
 import type { AccessProfile, Caller } from './contracts.ts'
 
-export type CitationType = 'vehicle' | 'sale' | 'expense' | 'debt' | 'metric' | 'audit' | 'profile' | 'document' | 'settings'
+export type CitationType = 'vehicle' | 'sale' | 'expense' | 'debt' | 'metric' | 'audit' | 'profile' | 'document' | 'settings' | 'customer'
 export type Citation = { id: string; type: CitationType; label: string; detail: string | null; route: string }
 export type Fact = { label: string; value: number | string; display: string; citation: string }
 export type DocExcerpt = { id: string; title: string; section: string | null; excerpt: string }
@@ -103,8 +103,21 @@ async function metrics(context: RunContext, selects: [key: string, label: string
 
 const INTENTS: Intent[] = [
   {
+    key: 'overview',
+    pattern: /(tinh hinh|tom luoc|tong quan|overview|dang the nao|ra sao|cua hang dang)/,
+    label: 'Tổng quan cửa hàng',
+    run: (context) => metrics(context, [
+      ['in_stock', 'Xe đang tồn kho', 'xe', '/vehicles'],
+      ['sales_count', 'Xe bán trong kỳ', 'xe', '/sales', 'manage'],
+      ['revenue', 'Doanh thu hoàn tất', 'money', '/', 'manage'],
+      ['gross_profit', 'Lợi nhuận gộp', 'money', '/', 'finance'],
+      ['total_receivables', 'Tổng còn phải thu', 'money', '/receivables'],
+      ['old_inventory_count', 'Xe tồn trên 60 ngày', 'xe', '/vehicles'],
+    ]),
+  },
+  {
     key: 'inventory',
-    pattern: /(ton kho|con bao nhieu xe|dang co bao nhieu|so xe trong kho|inventory)/,
+    pattern: /(ton kho|con bao nhieu xe|con may xe|bao nhieu xe|dang co bao nhieu|so xe trong kho|kho con|xe trong kho|inventory|dang con lai)/,
     label: 'Tồn kho',
     run: (context) => metrics(context, [
       ['in_stock', 'Xe đang tồn kho', 'xe', '/vehicles'],
@@ -114,33 +127,92 @@ const INTENTS: Intent[] = [
   },
   {
     key: 'acquisitions',
-    pattern: /(thu bao nhieu|thu vao|acquist|xe thu)/,
+    pattern: /(thu bao nhieu|thu vao|thu ve|acquist|xe thu|moi thu|da thu|xe thu vao)/,
     label: 'Thu vào',
     run: (context) => metrics(context, [['acquisitions_count', 'Xe thu vào trong kỳ', 'xe', '/acquisitions']]),
   },
   {
+    key: 'recent_sales',
+    pattern: /(don ban gan day|ban cho ai|vua ban|khach vua mua|danh sach ban|xe nao da ban|ban lai cho|sales list)/,
+    label: 'Đơn bán gần đây',
+    requires: 'manage',
+    run: async (context) => {
+      // Custom runs must repeat the intent gate: metrics() checks it per select, but these RPCs answer directly.
+      if (!allowed(context, 'manage')) {
+        context.warn('Đơn bán cần quyền cao hơn.')
+        return
+      }
+      const filters: Record<string, unknown> = { limit: 5 }
+      if (context.period) { filters.from = context.period.from; filters.to = context.period.to }
+      const data = await safe(() => read<Record<string, unknown>>(context, 'list_sales', { p_filters: filters }), context, 'Không đọc được đơn bán.')
+      const items = Array.isArray(data?.items) ? data!.items as Record<string, unknown>[] : []
+      const total = Number(data?.total)
+      if (Number.isFinite(total) && total > 0) {
+        const citation = context.addCitation({ type: 'metric', label: 'Đơn bán', detail: context.period?.label ?? 'Gần đây', route: '/sales' })
+        context.addFact({ label: 'Số đơn bán', value: total, display: count(total, 'đơn'), citation })
+      }
+      for (const row of items.slice(0, 5)) {
+        if (!row?.id) continue
+        const price = Number(row.sale_price ?? 0)
+        if (!Number.isFinite(price)) continue
+        const who = String(row.customer_name || 'Khách')
+        const vehicleName = String(row.vehicle_name || [row.brand, row.model].filter(Boolean).join(' ') || 'xe')
+        const citation = context.addCitation({ type: 'sale', label: who, detail: String(row.license_plate || '') || vehicleName, route: `/sales/${row.id}` })
+        context.addFact({ label: `${who} mua ${vehicleName}`, value: price, display: money(price), citation })
+      }
+      if (items.length) context.addSuggestion({ label: 'Mở danh sách bán hàng', route: '/sales' })
+    },
+  },
+  {
     key: 'sales',
-    pattern: /(ban bao nhieu|so xe ban|doanh so|sales count|ban duoc)/,
+    pattern: /(ban bao nhieu|so xe ban|doanh so|sales count|ban duoc|ban chay|don ban trong)/,
     label: 'Bán ra',
     run: (context) => metrics(context, [['sales_count', 'Xe bán trong kỳ', 'xe', '/sales', 'manage']]),
   },
   {
+    key: 'cash',
+    pattern: /(tien ve|dong tien|nuoc toi|thu tien hom nay|chi tieu hom nay|cash|con lai bao nhieu tien)/,
+    label: 'Đối soát thu chi hôm nay',
+    requires: 'manage',
+    run: async (context) => {
+      if (!allowed(context, 'manage')) {
+        context.warn('Đối soát thu chi cần quyền cao hơn.')
+        return
+      }
+      const data = await safe(() => read<Record<string, unknown>>(context, 'daily_reconciliation'), context, 'Không đọc được đối soát thu chi trong ngày.')
+      if (!data || !Number.isFinite(Number(data.total_collected))) return
+      const citation = context.addCitation({ type: 'metric', label: 'Đối soát thu chi ngày', detail: String(data.date ?? 'Hôm nay'), route: '/' })
+      for (const [key, label] of [
+        ['total_collected', 'Tổng tiền thu về'],
+        ['debt_collected_today', 'Thu nợ trong ngày'],
+        ['new_debt_created', 'Nợ mới phát sinh'],
+        ['total_expenses', 'Chi phí trong ngày'],
+        ['net_cash_movement', 'Chênh lệch thu - chi'],
+      ] as [string, string][]) {
+        const value = Number(data[key])
+        if (!Number.isFinite(value)) continue
+        context.addFact({ label, value, display: money(value), citation })
+      }
+      context.addSuggestion({ label: 'Mở bảng kê ngày', route: '/' })
+    },
+  },
+  {
     key: 'revenue',
-    pattern: /(doanh thu|thu duoc bao nhieu|revenue)/,
+    pattern: /(doanh thu|thu duoc bao nhieu|tong thu|revenue|tien ban duoc)/,
     label: 'Doanh thu',
     requires: 'manage',
     run: (context) => metrics(context, [['revenue', 'Doanh thu hoàn tất', 'money', '/', 'manage']]),
   },
   {
     key: 'profit',
-    pattern: /(loi nhuan|lai bao nhieu|profit|hieu suat)/,
+    pattern: /(loi nhuan|lai bao nhieu|loi bao nhieu|profit|hieu suat|lai may)/,
     label: 'Lợi nhuận',
     requires: 'finance',
     run: (context) => metrics(context, [['gross_profit', 'Lợi nhuận gộp', 'money', '/', 'finance']]),
   },
   {
     key: 'aging',
-    pattern: /(ton lau|nhu yen|age|tren 60 ngay|lau nhat)/,
+    pattern: /\b(ton lau|nhu yen|aging?|lau nhat|xe cui|ban di kho)\b|tren 60 ngay/,
     label: 'Tồn kho lâu',
     run: async (context) => {
       await metrics(context, [['old_inventory_count', 'Xe tồn trên 60 ngày', 'xe', '/vehicles']])
@@ -164,7 +236,7 @@ const INTENTS: Intent[] = [
   },
   {
     key: 'receivables',
-    pattern: /(cong no|no lai|chua thu| phai thu|debt|receivable|quyet toan no)/,
+    pattern: /(cong no|no lai|chua thu|phai thu|debt|receivable|quyet toan no|khach no|chua tra|no dung|con thieu tien)/,
     label: 'Công nợ',
     run: async (context) => {
       const data = await safe(() => read<Record<string, unknown>>(context, 'list_receivables', { p_filters: { limit: 5 } }), context, 'Không đọc được công nợ.')
@@ -189,7 +261,7 @@ const INTENTS: Intent[] = [
   },
   {
     key: 'expenses',
-    pattern: /(chi phi|expense|sua xe|tien sua)/,
+    pattern: /(chi phi|expense|sua xe|tien sua|sua chua|rang buoc|tien bac)/,
     label: 'Chi phí',
     requires: 'manage',
     run: async (context) => {
@@ -208,7 +280,7 @@ const INTENTS: Intent[] = [
   },
   {
     key: 'audit',
-    pattern: /(lich su thao tac|audit|ai da sua|nhat ky)/,
+    pattern: /(lich su thao tac|audit|ai da sua|nhat ky|ai lam gi|bi eu y)/,
     label: 'Lịch sử thao tác',
     requires: 'owner',
     run: async (context) => {
@@ -223,8 +295,27 @@ const INTENTS: Intent[] = [
     },
   },
   {
+    key: 'customers',
+    pattern: /(khach hang|khach tiem nang|customer|bao nhieu khach|ai mua nhieu)/,
+    label: 'Khách hàng',
+    run: async (context) => {
+      const data = await safe(() => read<Record<string, unknown>>(context, 'list_customers', { p_filters: { limit: 5 } }), context, 'Không đọc được danh sách khách hàng.')
+      if (!data) return
+      const total = Number(data.total)
+      const citation = context.addCitation({ type: 'customer', label: 'Danh sách khách hàng', detail: null, route: '/customers' })
+      if (Number.isFinite(total)) context.addFact({ label: 'Tổng khách đã mua', value: total, display: count(total, 'khách'), citation })
+      for (const row of (Array.isArray(data.items) ? data.items as Record<string, unknown>[] : []).slice(0, 5)) {
+        const buys = Number(row.purchases_count ?? 0)
+        if (!Number.isFinite(buys) || buys < 1) continue
+        const name = String(row.customer_name || 'Khách')
+        context.addFact({ label: `Mua nhiều nhất: ${name}`, value: buys, display: count(buys, 'lần'), citation })
+      }
+      context.addSuggestion({ label: 'Mở danh sách khách hàng', route: '/customers' })
+    },
+  },
+  {
     key: 'team',
-    pattern: /(nhan su|tai khoan|team|nv|ai trong nhom|mo ai)/,
+    pattern: /(nhan su|tai khoan|team|\bnv\b|\bnhan vien\b|ai trong nhom|mo ai|bao nhieu nguoi dung)/,
     label: 'Nhân sự',
     requires: 'owner',
     run: async (context) => {
@@ -240,7 +331,7 @@ const INTENTS: Intent[] = [
   },
   {
     key: 'settings',
-    pattern: /(cai dat|cua hang ten|store name|setting)/,
+    pattern: /(cai dat|cua hang ten|store name|setting|thong tin cua hang|so dien thoai cua hang)/,
     label: 'Cài đặt cửa hàng',
     run: async (context) => {
       const data = await safe(() => read<Record<string, unknown>>(context, 'get_settings'), context, 'Không đọc được cài đặt.')
@@ -253,41 +344,105 @@ const INTENTS: Intent[] = [
   },
 ]
 
-/** Free-text vehicle lookup when the question names a plate, frame or model. */
-async function vehicleLookup(context: RunContext) {
+/** Free-text lookup when the question names a plate, phone, or a quoted brand/model. */
+async function entityLookup(context: RunContext) {
+  const compact = context.question.replace(/[\s.-]+/g, '')
   const plate = context.question.match(/\b\d{3,6}[-\s]?[a-z]{1,3}[-\s]?\d{1,3}(?:\.\d{1,2})?\b/i)?.[0]
   const quoted = context.question.match(/["“](.+?)["”]/)?.[1]
-  const search = (plate || quoted || '').trim()
+  const phone = compact.match(/(?:\+?84|0)\d{9,10}/)?.[0]
+  const search = (plate || phone || quoted || '').trim()
   if (search.length < 2) return false
-  const data = await safe(() => read<Record<string, unknown>>(context, 'list_vehicles', { p_filters: { search, limit: 5 } }), context, 'Không tìm được xe phù hợp.')
-  const items = Array.isArray(data?.items) ? data!.items as Record<string, unknown>[] : []
-  if (!items.length) return false
-  for (const row of items.slice(0, 5)) {
+  const data = await safe(() => read<Record<string, unknown>>(context, 'global_search', { p_query: search, p_limit: 6 }), context, 'Không tìm được xe, khách hoặc đơn bán phù hợp.')
+  if (!data) return false
+  let found = false
+  for (const row of Array.isArray(data.vehicles) ? data.vehicles as Record<string, unknown>[] : []) {
     if (!row?.id) continue
-    const citation = context.addCitation({ type: 'vehicle', label: [row.brand, row.model].filter(Boolean).join(' ') || 'Xe', detail: String(row.license_plate || row.frame_number || '') || null, route: `/vehicles/${row.id}` })
-    context.addFact({ label: `Xe khớp "${search}": ${[row.brand, row.model].filter(Boolean).join(' ')}`, value: Number(row.asking_price ?? 0), display: row.asking_price ? money(Number(row.asking_price)) : 'chưa ra giá', citation })
+    found = true
+    const name = [row.brand, row.model].filter(Boolean).join(' ') || 'Xe'
+    const citation = context.addCitation({ type: 'vehicle', label: name, detail: String(row.license_plate || row.frame_number || '') || null, route: `/vehicles/${row.id}` })
+    context.addFact({ label: `Xe khớp "${search}": ${name}`, value: Number(row.asking_price ?? 0), display: row.asking_price ? money(Number(row.asking_price)) : 'chưa ra giá', citation })
   }
-  context.addSuggestion({ label: 'Tìm trong kho', route: `/vehicles?q=${encodeURIComponent(search)}` })
-  return true
+  for (const row of Array.isArray(data.sales) ? data.sales as Record<string, unknown>[] : []) {
+    if (!row?.id) continue
+    found = true
+    const who = String(row.customer_name || 'Khách')
+    const vehicleName = String(row.vehicle_name || 'xe')
+    const price = Number(row.sale_price ?? 0)
+    const citation = context.addCitation({ type: 'sale', label: who, detail: String(row.license_plate || '') || null, route: `/sales/${row.id}` })
+    context.addFact({ label: `Đơn bán ${who} · ${vehicleName}`, value: price, display: money(price), citation })
+  }
+  for (const row of Array.isArray(data.customers) ? data.customers as Record<string, unknown>[] : []) {
+    const name = String(row.customer_name || '')
+    if (!name) continue
+    found = true
+    const buys = Number(row.purchases_count ?? 0)
+    const citation = context.addCitation({ type: 'customer', label: name, detail: String(row.customer_phone || '') || null, route: '/customers' })
+    context.addFact({ label: `Khách khớp "${search}": ${name}`, value: buys, display: count(buys, 'lần mua'), citation })
+  }
+  if (found) context.addSuggestion({ label: 'Tìm trong kho', route: `/vehicles?q=${encodeURIComponent(search)}` })
+  return found
 }
 
-/** `tháng 9`, `tháng này`, `2026-08` and explicit ranges become an Asia/Ho_Chi_Minh period. */
+/**
+ * `tháng 9`, `tháng này`, `2026-08`, `hôm nay`, `hôm qua`, `tuần này`,
+ * `tháng trước`, `quý 3` and `năm 2026` all become an Asia/Ho_Chi_Minh period.
+ */
 export function detectPeriod(question: string, today = new Date()) {
   const parts = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Ho_Chi_Minh', year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(today)
   const year = Number(parts.find((part) => part.type === 'year')?.value)
   const currentMonth = Number(parts.find((part) => part.type === 'month')?.value)
-  const explicit = normalize(question).match(/(?:thang|month)\s*([0-9]{1,2})|(20\d{2})-([0-9]{2})/)
+  const currentDay = Number(parts.find((part) => part.type === 'day')?.value)
+  const iso = (y: number, m: number, d: number) => `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`
+  const lastDayOfMonth = (y: number, m: number) => new Date(Date.UTC(y, m, 0)).getUTCDate()
+  const dayLabel = (value: string) => { const [y, m, d] = value.split('-'); return `${d}/${m}/${y}` }
+  const shifted = (days: number) => {
+    const date = new Date(Date.UTC(year, currentMonth - 1, currentDay + days))
+    return { y: date.getUTCFullYear(), m: date.getUTCMonth() + 1, d: date.getUTCDate() }
+  }
+  const n = normalize(question)
+  if (/\bhom nay\b|\btoday\b/.test(n)) {
+    const day = iso(year, currentMonth, currentDay)
+    return { from: day, to: day, label: `Hôm nay ${dayLabel(day)}` }
+  }
+  if (/\bhom qua\b|\byesterday\b/.test(n)) {
+    const back = shifted(-1)
+    const day = iso(back.y, back.m, back.d)
+    return { from: day, to: day, label: `Hôm qua ${dayLabel(day)}` }
+  }
+  if (/\btuan nay\b|\bthis week\b/.test(n)) {
+    const dow = new Date(Date.UTC(year, currentMonth - 1, currentDay)).getUTCDay()
+    const start = shifted(-((dow + 6) % 7))
+    const end = shifted((7 - dow) % 7)
+    return { from: iso(start.y, start.m, start.d), to: iso(end.y, end.m, end.d), label: 'Tuần này' }
+  }
+  if (/\bthang truoc\b|\blast month\b/.test(n)) {
+    const prev = currentMonth === 1 ? { y: year - 1, m: 12 } : { y: year, m: currentMonth - 1 }
+    return { from: iso(prev.y, prev.m, 1), to: iso(prev.y, prev.m, lastDayOfMonth(prev.y, prev.m)), label: `Tháng ${String(prev.m).padStart(2, '0')}/${prev.y}` }
+  }
+  const quarter = n.match(/\bquy\s*(nay|1|2|3|4)\b/)
+  if (quarter) {
+    const q = quarter[1] === 'nay' ? Math.floor((currentMonth - 1) / 3) + 1 : Number(quarter[1])
+    const first = (q - 1) * 3 + 1
+    const last = q * 3
+    return { from: iso(year, first, 1), to: iso(year, last, lastDayOfMonth(year, last)), label: `Quý ${q}/${year}` }
+  }
+  if (/\bnam nay\b|\bthis year\b/.test(n)) return { from: iso(year, 1, 1), to: iso(year, 12, 31), label: `Năm ${year}` }
+  const namedYear = n.match(/\bnam\s+(20\d{2})\b/)
+  if (namedYear && !/(?:thang|month)\s*[0-9]/.test(n) && !/(20\d{2})-([0-9]{2})/.test(n)) {
+    const y = Number(namedYear[1])
+    return { from: iso(y, 1, 1), to: iso(y, 12, 31), label: `Năm ${y}` }
+  }
+  const explicit = n.match(/(?:thang|month)\s*([0-9]{1,2})|(20\d{2})-([0-9]{2})/)
   let month = currentMonth
   let labelYear = year
   if (explicit?.[3]) { month = Number(explicit[3]); labelYear = Number(explicit[2]) }
-  else if (explicit?.[1]) month = Number(explicit[1])
+  else if (explicit?.[1]) { month = Number(explicit[1]); if (namedYear) labelYear = Number(namedYear[1]) }
   if (month < 1 || month > 12) return null
   const padded = String(month).padStart(2, '0')
-  const lastDay = new Date(Date.UTC(labelYear, month, 0)).getUTCDate()
-  const named = normalize(question).includes('thang nay') || normalize(question).includes('this month')
+  const named = n.includes('thang nay') || n.includes('this month')
   return {
     from: `${labelYear}-${padded}-01`,
-    to: named || month < currentMonth || (month === currentMonth && labelYear < year) ? `${labelYear}-${padded}-${String(month === currentMonth ? Number(parts.find((p) => p.type === 'day')?.value) : lastDay).padStart(2, '0')}` : `${labelYear}-${padded}-${lastDay}`,
+    to: named || month < currentMonth || (month === currentMonth && labelYear < year) ? `${labelYear}-${padded}-${String(month === currentMonth ? currentDay : lastDayOfMonth(labelYear, month)).padStart(2, '0')}` : `${labelYear}-${padded}-${String(lastDayOfMonth(labelYear, month)).padStart(2, '0')}`,
     label: `Tháng ${padded}/${labelYear}`,
   }
 }
@@ -339,7 +494,9 @@ export async function buildEvidence(question: string, caller: Caller, profile: A
 
   const matched = INTENTS.filter((intent) => intent.pattern.test(normalize(question)))
   for (const intent of matched.slice(0, 4)) await intent.run(context)
-  if (!matched.length) await vehicleLookup(context)
+  // The entity lookup also rescues questions whose intent matched but returned no figure
+  // (e.g. "doanh thu của 59-B1 123") so a plate or phone never dead-ends.
+  if (!facts.length) await entityLookup(context)
 
   const hasData = facts.length > 0
   const hasDocuments = docCitations.length > 0
@@ -355,7 +512,7 @@ export async function buildEvidence(question: string, caller: Caller, profile: A
     }
   }
   if (!hasData && !hasDocuments) {
-    lines.push('Chưa tìm thấy dữ liệu hoặc tài liệu phù hợp với câu hỏi. Hãy thêm từ khóa như "tồn kho", "doanh thu", "công nợ", "chi phí" hoặc mô tả biển số/số khung cần tra.')
+    lines.push('Chưa tìm thấy dữ liệu hoặc tài liệu phù hợp với câu hỏi. Hãy thêm từ khóa như "tồn kho", "doanh thu", "công nợ", "chi phí", "tình hình" hoặc dán biển số / số điện thoại / tên khách cần tra.')
   }
 
   return {

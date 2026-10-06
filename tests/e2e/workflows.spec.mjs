@@ -4,7 +4,7 @@ import { createDatabase, asUser, rpc } from "../../scripts/db-harness.mjs";
 
 // Only the hosted HTTP/Auth boundary is simulated. All business RPCs, RLS and
 // financial calculations execute the actual migrations on PostgreSQL.
-let db, day, ids, vehicles;
+let db, day, ids, vehicles, failNextInventoryResponse;
 test.beforeAll(async () => {
   db = await createDatabase({ engine: "postgres" });
 });
@@ -15,6 +15,7 @@ test.beforeEach(async ({ page }) => {
   day = (await db.query("select private.today()::text as day")).rows[0].day;
   ids = { OWNER: randomUUID(), STAFF: randomUUID() };
   vehicles = [];
+  failNextInventoryResponse = false;
   for (const [role, id] of Object.entries(ids)) {
     await db.query(
       "insert into auth.users(id,email,raw_user_meta_data) values($1,$2,$3)",
@@ -36,6 +37,7 @@ test.beforeEach(async ({ page }) => {
         await asUser(connection, ids.OWNER, (c) =>
           rpc(c, "save_vehicle", "$1::jsonb", [
             JSON.stringify({
+              request_id: randomUUID(),
               brand: i === 1 ? "Yamaha" : "Honda",
               model: `Test ${ids.OWNER.slice(0, 5)} ${i}`,
               purchase_date: day,
@@ -181,6 +183,11 @@ test.beforeEach(async ({ page }) => {
         },
         userId ? "authenticated" : "anon",
       );
+      if (url.pathname.endsWith("/rpc/save_vehicle") && !body.p_id && failNextInventoryResponse) {
+        // The actual PostgreSQL RPC has committed; only the browser response is lost.
+        failNextInventoryResponse = false;
+        return route.abort("failed");
+      }
       return reply(result);
     } catch (error) {
       return reply({ code: error.code ?? "TEST", message: error.message }, 400);
@@ -211,6 +218,33 @@ async function noOverflow(page) {
     ),
   ).toBe(true);
 }
+
+test("Inventory creation: lost committed response survives reload and reconciles without duplicate stock", async ({ page }) => {
+  await login(page);
+  await page.goto("/vehicles/new");
+  const model = `Synthetic stock recovery ${ids.OWNER.slice(0, 8)}`;
+  const requests = [];
+  page.on("request", request => {
+    if (request.url().endsWith("/rest/v1/rpc/save_vehicle")) requests.push(request.postDataJSON());
+  });
+  await page.getByLabel("Hãng xe", { exact: true }).fill("Honda");
+  await page.getByLabel("Dòng xe *", { exact: true }).fill(model);
+  await page.getByLabel("Giá mua (₫) *", { exact: false }).fill("18000000");
+  await page.getByLabel("Giá niêm yết (₫) *", { exact: false }).fill("20000000");
+  failNextInventoryResponse = true;
+  await page.getByRole("button", { name: "Lưu xe mới", exact: true }).click();
+  await expect(page.getByText(/Giao dịch chưa được xác nhận/)).toBeVisible();
+  expect(requests).toHaveLength(1);
+  expect(requests[0].p_data.request_id).toMatch(/^[0-9a-f-]{36}$/i);
+  const created = (await db.query("SELECT id FROM public.vehicles WHERE created_by=$1 AND model=$2", [ids.OWNER, model])).rows;
+  expect(created).toHaveLength(1);
+  await page.reload();
+  await page.getByRole("button", { name: "Kiểm tra giao dịch trước", exact: true }).click();
+  await expect(page).toHaveURL(`/vehicles/${created[0].id}`);
+  expect(requests).toHaveLength(1);
+  const proof = (await db.query("SELECT (SELECT count(*) FROM public.vehicles WHERE created_by=$1 AND model=$2) AS stock,(SELECT count(*) FROM public.vehicle_financials WHERE vehicle_id=$3) AS costs,(SELECT count(*) FROM public.acquisitions WHERE vehicle_id=$3) AS acquisitions,(SELECT count(*) FROM public.audit_logs WHERE entity_id=$3 AND action='CREATE_VEHICLE') AS audits", [ids.OWNER, model, created[0].id])).rows[0];
+  expect(Object.values(proof).map(Number)).toEqual([1, 1, 0, 1]);
+});
 
 test("Owner: login, persistent session, add/edit vehicle, expense, sale, payment, cancellation", async ({
   page,
@@ -262,6 +296,17 @@ test("Owner: login, persistent session, add/edit vehicle, expense, sale, payment
   await page
     .getByRole("button", { name: "Lưu thanh toán", exact: true })
     .click();
+  // Preparation is asynchronous. Wait for the editor to close and the manager
+  // review to appear before filling its account field (both forms share a label).
+  await expect(page.getByRole("heading", { name: "Ghi nhận thanh toán", exact: true })).toHaveCount(0);
+  await expect(page.getByRole("heading", { name: "Khoản thu chờ xác minh", exact: true })).toBeVisible();
+  await page.getByLabel("Tài khoản nhận / sổ chứng từ").fill("SYNTHETIC WORKFLOW REGISTER");
+  await page.getByLabel("Mã giao dịch / phiếu thu dùng chung").fill(`SYNTHETIC-${randomUUID()}`);
+  await page.getByLabel("Bằng chứng đối chiếu / lý do từ chối").fill("Synthetic manager verified receipt and existing ledger");
+  await page.getByRole("checkbox", { name: /Đã kiểm tra tiền thực nhận/ }).check();
+  await expect(page.getByLabel("Tài khoản nhận / sổ chứng từ")).toHaveValue("SYNTHETIC WORKFLOW REGISTER");
+  await expect(page.getByRole("button", { name: "Xác minh và ghi nhận", exact: true })).toBeEnabled();
+  await page.getByRole("button", { name: "Xác minh và ghi nhận", exact: true }).click();
   await expect(page.getByText("Đã thanh toán đủ")).toBeVisible();
   await page
     .getByRole("button", { name: "Hủy giao dịch bán xe", exact: true })
@@ -505,6 +550,7 @@ test("Regression: global inventory search resets page two to the first matching 
       await asUser(connection, ids.OWNER, (client) =>
         rpc(client, "save_vehicle", "$1::jsonb", [
           JSON.stringify({
+            request_id: randomUUID(),
             brand: "Honda",
             model: `Pagination ${ids.OWNER.slice(0, 5)} ${i}`,
             purchase_date: day,

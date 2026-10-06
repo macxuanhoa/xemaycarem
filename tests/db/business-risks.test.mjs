@@ -21,6 +21,7 @@
 import assert from 'node:assert/strict'
 import { randomUUID } from 'node:crypto'
 import { createDatabase, asUser, rpc } from '../../scripts/db-harness.mjs'
+import { verifiedPayment } from './payment-fixtures.mjs'
 
 export async function runBusinessRisksTests(externalDb, { engine = 'postgres' } = {}) {
   const ownDb = !externalDb
@@ -37,7 +38,7 @@ export async function runBusinessRisksTests(externalDb, { engine = 'postgres' } 
     ['owner', 'manager', 'financialManager', 'staff', 'disabled'].map((role) => [role, randomUUID()])
   )
   const run = (user, fn) => asUser(db, users[user], fn)
-  const call = (user, name, data) => run(user, (client) => rpc(client, name, '$1::jsonb', [JSON.stringify(data)]))
+  const call = (user, name, data) => name === 'add_payment' ? verifiedPayment(db,users[user],users.owner,data) : run(user, (client) => rpc(client, name, '$1::jsonb', [JSON.stringify(data)]))
   const row = async (sql, args = []) => (await db.query(sql, args)).rows[0]
   const deny = (operation, expression = /ACCESS_DENIED|permission denied|row-level security|violates check constraint/i) =>
     assert.rejects(operation, expression)
@@ -60,6 +61,7 @@ export async function runBusinessRisksTests(externalDb, { engine = 'postgres' } 
 
   // 1. VEHICLE INVENTORY: Unique internal_code constraint
   const v1Id = await call('owner', 'save_vehicle', {
+    request_id: randomUUID(),
     brand: 'Honda',
     model: 'SH 160i Risk Test',
     license_plate: '29-TEST-01',

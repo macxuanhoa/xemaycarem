@@ -1,10 +1,13 @@
-import { useRef, useState } from "react";
+import { useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { ArrowLeft, ArrowRight, CreditCard } from "lucide-react";
 import { api } from "@/lib/api";
+import { confirmPayment, pendingPayment, retainPayment } from "@/lib/paymentRecovery";
+import { AppError } from "@/lib/errors";
+import { toast } from "@/lib/toast";
 import { canFinance, canManage, canOperate } from "@/lib/permissions";
 import { dateLabel, money, today } from "@/lib/format";
 import { useAuth } from "@/features/auth/AuthProvider";
@@ -25,13 +28,14 @@ import { IdentityDocumentPanel } from "@/components/IdentityDocumentPanel";
 import { MoneyInput } from "@/components/ui/MoneyInput";
 import { paymentLabels } from "@/features/vehicles/vehicleSchema";
 import { paymentSchema, type PaymentFormValues } from "./saleSchema";
+import { PaymentReceiptReview, type PaymentReceipt } from "./PaymentReceiptReview";
 
 type SaleRecord = Sale & {
   vehicle_code?: string;
   vehicle_name?: string;
   cancellation_reason?: string;
 };
-type CommunicationJob = { id?: string; channel?: string; status?: string; attempt_count?: number; last_error_code?: string; last_error_message_safe?: string };
+type CommunicationJob = { id?: string; channel?: string; status?: string; attempt_count?: number; last_error_code?: string; last_error_message_safe?: string; delivery_review_required?: boolean };
 
 export function SaleDetailPage() {
   const { id } = useParams();
@@ -58,6 +62,10 @@ export function SaleDetailPage() {
       const job = await api.call<CommunicationJob>("get_sale_communication", { p_sale_id: id });
       if (job.id) await api.processMessage(job.id);
     },
+    onSuccess: async () => { await client.invalidateQueries({ queryKey: ["sale-communication", id] }); },
+  });
+  const recoverMessage = useMutation({
+    mutationFn: async () => { if (communication.data?.id) await api.processMessage(communication.data.id); },
     onSuccess: async () => { await client.invalidateQueries({ queryKey: ["sale-communication", id] }); },
   });
 
@@ -116,14 +124,20 @@ export function SaleDetailPage() {
                 communication.data?.status === "QUEUED" ? "Đang chờ xử lý" :
                 communication.data?.status === "PROCESSING" ? "Đang gửi" :
                 communication.data?.status === "SKIPPED" && communication.data.last_error_code === "PROVIDER_NOT_CONFIGURED" ? "Chưa cấu hình nhà cung cấp tin nhắn" :
+                communication.data?.delivery_review_required ? "Kết quả gửi chưa xác định. Quản lý cần đối chiếu nhà cung cấp trước khi gửi lại." :
                 communication.data?.status === "FAILED" ? `Gửi thất bại${communication.data.last_error_message_safe ? `: ${communication.data.last_error_message_safe}` : ""}` :
                 communication.data?.status === "SKIPPED" ? "Chưa cấu hình kênh nhắn tin hoặc số điện thoại không hợp lệ" : "Chưa gửi"}
             </p>
           </div>
-          {canManage(profile) && communication.data?.status === "FAILED" && communication.data.last_error_code !== "PROVIDER_NOT_CONFIGURED" && communication.data?.channel !== "DISABLED" && (
+          {canManage(profile) && communication.data?.status === "FAILED" && !communication.data.delivery_review_required && communication.data.last_error_code !== "PROVIDER_NOT_CONFIGURED" && communication.data?.channel !== "DISABLED" && (
             <Button variant="secondary" disabled={retryMessage.isPending} onClick={() => retryMessage.mutate()}>Thử gửi lại</Button>
           )}
           {retryMessage.error && <ErrorState error={retryMessage.error} />}
+          {canManage(profile) && communication.data?.status === "PROCESSING" && (
+            <Button variant="secondary" disabled={recoverMessage.isPending} onClick={() => recoverMessage.mutate()}>Kiểm tra và khôi phục xử lý</Button>
+          )}
+          {recoverMessage.error && <ErrorState error={recoverMessage.error} />}
+          {canManage(profile) && communication.data?.delivery_review_required && communication.data.id && <MessageDeliveryReview jobId={communication.data.id} saleId={sale.id} />}
         </Card>
       )}
       {sale.status === "CANCELLED" && (
@@ -250,6 +264,7 @@ export function SaleDetailPage() {
               />
             )}
           </Card>
+          {sale.status === "COMPLETED" && <PaymentReceiptReview saleId={sale.id} />}
           {canManage(profile) && sale.status === "COMPLETED" && (
             <Card>
               <h2 className="section-title">Điều chỉnh giao dịch</h2>
@@ -369,6 +384,26 @@ export function SaleDetailPage() {
   );
 }
 
+function MessageDeliveryReview({ jobId, saleId }: { jobId: string; saleId: string }) {
+  const client = useQueryClient();
+  const [resolution, setResolution] = useState("CONFIRMED_SENT");
+  const [evidence, setEvidence] = useState("");
+  const mutation = useMutation({
+    mutationFn: () => api.call("resolve_message_delivery", { p_message_id: jobId, p_resolution: resolution, p_evidence_reference: evidence.trim() }),
+    onSuccess: async () => { await client.invalidateQueries({ queryKey: ["sale-communication", saleId] }); },
+  });
+  return <form className="stack" onSubmit={event => { event.preventDefault(); mutation.mutate(); }}>
+    <Field label="Kết quả đối chiếu nhà cung cấp"><select value={resolution} onChange={event => setResolution(event.target.value)}>
+      <option value="CONFIRMED_SENT">Đã xác nhận gửi thành công</option>
+      <option value="CONFIRMED_NOT_SENT">Đã xác nhận chưa gửi</option>
+    </select></Field>
+    <Field label="Mã bằng chứng từ nhà cung cấp"><input required minLength={8} maxLength={120} pattern="[A-Za-z0-9][A-Za-z0-9_.:/-]{7,119}" value={evidence} onChange={event => setEvidence(event.target.value)} /></Field>
+    <p className="muted small">Chỉ xác nhận sau khi kiểm tra nhật ký nhà cung cấp. Khi đã xác nhận chưa gửi, có thể dùng nút thử gửi lại.</p>
+    {mutation.error && <ErrorState error={mutation.error} />}
+    <Button type="submit" disabled={mutation.isPending}>Lưu kết quả đối chiếu</Button>
+  </form>;
+}
+
 export function PaymentEditor({
   sale,
   onClose,
@@ -377,7 +412,8 @@ export function PaymentEditor({
   onClose: () => void;
 }) {
   const client = useQueryClient();
-  const request = useRef<{ signature: string; id: string } | null>(null);
+  const { profile } = useAuth();
+  const [evidenceScope, setEvidenceScope] = useState("");
   const form = useForm<PaymentFormValues>({
     resolver: zodResolver(paymentSchema),
     defaultValues: {
@@ -390,13 +426,36 @@ export function PaymentEditor({
   });
 
   const mutation = useMutation({
-    mutationFn: (values: PaymentFormValues) => {
-      const signature = JSON.stringify(values);
-      if (request.current?.signature !== signature)
-        request.current = { signature, id: crypto.randomUUID() };
-      return api.call("add_payment", {
-        p_data: { ...values, sale_id: sale.id, request_id: request.current.id },
+    mutationFn: async (values: PaymentFormValues) => {
+      if (!profile?.id) throw new AppError("Phiên làm việc không hợp lệ. Vui lòng đăng nhập lại.");
+      const pending = pendingPayment(profile.id, sale.id);
+      if (pending) {
+        // Upgrade recovery also covers a pre-receipt client whose financial
+        // transaction committed before migration but whose response was lost.
+        const ledger = await api.call<Sale & { payments: Payment[] }>("get_sale", { p_id: sale.id });
+        if (ledger.payments.some(payment => payment.id === pending)) {
+          confirmPayment(profile.id, sale.id, pending);
+          toast.success("Khoản thu trước đã được ghi nhận. Đã đối soát, không tạo thêm khoản thu.");
+          return;
+        }
+        const latest = await api.call<{ confirmed: boolean; receipt: PaymentReceipt | null }>("get_payment_receipt_request", { p_request_id: pending });
+        if (latest.confirmed && latest.receipt?.sale_id === sale.id) {
+          confirmPayment(profile.id, sale.id, pending);
+          toast.success(latest.receipt.status === "RECORDED" ? "Khoản thu trước đã được ghi nhận. Đã đối soát, không tạo thêm khoản thu." : latest.receipt.status === "REJECTED" ? "Đề nghị thu tiền trước đã bị từ chối. Kiểm tra lại với quản lý." : "Đề nghị thu tiền trước đã được lưu. Không tạo thêm; quản lý kiểm tra mục chờ xác minh.");
+          return;
+        }
+      }
+      const id = retainPayment(profile.id, sale.id);
+      const hasEvidence = !!values.reference?.trim() && !!evidenceScope.trim();
+      const saved = await api.call<PaymentReceipt>("prepare_payment_receipt", {
+        p_data: { ...values, sale_id: sale.id, request_id: id,
+          evidence_kind: hasEvidence ? (values.payment_method === "BANK_TRANSFER" ? "BANK_TRANSACTION" : values.payment_method === "CASH" ? "CASH_VOUCHER" : "MANUAL_RECONCILIATION") : null,
+          evidence_scope: hasEvidence ? evidenceScope.trim() : "",
+          evidence_reference: hasEvidence ? values.reference?.trim() : "",
+        },
       });
+      confirmPayment(profile.id, sale.id, id);
+      toast.success(saved.status === "RECORDED" ? "Chứng từ này đã được ghi nhận. Không tạo thêm khoản thu." : saved.status === "REJECTED" ? "Chứng từ này đã bị từ chối. Kiểm tra lại với quản lý." : "Đã lưu đề nghị thu tiền, chờ quản lý xác minh. Tiền đã thu chưa thay đổi.");
     },
     onSuccess: async () => {
       await Promise.all(
@@ -409,6 +468,7 @@ export function PaymentEditor({
           "customer-history",
           "audit",
           "global-search",
+          "payment-receipts",
         ].map((key) => client.invalidateQueries({ queryKey: [key] })),
       );
       onClose();
@@ -429,6 +489,7 @@ export function PaymentEditor({
       })}
     >
       <h3>Ghi nhận thanh toán</h3>
+      <fieldset disabled={mutation.isPending} className="stack" style={{ border: 0, padding: 0, minWidth: 0 }}>
       <div className="form-grid">
         <Field
           label="Số tiền (₫) *"
@@ -479,14 +540,18 @@ export function PaymentEditor({
             placeholder="Mã chuyển khoản / chứng từ"
           />
         </Field>
+        <Field label="Tài khoản nhận / sổ chứng từ">
+          <input maxLength={120} value={evidenceScope} onChange={event => setEvidenceScope(event.target.value)} placeholder="Tài khoản nhận hoặc mã sổ phiếu thu" />
+        </Field>
       </div>
       <Field label="Ghi chú" error={form.formState.errors.notes?.message}>
         <textarea rows={2} {...form.register("notes")} />
       </Field>
+      </fieldset>
       {mutation.isError && <ErrorState error={mutation.error} />}
       <p className="notice">
-        Xác nhận thu {money(form.watch("amount"))} cho {sale.customer_name} ·{" "}
-        {sale.sale_code}.
+        Đề nghị thu {money(form.watch("amount"))} cho {sale.customer_name} ·{" "}
+        {sale.sale_code}. Quản lý đối chiếu chứng từ và lịch sử trước khi ghi nhận. Nếu thiếu mã chứng từ, cần lập biên bản đối chiếu dùng chung.
       </p>
       <div className="form-actions form-footer-actions">
         <Button type="button" variant="secondary" onClick={onClose}>

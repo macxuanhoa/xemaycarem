@@ -13,6 +13,7 @@ import {
   User,
 } from "lucide-react";
 import { api } from "@/lib/api";
+import { AppError, friendlyError } from "@/lib/errors";
 import { canOperate } from "@/lib/permissions";
 import { resolveDebtStatus, resolveIsOverdue } from "@/lib/debt";
 import { mergeSearchParams } from "@/lib/urlParams";
@@ -123,11 +124,15 @@ export function ReceivablesPage({
   }, [query.data, page, deferredSearch, paymentStatus, sort, range, client]);
 
   const dueDateMutation = useMutation({
-    mutationFn: ({ saleId, dueDate }: { saleId: string; dueDate: string | null }) =>
-      api.call("update_sale_due_date", {
+    mutationFn: ({ saleId, dueDate, expectedUpdatedAt }: { saleId: string; dueDate: string | null; expectedUpdatedAt?: string }) => {
+      if (!expectedUpdatedAt)
+        throw new AppError("Chưa có phiên bản giao dịch để đối chiếu. Hãy đóng và tải lại danh sách công nợ trước khi sửa hạn trả.");
+      return api.call("update_sale_due_date", {
         p_sale_id: saleId,
         p_due_date: dueDate,
-      }),
+        p_expected_updated_at: expectedUpdatedAt,
+      });
+    },
     onSuccess: async () => {
       await client.invalidateQueries({ queryKey: ["receivables"] });
       await client.invalidateQueries({ queryKey: ["sales"] });
@@ -602,19 +607,11 @@ export function ReceivablesPage({
                 dueDateMutation.mutate({
                   saleId: editingDueDateSale.id,
                   dueDate: dueDateInput,
+                  expectedUpdatedAt: editingDueDateSale.updated_at,
                 });
               }}
             >
-              <Field
-                label="Hạn trả tiền *"
-                error={
-                  dueDateError ??
-                  (dueDateMutation.error instanceof Error
-                    ? dueDateMutation.error.message
-                    : undefined)
-                }
-              >
-                <div style={{ display: "flex", gap: "6px", flexWrap: "wrap", marginBottom: "8px" }}>
+              <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
                   {[
                     { label: "+3 ngày", days: 3 },
                     { label: "+7 ngày (1 tuần)", days: 7 },
@@ -634,7 +631,16 @@ export function ReceivablesPage({
                       </button>
                     );
                   })}
-                </div>
+              </div>
+              <Field
+                label="Hạn trả tiền *"
+                error={
+                  dueDateError ??
+                  (dueDateMutation.error
+                    ? friendlyError(dueDateMutation.error)
+                    : undefined)
+                }
+              >
                 <DatePicker
                   autoFocus
                   required
@@ -663,6 +669,7 @@ export function ReceivablesPage({
                       dueDateMutation.mutate({
                         saleId: editingDueDateSale.id,
                         dueDate: null,
+                        expectedUpdatedAt: editingDueDateSale.updated_at,
                       });
                     }}
                   >

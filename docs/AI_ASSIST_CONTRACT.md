@@ -46,13 +46,16 @@ Supported plans: inventory counts, monthly acquisition counts, monthly sale coun
 
 ## Copilot mode (`task: 'copilot'`)
 
-The copilot answers free-form questions about the shop and always returns evidence. It is read-only: no draft, no write, and no provider call unless the OWNER explicitly asks for prose mode.
+The copilot answers free-form questions about the shop and always returns evidence. The function itself is read-only: no draft, no write, and no provider call unless the OWNER explicitly asks for prose mode.
 
 Retrieval (`src/features/copilot/CopilotPage.tsx` → `supabase/functions/ai-assist/copilot.ts`) runs first and always:
 
 1. `search_knowledge` ranks documentation sections the caller's audience tier may read.
-2. Keyword intents (inventory, acquisitions, sales, revenue, profit, aging, receivables, expenses, audit, team, settings) call only the existing read RPCs — `dashboard`, `list_receivables`, `list_expenses`, `list_audit`, `list_profiles`, `get_settings`, `list_vehicles` — with the caller's JWT, so RLS and `private.require_role` decide what is answerable.
-3. Each returned figure is paired with a citation (`id`, `type`, `label`, `detail`, `route`) pointing at the exact screen that shows it (`/vehicles/:id`, `/sales/:id`, `/receivables`, `/expenses`, `/audit`, `/users`, `/settings`, `/docs/:slug`).
+2. Keyword intents (overview, inventory, acquisitions, recent sales, sales, daily cash, revenue, profit, aging, receivables, expenses, audit, customers, team, settings) call only the existing read RPCs — `dashboard`, `list_receivables`, `list_expenses`, `list_audit`, `list_profiles`, `get_settings`, `list_sales`, `list_customers`, `daily_reconciliation` — with the caller's JWT, so RLS and `private.require_role` decide what is answerable. `daily_reconciliation` is the server's own OWNER/MANAGER gate, so the cash intent is marked management-only.
+3. When no intent yields a figure, a grounded fallback runs `global_search` on a detected plate, phone number, or quoted name, citing the matching vehicles, sales and customers directly.
+4. Each returned figure is paired with a citation (`id`, `type`, `label`, `detail`, `route`) pointing at the exact screen that shows it (`/vehicles/:id`, `/sales/:id`, `/receivables`, `/expenses`, `/audit`, `/users`, `/customers`, `/settings`, `/docs/:slug`).
+
+Questions naming a period resolve it in Asia/Ho_Chi_Minh before the read: `tháng 9`, `tháng này`, `tháng trước`, `2026-08`, `hôm nay`, `hôm qua`, `tuần này`, `quý 3`, `năm 2025` and `tháng 9 năm 2025` all set the `dashboard`/`list_sales` bounds.
 
 Responses use `kind: 'copilot'`:
 
@@ -77,6 +80,10 @@ Responses use `kind: 'copilot'`:
 
 The copilot limit is 30 requests per user per 10 minutes (other tasks remain at 10). Documentation is read through `search_knowledge`, `list_knowledge` and `get_knowledge_article`; see [supabase/API.md](../supabase/API.md) for the corpus and its audience tiers.
 
+### Draft-to-save handoff (client-side, review-only)
+
+`src/lib/shorthand/draftActions.ts` deterministically parses a command sentence typed into the copilot (also used by the `/assist` voice task when no provider is configured) into an editable draft proposal: "chi 500k thay nhot xe 59-B1 123.45" → vehicle expense, "ban cho anh Binh 30tr xe 59-B1 123.45" → sale draft, purchase shorthand → the existing `/intake` parser. Detection runs entirely in the browser, refuses questions and interrogations, requires a real plate for anything vehicle-bound, and never reaches this Edge Function. `DraftActionCard` only prefills the normal secure forms — `QuickExpenseModal`, the sale sheet (`SellVehiclePage` consumes `state.aiDraft` for customer name/phone/price only) or the seeded notes box on `/intake` (`state.seedText` auto-parses) — and the write still happens through the existing confirmed RPC after the human reviews every field. Expense proposals render only for OWNER/MANAGER (`canManage`), sale and intake proposals only for operable roles. This is a UX handoff, not an action agent: no RPC executes without the forms' own confirmation.
+
 ## Provider and operational configuration
 
 The initial adapter uses OpenAI Responses with strict JSON schema, `store:false`, a 30-second timeout and an output token cap. The configured model must support image inputs and structured outputs. No model is chosen implicitly. Change the isolated `providerDraft` adapter to use a different provider without changing business RPCs or draft contracts.
@@ -100,7 +107,7 @@ Vehicle-photo storage remains a private bucket with registered-image authorizati
 
 ## Verification boundary
 
-Local tests cover actual Edge handler authentication, missing configuration, draft confirmation, restricted profit queries, grounded reads, request/image/output validation and absence of business writes. SQL tests separately verify temporary-password gating, real password-change proof, restricted acquisition costs and owner-only performance summaries. The copilot adds `tests/security/copilot.test.ts` (input contract, owner-only prose mode, evidence grounding, provider fallback), `tests/unit/copilot-ui.test.tsx` (Markdown/citation rendering stays escaped and internal), `tests/db/knowledge.test.mjs` (documentation tiers and read RPCs) and `tests/e2e/copilot.spec.mjs` (sidebar entry, clickable evidence, doc viewer).
+Local tests cover actual Edge handler authentication, missing configuration, draft confirmation, restricted profit queries, grounded reads, request/image/output validation and absence of business writes. SQL tests separately verify temporary-password gating, real password-change proof, restricted acquisition costs and owner-only performance summaries. The copilot adds `tests/security/copilot.test.ts` (input contract, owner-only prose mode, evidence grounding, provider fallback), `tests/unit/copilot-ui.test.tsx` (Markdown/citation rendering stays escaped and internal), `tests/unit/copilot-draft-actions.test.tsx` (deterministic command parsing, question rejection, plate/phone guards, role-gated prefilled card), `tests/db/knowledge.test.mjs` (documentation tiers and read RPCs) and `tests/e2e/copilot.spec.mjs` (sidebar entry, clickable evidence, doc viewer).
 
 `node scripts/check-edge-types.mjs` checks the Edge sources against installed Supabase TypeScript types and a minimal Deno runtime declaration when Deno is absent. It does not verify Deno's remote module resolution. Password resets first gate existing sessions, preserve a pending-reset state while Auth credentials change, and record the new temporary-password fingerprint before allowing self-service completion. Self-admin resets use the native change/recovery path; unrelated profile edits do not reset password-change proof.
 

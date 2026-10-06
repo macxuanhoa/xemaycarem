@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
@@ -7,13 +7,13 @@ import {
   ArrowLeft,
   AlertTriangle,
   CheckCircle2,
-  ChevronDown,
   Clock,
   LoaderCircle,
-  Plus,
   X,
 } from "lucide-react";
 import { api } from "@/lib/api";
+import { executeOperation } from "@/lib/operationRecovery";
+import { OperationRecoveryNotice } from "@/components/OperationRecoveryNotice";
 import { AppError } from "@/lib/errors";
 import { canFinance, canOperate } from "@/lib/permissions";
 import { dateLabel, money, today } from "@/lib/format";
@@ -28,6 +28,7 @@ import {
   EmptyState,
   ErrorState,
   Field,
+  GroupedIntegerInput,
   PageHeader,
 } from "@/components/ui";
 import { MoneyInput } from "@/components/ui/MoneyInput";
@@ -39,6 +40,7 @@ import { vehicleSuggestions } from "@/lib/vehicleSuggestions";
 import { useQuickPick } from "@/lib/useQuickPick";
 import { useFormDraft } from "@/lib/useFormDraft";
 import { draftFields } from "@/lib/formDrafts";
+import { normalizeVehicleYear } from "@/lib/vehicleInputFormatting";
 import { useDialog } from "@/lib/useDialog";
 import type { Paged, Vehicle } from "@/types";
 import {
@@ -59,8 +61,6 @@ function AcquisitionEditor() {
   const location = useLocation();
   const client = useQueryClient();
   const financial = canFinance(profile);
-  const advancedRef = useRef<HTMLDetailsElement>(null);
-  const [moreOpen, setMoreOpen] = useState(false);
   const [pendingConfirmation, setPendingConfirmation] =
     useState<AcquisitionFormValues | null>(null);
   const [isDraftRestored, setIsDraftRestored] = useState(false);
@@ -158,7 +158,10 @@ function AcquisitionEditor() {
         asking_price: values.asking_price ?? 0,
       };
       if (!financial) delete data.purchase_price;
-      return api.call<string>("acquire_vehicle", { p_data: data });
+      if (!profile) throw new AppError("Vui lòng đăng nhập lại trước khi thu xe.");
+      return executeOperation<string>(profile.id, "acquire_vehicle", "new", requestId =>
+        api.call<string>("acquire_vehicle", { p_data: { ...data, request_id: requestId } }),
+      );
     },
     onSuccess: async (vehicleId, values) => {
       setPendingConfirmation(null);
@@ -198,6 +201,7 @@ function AcquisitionEditor() {
       brand: values.brand.trim(),
       model: values.model.trim(),
       variant: values.variant.trim(),
+      year: normalizeVehicleYear(values.year) ?? values.year,
       color: values.color.trim(),
       seller_name: values.seller_name.trim(),
       seller_phone: values.seller_phone.trim(),
@@ -218,23 +222,7 @@ function AcquisitionEditor() {
     control?.focus({ preventScroll: true });
   };
 
-  const handleValidationErrors = (
-    errors: Record<string, { message?: unknown } | undefined>,
-  ) => {
-    const advancedFields = [
-      "variant",
-      "year",
-      "color",
-      "odometer",
-      "asking_price",
-      "notes",
-    ];
-    const hasAdvancedError = advancedFields.some((field) => field in errors);
-    if (hasAdvancedError && advancedRef.current) {
-      advancedRef.current.open = true;
-      setMoreOpen(true);
-    }
-    // Wait for React to commit the expanded <details> before scrolling/focus.
+  const handleValidationErrors = () => {
     requestAnimationFrame(() => focusFirstError());
   };
 
@@ -246,6 +234,14 @@ function AcquisitionEditor() {
       <PageHeader
         title="Thu xe mới"
         description="Nhập thông tin xe và giá thu để tạo xe cùng phiếu thu."
+      />
+      <OperationRecoveryNotice<string>
+        userId={profile?.id} operation="acquire_vehicle" scope="new"
+        onConfirmed={async vehicleId => {
+          draft.complete();
+          await client.invalidateQueries();
+          navigate(`/vehicles/${vehicleId}`, { state: { acquisitionConfirmed: true } });
+        }}
       />
       {location.state?.aiDraft && (
         <p className="notice">
@@ -290,10 +286,15 @@ function AcquisitionEditor() {
       <form
         className="stack"
         noValidate
-        onSubmit={form.handleSubmit(
-          handleValidSubmit,
-          handleValidationErrors,
-        )}
+        onSubmit={(event) => {
+          const year = normalizeVehicleYear(form.getValues("year"));
+          if (year != null && year !== form.getValues("year")) {
+            form.setValue("year", year, { shouldDirty: true });
+          }
+          void form.handleSubmit(handleValidSubmit, handleValidationErrors)(
+            event,
+          );
+        }}
       >
         <fieldset
           disabled={mutation.isPending}
@@ -436,6 +437,90 @@ function AcquisitionEditor() {
                 />
               </Field>
 
+              <Field label="Phiên bản" error={error("variant")}>
+                <AutocompleteInput
+                  aria-label="Phiên bản"
+                  value={form.watch("variant")}
+                  onChange={(value) => setText("variant", value)}
+                  suggestions={suggestions("variant")}
+                  placeholder="ABS, Cao cấp, Đặc biệt…"
+                />
+              </Field>
+              <Field label="Năm sản xuất" error={error("year")}>
+                <input
+                  type="number"
+                  inputMode="numeric"
+                  placeholder="Ví dụ: 2024"
+                  {...form.register("year", {
+                    setValueAs: (value) =>
+                      value === "" || value == null ? undefined : Number(value),
+                    onBlur: (event) => {
+                      const normalized = normalizeVehicleYear(
+                        event.currentTarget.value,
+                      );
+                      if (normalized != null) {
+                        form.setValue("year", normalized, {
+                          shouldDirty: true,
+                          shouldValidate: true,
+                        });
+                      }
+                    },
+                  })}
+                />
+              </Field>
+
+              <Field
+                label="Màu sắc"
+                error={error("color")}
+                labelAction={
+                  <ColorSwatchAction
+                    value={form.watch("color")}
+                    onPick={(word) => setText("color", word)}
+                  />
+                }
+              >
+                <AutocompleteInput
+                  aria-label="Màu sắc"
+                  value={form.watch("color")}
+                  onChange={(value) => setText("color", value)}
+                  suggestions={suggestions("color")}
+                  placeholder="Ví dụ: Đỏ đen, Trắng…"
+                />
+              </Field>
+              <Field label="Số km đã đi" error={error("odometer")}>
+                <GroupedIntegerInput
+                  aria-label="Số km đã đi"
+                  placeholder="12.500"
+                  value={form.watch("odometer")}
+                  onBlur={() => void form.trigger("odometer")}
+                  onChange={(digits) =>
+                    form.setValue("odometer", digits ? Number(digits) : undefined, {
+                      shouldDirty: true,
+                      shouldValidate: !!error("odometer"),
+                    })
+                  }
+                />
+              </Field>
+
+              <Field
+                label="Giá bán dự kiến (₫)"
+                error={error("asking_price")}
+              >
+                <MoneyInput
+                  aria-label="Giá bán dự kiến (₫)"
+                  placeholder="Ví dụ: 95tr hoặc 95.000.000"
+                  value={form.watch("asking_price")}
+                  onChange={(value) =>
+                    form.setValue("asking_price", value, {
+                      shouldDirty: true,
+                      shouldValidate: !!error("asking_price"),
+                    })
+                  }
+                  onBlur={() => void form.trigger("asking_price")}
+                  showShortcuts={false}
+                />
+              </Field>
+
               {financial && (
                 <Field label="Giá thu (₫) *" error={error("purchase_price")}>
                   <MoneyInput
@@ -486,6 +571,14 @@ function AcquisitionEditor() {
                 onSelect={(value) => setText("model", value)}
               />
             )}
+
+            <Field label="Ghi chú" error={error("notes")}>
+              <textarea
+                rows={3}
+                {...form.register("notes")}
+                placeholder="Tình trạng xe, giấy tờ, phụ kiện, trầy xước, lỗi cần sửa…"
+              />
+            </Field>
           </Card>
 
           {/* Card 2: Thông tin người bán */}
@@ -527,113 +620,6 @@ function AcquisitionEditor() {
                 />
               </Field>
             </div>
-          </Card>
-
-          {/* Card 3: Thông tin bổ sung */}
-          <Card>
-            <details
-              ref={advancedRef}
-              className="advanced-fields-box"
-              open={moreOpen}
-              onToggle={(e) => setMoreOpen(e.currentTarget.open)}
-            >
-              <summary className="advanced-summary">
-                {moreOpen ? (
-                  <span className="advanced-summary-content">
-                    <ChevronDown size={16} /> Thu gọn thông tin thêm
-                  </span>
-                ) : (
-                  <span className="advanced-summary-content">
-                    <Plus size={16} /> Thêm thông tin (phiên bản, năm sản xuất,
-                    màu sắc, số km, giá bán dự kiến, ghi chú)
-                  </span>
-                )}
-              </summary>
-              <div className="form-grid" style={{ marginTop: "16px" }}>
-                <Field label="Phiên bản" error={error("variant")}>
-                  <AutocompleteInput
-                    aria-label="Phiên bản"
-                    value={form.watch("variant")}
-                    onChange={(value) => setText("variant", value)}
-                    suggestions={suggestions("variant")}
-                    placeholder="ABS, Cao cấp, Đặc biệt…"
-                  />
-                </Field>
-                <Field label="Năm sản xuất" error={error("year")}>
-                  <input
-                    type="number"
-                    inputMode="numeric"
-                    placeholder="Ví dụ: 2024"
-                    {...form.register("year", {
-                      setValueAs: (value) =>
-                        value === "" || value == null
-                          ? undefined
-                          : Number(value),
-                    })}
-                  />
-                </Field>
-                <Field
-                  label="Màu sắc"
-                  error={error("color")}
-                  labelAction={
-                    <ColorSwatchAction
-                      value={form.watch("color")}
-                      onPick={(word) => setText("color", word)}
-                    />
-                  }
-                >
-                  <AutocompleteInput
-                    aria-label="Màu sắc"
-                    value={form.watch("color")}
-                    onChange={(value) => setText("color", value)}
-                    suggestions={suggestions("color")}
-                    placeholder="Ví dụ: Đỏ đen, Trắng…"
-                  />
-                </Field>
-                <Field label="Số km đã đi" error={error("odometer")}>
-                  <input
-                    type="number"
-                    inputMode="numeric"
-                    min="0"
-                    max="10000000"
-                    step="1"
-                    placeholder="12.500"
-                    {...form.register("odometer", {
-                      setValueAs: (value) =>
-                        value === "" || value == null
-                          ? undefined
-                          : Number(value),
-                    })}
-                  />
-                </Field>
-                <Field
-                  label="Giá bán dự kiến (₫)"
-                  error={error("asking_price")}
-                >
-                  <MoneyInput
-                    aria-label="Giá bán dự kiến (₫)"
-                    placeholder="Ví dụ: 95tr hoặc 95.000.000"
-                    value={form.watch("asking_price")}
-                    onChange={(value) =>
-                      form.setValue("asking_price", value, {
-                        shouldDirty: true,
-                        shouldValidate: !!error("asking_price"),
-                      })
-                    }
-                    onBlur={() => void form.trigger("asking_price")}
-                    showShortcuts={false}
-                  />
-                </Field>
-              </div>
-
-              <Field label="Ghi chú" error={error("notes")}>
-                <textarea
-                  rows={3}
-                  {...form.register("notes")}
-                  placeholder="Tình trạng xe, giấy tờ, phụ kiện, trầy xước, lỗi cần sửa…"
-                />
-              </Field>
-            </details>
           </Card>
         </fieldset>
 

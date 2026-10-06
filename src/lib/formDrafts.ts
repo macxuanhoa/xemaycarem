@@ -1,3 +1,8 @@
+import {
+  normalizeVehicleYear,
+  parseGroupedInteger,
+} from "@/lib/vehicleInputFormatting";
+
 const PREFIX = "xe_crm_draft_v1";
 const MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
 const TEXT_FIELDS = [
@@ -8,13 +13,6 @@ const TEXT_FIELDS = [
   "model",
   "variant",
   "color",
-  "seller_name",
-  "seller_phone",
-  "supplier_name",
-  "supplier_phone",
-  "customer_name",
-  "customer_phone",
-  "notes",
   "acquisition_date",
   "purchase_date",
   "sale_date",
@@ -28,15 +26,16 @@ export function draftFields(
   const safe: Record<string, string | number> = {};
   for (const field of TEXT_FIELDS) {
     if (typeof values[field] === "string")
-      safe[field] = values[field].slice(0, field === "notes" ? 5000 : 250);
+      safe[field] = values[field].slice(0, 250);
   }
   for (const field of NUMBER_FIELDS) {
-    if (
-      typeof values[field] === "number" &&
-      Number.isSafeInteger(values[field]) &&
-      values[field] >= 0
-    )
-      safe[field] = values[field];
+    const parsed = parseGroupedInteger(
+      values[field] as string | number | null | undefined,
+    );
+    if (parsed == null) continue;
+    const normalized =
+      field === "year" ? normalizeVehicleYear(parsed) ?? parsed : parsed;
+    safe[field] = normalized;
   }
   return safe;
 }
@@ -75,7 +74,17 @@ export function readFormDraft(
       typeof raw.fields !== "object"
     )
       return null;
-    return draftFields(raw.fields);
+    const fields = draftFields(raw.fields);
+    // Scrub old-format drafts on access without renewing their expiry.
+    if (JSON.stringify(fields) !== JSON.stringify(raw.fields)) {
+      try {
+        localStorage.setItem(
+          `${PREFIX}:${userId}:${kind}`,
+          JSON.stringify({ savedAt: raw.savedAt, fields }),
+        );
+      } catch { /* Storage may be read-only; never restore excluded fields. */ }
+    }
+    return fields;
   } catch {
     return null;
   }

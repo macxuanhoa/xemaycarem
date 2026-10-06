@@ -1,7 +1,11 @@
 import { useEffect, useRef } from "react";
 
-export function useDialog(open: boolean, onClose: () => void, busy = false) {
-  const panelRef = useRef<HTMLDivElement>(null);
+export function useDialog<T extends HTMLElement = HTMLDivElement>(
+  open: boolean,
+  onClose: () => void,
+  busy = false,
+) {
+  const panelRef = useRef<T>(null);
   const closeRef = useRef(onClose);
   const busyRef = useRef(busy);
   closeRef.current = onClose;

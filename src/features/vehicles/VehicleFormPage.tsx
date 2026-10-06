@@ -6,6 +6,8 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { ArrowLeft } from "lucide-react";
 import { api } from "@/lib/api";
 import { AppError } from "@/lib/errors";
+import { executeOperation } from "@/lib/operationRecovery";
+import { OperationRecoveryNotice } from "@/components/OperationRecoveryNotice";
 import { today } from "@/lib/format";
 import { canonicalizePlate, PLATE_EXAMPLE } from "@/lib/plate";
 import { useDebouncedValue } from "@/lib/useDebouncedValue";
@@ -92,6 +94,8 @@ function VehicleEditor({ vehicle }: { vehicle?: Vehicle }) {
   const financial = canFinance(profile);
   const [files, setFiles] = useState<File[]>([]);
   const [savedId, setSavedId] = useState<string>();
+  // Keep the version that supplied the form defaults even if queries refetch.
+  const [expectedRevision] = useState(vehicle?.updated_at);
   const [uploadError, setUploadError] = useState("");
   const [previews, setPreviews] = useState<string[]>([]);
   useEffect(() => {
@@ -184,14 +188,17 @@ function VehicleEditor({ vehicle }: { vehicle?: Vehicle }) {
         ...values,
         license_plate: canonicalizePlate(values.license_plate),
         year: values.year ?? null,
+        ...(vehicle && expectedRevision ? { expected_updated_at: expectedRevision } : {}),
       };
       if (!financial) delete data.purchase_price;
+      if (!profile) throw new AppError("Vui lòng đăng nhập lại trước khi lưu xe.");
       const resultId =
         savedId ??
-        (await api.call<string>("save_vehicle", {
-          p_data: data,
-          ...(vehicle ? { p_id: vehicle.id } : {}),
-        }));
+        (vehicle
+          ? await api.call<string>("save_vehicle", { p_data: data, p_id: vehicle.id })
+          : await executeOperation<string>(profile.id, "create_vehicle", "new", requestId =>
+              api.call<string>("save_vehicle", { p_data: { ...data, request_id: requestId } }),
+            ));
       setSavedId(resultId);
       draft.complete();
       saveRecentValue("brand", values.brand, profile?.id);
@@ -243,6 +250,16 @@ function VehicleEditor({ vehicle }: { vehicle?: Vehicle }) {
             : "Lưu thông tin xe để bắt đầu theo dõi nhập, chi phí và bán hàng."
         }
       />
+      {!vehicle && (
+        <OperationRecoveryNotice<string>
+          userId={profile?.id} operation="create_vehicle" scope="new"
+          onConfirmed={async vehicleId => {
+            draft.complete();
+            await client.invalidateQueries();
+            navigate(`/vehicles/${vehicleId}`);
+          }}
+        />
+      )}
       {draft.draft && (
         <div className="notice draft-notice">
           <p>

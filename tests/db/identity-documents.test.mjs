@@ -25,9 +25,9 @@ export async function runIdentityDocumentTests(externalDb, { engine = 'postgres'
     const day = (await row('SELECT private.today()::text AS d')).day
     const tomorrow = (await row('SELECT (private.today()+1)::text AS d')).d
 
-    const acquisitionVehicle = await run('owner', (client) => rpc(client, 'acquire_vehicle', '$1::jsonb', [JSON.stringify({ frame_number: `ID-FRAME-${randomUUID().slice(0, 8)}`, brand: 'Honda', model: 'SH 160', purchase_price: 50_000_000, asking_price: 60_000_000, acquisition_date: day, seller_name: 'Người bán thử' })]))
+    const acquisitionVehicle = await run('owner', (client) => rpc(client, 'acquire_vehicle', '$1::jsonb', [JSON.stringify({ request_id: randomUUID(), frame_number: `ID-FRAME-${randomUUID().slice(0, 8)}`, brand: 'Honda', model: 'SH 160', purchase_price: 50_000_000, asking_price: 60_000_000, acquisition_date: day, seller_name: 'Người bán thử' })]))
     const acquisitionId = (await row('SELECT id FROM public.acquisitions WHERE vehicle_id=$1', [acquisitionVehicle])).id
-    const vehicleId = await run('owner', (client) => rpc(client, 'save_vehicle', '$1::jsonb', [JSON.stringify({ frame_number: `ID-SALE-${randomUUID().slice(0, 8)}`, brand: 'Yamaha', model: 'NoU', purchase_date: day, purchase_price: 30_000_000, asking_price: 40_000_000 })]))
+    const vehicleId = await run('owner', (client) => rpc(client, 'save_vehicle', '$1::jsonb', [JSON.stringify({ request_id: randomUUID(), frame_number: `ID-SALE-${randomUUID().slice(0, 8)}`, brand: 'Yamaha', model: 'NoU', purchase_date: day, purchase_price: 30_000_000, asking_price: 40_000_000 })]))
     const saleId = await run('owner', (client) => rpc(client, 'sell_vehicle', '$1::jsonb', [JSON.stringify({ vehicle_id: vehicleId, customer_name: 'Khách mua thử', sale_price: 40_000_000, sale_date: day, initial_payment: 0 })]))
 
     await test('OWNER/MANAGER capture and read a CCCD for the seller and the buyer', async () => {

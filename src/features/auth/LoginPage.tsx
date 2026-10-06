@@ -11,7 +11,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { Button, Field } from "@/components/ui";
-import { isConfigured, supabase } from "@/lib/supabase";
+import { isConfigured, setAuthRemember, supabase } from "@/lib/supabase";
 import { friendlyError } from "@/lib/errors";
 import { useAuth } from "./AuthProvider";
 const loginSchema = z.object({
@@ -24,7 +24,14 @@ const loginSchema = z.object({
 });
 export default function LoginPage() {
   // Signing in always lands on the dashboard first; deep links are not resumed.
-  const { profile, refresh, error: authError, user, signOut } = useAuth();
+  const {
+    profile,
+    refresh,
+    endingSession,
+    error: authError,
+    user,
+    signOut,
+  } = useAuth();
   const [show, setShow] = useState(false),
     [error, setError] = useState<unknown>(null);
   const {
@@ -39,38 +46,42 @@ export default function LoginPage() {
   const login = handleSubmit(async (values) => {
     setError(null);
     if (!supabase) return;
-    localStorage.setItem("xe-remember", String(values.remember));
+    try {
+      setAuthRemember(values.remember);
 
-    const raw = values.identifier.trim();
-    let loginEmail = raw;
+      const raw = values.identifier.trim();
+      let loginEmail = raw;
 
-    if (raw.includes("@")) {
-      // Real email login (Owner or email-based account)
-      loginEmail = raw.toLowerCase();
-    } else {
-      // Internal username login (Staff or Owner username)
-      const normalizedUsername = raw.toLowerCase();
-      try {
-        const { data: resolvedEmail, error: rpcErr } = await supabase.rpc(
-          "resolve_login_email",
-          { p_identifier: normalizedUsername },
-        );
-        if (!rpcErr && resolvedEmail) {
-          loginEmail = resolvedEmail;
-        } else {
+      if (raw.includes("@")) {
+        // Real email login (Owner or email-based account)
+        loginEmail = raw.toLowerCase();
+      } else {
+        // Internal username login (Staff or Owner username)
+        const normalizedUsername = raw.toLowerCase();
+        try {
+          const { data: resolvedEmail, error: rpcErr } = await supabase.rpc(
+            "resolve_login_email",
+            { p_identifier: normalizedUsername },
+          );
+          if (!rpcErr && resolvedEmail) {
+            loginEmail = resolvedEmail;
+          } else {
+            loginEmail = `${normalizedUsername}@internal.xecrm.app`;
+          }
+        } catch {
           loginEmail = `${normalizedUsername}@internal.xecrm.app`;
         }
-      } catch {
-        loginEmail = `${normalizedUsername}@internal.xecrm.app`;
       }
-    }
 
-    const { error: signInErr } = await supabase.auth.signInWithPassword({
-      email: loginEmail,
-      password: values.password,
-    });
-    if (signInErr) setError(signInErr);
-    else await refresh();
+      const { error: signInErr } = await supabase.auth.signInWithPassword({
+        email: loginEmail,
+        password: values.password,
+      });
+      if (signInErr) setError(signInErr);
+      else await refresh();
+    } catch (e) {
+      setError(e);
+    }
   });
   return (
     <main className="login-page">
@@ -94,7 +105,9 @@ export default function LoginPage() {
             <LockKeyhole size={22} />
           </span>
           <h2>Chào mừng trở lại</h2>
-          <p className="muted">Đăng nhập tài khoản nội bộ để bắt đầu làm việc.</p>
+          <p className="muted">
+            Đăng nhập tài khoản nội bộ để bắt đầu làm việc.
+          </p>
           {!isConfigured ? (
             <div className="setup-notice" role="status">
               <ShieldCheck size={24} />
@@ -163,9 +176,15 @@ export default function LoginPage() {
             <Button
               type="submit"
               className="full-width login-submit"
-              disabled={isSubmitting || !isConfigured}
+              disabled={isSubmitting || endingSession || !isConfigured}
             >
-              <span>{isSubmitting ? "Đang xác thực…" : "Đăng nhập"}</span>
+              <span>
+                {endingSession
+                  ? "Đang đóng phiên…"
+                  : isSubmitting
+                    ? "Đang xác thực…"
+                    : "Đăng nhập"}
+              </span>
               <ArrowRight size={18} />
             </Button>
             {user && !profile && (

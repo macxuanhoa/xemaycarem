@@ -3,8 +3,10 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Ban, Key, RotateCcw, Shield, Trash2, X } from "lucide-react";
 import { Button, ErrorState, Field } from "@/components/ui";
 import { api } from "@/lib/api";
+import { toast } from "@/lib/toast";
 import { roleLabels } from "@/lib/permissions";
 import { useAuth } from "@/features/auth/AuthProvider";
+import { useDialog } from "@/lib/useDialog";
 import type { Profile, Role } from "@/types";
 
 interface StaffSettingsModalProps {
@@ -12,7 +14,6 @@ interface StaffSettingsModalProps {
   isSelf: boolean;
   isOwnerAcc: boolean;
   onClose: () => void;
-  onUpdated: (msg: string) => void;
 }
 
 // Security actions live in their own tabs so each flow stays short on mobile.
@@ -59,7 +60,6 @@ export function StaffSettingsModal({
   isSelf,
   isOwnerAcc,
   onClose,
-  onUpdated,
 }: StaffSettingsModalProps) {
   const { profile: currentUser } = useAuth();
   const client = useQueryClient();
@@ -111,7 +111,7 @@ export function StaffSettingsModal({
     },
     onSuccess: () => {
       void client.invalidateQueries({ queryKey: ["profiles"] });
-      onUpdated(`Đã cập nhật quyền hạn cho ${user.full_name}.`);
+      toast.success(`Đã cập nhật quyền hạn cho ${user.full_name}.`);
       onClose();
     },
     onError: (err: unknown) => {
@@ -131,7 +131,7 @@ export function StaffSettingsModal({
       }),
     onSuccess: () => {
       void client.invalidateQueries({ queryKey: ["profiles"] });
-      onUpdated(`Đã đặt lại mật khẩu tạm thời cho ${user.full_name}. Hãy gửi mật khẩu mới cho nhân viên.`);
+      toast.success(`Đã đặt lại mật khẩu tạm thời cho ${user.full_name}. Hãy gửi mật khẩu mới cho nhân viên.`);
       setNewPassword("");
       onClose();
     },
@@ -153,7 +153,7 @@ export function StaffSettingsModal({
       }),
     onSuccess: () => {
       void client.invalidateQueries({ queryKey: ["profiles"] });
-      onUpdated(`Đã cấm ${user.full_name} sử dụng hệ thống tạm thời.`);
+      toast.success(`Đã cấm ${user.full_name} sử dụng hệ thống tạm thời.`);
       setBanReason("");
       onClose();
     },
@@ -170,7 +170,7 @@ export function StaffSettingsModal({
       api.manageUser({ action: "enable_user", user_id: user.id }),
     onSuccess: () => {
       void client.invalidateQueries({ queryKey: ["profiles"] });
-      onUpdated(`Đã gỡ lệnh cấm cho ${user.full_name}.`);
+      toast.success(`Đã gỡ lệnh cấm cho ${user.full_name}.`);
       onClose();
     },
     onError: (err: unknown) => {
@@ -190,7 +190,7 @@ export function StaffSettingsModal({
       }),
     onSuccess: () => {
       void client.invalidateQueries({ queryKey: ["profiles"] });
-      onUpdated(`Đã xóa tài khoản của ${user.full_name}.`);
+      toast.success(`Đã xóa tài khoản của ${user.full_name}.`);
       onClose();
     },
     onError: (err: unknown) => {
@@ -205,7 +205,7 @@ export function StaffSettingsModal({
     mutationFn: () => api.manageUser({ action: "restore", user_id: user.id }),
     onSuccess: () => {
       void client.invalidateQueries({ queryKey: ["profiles"] });
-      onUpdated(`Đã khôi phục tài khoản cho ${user.full_name}.`);
+      toast.success(`Đã khôi phục tài khoản cho ${user.full_name}.`);
       onClose();
     },
     onError: (err: unknown) => {
@@ -259,6 +259,7 @@ export function StaffSettingsModal({
     unbanMutation.isPending ||
     deleteMutation.isPending ||
     restoreMutation.isPending;
+  const dialogRef = useDialog(true, onClose, isBusy);
 
   // Security tabs are only for managing other non-OWNER accounts.
   const showSecurityTabs = isActorOwner && !isSelf && !isOwnerAcc;
@@ -267,12 +268,14 @@ export function StaffSettingsModal({
     <div
       className="modal-backdrop user-modal-backdrop"
       onClick={onClose}
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="staff-settings-title"
+      role="presentation"
     >
       <div
+        ref={dialogRef}
         className="modal-card user-settings-modal"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="staff-settings-title"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}

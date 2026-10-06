@@ -19,6 +19,13 @@ export function useFormDraft<T extends FieldValues>(
     "sale_price",
     "initial_payment",
     "asking_price",
+    "seller_name",
+    "seller_phone",
+    "supplier_name",
+    "supplier_phone",
+    "customer_name",
+    "customer_phone",
+    "notes",
   ].some(
     (field) => (form.formState.dirtyFields as Record<string, unknown>)[field],
   );
@@ -36,7 +43,7 @@ export function useFormDraft<T extends FieldValues>(
     const unload = (event: BeforeUnloadEvent) => {
       if (!dirtyRef.current || completed.current) return;
       const values = form.getValues();
-      // Amounts are intentionally excluded from reusable local defaults and drafts.
+      // Money and personal/free-text fields are excluded from local drafts.
       const persisted = saveFormDraft(kind, userId, values);
       if (financialRef.current || !persisted) {
         event.preventDefault();
@@ -83,7 +90,7 @@ export function useFormDraft<T extends FieldValues>(
         void confirmAction({
           title: "Bạn có thay đổi chưa lưu",
           description:
-            "Thông tin bản nháp được giữ nếu có thể, nhưng giá tiền sẽ cần nhập lại. Bỏ thay đổi và rời trang?",
+            "Thông số xe được giữ trong bản nháp nếu có thể. Giá tiền, thông tin khách hàng/người bán và ghi chú cần nhập lại. Rời trang?",
           confirmLabel: "Bỏ thay đổi và rời trang",
           cancelLabel: "Ở lại trang",
           tone: "danger",

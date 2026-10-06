@@ -11,6 +11,15 @@ import { runIdentityDocumentTests } from '../tests/db/identity-documents.test.mj
 import { runShowroomTests } from '../tests/db/showroom.test.mjs'
 import { runHardDeleteTests } from '../tests/db/hard-delete.test.mjs'
 import { runNotificationsTests } from '../tests/db/notifications.test.mjs'
+import { runSaleDueDateConflictTests } from '../tests/db/sale-due-date-conflict.test.mjs'
+import { runOperationReceiptTests } from '../tests/db/operation-receipts.test.mjs'
+import { runExpenseConflictTests } from '../tests/db/expense-conflict.test.mjs'
+import { runMandatoryWriteProtocolTests } from '../tests/db/mandatory-write-protocol.test.mjs'
+import { runPaymentReceiptTests } from '../tests/db/payment-receipts.test.mjs'
+import { runMessageLeaseTests } from '../tests/db/message-leases.test.mjs'
+import { runInventoryCreationReceiptTests } from '../tests/db/inventory-creation-receipts.test.mjs'
+import { verifiedPayment } from '../tests/db/payment-fixtures.mjs'
+import { runPaymentReceiptSecurityTests } from '../tests/db/payment-receipt-security.test.mjs'
 
 const engine = process.argv.includes('--pglite') ? 'pglite' : 'postgres'
 console.log(`Database integration suite: ${engine} (disposable database; no cloud credentials)`)
@@ -24,11 +33,19 @@ await runIdentityDocumentTests(null, { engine })
 await runShowroomTests(null, { engine })
 await runHardDeleteTests(null, { engine })
 await runNotificationsTests(null, { engine })
+await runSaleDueDateConflictTests(null, { engine })
+await runOperationReceiptTests(null, { engine })
+await runExpenseConflictTests(null, { engine })
+await runMandatoryWriteProtocolTests(null, { engine })
+await runPaymentReceiptTests()
+await runPaymentReceiptSecurityTests(null, { engine })
+await runMessageLeaseTests(null, { engine })
+await runInventoryCreationReceiptTests(null, { engine })
 const db = await createDatabase({ engine })
 let passed = 0
 const users = Object.fromEntries(['owner', 'manager', 'financialManager', 'staff', 'disabled'].map((role) => [role, randomUUID()]))
 const run = (user, fn) => asUser(db, users[user], fn)
-const call = (user, name, data) => run(user, (client) => rpc(client, name, '$1::jsonb', [JSON.stringify(data)]))
+const call = (user, name, data) => name==='add_payment' ? verifiedPayment(db,users[user],users.owner,data) : run(user, (client) => rpc(client, name, '$1::jsonb', [JSON.stringify(data)]))
 const row = async (sql, args = []) => (await db.query(sql, args)).rows[0]
 const deny = (operation, expression = /ACCESS_DENIED|permission denied|row-level security/i) => assert.rejects(operation, expression)
 async function test(name, operation) {
@@ -37,7 +54,7 @@ async function test(name, operation) {
   console.log(`PASS ${passed}. ${name}`)
 }
 let day, vehicleId, saleId, expenseId
-const vehicle = (overrides = {}) => ({ brand: 'Honda', model: 'SH 160', license_plate: 'TEST-ONLY', purchase_date: day, purchase_price: 80_000_000, asking_price: 90_000_000, ...overrides })
+const vehicle = (overrides = {}) => ({ request_id:randomUUID(), brand: 'Honda', model: 'SH 160', license_plate: 'TEST-ONLY', purchase_date: day, purchase_price: 80_000_000, asking_price: 90_000_000, ...overrides })
 const sale = (id, overrides = {}) => ({ vehicle_id: id, customer_name: 'Khách kiểm thử', customer_phone: '0000000000', sale_price: 90_000_000, sale_date: day, initial_payment: 20_000_000, payment_method: 'CASH', ...overrides })
 const expense = (id, amount = 1_200_000) => ({ vehicle_id: id, expense_type: 'REPAIR', description: 'Chi phí kiểm thử', amount, expense_date: day })
 const getVehicle = (user, id) => run(user, (client) => rpc(client, 'get_vehicle', '$1::uuid', [id]))
@@ -171,7 +188,7 @@ try {
     await call('staff', 'add_payment', { sale_id: saleId, amount: 30_000_000, payment_method: 'BANK_TRANSFER', payment_date: day })
     assert.equal((await getSale('owner', saleId)).remaining_amount, 40_000_000)
     await deny(() => call('staff', 'add_payment', { sale_id: saleId, amount: 40_000_001, payment_method: 'CASH' }), /PAYMENT_EXCEEDS_BALANCE/)
-    await deny(() => call('staff', 'add_payment', { sale_id: saleId, amount: 0, payment_method: 'CASH' }), /PAYMENT_EXCEEDS_BALANCE/)
+    await deny(() => call('staff', 'add_payment', { sale_id: saleId, amount: 0, payment_method: 'CASH' }), /INVALID_PAYMENT_AMOUNT/)
     await deny(() => call('staff', 'add_payment', { sale_id: saleId, amount: 1, payment_method: 'BAD' }), /invalid input value for enum/)
     assert.equal((await getSale('owner', saleId)).paid_amount, 50_000_000)
   })
@@ -317,8 +334,9 @@ async function concurrencyTests() {
   await test('Concurrent payments cannot jointly overpay the remaining balance', async () => {
     const id = await call('owner', 'save_vehicle', vehicle({ purchase_price: 50, asking_price: 100 }))
     const sold = await call('owner', 'sell_vehicle', sale(id, { sale_price: 100, initial_payment: 0 }))
-    const input = JSON.stringify({ sale_id: sold, amount: 60, payment_method: 'CASH', payment_date: day })
-    const result = await interleave((client) => rpc(client, 'add_payment', '$1::jsonb', [input]), (client) => rpc(client, 'add_payment', '$1::jsonb', [input]), false)
+    const receipts = await Promise.all([0,1].map(() => call('staff','prepare_payment_receipt',{request_id:randomUUID(),sale_id:sold,amount:60,payment_method:'CASH',payment_date:day})))
+    const inputs = receipts.map(r=>JSON.stringify({request_id:randomUUID(),receipt_id:r.id,verification_reference:'Synthetic manager checked distinct real fixture voucher',evidence_kind:'CASH_VOUCHER',evidence_scope:'SYNTHETIC CONCURRENCY',evidence_reference:r.id}))
+    const result = await interleave((client) => rpc(client, 'add_payment', '$1::jsonb', [inputs[0]]), (client) => rpc(client, 'add_payment', '$1::jsonb', [inputs[1]]), false, users.owner)
     assert.match(result.second.error.message, /PAYMENT_EXCEEDS_BALANCE/)
     assert.equal((await getSale('owner', sold)).paid_amount, 60)
   })
@@ -330,7 +348,8 @@ async function concurrencyTests() {
   await test('Payment submitted while cancellation is in flight fails after cancellation commits', async () => {
     const id = await call('owner', 'save_vehicle', vehicle())
     const sold = await call('owner', 'sell_vehicle', sale(id, { initial_payment: 0 }))
-    const result = await interleave((client) => rpc(client, 'cancel_sale', "$1::uuid,'Hủy kiểm thử đồng thời'", [sold]), (client) => rpc(client, 'add_payment', '$1::jsonb', [JSON.stringify({ sale_id: sold, amount: 1, payment_method: 'CASH' })]), false)
+    const receipt = await call('staff','prepare_payment_receipt',{request_id:randomUUID(),sale_id:sold,amount:1,payment_method:'CASH',payment_date:day})
+    const result = await interleave((client) => rpc(client, 'cancel_sale', "$1::uuid,'Hủy kiểm thử đồng thời'", [sold]), (client) => rpc(client, 'add_payment', '$1::jsonb', [JSON.stringify({request_id:randomUUID(),receipt_id:receipt.id,verification_reference:'Synthetic manager reviewed money and voucher',evidence_kind:'CASH_VOUCHER',evidence_scope:'SYNTHETIC CONCURRENCY',evidence_reference:receipt.id})]), false, users.owner)
     assert.match(result.second.error.message, /SALE_CANCELLED/)
     assert.equal(Number((await row('SELECT count(*) AS count FROM public.payments WHERE sale_id=$1', [sold])).count), 0)
   })

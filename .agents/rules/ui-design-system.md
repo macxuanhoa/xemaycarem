@@ -34,7 +34,7 @@ Giao diện phải tạo ấn tượng chuyên nghiệp, sang trọng, đẳng c
 **Yêu cầu nghiêm ngặt từ người dùng**: CRM phải hỗ trợ làm việc nhanh, không làm người dùng chóng mặt.
 - **Thời lượng**: Tối đa `160ms` đến `200ms` với `cubic-bezier(0.16, 1, 0.3, 1)` hoặc `ease-out`.
 - **Hiệu ứng cho phép**:
-  - Hover nút / thẻ: Nâng nhẹ 1px (`transform: translateY(-1px)`), tỏa bóng nhẹ.
+  - Hover nút / thẻ / mục menu: CHỈ đổi màu nền, viền và bóng nhẹ. Không dùng `transform` (nhấc `translateY`, phóng `scale`) khi hover — chủ xưởng phản ánh rê chuột mà nhảy hình là rối mắt.
   - Chuyển tab / bộ lọc: Đổi màu nền mượt mà trong 150ms.
   - Modal / Popover: Mờ mờ dịu (`opacity` và `backdrop-filter`), mở tức thì không giật cục.
 - **Tuyệt đối cấm**:

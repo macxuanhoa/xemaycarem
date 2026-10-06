@@ -77,7 +77,7 @@ Form **Thu vào**, **Nhập xe mới**, và **Thu tốc ký** hiển thị một
 
 ## Thu tiền công nợ
 
-Mở **Sổ công nợ** (`/receivables`) — thấy với mọi tài khoản hoạt động trong lịch. Mỗi dòng là một thương vụ còn phải thu, kèm hạn trả (`update_sale_due_date` để dời hạn, có ghi vết). Bấm **Thu tiền** để ghi một khoản: RPC `add_payment` với số tiền dương (VND nguyên, tối đa 1.000.000.000.000 mỗi lần), phương thức, ngày thu, tham chiếu/ghi chú. Khoản thu **không sửa được** — ghi sai thì quản lý xử lý bằng nghiệp vụ hủy/đối chiếu, không xóa lịch sử. Tổng đã thu + còn phải thu luôn khớp `get_sale`.
+Mở **Sổ công nợ** (`/receivables`) — thấy với mọi tài khoản hoạt động trong lịch. Mỗi dòng là một thương vụ còn phải thu, kèm hạn trả (dời hạn có kiểm tra phiên bản và ghi vết). Bấm **Thu tiền** để gửi đề nghị với số tiền dương (VND nguyên, tối đa 1.000.000.000.000 mỗi lần), phương thức, ngày thu, tham chiếu/ghi chú. Đề nghị chưa tính vào công nợ; quản lý làm theo mục **Xác minh khoản thu trước khi ghi nhận**. Khoản thu đã ghi nhận **không sửa được** — ghi sai thì quản lý xử lý bằng nghiệp vụ hủy/đối chiếu, không xóa lịch sử. Tổng đã thu + còn phải thu luôn khớp `get_sale`.
 
 ## Ghi chi phí
 
@@ -112,6 +112,16 @@ Tài liệu copilot đọc được sinh tự động từ markdown trong repo �
 2. Chạy `npm run knowledge:seed` để sinh lại `supabase/migrations/*_knowledge_seed.sql`, rồi chạy `npm run knowledge:check` để xác nhận khớp.
 3. Áp migration lên database (forward-only). Mỗi mục `##` thành một phần tra cứu riêng; tier quyền theo nguồn: `docs/INTERNAL_SOPS.md` = STAFF, OPERATIONS/DECISIONS = MANAGER, PRODUCTION_RELEASE/SECURITY = OWNER.
 4. CI báo lỗi nếu sửa `.md` mà quên sinh seed — luôn chạy `npm run check` trước khi commit.
+
+## Xác minh khoản thu trước khi ghi nhận
+
+Nhân viên nhập **Thu tiền → Lưu thanh toán** để gửi đề nghị; bước này chưa thay đổi tiền đã thu hoặc công nợ. Nhập mã giao dịch ngân hàng cùng tài khoản nhận, hoặc mã phiếu thu cùng sổ chứng từ nếu có. Dùng cùng mã khi nhiều nhân viên cùng xử lý một khoản tiền; không tạo mã mới để thử lại sau mất mạng.
+
+Chủ cửa hàng hoặc quản lý mở chi tiết bán xe, xem **Khoản thu chờ xác minh**, đối chiếu tiền thực nhận và mọi khoản trong lịch sử, kể cả lần thu đầu khi bán. Ghi mã chứng từ dùng chung và nguồn bằng chứng, tích xác nhận đã kiểm tra rồi chọn **Xác minh và ghi nhận**. Đề nghị trùng phải **Từ chối khoản thu**, ghi rõ lý do; không xóa lịch sử. Đề nghị nhập sai số tiền/ngày phải được quản lý từ chối trước khi gửi đề nghị đã sửa với mã thao tác mới; cùng chứng từ chưa ghi nhận có thể dùng lại, lịch sử từ chối vẫn giữ. Nếu thiếu chứng từ, lập biên bản đối chiếu được cửa hàng lưu và đánh mã dùng chung trước khi ghi nhận. Hai khoản thật cùng số tiền vẫn dùng hai chứng từ riêng. Một chuyển khoản trả cho nhiều giao dịch cần quản lý đối chiếu phân bổ; chưa hỗ trợ tự chia.
+
+Khi mất phản hồi, kiểm tra đề nghị và lịch sử trước khi gửi lại. Phiên bản cũ thiếu mã thao tác/phiên bản sửa sẽ bị từ chối; tải lại tab hoặc cập nhật PWA. Khi báo xung đột hạn nợ hoặc chi phí, tải lại và đối chiếu giá trị mới, không thử ép lưu dữ liệu cũ.
+
+Nếu tin cảm ơn giữ trạng thái **Đang gửi**, quản lý chọn **Kiểm tra và khôi phục xử lý**. Server chỉ nhận lại khi lease hết hạn và chế độ gửi cho phép phục hồi an toàn. Nếu kết quả chưa xác định, kiểm tra nhật ký nhà cung cấp, nhập mã bằng chứng và chọn đã gửi/chưa gửi; chỉ thử gửi lại sau khi xác nhận chưa gửi. Không có scheduler chạy nền tự động được chứng nhận trong bản này.
 
 ## Nhật ký câu hỏi chưa có tài liệu (OWNER)
 

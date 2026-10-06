@@ -12,6 +12,9 @@ import type {
 import { normalizeKey } from "./vocabulary";
 
 const PREFIX = "carem_shorthand_dict_v1";
+export const LOCAL_LEARNING_FIELDS = new Set<IntakeFieldKey>([
+  "brand", "model", "variant", "color", "year",
+]);
 
 export type ShorthandStorage = {
   getItem(key: string): string | null;
@@ -36,7 +39,8 @@ export function loadDictionary(
       if (
         typeof rule.value === "string" &&
         rule.value.trim() &&
-        typeof rule.field === "string"
+        typeof rule.field === "string" &&
+        LOCAL_LEARNING_FIELDS.has(rule.field as IntakeFieldKey)
       )
         dict[key] = {
           key,
@@ -82,7 +86,7 @@ export function learnRule(
   const dict = loadDictionary(userId, storage);
   const key = normalizeKey(abbreviation);
   const trimmed = value.trim();
-  if (!userId || !key || key.length > 40 || !trimmed) return dict;
+  if (!userId || !key || key.length > 40 || !trimmed || !LOCAL_LEARNING_FIELDS.has(field)) return dict;
   const previous = dict[key];
   dict[key] = {
     key,

@@ -9,7 +9,7 @@ const staff = { role: 'STAFF', can_view_financials: false }
 const vehicleId = '11111111-1111-4111-8111-111111111111'
 
 /** Every RPC the deterministic copilot is allowed to call. Nothing else may appear. */
-const READ_ONLY_RPCS = ['check_user_access', 'get_vehicle', 'search_knowledge', 'dashboard', 'list_vehicles', 'list_receivables', 'list_expenses', 'list_audit', 'list_profiles', 'get_settings']
+const READ_ONLY_RPCS = ['check_user_access', 'get_vehicle', 'search_knowledge', 'dashboard', 'list_vehicles', 'list_receivables', 'list_expenses', 'list_audit', 'list_profiles', 'get_settings', 'list_sales', 'list_customers', 'daily_reconciliation', 'global_search']
 
 const knowledgeRow = {
   id: '33333333-3333-4333-8333-333333333333', slug: 'operations-release-checklist', title: 'Checklist phát hành Cà Rem',
@@ -31,6 +31,10 @@ function harness(options: { role?: 'OWNER' | 'STAFF'; enabled?: boolean; result?
           longest_stock: [{ id: vehicleId, brand: 'Honda', model: 'Wave', license_plate: '59-B1 123', days_in_inventory: 71 }] }, error: null }
       }
       if (name === 'list_vehicles') return { data: { items: [{ id: vehicleId, brand: 'Honda', model: 'Wave', license_plate: '59-B1 123', asking_price: 25_000_000 }], total: 1 }, error: null }
+      if (name === 'list_sales') return { data: { items: [{ id: vehicleId, customer_name: 'Nguyen Van A', vehicle_name: 'Honda Wave', license_plate: '59-B1 123', sale_price: 32_000_000 }], total: 4 }, error: null }
+      if (name === 'list_customers') return { data: { items: [{ customer_name: 'Nguyen Van A', customer_phone: '0905123456', purchases_count: 2 }], total: 12 }, error: null }
+      if (name === 'daily_reconciliation') return { data: { date: '2026-10-05', total_collected: 5_000_000, debt_collected_today: 1_000_000, new_debt_created: 0, total_expenses: 300_000, net_cash_movement: 4_700_000 }, error: null }
+      if (name === 'global_search') return { data: { vehicles: [{ id: vehicleId, brand: 'Honda', model: 'Wave', license_plate: '59-B1 123', asking_price: 25_000_000 }], customers: [{ customer_name: 'Nguyen Van A', customer_phone: '0905123456', purchases_count: 2 }], sales: [{ id: vehicleId, customer_name: 'Nguyen Van A', vehicle_name: 'Honda Wave', license_plate: '59-B1 123', sale_price: 32_000_000 }] }, error: null }
       return { data: null, error: { message: `unexpected rpc ${name}` } }
     }),
   }
@@ -91,11 +95,59 @@ describe('AI copilot evidence grounding', () => {
     expect(evidence.insufficient).toBe(true)
   })
 
+  it('keeps management-only copilot intents from calling their RPCs for staff', async () => {
+    const rpc = vi.fn(async (name: string) => name === 'search_knowledge' ? { data: [], error: null } : { data: null, error: { message: 'no' } })
+    const sales = await buildEvidence('Gần đây bán cho ai?', { rpc }, staff)
+    expect(sales.facts).toEqual([])
+    expect(sales.warnings.join(' ')).toContain('Đơn bán cần quyền cao hơn')
+    const cash = await buildEvidence('Tiền về hôm nay?', { rpc }, staff)
+    expect(cash.warnings.join(' ')).toContain('Đối soát thu chi cần quyền cao hơn')
+    const names = rpc.mock.calls.map(([name]) => name)
+    expect(names).not.toContain('list_sales')
+    expect(names).not.toContain('daily_reconciliation')
+  })
+
   it('reads Vietnamese periods and accent-free keywords', () => {
     expect(normalize('Tồn kho')).toBe('ton kho')
     expect(detectPeriod('doanh thu tháng 9', new Date('2026-10-01T02:00:00Z'))).toMatchObject({ from: '2026-09-01', to: '2026-09-30', label: 'Tháng 09/2026' })
     expect(detectPeriod('báo cáo 2026-08', new Date('2026-10-01T02:00:00Z'))?.from).toBe('2026-08-01')
-    expect(detectPeriod('hôm nay ra sao', new Date('2026-10-01T02:00:00Z'))).toMatchObject({ from: '2026-10-01' })
+    expect(detectPeriod('hôm nay ra sao', new Date('2026-10-01T02:00:00Z'))).toMatchObject({ from: '2026-10-01', to: '2026-10-01' })
+    expect(detectPeriod('tiền về hôm qua', new Date('2026-10-01T02:00:00Z'))).toMatchObject({ from: '2026-09-30', to: '2026-09-30' })
+    expect(detectPeriod('bán tuần này', new Date('2026-10-01T02:00:00Z'))).toMatchObject({ from: '2026-09-28', to: '2026-10-04' })
+    expect(detectPeriod('doanh thu tháng trước', new Date('2026-10-01T02:00:00Z'))).toMatchObject({ from: '2026-09-01', to: '2026-09-30', label: 'Tháng 09/2026' })
+    expect(detectPeriod('quy 3 loi nhuan', new Date('2026-10-01T02:00:00Z'))).toMatchObject({ from: '2026-07-01', to: '2026-09-30', label: 'Quý 3/2026' })
+    expect(detectPeriod('doanh thu nam 2025', new Date('2026-10-01T02:00:00Z'))).toMatchObject({ from: '2025-01-01', to: '2025-12-31', label: 'Năm 2025' })
+    expect(detectPeriod('tháng 9 năm 2025', new Date('2026-10-01T02:00:00Z'))).toMatchObject({ from: '2025-09-01', to: '2025-09-30', label: 'Tháng 09/2025' })
+  })
+
+  it('answers overview, recent-sale, cash and customer questions from their own read RPCs', async () => {
+    const rpc = vi.fn(async (name: string) => name === 'search_knowledge' ? { data: [], error: null }
+      : name === 'dashboard' ? { data: { in_stock: 7, sales_count: 2, total_receivables: 40_000_000 }, error: null }
+        : name === 'list_sales' ? { data: { items: [{ id: vehicleId, customer_name: 'Nguyen Van A', vehicle_name: 'Honda Wave', license_plate: '59-B1 123', sale_price: 32_000_000 }], total: 4 }, error: null }
+          : name === 'daily_reconciliation' ? { data: { date: '2026-10-05', total_collected: 5_000_000, net_cash_movement: 4_700_000 }, error: null }
+            : name === 'list_customers' ? { data: { items: [{ customer_name: 'Nguyen Van A', customer_phone: '0905123456', purchases_count: 2 }], total: 12 }, error: null }
+              : { data: null, error: { message: `unexpected rpc ${name}` } })
+    const overview = await buildEvidence('Tình hình cửa hàng hôm nay?', { rpc }, owner)
+    expect(overview.facts.some((fact) => fact.display === '7 xe')).toBe(true)
+    expect(overview.facts.some((fact) => fact.display === '40.000.000 ₫')).toBe(true)
+    const sales = await buildEvidence('Gần đây bán cho ai?', { rpc }, owner)
+    expect(sales.facts.some((fact) => fact.label.includes('Nguyen Van A'))).toBe(true)
+    expect(sales.citations.some((citation) => citation.route === `/sales/${vehicleId}`)).toBe(true)
+    const cash = await buildEvidence('Tiền về hôm nay thế nào?', { rpc }, owner)
+    expect(cash.facts.some((fact) => fact.label === 'Tổng tiền thu về')).toBe(true)
+    const customers = await buildEvidence('Có bao nhiêu khách đã mua?', { rpc }, owner)
+    expect(customers.facts.some((fact) => fact.display === '12 khách')).toBe(true)
+    expect(rpc.mock.calls.map(([name]) => name).every((name) => READ_ONLY_RPCS.includes(name))).toBe(true)
+  })
+
+  it('falls back to the grounded entity lookup for phone and plate questions', async () => {
+    const rpc = vi.fn(async (name: string) => name === 'search_knowledge' ? { data: [], error: null }
+      : name === 'global_search' ? { data: { vehicles: [], customers: [{ customer_name: 'Tran Thi B', customer_phone: '0905987654', purchases_count: 1 }], sales: [] }, error: null }
+        : { data: null, error: { message: `unexpected rpc ${name}` } })
+    const evidence = await buildEvidence('0905987654 là khách nào?', { rpc }, owner)
+    expect(evidence.coverage).toBe('data')
+    expect(evidence.facts.some((fact) => fact.label.includes('Tran Thi B'))).toBe(true)
+    expect(rpc).toHaveBeenCalledWith('global_search', expect.objectContaining({ p_query: '0905987654' }))
   })
 
   it('rejects AI prose that cites unknown evidence, links outside the app, or claims without proof', () => {

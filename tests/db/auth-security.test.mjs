@@ -25,6 +25,7 @@ export async function runAuthSecurityTests({ engine = 'pglite' } = {}) {
     const vehicles = []
     for (const price of [100, 200]) {
       vehicles.push(await call('owner', 'acquire_vehicle', {
+        request_id: randomUUID(),
         frame_number: `AUTH-TEST-${randomUUID()}`, brand: 'Honda', model: 'Test',
         purchase_price: 50, asking_price: price, acquisition_date: day,
       }))

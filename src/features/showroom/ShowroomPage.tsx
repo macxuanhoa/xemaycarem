@@ -27,6 +27,7 @@ import {
 } from "lucide-react";
 import { useAuth } from "@/features/auth/AuthProvider";
 import { api } from "@/lib/api";
+import { useDialog } from "@/lib/useDialog";
 import type { Paged, ShowroomVehicle } from "@/types";
 import {
   buybackLeadSchema,
@@ -158,6 +159,15 @@ export default function ShowroomPage() {
     setSellErrors({});
     sellMutation.reset();
   };
+  const bikeDialogRef = useDialog(
+    !!selectedBike,
+    () => setSelectedBike(null),
+  );
+  const sellDialogRef = useDialog(
+    sellModalOpen,
+    closeSellModal,
+    sellMutation.isPending,
+  );
 
   const handleSellSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -291,7 +301,7 @@ export default function ShowroomPage() {
             <button
               type="button"
               className="btn-mobile-toggle"
-              aria-label="Mở menu"
+              aria-label={mobileMenuOpen ? "Đóng menu" : "Mở menu"}
               aria-expanded={mobileMenuOpen}
               onClick={() => setMobileMenuOpen((v) => !v)}
             >
@@ -565,6 +575,7 @@ export default function ShowroomPage() {
                 <button
                   type="button"
                   className="clear-search-btn"
+                  aria-label="Xóa nội dung tìm kiếm"
                   onClick={() => setSearchQuery("")}
                 >
                   <X size={14} />
@@ -1076,19 +1087,22 @@ export default function ShowroomPage() {
       {selectedBike && (
         <div
           className="showroom-modal-backdrop"
-          role="dialog"
-          aria-modal="true"
-          aria-label={`Chi tiết xe ${selectedBike.name}`}
+          role="presentation"
           onClick={() => setSelectedBike(null)}
-          onKeyDown={(e) => e.key === "Escape" && setSelectedBike(null)}
         >
           <div
+            ref={bikeDialogRef}
             className="showroom-modal-card"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="showroom-bike-dialog-title"
+            tabIndex={-1}
             onClick={(e) => e.stopPropagation()}
           >
             <button
               type="button"
               className="modal-close-btn"
+              aria-label="Đóng chi tiết xe"
               onClick={() => setSelectedBike(null)}
             >
               <X size={20} />
@@ -1120,7 +1134,9 @@ export default function ShowroomPage() {
                   )}
                 </div>
 
-                <h2 className="modal-bike-title">{selectedBike.name}</h2>
+                <h2 id="showroom-bike-dialog-title" className="modal-bike-title">
+                  {selectedBike.name}
+                </h2>
 
                 <div className="modal-price-box">
                   <span className="label">Giá bán công khai:</span>
@@ -1180,19 +1196,22 @@ export default function ShowroomPage() {
       {sellModalOpen && (
         <div
           className="showroom-modal-backdrop"
-          role="dialog"
-          aria-modal="true"
-          aria-label="Gửi thông tin xe cần bán"
+          role="presentation"
           onClick={closeSellModal}
-          onKeyDown={(e) => e.key === "Escape" && closeSellModal()}
         >
           <div
+            ref={sellDialogRef}
             className="showroom-modal-card sell-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="showroom-sell-dialog-title"
+            tabIndex={-1}
             onClick={(e) => e.stopPropagation()}
           >
             <button
               type="button"
               className="modal-close-btn"
+              aria-label="Đóng biểu mẫu định giá"
               onClick={closeSellModal}
             >
               <X size={20} />
@@ -1200,7 +1219,9 @@ export default function ShowroomPage() {
 
             <div className="sell-modal-content">
               <span className="eyebrow-red">ĐỊNH GIÁ XE TẬN TÂM</span>
-              <h2>Gửi Thông Tin Xe Cần Bán</h2>
+              <h2 id="showroom-sell-dialog-title">
+                Gửi Thông Tin Xe Cần Bán
+              </h2>
               <p className="sub">
                 Cà Rem cam kết báo giá nhanh trong 5 phút, mua giá cao nhất thị
                 trường Hội An, thanh toán tiền mặt liền tay.
@@ -1228,8 +1249,9 @@ export default function ShowroomPage() {
               ) : (
                 <form onSubmit={handleSellSubmit} className="sell-form-stack" noValidate>
                   <div className="form-group">
-                    <label>Họ tên của bạn *</label>
+                    <label htmlFor="showroom-customer-name">Họ tên của bạn *</label>
                     <input
+                      id="showroom-customer-name"
                       type="text"
                       required
                       placeholder="Ví dụ: Nguyễn Văn Hậu"
@@ -1246,8 +1268,9 @@ export default function ShowroomPage() {
                   </div>
 
                   <div className="form-group">
-                    <label>Tên dòng xe cần bán *</label>
+                    <label htmlFor="showroom-bike-name">Tên dòng xe cần bán *</label>
                     <input
+                      id="showroom-bike-name"
                       type="text"
                       required
                       placeholder="Ví dụ: Honda SH 150i, Vision, Exciter 155..."
@@ -1265,8 +1288,9 @@ export default function ShowroomPage() {
 
                   <div className="form-row-2">
                     <div className="form-group">
-                      <label>Đời xe / Năm đăng ký</label>
+                      <label htmlFor="showroom-vehicle-year">Đời xe / Năm đăng ký</label>
                       <input
+                        id="showroom-vehicle-year"
                         type="text"
                         inputMode="numeric"
                         placeholder="Ví dụ: 2021 hoặc 2023"
@@ -1282,8 +1306,9 @@ export default function ShowroomPage() {
                       )}
                     </div>
                     <div className="form-group">
-                      <label>Số điện thoại / Zalo của bạn *</label>
+                      <label htmlFor="showroom-phone">Số điện thoại / Zalo của bạn *</label>
                       <input
+                        id="showroom-phone"
                         type="tel"
                         required
                         placeholder="0914 xxx xxx"
@@ -1301,8 +1326,9 @@ export default function ShowroomPage() {
                   </div>
 
                   <div className="form-group">
-                    <label>Giá bạn mong muốn (VNĐ)</label>
+                    <label htmlFor="showroom-expected-price">Giá bạn mong muốn (VNĐ)</label>
                     <input
+                      id="showroom-expected-price"
                       type="text"
                       inputMode="numeric"
                       placeholder="Ví dụ: 45000000 (hoặc để trống)"
@@ -1322,8 +1348,9 @@ export default function ShowroomPage() {
                   </div>
 
                   <div className="form-group">
-                    <label>Tình trạng xe / Ghi chú thêm</label>
+                    <label htmlFor="showroom-note">Tình trạng xe / Ghi chú thêm</label>
                     <textarea
+                      id="showroom-note"
                       rows={2}
                       placeholder="Xe biển số Hội An, máy móc nguyên zin, có trầy xước nhẹ..."
                       value={sellForm.note}

@@ -18,15 +18,22 @@ Deno.serve(async (request: Request) => {
   const client = createClient(url, anonKey, { global: { headers: { Authorization: authorization } }, auth: { persistSession: false } });
   const { data: auth, error: authError } = await client.auth.getUser();
   if (authError || !auth.user) return reply(401, { error: 'AUTH_REQUIRED' });
-  let body: { message_id?: string };
+  let body: unknown;
   try { body = await request.json(); } catch { return reply(400, { error: 'INVALID_INPUT' }); }
-  if (!body.message_id || !/^[0-9a-f-]{36}$/i.test(body.message_id)) return reply(400, { error: 'INVALID_INPUT' });
-  const { data: job, error: claimError } = await client.rpc('claim_message', { p_message_id: body.message_id });
-  if (claimError) return reply(403, { error: 'MESSAGE_CLAIM_FAILED' });
+  if (!body || typeof body !== 'object' || Array.isArray(body) || !('message_id' in body)
+    || typeof body.message_id !== 'string'
+    || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(body.message_id)) {
+    return reply(400, { error: 'INVALID_INPUT' });
+  }
+  const provider = createMessagingProvider(Deno.env.get('MESSAGE_PROVIDER_MODE'));
+  const { data: job, error: claimError } = await client.rpc('claim_message', {
+    p_message_id: body.message_id, p_provider_mode: provider.name,
+  });
+  if (claimError) return reply(403, { error: claimError.message === 'CLIENT_UPGRADE_REQUIRED' ? 'CLIENT_UPGRADE_REQUIRED' : 'MESSAGE_CLAIM_FAILED' });
   if (!job?.id) return reply(200, { status: 'NOT_QUEUED' });
+  if (!job.lease_token) return reply(503, { error: 'WORKER_SCHEMA_UPGRADE_REQUIRED' });
 
   // Real providers are intentionally absent. Without explicit MOCK, sending fails closed.
-  const provider = createMessagingProvider(Deno.env.get('MESSAGE_PROVIDER_MODE'));
   try {
     const result = await provider.sendTransactionalMessage({
       recipient: job.recipient_phone,
@@ -36,15 +43,15 @@ Deno.serve(async (request: Request) => {
       idempotencyKey: job.id,
     });
     const { error } = await client.rpc('finish_mock_message', {
-      p_message_id: job.id, p_provider_message_id: result.providerMessageId,
+      p_message_id: job.id, p_provider_message_id: result.providerMessageId, p_lease_token: job.lease_token,
     });
     if (error) return reply(500, { error: 'MESSAGE_STATE_UPDATE_FAILED' });
     return reply(200, { status: result.status, provider: provider.name, provider_message_id: result.providerMessageId });
   } catch (error) {
     const notConfigured = error instanceof Error && error.message === 'PROVIDER_NOT_CONFIGURED';
     const { error: updateError } = notConfigured
-      ? await client.rpc('skip_message', { p_message_id: job.id, p_error_code: 'PROVIDER_NOT_CONFIGURED', p_safe_message: 'Chưa cấu hình nhà cung cấp tin nhắn.' })
-      : await client.rpc('fail_message', { p_message_id: job.id, p_error_code: 'PROVIDER_ERROR', p_safe_message: 'Không thể gửi tin nhắn.', p_permanent: false });
+      ? await client.rpc('skip_message', { p_message_id: job.id, p_error_code: 'PROVIDER_NOT_CONFIGURED', p_safe_message: 'Chưa cấu hình nhà cung cấp tin nhắn.', p_lease_token: job.lease_token })
+      : await client.rpc('fail_message', { p_message_id: job.id, p_error_code: 'PROVIDER_ERROR', p_safe_message: 'Không thể gửi tin nhắn.', p_permanent: false, p_lease_token: job.lease_token });
     return updateError ? reply(500, { error: 'MESSAGE_STATE_UPDATE_FAILED' }) : reply(200, { status: notConfigured ? 'SKIPPED' : 'QUEUED' });
   }
 });

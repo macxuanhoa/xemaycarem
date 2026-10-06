@@ -43,6 +43,12 @@ Last reviewed: 2026-09-30
 - The `knowledge_base` corpus is regenerated from tracked markdown; a documentation file added to the repo but not listed in `scripts/build-knowledge-seed.mjs` `SOURCES` is invisible to the copilot. `npm run knowledge:check` only proves the committed seed matches the listed sources.
 - Camera, microphone, image compression readability, PWA installation, and receipt appearance need acceptance on physical devices/printers/browsers.
 
+## Copilot draft-to-save `/expenses` fallback — 2026-10-06
+
+- The Copilot draft-to-save expense flow resolves a plate via `list_vehicles`: if the plate matches a vehicle it opens `QuickExpenseModal` prefilled (`initialDraft`), which works. If the plate does NOT resolve, `DraftActionCard.tsx` falls back to `navigate("/expenses", { state: { aiDraft: action } })`, but `ExpensePages` does not read `location.state.aiDraft` today, so the user lands on the plain expenses screen with no prefill. This is graceful degradation (no data loss, no wrong write, the read-only wall is intact) rather than a defect, but the prefill path is INCOMPLETE and must not be described as fully functional. Follow-up: either consume `aiDraft` in `ExpensePages` to open the quick-expense dialog prefilled, or drop the navigation fallback and only offer the modal when a vehicle resolves. Documented in `docs/PROJECT_STATE.md` / `docs/AGENT_HANDOFF.md`. Not a release blocker for the local commit; no migration/Edge dependency.
+
+Last reviewed: 2026-10-06
+
 ## Bundle measurements
 
 A fresh local production build shows a 767.00 kB initial JavaScript entry (229.72 kB gzip), above Vite's warning threshold. It does not contain `html5-qrcode`. The Capture route is dynamically loaded and the camera library is separately loaded only after the user invokes camera scanning (375.14 kB raw, 110.56 kB gzip). No production performance measurement is available; investigate the initial entry if real metrics show a problem.

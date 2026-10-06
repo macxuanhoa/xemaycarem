@@ -18,6 +18,7 @@ import {
   normalizeKey,
 } from "./vocabulary";
 import { normalizePlate } from "@/lib/plate";
+import { normalizeVehicleYear } from "@/lib/vehicleInputFormatting";
 
 export type IntakeFieldKey =
   | "brand"
@@ -196,13 +197,27 @@ function parseLine(
     provenance: {},
     unknownTokens: [],
   };
-  const tokens = cleaned
+  const rawTokens = cleaned
     // "19,5tr" is a decimal amount, and "12/03/26" is a date: commas between
     // digits become dots, slashes stay inside tokens, blanks separate them.
     .replace(/(\d)[_,](\d)/g, "$1.$2")
     .replace(/[,;]+(?=\s|$)/g, "")
     .split(/[\s|]+/u)
     .filter(Boolean);
+  const tokens: string[] = [];
+  for (let i = 0; i < rawTokens.length; i++) {
+    const current = rawTokens[i];
+    const next = normalizeKey(rawTokens[i + 1] ?? "");
+    const amount = /^\d+(?:[.,]\d{1,6})?$/.test(current);
+    const moneyUnit = /^(?:tr|trieu|m|k|ty|b|nghin|ngan)\d{0,2}$/.test(next);
+    const distanceUnit = /^(?:v|km)$/.test(next);
+    if (amount && (moneyUnit || distanceUnit)) {
+      tokens.push(current + next);
+      i++;
+    } else {
+      tokens.push(current);
+    }
+  }
   let pending: Pending = null;
   let nameWords: string[] = [];
   const noteChunks: string[] = [];
@@ -271,7 +286,14 @@ function parseLine(
     // Learned abbreviation wins over the built-in vocabulary.
     const rule = dictionary[key];
     if (rule) {
-      assign(entry, rule.field, rule.value, token);
+      const learnedYear =
+        rule.field === "year" ? normalizeVehicleYear(rule.value) : undefined;
+      assign(
+        entry,
+        rule.field,
+        learnedYear == null ? rule.value : String(learnedYear),
+        token,
+      );
       continue;
     }
 
@@ -331,8 +353,8 @@ function parseLine(
     }
     if (/^\d{1,2}$/.test(key) && pending === null) {
       // "22" or "'22" style bare years right after brand/model context.
-      const value = 2000 + Number(key);
-      if (Number(key) <= 30 && value <= yearNow + 1 && !entry.fields.year) {
+      const value = normalizeVehicleYear(key);
+      if (Number(key) <= 30 && value != null && value <= yearNow + 1 && !entry.fields.year) {
         assign(entry, "year", String(value), token);
         continue;
       }
@@ -474,9 +496,8 @@ function tryAssignTyped(
     return assign(entry, "purchase_date", date, token);
   }
   if (field === "year") {
-    const two = /^\d{1,2}$/.test(key) ? 2000 + Number(key) : Number(key);
-    const value = Number.isFinite(two) ? two : 0;
-    if (value < 1980 || value > yearNow + 1) return false;
+    const value = normalizeVehicleYear(token);
+    if (value == null || value < 1980 || value > yearNow + 1) return false;
     return assign(entry, "year", String(value), token);
   }
   if (field === "odometer") {

@@ -28,7 +28,6 @@ export default function UsersPage() {
   const { profile } = useAuth();
   const owner = isOwner(profile);
   const [adding, setAdding] = useState(false);
-  const [notice, setNotice] = useState("");
   const [selectedStaff, setSelectedStaff] = useState<Profile | null>(null);
   const [search, setSearch] = useState("");
   const [roleFilter, setRoleFilter] = useState("ALL");
@@ -79,12 +78,6 @@ export default function UsersPage() {
           ) : undefined
         }
       />
-
-      {notice && (
-        <p className="notice" role="status">
-          {notice}
-        </p>
-      )}
 
       {/* STATS HUD */}
       <div className="staff-stats-grid">
@@ -172,7 +165,6 @@ export default function UsersPage() {
           isSelf={selectedStaff.id === profile?.id}
           isOwnerAcc={selectedStaff.role === "OWNER"}
           onClose={() => setSelectedStaff(null)}
-          onUpdated={(msg) => setNotice(msg)}
         />
       )}
 

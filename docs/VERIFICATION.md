@@ -1,5 +1,28 @@
 # Kết quả kiểm chứng — 02/10/2026
 
+## Trợ lý AI — đề xuất bản nháp lưu một chạm (06/10/2026, worktree hiện tại)
+
+| Kiểm tra | Kết quả |
+|---|---|
+| npm run typecheck | Đạt |
+| npm run lint | Đạt; 0 lỗi, 0 cảnh báo |
+| npm test | Đạt: 372 test / 36 file — thêm `tests/unit/copilot-draft-actions.test.tsx` (9 ca: lệnh chi phí viết tắt `500k`/`2tr5`, biển số thật qua `@/lib/plate`, số điện thoại không thành tiền, câu hỏi nghi vấn bị loại, bán xe kèm khách/giá, tốc ký thu xe, STAFF không thấy đề xuất chi phí, thẻ nháp chỉ prefill) |
+| npm run test:db | Đạt: 30 kiểm tra tích hợp inline + 12 message lease + 5 inventory receipt + 8 knowledge + 6 copilot gap + 11 notification + 8 CCCD + 10 showroom + hard-delete/conflict/receipt/protocol suite |
+| npm run knowledge:seed / knowledge:check | Seed tái sinh 192 mục vào `20261006001400_knowledge_reseed.sql` (kênh seed mutable duy nhất); check đạt |
+| Phạm vi thay đổi | Chỉ frontend: `src/lib/shorthand/draftActions.ts` (mới), `DraftActionCard` (mới), `CopilotPage`, `AssistPage` (fallback voice offline), `SellVehiclePage` (`state.aiDraft`), `ShorthandIntakePage` (`state.seedText`); không đụng Edge, không migration, không đường ghi tự động |
+
+## Trợ lý AI — nâng cấp khả năng trả lời (06/10/2026, worktree hiện tại)
+
+| Kiểm tra | Kết quả |
+|---|---|
+| node scripts/check-edge-types.mjs | Đạt cho 6 tệp Edge |
+| npm run typecheck | Đạt |
+| npm run lint | Đạt; 0 lỗi |
+| npm test | Đạt: 363 test / 35 file (copilot security 10 → 14: fallback `global_search` theo số điện thoại/biển số, bốn intent mới `overview`/`recent_sales`/`cash`/`customers`, chặn STAFF với intent cần quyền manage, các mốc `hôm qua`/`tuần này`/`tháng trước`/`quý N`/`năm 2025`/`tháng 9 năm 2025`) |
+| npm run test:db | Đạt cả hai vòng (trước và sau khi tái sinh seed): 30 kiểm tra tích hợp inline + 12 message lease + 5 inventory receipt + 8 knowledge + 6 copilot gap + 11 notification + 8 CCCD + 10 showroom + hard-delete/conflict/receipt/protocol suite |
+| npm run knowledge:seed / knowledge:check | Seed tái sinh 189 mục vào `20261006001400_knowledge_reseed.sql` (kênh seed mutable duy nhất); check đạt |
+| Thay đổi hàm truy xuất | Chỉ `supabase/functions/ai-assist/copilot.ts` + UI chip gợi ý/loại trích dẫn `customer`; không migration schema, không đường ghi, không deploy Edge |
+
 ## Quản lý nhân sự — giờ làm chung, một Chủ cửa hàng, cấm sử dụng có thời hạn — 02/10/2026
 
 | Kiểm tra | Kết quả |

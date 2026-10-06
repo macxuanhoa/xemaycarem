@@ -84,6 +84,23 @@ async function installMock(page) {
     calls.push({ name, body });
     if (name === "check_user_access") return reply({ allowed: true });
     if (name === "list_active_announcements") return reply([]);
+    if (name === "list_showroom_vehicles")
+      return reply({
+        items: [{
+          id: vehicleId,
+          brand: "Honda",
+          model: "Vision",
+          variant: "Premium",
+          year: 2024,
+          color: "Đen",
+          license_plate: "43A1-12345",
+          odometer: 12500,
+          asking_price: 35000000,
+          purchase_date: today,
+          created_at: today,
+        }],
+        total: 1,
+      });
     if (name === "list_profiles") return reply([
       { id: ownerId, full_name: "Chủ kiểm thử", username: "owner", role: "OWNER", active: true, can_view_financials: true, must_change_password: false },
       { id: "00000000-0000-4000-8000-000000000003", full_name: "Nguyễn Nhân Viên", username: "nhanvien", role: "STAFF", active: true, can_view_financials: false, must_change_password: false, allowed_from: "07:00:00", allowed_until: "20:00:00", working_days: [1, 2, 3, 4, 5, 6] },
@@ -282,7 +299,7 @@ test("Quick expense keeps vehicle context, maps category to the existing enum an
   const calls = await installMock(page);
   await page.goto(`/vehicles/${vehicleId}`);
   const started = Date.now();
-  await page.getByRole("button", { name: "Chi phí", exact: true }).click();
+  await page.getByRole("button", { name: "Thêm chi phí", exact: true }).click();
   const dialog = page.getByRole("dialog", {
     name: "+ Thêm chi phí xe",
     exact: true,
@@ -303,7 +320,7 @@ test("Quick expense keeps vehicle context, maps category to the existing enum an
     description: "Thay lốp xe",
     expense_date: today,
   });
-  await page.getByRole("button", { name: "Chi phí", exact: true }).click();
+  await page.getByRole("button", { name: "Thêm chi phí", exact: true }).click();
   await dialog.getByRole("button", { name: /Dùng lại/ }).click();
   await expect(
     dialog.getByLabel("Số tiền chi (₫) *", { exact: true }),
@@ -387,9 +404,20 @@ test("Staff settings and create modals stay usable on desktop and mobile", async
   await expect(page.getByRole("heading", { name: "Nhân sự", exact: true })).toBeVisible();
   await page.screenshot({ path: "test-results/users-audit-desktop.png", fullPage: true });
   await page.getByRole("button", { name: "Thêm tài khoản", exact: true }).click();
-  await expect(page.getByRole("dialog", { name: "Tạo tài khoản nhân viên mới" })).toBeVisible();
+  const createTrigger = page.getByRole("button", { name: "Thêm tài khoản", exact: true });
+  const createDialog = page.getByRole("dialog", { name: "Tạo tài khoản nhân viên mới" });
+  await expect(createDialog).toBeVisible();
   await page.waitForTimeout(400);
   await page.screenshot({ path: "test-results/users-create-audit-desktop.png", fullPage: true });
+  const createClose = createDialog.getByRole("button", { name: "Đóng", exact: true });
+  await expect(createClose).toBeFocused();
+  await page.keyboard.press("Shift+Tab");
+  await expect(createDialog.getByRole("button", { name: "Tạo tài khoản", exact: true })).toBeFocused();
+  await page.keyboard.press("Tab");
+  await expect(createClose).toBeFocused();
+  await page.keyboard.press("Escape");
+  await expect(createDialog).toHaveCount(0);
+  await expect(createTrigger).toBeFocused();
   await page.setViewportSize({ width: 390, height: 844 });
   await page.reload();
   await expect(page.getByRole("heading", { name: "Nhân sự", exact: true })).toBeVisible();
@@ -397,19 +425,23 @@ test("Staff settings and create modals stay usable on desktop and mobile", async
   await expect(page.getByRole("dialog", { name: "Tạo tài khoản nhân viên mới" })).toBeVisible();
   await page.waitForTimeout(400);
   await page.screenshot({ path: "test-results/users-create-audit-mobile.png", fullPage: true });
-  await page.getByRole("button", { name: "Đóng", exact: true }).click();
+  await page.keyboard.press("Escape");
+  await expect(page.getByRole("dialog", { name: "Tạo tài khoản nhân viên mới" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Thêm tài khoản", exact: true })).toBeFocused();
 
   // Regression: opening any staff member's detail modal on mobile must stay
   // inside the viewport as a bottom sheet with no horizontal overflow.
-  await page.getByRole("button", { name: "Thiết lập nhân sự" }).first().click();
+  const staffOpener = page.getByRole("button", { name: "Thiết lập nhân sự" }).first();
+  await staffOpener.click();
   const staffDialog = page.getByRole("dialog", { name: "Nguyễn Nhân Viên" });
   await expect(staffDialog).toBeVisible();
+  await expect(staffDialog.getByLabel("Đóng", { exact: true })).toBeFocused();
   const roleTab = staffDialog.getByRole("tab", { name: "Quyền & Vai trò" });
   await expect(roleTab).toBeVisible();
   await expect(staffDialog.getByRole("tab", { name: "Mật khẩu" })).toBeVisible();
   await expect(staffDialog.getByRole("tab", { name: "Cấm sử dụng" })).toBeVisible();
   await expect(staffDialog.getByRole("tab", { name: "Xóa tài khoản" })).toBeVisible();
-  const box = await staffDialog.locator(".user-settings-modal").boundingBox();
+  const box = await staffDialog.boundingBox();
   expect(box.x).toBeGreaterThanOrEqual(0);
   expect(box.x + box.width).toBeLessThanOrEqual(390.5);
   expect(box.y).toBeGreaterThanOrEqual(0);
@@ -430,6 +462,47 @@ test("Staff settings and create modals stay usable on desktop and mobile", async
   expect(
     await page.evaluate(() => document.documentElement.scrollWidth),
   ).toBeLessThanOrEqual(390);
+  await page.keyboard.press("Escape");
+  await expect(staffDialog).toHaveCount(0);
+  await expect(staffOpener).toBeFocused();
+});
+
+test("Showroom dialogs have accessible names and contain keyboard focus", async ({ page }) => {
+  await installMock(page);
+  await page.goto("/showroom");
+
+  const bikeOpener = page.getByRole("button", { name: "Chi tiết", exact: true });
+  await bikeOpener.click();
+  const bikeDialog = page.getByRole("dialog", { name: "Honda Vision Premium" });
+  await expect(bikeDialog).toBeVisible();
+  const bikeClose = bikeDialog.getByRole("button", { name: "Đóng chi tiết xe" });
+  await expect(bikeClose).toBeFocused();
+  await page.keyboard.press("Shift+Tab");
+  await expect(bikeDialog.getByRole("link", { name: /Gọi 0914/ })).toBeFocused();
+  await page.keyboard.press("Tab");
+  await expect(bikeClose).toBeFocused();
+  await page.keyboard.press("Escape");
+  await expect(bikeDialog).toHaveCount(0);
+  await expect(bikeOpener).toBeFocused();
+
+  const sellOpener = page.getByRole("button", { name: "Định giá bán xe", exact: true });
+  await sellOpener.click();
+  const sellDialog = page.getByRole("dialog", { name: "Gửi Thông Tin Xe Cần Bán" });
+  await expect(sellDialog).toBeVisible();
+  await expect(sellDialog.getByRole("button", { name: "Đóng biểu mẫu định giá" })).toBeFocused();
+  for (const label of [
+    "Họ tên của bạn *",
+    "Tên dòng xe cần bán *",
+    "Đời xe / Năm đăng ký",
+    "Số điện thoại / Zalo của bạn *",
+    "Giá bạn mong muốn (VNĐ)",
+    "Tình trạng xe / Ghi chú thêm",
+  ]) {
+    await expect(sellDialog.getByLabel(label, { exact: true })).toBeVisible();
+  }
+  await page.keyboard.press("Escape");
+  await expect(sellDialog).toHaveCount(0);
+  await expect(sellOpener).toBeFocused();
 });
 
 test("Create-account footer stays pinned inside short mobile viewports", async ({

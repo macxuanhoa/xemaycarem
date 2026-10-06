@@ -35,5 +35,6 @@ Khi tiếp nhận bất kỳ yêu cầu nào về giao diện, bố cục hoặc
 
 ## 4. Tinh Tế & Nhẹ Nhàng (Không Lạm Dụng Animation)
 - Giới hạn thời gian chuyển động trong khoảng `150ms - 200ms`.
-- Chỉ sử dụng micro-lift nhẹ (`translateY(-1px)`) và bóng đổ khi hover.
+- Hover (nút, thẻ, mục menu, pill, ảnh): KHÔNG dùng `transform` — không nhấc `translateY(-1px)`, không phóng `scale`. Chỉ đổi màu nền / viền / bóng (`box-shadow`) hoặc `filter: brightness()` rất nhẹ.
+- Được phép giữ `transform` cho trạng thái nhấn (`:active`) và chỉ báo mục đang chọn (`.active`), vì đó là phản hồi bấm, không phải hover.
 - Không dùng animation chạy nền gây hao pin máy tính bảng hay gây mất tập trung cho nhân sự.

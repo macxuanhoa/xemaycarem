@@ -105,6 +105,15 @@ export function VehicleDetailPage() {
   const available = ["IN_STOCK", "RESERVED"].includes(vehicle.status);
   const financial = canFinance(profile);
   const hasSales = !!vehicle.sales?.length;
+  const canAddExpense = canManage(profile) && available;
+  const canEditVehicle =
+    canOperate(profile) &&
+    vehicle.status !== "SOLD" &&
+    (vehicle.status !== "CANCELLED" || canManage(profile));
+  const canSellVehicle = canOperate(profile) && available && !vehicle.cost_pending;
+  const canRemoveVehicle = canDeleteVehicle(profile) && !hasSales;
+  const hasVehicleActions =
+    canAddExpense || canEditVehicle || canSellVehicle || canRemoveVehicle;
 
   return (
     <div className="stack">
@@ -118,38 +127,6 @@ export function VehicleDetailPage() {
       <PageHeader
         title={`${vehicle.brand} ${vehicle.model}`}
         description={`Số khung: ${vehicle.frame_number || "—"} · ${vehicle.license_plate || "Chưa có biển số"}`}
-        actions={
-          <div className="row">
-            {canManage(profile) && available && (
-              <Button variant="secondary" onClick={() => setExpenseOpen(true)}>
-                <CirclePlus size={16} /> Chi phí
-              </Button>
-            )}
-            {canOperate(profile) &&
-              vehicle.status !== "SOLD" &&
-              (vehicle.status !== "CANCELLED" || canManage(profile)) && (
-                <Link className="button secondary" to={`/vehicles/${id}/edit`}>
-                  <Pencil size={16} />{" "}
-                  {vehicle.status === "CANCELLED"
-                    ? "Khôi phục / Sửa"
-                    : "Chỉnh sửa"}
-                </Link>
-              )}
-            {canOperate(profile) && available && !vehicle.cost_pending && (
-              <Link className="button primary" to={`/vehicles/${id}/sell`}>
-                <ShoppingBag size={17} /> Bán xe này
-              </Link>
-            )}
-            {canDeleteVehicle(profile) && !hasSales && (
-              <Button
-                variant="danger"
-                onClick={() => setDeleteOpen(true)}
-              >
-                <Trash2 size={16} /> Xóa xe khỏi kho
-              </Button>
-            )}
-          </div>
-        }
       />
       {location.state?.acquisitionConfirmed && (
         <div className="notice" role="status">
@@ -158,19 +135,6 @@ export function VehicleDetailPage() {
             + Thu xe tiếp
           </Link>{" "}
           · <Link to={`/capture?vehicle=${id}`}>Thêm ảnh</Link>
-          {canManage(profile) && (
-            <>
-              {" "}
-              ·{" "}
-              <button
-                type="button"
-                className="text-link"
-                onClick={() => setExpenseOpen(true)}
-              >
-                + Chi phí
-              </button>
-            </>
-          )}
         </div>
       )}
       {message && (
@@ -186,6 +150,50 @@ export function VehicleDetailPage() {
           </span>
         )}
       </div>
+      {hasVehicleActions && (
+        <Card className="vehicle-actions-card">
+          <h2 className="section-title">Thao tác</h2>
+          <div className="vehicle-actions-grid">
+            {canSellVehicle && (
+              <Link
+                className="button primary vehicle-action-button vehicle-action-sell"
+                to={`/vehicles/${id}/sell`}
+              >
+                <ShoppingBag size={17} /> Bán xe này
+              </Link>
+            )}
+            {canAddExpense && (
+              <Button
+                className="vehicle-action-button"
+                variant="secondary"
+                onClick={() => setExpenseOpen(true)}
+              >
+                <CirclePlus size={16} /> Thêm chi phí
+              </Button>
+            )}
+            {canEditVehicle && (
+              <Link
+                className="button secondary vehicle-action-button"
+                to={`/vehicles/${id}/edit`}
+              >
+                <Pencil size={16} />
+                {vehicle.status === "CANCELLED" ? "Khôi phục / Sửa" : "Chỉnh sửa"}
+              </Link>
+            )}
+            {canRemoveVehicle && (
+              <div className="vehicle-action-danger">
+                <Button
+                  className="vehicle-action-button vehicle-action-delete"
+                  variant="danger"
+                  onClick={() => setDeleteOpen(true)}
+                >
+                  <Trash2 size={16} /> Xóa xe khỏi kho
+                </Button>
+              </div>
+            )}
+          </div>
+        </Card>
+      )}
       {/* Vehicle value leads the page: one horizontal strip so the money
           figures are the first thing owners scan, on every screen size. */}
       <Card>
@@ -204,10 +212,6 @@ export function VehicleDetailPage() {
                     ? "Chờ bổ sung"
                     : money(vehicle.purchase_price)}
                 </strong>
-              </div>
-              <div className="value-item">
-                <span>Chi phí phát sinh</span>
-                <strong>{money(vehicle.expense_total ?? 0)}</strong>
               </div>
               <div className="value-item total">
                 <span>Tổng giá vốn</span>
@@ -311,17 +315,7 @@ export function VehicleDetailPage() {
           )}
           {canManage(profile) && (
             <Card>
-              <div className="row between">
-                <h2 className="section-title">Chi phí của xe</h2>
-                {available && (
-                  <Button
-                    variant="secondary"
-                    onClick={() => setExpenseOpen(true)}
-                  >
-                    <CirclePlus size={16} /> Thêm chi phí
-                  </Button>
-                )}
-              </div>
+              <h2 className="section-title">Chi phí của xe</h2>
               {vehicle.expenses?.length ? (
                 <div className="compact-list">
                   {vehicle.expenses.map((expense) => (

@@ -134,7 +134,8 @@ async function nativeDatabase() {
       exec: (sql) => bootstrap.query(sql),
       connection: async () => {
         const connection = await pool.connect()
-        connection.on('error', () => {})
+        // Pool checkouts reuse the same client; do not accumulate one listener per RPC.
+        if (connection.listenerCount('error') === 0) connection.on('error', () => {})
         return { query: (sql, values) => connection.query(sql, values), exec: (sql) => connection.query(sql), close: () => connection.release() }
       },
       close: async () => {

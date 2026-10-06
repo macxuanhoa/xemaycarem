@@ -2,12 +2,15 @@ import { useState } from "react";
 import { useDebouncedValue } from "@/lib/useDebouncedValue";
 import { useFormDraft } from "@/lib/useFormDraft";
 import { MoneyInput } from "@/components/ui/MoneyInput";
-import { Link, useNavigate, useParams } from "react-router-dom";
+import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { ArrowLeft, ArrowRight, Bike, Search, ShoppingBag } from "lucide-react";
 import { api } from "@/lib/api";
+import { AppError } from "@/lib/errors";
+import { executeOperation } from "@/lib/operationRecovery";
+import { OperationRecoveryNotice } from "@/components/OperationRecoveryNotice";
 import { canFinance, canOperate } from "@/lib/permissions";
 import { money, today } from "@/lib/format";
 import { useAuth } from "@/features/auth/AuthProvider";
@@ -31,6 +34,7 @@ import { saleSchema, type SaleFormValues } from "./saleSchema";
 const pageSize = 6;
 
 export function SellVehiclePage() {
+  const navigate = useNavigate();
   const { id } = useParams();
   const { profile } = useAuth();
   const [search, setSearch] = useState("");
@@ -169,6 +173,10 @@ export function SellVehiclePage() {
   )
     return (
       <div className="stack">
+        <OperationRecoveryNotice<string>
+          userId={profile?.id} operation="sell_vehicle" scope={id}
+          onConfirmed={saleId => navigate(`/sales/${saleId}`)}
+        />
         <EmptyState
           title="Xe chưa sẵn sàng để bán"
           description="Xe phải đang tồn kho hoặc được giữ chỗ, có đủ giá nhập và chưa được bán."
@@ -185,15 +193,29 @@ export function SellVehiclePage() {
 function SaleEditor({ vehicle }: { vehicle: Vehicle }) {
   const { profile } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
   const client = useQueryClient();
   const draftKey = `sale:${vehicle.id}`;
+  // Copilot draft handoff: only these reviewed fields prefill; every value
+  // stays editable and the save still goes through the confirmed sell RPC.
+  const aiDraft = (location.state as { aiDraft?: Record<string, unknown> } | null)
+    ?.aiDraft;
 
   const form = useForm<SaleFormValues>({
     resolver: zodResolver(saleSchema),
     defaultValues: {
-      customer_name: "",
-      customer_phone: "",
-      sale_price: vehicle.asking_price,
+      customer_name:
+        typeof aiDraft?.customer_name === "string"
+          ? aiDraft.customer_name.slice(0, 120)
+          : "",
+      customer_phone:
+        typeof aiDraft?.customer_phone === "string"
+          ? aiDraft.customer_phone.slice(0, 15)
+          : "",
+      sale_price:
+        typeof aiDraft?.sale_price === "number" && aiDraft.sale_price >= 1_000_000
+          ? aiDraft.sale_price
+          : vehicle.asking_price,
       sale_date: today(),
       due_date: "",
       initial_payment: 0,
@@ -208,10 +230,14 @@ function SaleEditor({ vehicle }: { vehicle: Vehicle }) {
   const paid = form.watch("initial_payment");
 
   const mutation = useMutation({
-    mutationFn: (values: SaleFormValues) =>
-      api.call<string>("sell_vehicle", {
-        p_data: { ...values, vehicle_id: vehicle.id },
-      }),
+    mutationFn: (values: SaleFormValues) => {
+      if (!profile) throw new AppError("Vui lòng đăng nhập lại trước khi bán xe.");
+      return executeOperation<string>(profile.id, "sell_vehicle", vehicle.id, requestId =>
+        api.call<string>("sell_vehicle", {
+          p_data: { ...values, vehicle_id: vehicle.id, request_id: requestId },
+        }),
+      );
+    },
     onSuccess: async (saleId) => {
       draftState.complete();
       // The sale is already committed. Messaging runs in the background and can never fail the sale UX.
@@ -235,11 +261,25 @@ function SaleEditor({ vehicle }: { vehicle: Vehicle }) {
         title="Bán xe"
         description="Hoàn tất thông tin khách hàng, giá bán và thanh toán trong một bước."
       />
+      {aiDraft && (
+        <p className="notice">
+          Bản nháp từ câu lệnh của Cà Rem: kiểm tra lại khách hàng, số điện thoại
+          và giá bán trước khi lưu.
+        </p>
+      )}
+      <OperationRecoveryNotice<string>
+        userId={profile?.id} operation="sell_vehicle" scope={vehicle.id}
+        onConfirmed={async saleId => {
+          draftState.complete();
+          await client.invalidateQueries();
+          navigate(`/sales/${saleId}`);
+        }}
+      />
       {draft && (
         <div className="notice draft-notice">
           <span>
-            Có bản nháp khách hàng cho xe này. Giá và thanh toán cần kiểm tra
-            lại.
+            Có bản nháp ngày giao dịch cho xe này. Thông tin khách hàng, giá,
+            thanh toán và ghi chú cần nhập lại.
           </span>
           <Button variant="secondary" onClick={draftState.resume}>
             Tiếp tục bản nháp

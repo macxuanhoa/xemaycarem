@@ -186,23 +186,26 @@ describe("learnedDictionary", () => {
     storage.setItem("carem_shorthand_dict_v1:u1", "{oops");
     expect(loadDictionary("u1", storage)).toEqual({});
     expect(learnRule(undefined, "x", "brand", "Honda", storage)).toEqual({});
+    learnRule("u1", "private", "supplier_name", "Test private seller", storage);
+    learnRule("u1", "privatephone", "supplier_phone", "0900000001", storage);
+    learnRule("u1", "privatenote", "notes", "Test private note", storage);
+    const safe = loadDictionary("u1", storage);
+    expect(safe.private).toBeUndefined();
+    expect(safe.privatephone).toBeUndefined();
+    expect(safe.privatenote).toBeUndefined();
   });
 });
 
 describe("intake payload", () => {
   const entry = parseIntakeNotes("sh den 29b1-123.45 gia 18tr5 fk RLH160-001")[0];
 
-  it("requires model and price (for finance) but not frame or brand", () => {
+  it("allows missing model and purchase price while keeping other validation", () => {
     expect(validateIntakeEntry(entry, true)).toEqual([]);
     expect(validateIntakeEntry(entry, false)).toEqual([]);
-    // Số khung + Hãng xe optional: an entry that only has brand should still
-    // complain about missing model and (for finance) missing giá thu, but
-    // must not flag "số khung" anymore.
+    // Model, frame, brand, and purchase price may be filled in after intake.
     const missing = { ...entry, fields: { brand: "Honda" } };
-    const errors = validateIntakeEntry(missing, true);
-    expect(errors.join(" ")).not.toMatch(/số khung/);
-    expect(errors.join(" ")).toMatch(/dòng xe/);
-    expect(errors.join(" ")).toMatch(/giá thu/);
+    expect(validateIntakeEntry(missing, true)).toEqual([]);
+    expect(validateIntakeEntry(missing, false)).toEqual([]);
   });
   it("never sends purchase_price for users without financial rights", () => {
     const row = entryToImportRow(entry, false);

@@ -22,8 +22,21 @@
   min-height: 100vh;
   background-color: var(--sr-bg);
   color: var(--sr-text);
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  font-family:
+    -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue",
+    Arial, sans-serif;
   overflow-x: hidden;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .showroom-root *,
+  .showroom-root *::before,
+  .showroom-root *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+  }
 }
 
 .showroom-container {
@@ -78,9 +91,18 @@
 }
 
 @keyframes srPulse {
-  0% { transform: scale(0.95); opacity: 0.8; }
-  50% { transform: scale(1.3); opacity: 1; }
-  100% { transform: scale(0.95); opacity: 0.8; }
+  0% {
+    transform: scale(0.95);
+    opacity: 0.8;
+  }
+  50% {
+    transform: scale(1.3);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(0.95);
+    opacity: 0.8;
+  }
 }
 
 .location-text {
@@ -132,7 +154,7 @@
   background: var(--sr-red);
   color: #fff;
   border-color: var(--sr-red);
-  box-shadow: 0 0 12px rgba(225, 29, 72, 0.4);
+  box-shadow: 0 0 10px rgba(225, 29, 72, 0.3);
 }
 
 /* ==========================================================================
@@ -269,8 +291,7 @@
   background: var(--sr-red);
   color: #fff;
   border-color: var(--sr-red);
-  box-shadow: var(--sr-red-glow);
-  transform: translateY(-1px);
+  box-shadow: 0 0 14px rgba(225, 29, 72, 0.35);
 }
 
 .btn-zalo-quick {
@@ -289,8 +310,7 @@
 
 .btn-zalo-quick:hover {
   background: #0056d6;
-  box-shadow: 0 0 14px rgba(0, 104, 255, 0.5);
-  transform: translateY(-1px);
+  box-shadow: 0 0 10px rgba(0, 104, 255, 0.35);
 }
 
 .btn-mobile-toggle {
@@ -321,8 +341,14 @@
 }
 
 @keyframes srSlideDown {
-  from { opacity: 0; transform: translateY(-10px); }
-  to { opacity: 1; transform: translateY(0); }
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .mobile-drawer-links {
@@ -372,7 +398,7 @@
 }
 
 .mobile-hotline-btn:hover {
-  filter: brightness(1.1);
+  filter: brightness(1.06);
 }
 
 /* ==========================================================================
@@ -516,8 +542,8 @@
 }
 
 .btn-hero-primary:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 8px 25px rgba(225, 29, 72, 0.65);
+  /* Hover chỉ sáng bóng và đậm màu: không nhấc nút khỏi vị trí. */
+  box-shadow: 0 6px 18px rgba(225, 29, 72, 0.5);
 }
 
 .btn-hero-secondary {
@@ -540,7 +566,6 @@
 .btn-hero-secondary:hover {
   background: rgba(255, 255, 255, 0.15);
   border-color: rgba(255, 255, 255, 0.4);
-  transform: translateY(-2px);
 }
 
 .btn-hero-zalo {
@@ -561,8 +586,7 @@
 .btn-hero-zalo:hover {
   background: #0068ff;
   color: #fff;
-  box-shadow: 0 0 16px rgba(0, 104, 255, 0.5);
-  transform: translateY(-2px);
+  box-shadow: 0 0 12px rgba(0, 104, 255, 0.4);
 }
 
 .hero-trust-bar {
@@ -605,7 +629,9 @@
 .neon-card {
   background: linear-gradient(180deg, #151a22 0%, #0f1318 100%);
   border: 2px solid rgba(225, 29, 72, 0.5);
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5), inset 0 0 15px rgba(225, 29, 72, 0.08);
+  box-shadow:
+    0 4px 20px rgba(0, 0, 0, 0.5),
+    inset 0 0 15px rgba(225, 29, 72, 0.08);
   border-radius: 14px;
   padding: 24px 20px;
   text-decoration: none;
@@ -613,14 +639,17 @@
   display: flex;
   flex-direction: column;
   cursor: pointer;
-  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+  transition:
+    box-shadow 0.18s ease-out,
+    border-color 0.18s ease-out;
   position: relative;
 }
 
 .neon-card:hover {
-  transform: translateY(-5px);
   border-color: var(--sr-red-bright);
-  box-shadow: 0 10px 30px rgba(225, 29, 72, 0.35), inset 0 0 20px rgba(225, 29, 72, 0.15);
+  box-shadow:
+    0 6px 18px rgba(225, 29, 72, 0.22),
+    inset 0 0 15px rgba(225, 29, 72, 0.1);
 }
 
 .neon-card.highlight {
@@ -646,7 +675,7 @@
 .neon-card:hover .neon-card-icon {
   background: var(--sr-red);
   color: #fff;
-  box-shadow: 0 0 16px var(--sr-red);
+  box-shadow: 0 0 10px rgba(225, 29, 72, 0.6);
 }
 
 .neon-card-title {
@@ -838,13 +867,14 @@
   overflow: hidden;
   display: flex;
   flex-direction: column;
-  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+  transition:
+    box-shadow 0.18s ease-out,
+    border-color 0.18s ease-out;
 }
 
 .bike-card-neon:hover {
-  transform: translateY(-5px);
   border-color: var(--sr-red-bright);
-  box-shadow: 0 12px 32px rgba(225, 29, 72, 0.28);
+  box-shadow: 0 6px 18px rgba(225, 29, 72, 0.2);
 }
 
 .bike-card-image-wrap {
@@ -860,11 +890,6 @@
   height: 100%;
   object-fit: cover;
   display: block;
-  transition: transform 0.35s ease;
-}
-
-.bike-card-neon:hover .bike-card-img {
-  transform: scale(1.05);
 }
 
 .bike-badges-floating {
@@ -1036,8 +1061,7 @@
 }
 
 .btn-card-zalo:hover {
-  filter: brightness(1.1);
-  transform: translateY(-1px);
+  filter: brightness(1.06);
 }
 
 .showroom-empty-state {
@@ -1063,7 +1087,9 @@
 .about-carem-card {
   background: linear-gradient(135deg, #13171e 0%, #0c0f14 100%);
   border: 2px solid rgba(225, 29, 72, 0.45);
-  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.6), inset 0 0 30px rgba(225, 29, 72, 0.06);
+  box-shadow:
+    0 8px 30px rgba(0, 0, 0, 0.6),
+    inset 0 0 30px rgba(225, 29, 72, 0.06);
   border-radius: 18px;
   padding: 40px;
   display: grid;
@@ -1239,7 +1265,6 @@
 
 .process-step-item:hover {
   border-color: rgba(225, 29, 72, 0.6);
-  transform: translateY(-3px);
 }
 
 .process-step-item.highlight-step {
@@ -1332,11 +1357,12 @@
   height: 100%;
   object-fit: cover;
   display: block;
-  transition: transform 0.35s ease;
+  transition: filter 0.2s ease-out;
 }
 
+/* Ảnh gallery không phóng to khi rê chuột; chỉ sáng nhẹ để vẫn có phản hồi. */
 .gallery-card:hover .gallery-img {
-  transform: scale(1.04);
+  filter: brightness(1.06);
 }
 
 .gallery-caption {
@@ -1481,8 +1507,7 @@
 }
 
 .social-btn:hover {
-  transform: translateY(-2px);
-  filter: brightness(1.15);
+  filter: brightness(1.08);
 }
 
 .contact-map-col {
@@ -1624,8 +1649,12 @@
 }
 
 @keyframes srFadeIn {
-  from { opacity: 0; }
-  to { opacity: 1; }
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
 }
 
 .showroom-modal-card {

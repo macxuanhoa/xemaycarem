@@ -8,6 +8,8 @@ import { canManage, canOperate } from "@/lib/permissions";
 import { QuickExpenseModal } from "@/features/expenses/QuickExpenseModal";
 import type { Vehicle } from "@/types";
 import { dateLabel, money } from "@/lib/format";
+import { detectDraftAction } from "@/lib/shorthand/draftActions";
+import { DraftActionCard } from "@/features/copilot/DraftActionCard";
 import { actionLabels } from "@/features/vehicles/vehicleSchema";
 
 type Task =
@@ -274,6 +276,12 @@ export default function AssistPage() {
   };
   const result = mutation.data;
   const draft = result?.kind === "draft" ? result.draft : null;
+  // Without a configured provider the voice task still parses locally into an
+  // editable draft proposal; saving stays behind the normal confirmed forms.
+  const offlineAction =
+    task === "voice" && !draft && text.trim().length >= 6
+      ? detectDraftAction(text.trim())
+      : null;
   return (
     <div className="stack">
       <PageHeader
@@ -418,6 +426,7 @@ export default function AssistPage() {
           )}
         </form>
       </Card>
+      {offlineAction && <DraftActionCard action={offlineAction} />}
       {result?.kind === "read_result" && (
         <Card>
           <h2 className="section-title">Dữ liệu cửa hàng</h2>

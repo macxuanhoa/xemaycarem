@@ -3,8 +3,15 @@
  * teach the tool every abbreviation you correct, then intake the whole
  * batch atomically through `import_vehicles`.
  */
-import { useMemo, useRef, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ChangeEvent,
+  type KeyboardEvent,
+} from "react";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import {
   useMutation,
   useQuery,
@@ -13,6 +20,7 @@ import {
 import {
   ArrowLeft,
   CheckCircle2,
+  ClipboardPaste,
   GraduationCap,
   NotebookPen,
   Plus,
@@ -20,11 +28,22 @@ import {
   X,
 } from "lucide-react";
 import { api } from "@/lib/api";
+import { AppError, friendlyError } from "@/lib/errors";
+import { executeOperation, reconcileOperation } from "@/lib/operationRecovery";
+import { OperationRecoveryNotice } from "@/components/OperationRecoveryNotice";
 import { canFinance } from "@/lib/permissions";
-import { isoToDisplayDate, displayToIsoDate, money } from "@/lib/format";
+import { isoToDisplayDate, displayToIsoDate, money, today } from "@/lib/format";
+import { formatVndNumber } from "@/lib/moneyHelper";
 import { canonicalizePlate, PLATE_EXAMPLE } from "@/lib/plate";
 import { toast } from "@/lib/toast";
-import { Button, Card, ColorSwatchAction, Field, PageHeader } from "@/components/ui";
+import {
+  Button,
+  Card,
+  ColorSwatchAction,
+  Field,
+  GroupedIntegerInput,
+  PageHeader,
+} from "@/components/ui";
 import { AutocompleteInput } from "@/components/ui/AutocompleteInput";
 import { confirmAction } from "@/components/ui/ConfirmDialog";
 import { useAuth } from "@/features/auth/AuthProvider";
@@ -41,6 +60,7 @@ import {
   learnRule,
   listRules,
   loadDictionary,
+  LOCAL_LEARNING_FIELDS,
 } from "@/lib/shorthand/learnedDictionary";
 import { normalizeKey } from "@/lib/shorthand/vocabulary";
 import {
@@ -50,6 +70,7 @@ import {
 } from "@/lib/shorthand/intakeRows";
 import { vehicleSuggestions } from "@/lib/vehicleSuggestions";
 import type { Paged, Vehicle } from "@/types";
+import { normalizeVehicleYear } from "@/lib/vehicleInputFormatting";
 
 type ImportIssue = { index: number; field: string; message: string };
 type ImportCheck = { duplicates: ImportIssue[]; errors: ImportIssue[] };
@@ -60,8 +81,14 @@ const TEACHABLE_FIELDS = new Set<IntakeFieldKey>([
   "model",
   "variant",
   "color",
-  "supplier_name",
 ]);
+
+// Defer Storage getter access until the dictionary helper's guarded read/write.
+// Passing localStorage directly can throw before those guards are entered.
+const dictionaryStorage = {
+  getItem: (key: string) => localStorage.getItem(key),
+  setItem: (key: string, value: string) => localStorage.setItem(key, value),
+};
 
 /** ISO (yyyy-mm-dd) → "dd/mm/yyyy" for display; partial user text passes through. */
 function dateDisplay(raw: string): string {
@@ -84,11 +111,18 @@ export default function ShorthandIntakePage() {
   const navigate = useNavigate();
   const client = useQueryClient();
   const financial = canFinance(profile);
+  // Copilot handoff: a command sentence can seed the notes box and auto-parse.
+  const location = useLocation();
+  const seedText =
+    typeof (location.state as { seedText?: unknown } | null)?.seedText ===
+    "string"
+      ? String((location.state as { seedText: string }).seedText).slice(0, 4000)
+      : "";
 
-  const [text, setText] = useState("");
+  const [text, setText] = useState(seedText);
   const [entries, setEntries] = useState<IntakeEntry[]>([]);
   const [dict, setDict] = useState<LearnedDictionary>(() =>
-    loadDictionary(profile?.id, localStorage),
+    loadDictionary(profile?.id, dictionaryStorage),
   );
   const [dictionaryChanged, setDictionaryChanged] = useState(false);
   const [lesson, setLesson] = useState<{ key: string; field: IntakeFieldKey; value: string } | null>(null);
@@ -119,12 +153,50 @@ export default function ShorthandIntakePage() {
     );
 
   const handleParse = () => {
-    const parsed = parseIntakeNotes(text, dict);
+    const currentDate = today();
+    const parsed = parseIntakeNotes(text, dict).map((entry) => ({
+      ...entry,
+      fields: {
+        ...entry.fields,
+        purchase_date: entry.fields.purchase_date ?? currentDate,
+      },
+    }));
     setEntries(parsed);
     setServerIssues({});
     setDictionaryChanged(false);
     if (!parsed.length)
       toast.info("Chưa tách được dòng nào. Mỗi dòng là một xe, ví dụ: \"sh đen 18tr5\".");
+  };
+
+  const didAutoParse = useRef(false);
+  useEffect(() => {
+    if (!seedText || didAutoParse.current) return;
+    didAutoParse.current = true;
+    const currentDate = today();
+    setEntries(
+      parseIntakeNotes(seedText, dict).map((entry) => ({
+        ...entry,
+        fields: {
+          ...entry.fields,
+          purchase_date: entry.fields.purchase_date ?? currentDate,
+        },
+      })),
+    );
+  }, [seedText, dict]);
+
+  const handlePasteClipboard = async () => {
+    try {
+      const clipboardText = await navigator.clipboard.readText();
+      if (!clipboardText.trim()) {
+        toast.info("Clipboard đang trống.");
+        return;
+      }
+      setText(clipboardText);
+      requestAnimationFrame(() => notesRef.current?.focus());
+      toast.success("Đã dán ghi chú từ clipboard.");
+    } catch {
+      toast.error("Chưa đọc được clipboard. Hãy dán trực tiếp vào ô ghi chú.");
+    }
   };
 
   const updateField = (id: string, field: IntakeFieldKey, value: string) => {
@@ -145,7 +217,7 @@ export default function ShorthandIntakePage() {
   const saveLesson = () => {
     if (!lesson || !lesson.key.trim() || !lesson.value.trim()) return;
     setDict(
-      learnRule(profile?.id, lesson.key, lesson.field, lesson.value, localStorage),
+      learnRule(profile?.id, lesson.key, lesson.field, lesson.value, dictionaryStorage),
     );
     setDictionaryChanged(true);
     toast.success(
@@ -177,6 +249,9 @@ export default function ShorthandIntakePage() {
 
   const submit = useMutation({
     mutationFn: async () => {
+      if (!profile) throw new AppError("Vui lòng đăng nhập lại trước khi thu xe.");
+      const previous = await reconcileOperation<{ imported_count: number }>(profile.id, "import_vehicles", "batch");
+      if (previous.confirmed) return { status: "done" as const, count: previous.result!.imported_count };
       const rows = entries.map((entry) => entryToImportRow(entry, financial));
       const check = await api.call<ImportCheck>("validate_import_vehicles", {
         p_vehicles: rows,
@@ -196,9 +271,10 @@ export default function ShorthandIntakePage() {
         confirmLabel: "Xác nhận thu xe",
       });
       if (!confirmed) return { status: "cancelled" as const };
-      const result = await api.call<{ imported_count: number }>(
-        "import_vehicles",
-        { p_vehicles: rows },
+      const result = await executeOperation<{ imported_count: number }>(
+        profile.id, "import_vehicles", "batch", requestId => api.call("import_vehicles", {
+          p_vehicles: { rows, request_id: requestId },
+        }),
       );
       return { status: "done" as const, count: result.imported_count };
     },
@@ -227,6 +303,13 @@ export default function ShorthandIntakePage() {
 
   return (
     <div className="stack intake-page">
+      <OperationRecoveryNotice<{ imported_count: number }>
+        userId={profile?.id} operation="import_vehicles" scope="batch"
+        onConfirmed={async () => {
+          await client.invalidateQueries();
+          navigate("/acquisitions");
+        }}
+      />
       <Link className="back-link" to="/acquisitions">
         <ArrowLeft size={16} /> Thu vào
       </Link>
@@ -236,9 +319,19 @@ export default function ShorthandIntakePage() {
       />
 
       <Card className="intake-notes-card">
-        <h2 className="section-title">
-          <NotebookPen size={16} aria-hidden="true" /> 1. Dán ghi chú
-        </h2>
+        <div className="intake-notes-heading">
+          <h2 className="section-title">
+            <NotebookPen size={16} aria-hidden="true" />
+            <span>1. Dán ghi chú</span>
+          </h2>
+          <Button
+            type="button"
+            variant="secondary"
+            onClick={() => void handlePasteClipboard()}
+          >
+            <ClipboardPaste size={16} /> Dán
+          </Button>
+        </div>
 
         <textarea
           ref={notesRef}
@@ -308,7 +401,7 @@ export default function ShorthandIntakePage() {
                   placeholder="Honda"
                 />
               </Field>
-              <Field label="Dòng xe *" className="intake-span2">
+              <Field label="Dòng xe" className="intake-span2">
                 <AutocompleteInput
                   value={entry.fields.model ?? ""}
                   suggestions={suggestionsFor("model", entry)}
@@ -384,16 +477,22 @@ export default function ShorthandIntakePage() {
                 <input
                   value={entry.fields.year ?? ""}
                   onChange={(event) => updateField(entry.id, "year", event.target.value)}
+                  onBlur={(event) => {
+                    const year = normalizeVehicleYear(event.currentTarget.value);
+                    if (year != null && String(year) !== entry.fields.year) {
+                      updateField(entry.id, "year", String(year));
+                    }
+                  }}
                   inputMode="numeric"
                   placeholder="2022"
                 />
               </Field>
               <Field label="Số km đã đi">
-                <input
+                <GroupedIntegerInput
+                  aria-label="Số km đã đi"
                   value={entry.fields.odometer ?? ""}
-                  onChange={(event) => updateField(entry.id, "odometer", event.target.value)}
-                  inputMode="numeric"
-                  placeholder="12000"
+                  onChange={(digits) => updateField(entry.id, "odometer", digits)}
+                  placeholder="12.500"
                 />
               </Field>
               <Field label="Ngày thu">
@@ -414,25 +513,25 @@ export default function ShorthandIntakePage() {
                 />
               </Field>
               {financial && (
-                <Field label="Giá thu *">
-                  <input
+                <Field label="Giá thu">
+                  <IntakeMoneyInput
+                    ariaLabel="Giá thu"
                     value={entry.fields.purchase_price ?? ""}
-                    onChange={(event) =>
-                      updateField(entry.id, "purchase_price", event.target.value)
+                    onChange={(value) =>
+                      updateField(entry.id, "purchase_price", value)
                     }
-                    inputMode="numeric"
                     placeholder="18tr5"
                   />
                   {moneyHint(entry.fields.purchase_price)}
                 </Field>
               )}
               <Field label="Giá bán dự kiến">
-                <input
+                <IntakeMoneyInput
+                  ariaLabel="Giá bán dự kiến"
                   value={entry.fields.asking_price ?? ""}
-                  onChange={(event) =>
-                    updateField(entry.id, "asking_price", event.target.value)
+                  onChange={(value) =>
+                    updateField(entry.id, "asking_price", value)
                   }
-                  inputMode="numeric"
                   placeholder="22tr"
                 />
                 {moneyHint(entry.fields.asking_price)}
@@ -532,12 +631,6 @@ export default function ShorthandIntakePage() {
             </h2>
             <span className="muted small">{entries.length} xe trong danh sách</span>
           </div>
-          {blockingCount > 0 && (
-            <p className="notice danger" role="status">
-              {blockingCount} xe còn thiếu thông tin bắt buộc (dòng xe
-              {financial ? ", giá thu" : ""}). Xem cảnh báo đỏ ở từng thẻ xe.
-            </p>
-          )}
           {unknownCount > 0 && (
             <p className="muted small">
               Còn {unknownCount} từ chưa nhận diện — gán vào ghi chú hoặc dạy Cà Rem
@@ -547,9 +640,7 @@ export default function ShorthandIntakePage() {
           <div className="form-actions">
             <Button
               type="button"
-              disabled={
-                blockingCount > 0 || submit.isPending || !entries.length
-              }
+              disabled={blockingCount > 0 || submit.isPending || !entries.length}
               onClick={() => void submit.mutate()}
             >
               {submit.isPending ? (
@@ -563,9 +654,7 @@ export default function ShorthandIntakePage() {
           </div>
           {submit.isError && (
             <p className="notice danger">
-              {submit.error instanceof Error
-                ? submit.error.message
-                : "Chưa lưu được. Kiểm tra kết nối rồi thử lại."}
+              {friendlyError(submit.error)}
             </p>
           )}
         </Card>
@@ -597,7 +686,7 @@ export default function ShorthandIntakePage() {
                     setLesson({ ...lesson, field: event.target.value as IntakeFieldKey })
                   }
                 >
-                  {INTAKE_FIELDS.map((field) => (
+                  {INTAKE_FIELDS.filter(field => LOCAL_LEARNING_FIELDS.has(field.key)).map((field) => (
                     <option key={field.key} value={field.key}>
                       {field.label}
                     </option>
@@ -632,7 +721,7 @@ export default function ShorthandIntakePage() {
                   <button
                     type="button"
                     aria-label={`Quên quy tắc ${rule.key}`}
-                    onClick={() => setDict(forgetRule(profile?.id, rule.key, localStorage))}
+                    onClick={() => setDict(forgetRule(profile?.id, rule.key, dictionaryStorage))}
                   >
                     <X size={12} />
                   </button>
@@ -652,4 +741,121 @@ function moneyHint(raw?: string) {
   if (value === null)
     return <span className="intake-money-hint danger">Chưa hiểu số tiền này</span>;
   return <span className="intake-money-hint">= {money(value)}</span>;
+}
+
+function IntakeMoneyInput({
+  value,
+  onChange,
+  placeholder,
+  ariaLabel,
+}: {
+  value: string;
+  onChange: (value: string) => void;
+  placeholder: string;
+  ariaLabel: string;
+}) {
+  const inputRef = useRef<HTMLInputElement>(null);
+  // Values parsed from the pasted notes can arrive as plain digits without an
+  // input event, so normalize the displayed value as well as formatting edits.
+  const displayValue = (() => {
+    if (/[^\d.,\s]/u.test(value)) {
+      const shorthand = parseShorthandMoney(value);
+      return shorthand == null ? value : formatVndNumber(shorthand);
+    }
+    if (/^\d+(?:[.,]\d+)?\s+$/.test(value)) return value;
+    const digits = value.replace(/\D/g, "").replace(/^0+(?=\d)/, "").slice(0, 13);
+    if (!digits) return "";
+    const amount = Number(digits);
+    return Number.isSafeInteger(amount) && amount <= 1_000_000_000_000
+      ? formatVndNumber(amount)
+      : value;
+  })();
+
+  const formatTypedValue = (raw: string, cursorBefore: number) => {
+    // Preserve shorthand and invalid text as typed so the existing parser can
+    // interpret it or show its per-field warning without losing the input.
+    if (/[^\d.,\s]/u.test(raw)) {
+      const shorthand = parseShorthandMoney(raw);
+      if (shorthand != null) {
+        const formatted = formatVndNumber(shorthand);
+        onChange(formatted);
+        requestAnimationFrame(() => {
+          inputRef.current?.setSelectionRange(formatted.length, formatted.length);
+        });
+        return;
+      }
+      onChange(raw);
+      return;
+    }
+    if (/^\d+(?:[.,]\d+)?\s+$/.test(raw)) {
+      onChange(raw);
+      return;
+    }
+
+    const rawDigits = raw.replace(/\D/g, "");
+    if (!rawDigits) {
+      onChange("");
+      return;
+    }
+
+    const digitsBeforeCursor = raw.slice(0, cursorBefore).replace(/\D/g, "").length;
+    const boundedDigits = rawDigits.replace(/^0+(?=\d)/, "").slice(0, 13);
+    const amount = Number(boundedDigits);
+    if (!Number.isSafeInteger(amount) || amount > 1_000_000_000_000) return;
+
+    const formatted = formatVndNumber(amount);
+    let nextCursor = 0;
+    let digitCount = 0;
+    if (digitsBeforeCursor > 0) {
+      nextCursor = formatted.length;
+      for (let index = 0; index < formatted.length; index++) {
+        if (/\d/.test(formatted[index])) digitCount++;
+        if (digitCount === digitsBeforeCursor) {
+          nextCursor = index + 1;
+          break;
+        }
+      }
+    }
+
+    onChange(formatted);
+    requestAnimationFrame(() => {
+      inputRef.current?.setSelectionRange(nextCursor, nextCursor);
+    });
+  };
+
+  const handleChange = (event: ChangeEvent<HTMLInputElement>) => {
+    const input = event.currentTarget;
+    formatTypedValue(input.value, input.selectionStart ?? input.value.length);
+  };
+
+  const handleKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
+    if (event.key !== "Backspace") return;
+    const input = event.currentTarget;
+    const { selectionStart, selectionEnd } = input;
+    if (
+      selectionStart != null &&
+      selectionStart === selectionEnd &&
+      selectionStart > 1 &&
+      input.value[selectionStart - 1] === "."
+    ) {
+      event.preventDefault();
+      const raw = input.value;
+      const nextRaw = raw.slice(0, selectionStart - 2) + raw.slice(selectionStart);
+      formatTypedValue(nextRaw, selectionStart - 2);
+    }
+  };
+
+  return (
+    <input
+      ref={inputRef}
+      type="text"
+      inputMode="numeric"
+      aria-label={ariaLabel}
+      value={displayValue}
+      onChange={handleChange}
+      onKeyDown={handleKeyDown}
+      placeholder={placeholder}
+      autoComplete="off"
+    />
+  );
 }

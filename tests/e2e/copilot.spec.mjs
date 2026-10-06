@@ -138,6 +138,8 @@ test('hostile AI text stays escaped and cannot execute', async ({ page }) => {
 test('document index lists only the sections the caller may read', async ({ page }) => {
   await setup(page)
   await page.goto('/docs')
+  // Shelves collapse to keep the page short, so open the OPS shelf first.
+  await page.locator('summary.docs-category-title', { hasText: 'Vận hành & Phát hành' }).click()
   await expect(page.getByRole('link', { name: /Checklist phát hành Cà Rem/ })).toBeVisible()
   await expect(page.getByText('2 phần tài liệu bạn được đọc')).toBeVisible()
   await page.getByRole('link', { name: /Checklist phát hành Cà Rem/ }).click()

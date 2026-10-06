@@ -7,6 +7,10 @@ import type { IntakeEntry, IntakeFieldKey } from "./parseIntakeNotes";
 import { parseShorthandMoney } from "./parseIntakeNotes";
 import { today } from "@/lib/format";
 import { canonicalizePlate, isValidMotorbikePlate, PLATE_INVALID_MESSAGE } from "@/lib/plate";
+import {
+  normalizeVehicleYear,
+  parseGroupedInteger,
+} from "@/lib/vehicleInputFormatting";
 
 const MAX_PLATE = 30;
 const MAX_FRAME = 100;
@@ -31,21 +35,21 @@ export function validateIntakeEntry(
     errors.push(`Số khung tối đa ${MAX_FRAME} ký tự.`);
   if (f.brand && f.brand.trim().length > 80)
     errors.push("Hãng xe tối đa 80 ký tự.");
-  if (!f.model?.trim()) errors.push("Thiếu dòng xe.");
-  else if (f.model.trim().length > 120) errors.push("Dòng xe tối đa 120 ký tự.");
+  if ((f.model ?? "").trim().length > 120)
+    errors.push("Dòng xe tối đa 120 ký tự.");
   // Biển số không bắt buộc, nhưng nếu có thì phải đúng format xe máy VN —
   // tránh nhập bậy vẫn được nhận. Rỗng/whitespace luôn hợp lệ.
   const plate = (f.license_plate ?? "").trim();
   if (plate.length > MAX_PLATE) errors.push(`Biển số tối đa ${MAX_PLATE} ký tự.`);
   else if (!isValidMotorbikePlate(plate)) errors.push(PLATE_INVALID_MESSAGE);
   if (f.year) {
-    const year = Number(f.year);
-    if (!/^\d{4}$/.test(f.year.trim()) || year < 1900 || year > 2100)
+    const year = normalizeVehicleYear(f.year);
+    if (year == null || year < 1900 || year > 2100)
       errors.push("Năm sản xuất phải từ 1900 đến 2100.");
   }
   if (f.odometer) {
-    const km = Number(f.odometer);
-    if (!/^\d+$/.test(f.odometer.trim()) || km < 0 || km > 10_000_000)
+    const km = parseGroupedInteger(f.odometer);
+    if (km == null || km > 10_000_000)
       errors.push("Số km phải từ 0 đến 10.000.000.");
   }
   if (f.purchase_date) {
@@ -55,8 +59,8 @@ export function validateIntakeEntry(
       errors.push("Ngày thu không được ở tương lai.");
   }
   const purchase = moneyOf(entry, "purchase_price");
-  if (purchase === "invalid") errors.push("Giá thu không hợp lệ (vd: 18tr5).");
-  if (financial && purchase === null) errors.push("Cần nhập giá thu xe.");
+  if (financial && purchase === "invalid")
+    errors.push("Giá thu không hợp lệ (vd: 18tr5).");
   const asking = moneyOf(entry, "asking_price");
   if (asking === "invalid") errors.push("Giá bán dự kiến không hợp lệ (vd: 22tr).");
   if ((f.supplier_name ?? "").length > 200) errors.push("Tên người bán quá dài.");
@@ -83,8 +87,8 @@ export function entryToImportRow(
     supplier_name: (f.supplier_name ?? "").trim(),
     supplier_phone: (f.supplier_phone ?? "").trim(),
   };
-  if (f.year) row.year = Number(f.year);
-  if (f.odometer) row.odometer = Number(f.odometer);
+  if (f.year) row.year = normalizeVehicleYear(f.year) ?? Number(f.year);
+  if (f.odometer) row.odometer = parseGroupedInteger(f.odometer) ?? Number(f.odometer);
   if (f.purchase_date) row.purchase_date = f.purchase_date;
   const asking = moneyOf(entry, "asking_price");
   if (typeof asking === "number") row.asking_price = asking;
@@ -112,8 +116,8 @@ export function entryToAcquisitionDraft(entry: IntakeEntry): Record<string, unkn
     seller_phone: (f.supplier_phone ?? "").trim(),
     notes: (f.notes ?? "").trim(),
   };
-  if (f.year) draft.year = Number(f.year);
-  if (f.odometer) draft.odometer = Number(f.odometer);
+  if (f.year) draft.year = normalizeVehicleYear(f.year) ?? Number(f.year);
+  if (f.odometer) draft.odometer = parseGroupedInteger(f.odometer) ?? Number(f.odometer);
   if (f.purchase_date) draft.acquisition_date = f.purchase_date;
   return draft;
 }

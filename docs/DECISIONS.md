@@ -135,6 +135,19 @@ Local draft/recent values are scoped to the authenticated user and exclude finan
 - `COLOR_CHIPS` export **gỡ hẳn** khỏi `QuickChips.tsx`, không đánh dấu deprecated — dự án chưa production data dựa trên constant này, giữ lại sẽ khuyến khích reintroduce pattern chip. Không migration DB.
 - Nhân viên vẫn gõ được chữ trực tiếp (`AutocompleteInput` + `recentVehicles` suggestions). Swatch chỉ là shortcut bổ sung, không phải whitelist — quán không cấm đặt tên màu sáng tạo ("Xanh ngọc trai ánh bạc").
 
+## Copilot trả lời rộng hơn bằng RPC đọc sẵn có — 06/10/2026
+
+- Chủ shop muốn Trợ lý AI hiểu câu hỏi tiếng Việt đời thường hơn ("tình hình hôm nay", "bán cho ai", "tiền về sao", "0905… là khách nào"). Quyết định: **chỉ mở rộng tầng truy xuất trong `copilot.ts`, không thêm RPC mới, không động schema, không thêm đường ghi** — intent mới gọi đúng `list_sales`, `list_customers`, `daily_reconciliation`, `global_search` mà database đã tự chặn quyền bằng `private.require_role` + RLS dưới JWT người gọi.
+- Intent dùng từ khóa normalize (bỏ dấu) có ranh giới từ (`\bnv\b`, `\bage\b`) thay vì substring tự do; mỗi số liệu vẫn kèm citation mở đúng trang (`/sales/:id`, `/customers`). Chế độ `llm` OWNER-only và fallback deterministic giữ nguyên hợp đồng `docs/AI_ASSIST_CONTRACT.md`.
+- `vehicleLookup` (chỉ biển số/trích dẫn, đọc `list_vehicles`) được thay bằng `entityLookup` trên `global_search`: nhận thêm số điện thoại và trả cả xe + đơn bán + khách hàng; chạy khi không intent nào ra số liệu, kể cả khi intent khớp nhưng RPC trả rỗng.
+- Từ chối: cho copilot tự sinh SQL hoặc gọi provider khi chưa cấu hình AI — giữ nguyên tắc "không MCP, không tool tùy tiện"; mọi câu hỏi vẫn chỉ đi qua allowlist RPC đọc trong `tests/security/copilot.test.ts` (danh sách cho phép đã cập nhật).
+
+## Copilot đề xuất bản nháp, người vẫn bấm lưu — 06/10/2026
+
+- Bước đầu tiên hướng automation: câu lệnh nhập vào Trợ lý ("chi 500k thay nhớt xe 59-B1 123.45", "bán cho anh Bình 30tr xe …", tốc ký thu xe) được `src/lib/shorthand/draftActions.ts` phân tích **thuần client-side, không cần provider AI**, và `DraftActionCard` chỉ prefill các biểu mẫu an toàn sẵn có (`QuickExpenseModal`, phiếu bán qua `state.aiDraft`, `/intake` qua `state.seedText`). Lý do: voice/receipt drafts cũ phụ thuộc provider chưa cấu hình nên đường "nháp → lưu" gần như chết; tốc ký client-side đã chứng minh độ tin cậy trong `/intake`.
+- Wall an toàn giữ nguyên: không RPC ghi nào chạy nếu người không bấm lưu trong biểu mẫu; phát hiện chỉ nhận lệnh có biển số thật (qua `@/lib/plate`), từ chối câu hỏi nghi vấn, số điện thoại không bị tính thành tiền; đề xuất chi phí chỉ hiện với `canManage`, bán/thu chỉ với `canOperate`. Regression test: `tests/unit/copilot-draft-actions.test.tsx` (9 ca, gồm STAFF không thấy đề xuất chi phí).
+- Từ chối: cho copilot tự gọi RPC ghi (action agent) — cần quyết định thiết kế riêng (allowlist ghi, xác nhận từng bước, idempotency, audit) theo `docs/AI_ASSIST_CONTRACT.md`; bản nháp xem-trước là bước đệm bắt buộc.
+
 ## Unverified external state
 
 These decisions describe local code. They do not assert the current contents of a hosted Supabase project or any production account credential.

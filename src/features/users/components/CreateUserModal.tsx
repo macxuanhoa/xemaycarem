@@ -6,6 +6,7 @@ import { api } from "@/lib/api";
 import { friendlyError } from "@/lib/errors";
 import { toast } from "@/lib/toast";
 import { roleLabels } from "@/lib/permissions";
+import { useDialog } from "@/lib/useDialog";
 
 export function CreateUserModal({ onDone }: { onDone: () => void }) {
   const client = useQueryClient();
@@ -37,6 +38,7 @@ export function CreateUserModal({ onDone }: { onDone: () => void }) {
       }
     },
   });
+  const dialogRef = useDialog<HTMLFormElement>(true, onDone, m.isPending);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -61,15 +63,17 @@ export function CreateUserModal({ onDone }: { onDone: () => void }) {
     <div
       className="modal-backdrop user-modal-backdrop"
       onClick={onDone}
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="create-user-title"
+      role="presentation"
     >
       {/* The <form> wraps the whole sheet so the action footer can sit as a
           sibling of the scrolling body — same pattern as StaffSettingsModal.
           A footer inside the scroll container clipped off-screen on phones. */}
       <form
+        ref={dialogRef}
         className="modal-card user-create-modal"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="create-user-title"
         onClick={(e) => e.stopPropagation()}
         onSubmit={handleSubmit}
       >
@@ -135,10 +139,6 @@ export function CreateUserModal({ onDone }: { onDone: () => void }) {
                 value={form.password}
                 onChange={(e) => setForm({ ...form, password: e.target.value })}
               />
-              <small className="muted">
-                Nhân viên dùng mật khẩu này đăng nhập ngay — không bị chặn đổi
-                mật khẩu lần đầu; có thể tự đổi trong Cài đặt khi muốn.
-              </small>
             </Field>
             <Field label="Vai trò">
               <select

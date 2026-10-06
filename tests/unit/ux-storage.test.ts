@@ -122,7 +122,7 @@ describe("User-scoped convenience storage", () => {
     ]);
   });
 
-  it("whitelists draft text and excludes money, lifecycle status, permissions and secrets", () => {
+  it("whitelists vehicle draft fields and excludes personal data, notes, money and secrets", () => {
     const values = {
       frame_number: "FRAME-1",
       brand: "Honda",
@@ -130,6 +130,13 @@ describe("User-scoped convenience storage", () => {
       year: 2024,
       odometer: 500,
       notes: "Giấy tờ đầy đủ",
+      customer_name: "Test personal name",
+      customer_phone: "0900000001",
+      seller_name: "Test seller",
+      seller_phone: "0900000002",
+      supplier_name: "Test supplier",
+      supplier_phone: "0900000003",
+      identity_number: "123456789012",
       purchase_price: 82000000,
       asking_price: 90000000,
       sale_price: 88000000,
@@ -144,9 +151,11 @@ describe("User-scoped convenience storage", () => {
       model: "Vision",
       year: 2024,
       odometer: 500,
-      notes: "Giấy tờ đầy đủ",
     });
     expect(saveFormDraft("acquisition", "staff", values)).toBe(true);
+    const stored = [...data.values()].join(" ");
+    for (const secret of ["Test personal name", "0900000001", "Test seller", "0900000002", "Test supplier", "0900000003", "123456789012", "Giấy tờ đầy đủ"])
+      expect(stored).not.toContain(secret);
     expect(readFormDraft("acquisition", "staff")).toEqual(draftFields(values));
     expect(readFormDraft("acquisition", "owner")).toBeNull();
     clearFormDraft("acquisition", "staff");
@@ -174,5 +183,13 @@ describe("User-scoped convenience storage", () => {
     );
     expect(() => addRecentVehicle({ id: "safe" }, "staff")).not.toThrow();
     expect(getRecentVehicles("staff")).toEqual([]);
+  });
+  it("scrubs personal fields from legacy drafts on access without extending expiry", () => {
+    const savedAt = Date.now() - 1000;
+    data.set("xe_crm_draft_v1:staff:sale", JSON.stringify({ savedAt, fields: {
+      sale_date: "2026-10-05", customer_name: "Private legacy", customer_phone: "0900000001", notes: "Private note",
+    } }));
+    expect(readFormDraft("sale", "staff")).toEqual({ sale_date: "2026-10-05" });
+    expect(JSON.parse(data.get("xe_crm_draft_v1:staff:sale")!)).toEqual({ savedAt, fields: { sale_date: "2026-10-05" } });
   });
 });

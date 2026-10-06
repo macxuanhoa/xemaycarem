@@ -15,8 +15,11 @@ export interface MessagingProvider {
 
 export class MockMessagingProvider implements MessagingProvider {
   readonly name = 'MOCK' as const;
-  async sendTransactionalMessage(_message: TransactionalMessage): Promise<ProviderResult> {
-    return { providerMessageId: `mock_${crypto.randomUUID()}`, status: 'SENT' };
+  async sendTransactionalMessage(message: TransactionalMessage): Promise<ProviderResult> {
+    // MOCK has no external effect. A stable result lets a new worker reconcile the
+    // same outbox operation after a crash without inventing a second delivery.
+    if (!/^[a-zA-Z0-9_-]{1,80}$/.test(message.idempotencyKey)) throw new Error('INVALID_IDEMPOTENCY_KEY');
+    return { providerMessageId: `mock_${message.idempotencyKey}`, status: 'SENT' };
   }
 }
 

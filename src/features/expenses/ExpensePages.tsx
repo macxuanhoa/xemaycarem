@@ -14,6 +14,7 @@ import {
   X,
 } from "lucide-react";
 import { api } from "@/lib/api";
+import { AppError } from "@/lib/errors";
 import { canManage } from "@/lib/permissions";
 import { dateLabel, money, today } from "@/lib/format";
 import { toast } from "@/lib/toast";
@@ -585,6 +586,7 @@ function ExpenseEditor({
   const [reason, setReason] = useState("");
 
   const initialVehicle = expense?.vehicle_id ?? vehicleId;
+  const [expectedRevision] = useState(expense?.updated_at);
   const currentVehicle = useQuery({
     queryKey: ["vehicle", initialVehicle],
     queryFn: () => api.call<Vehicle>("get_vehicle", { p_id: initialVehicle }),
@@ -646,6 +648,11 @@ function ExpenseEditor({
         amount: values.amount,
         expense_date: values.expense_date,
       };
+      if (expense) {
+        if (!expectedRevision)
+          throw new AppError("Chưa có phiên bản chi phí để đối chiếu. Hãy đóng và tải lại danh sách trước khi chỉnh sửa.");
+        data.expected_updated_at = expectedRevision;
+      }
       if (editorKind === "vehicle") {
         data.vehicle_id = values.vehicle_id;
         data.expense_type = values.type;

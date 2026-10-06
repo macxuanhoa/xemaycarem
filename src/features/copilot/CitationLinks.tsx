@@ -4,6 +4,7 @@ import {
   Bike,
   BookOpen,
   ClipboardList,
+  Contact,
   Gauge,
   Receipt,
   Settings,
@@ -24,6 +25,7 @@ const icons: Record<CopilotCitationType, typeof Bike> = {
   profile: Users,
   document: BookOpen,
   settings: Settings,
+  customer: Contact,
 };
 
 export const citationTypeLabels: Record<CopilotCitationType, string> = {
@@ -36,6 +38,7 @@ export const citationTypeLabels: Record<CopilotCitationType, string> = {
   profile: "Tài khoản",
   document: "Tài liệu",
   settings: "Cài đặt",
+  customer: "Khách hàng",
 };
 
 /**

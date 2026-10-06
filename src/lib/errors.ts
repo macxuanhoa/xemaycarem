@@ -24,6 +24,8 @@ export function friendlyError(error: unknown): string {
     return "Phiên làm việc đã hết hạn. Vui lòng đăng nhập lại.";
   if (/PGRST202|schema cache|Could not find the function/i.test(value))
     return "Chức năng chưa được đồng bộ với cơ sở dữ liệu. Vui lòng tải lại trang hoặc kiểm tra cập nhật hệ thống.";
+  if (/CLIENT_UPGRADE_REQUIRED/i.test(value))
+    return "Phiên bản đang mở chưa hỗ trợ lưu giao dịch an toàn. Thao tác chưa được ghi nhận; hãy cập nhật ứng dụng, tải lại dữ liệu và đối soát lịch sử trước khi gửi lại.";
   if (/PROFILE_NOT_FOUND|P0002/i.test(value))
     return "Không tìm thấy hồ sơ người dùng trong hệ thống.";
   if (/USERNAME_EXISTS|23505/i.test(value))
@@ -46,8 +48,22 @@ export function friendlyError(error: unknown): string {
     return "Ngày bán không được trước ngày phát sinh chi phí của xe.";
   if (/PURCHASE_AFTER_EXPENSE/i.test(value))
     return "Ngày nhập xe không được sau ngày chi phí đã ghi nhận.";
+  if (/PAYMENT_VERIFICATION_REQUIRED|PAYMENT_EVIDENCE_REQUIRED/i.test(value))
+    return "Cần quản lý đối chiếu tiền thực nhận và chứng từ dùng chung trước khi ghi nhận khoản thu.";
+  if (/PAYMENT_RECEIPT_REJECTED/i.test(value))
+    return "Đề nghị thu tiền này đã bị từ chối. Kiểm tra lý do và lịch sử với quản lý.";
+  if (/PAYMENT_RECEIPT_CONFLICT/i.test(value))
+    return "Chứng từ này đã được dùng hoặc có thông tin khác. Khoản thu chưa được ghi nhận; hãy đối chiếu chứng từ và lịch sử với quản lý.";
   if (/PAYMENT_REQUEST_CONFLICT/i.test(value))
     return "Lần thu tiền này có thông tin khác với lần gửi trước. Kiểm tra lịch sử thanh toán trước khi lập khoản thu mới.";
+  if (/OPERATION_REQUEST_CONFLICT/i.test(value))
+    return "Mã giao dịch này đã được dùng với thông tin khác. Hãy đối soát giao dịch trước và kiểm tra lịch sử trước khi tạo giao dịch mới.";
+  if (/VEHICLE_EDIT_CONFLICT/i.test(value))
+    return "Xe đã được người khác cập nhật. Thay đổi của bạn chưa được lưu; hãy tải lại hồ sơ xe và đối chiếu trước khi sửa tiếp.";
+  if (/SALE_DUE_DATE_CONFLICT/i.test(value))
+    return "Giao dịch đã được cập nhật. Hạn trả của bạn chưa được lưu; hãy đóng, tải lại danh sách công nợ và đối chiếu trước khi sửa tiếp.";
+  if (/EXPENSE_EDIT_CONFLICT/i.test(value))
+    return "Chi phí đã được người khác cập nhật. Thay đổi của bạn chưa được lưu; hãy đóng, tải lại danh sách và đối chiếu trước khi sửa tiếp.";
   if (/PASSWORD_CHANGE_REQUIRED/i.test(value))
     return "Bạn cần đổi mật khẩu trước khi sử dụng các chức năng của cửa hàng.";
   if (/FINANCIAL_ACCESS_DENIED/i.test(value))

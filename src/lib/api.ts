@@ -131,7 +131,8 @@ async function call<T>(
     );
   const { data, error } = await supabase.rpc(name, args);
   if (error) {
-    console.error("RPC failed", name, error);
+    // Server error details can contain submitted personal data or SQL values.
+    if (import.meta.env.DEV) console.error("RPC failed", name, { code: error.code });
     throw error;
   }
   return data as T;
@@ -241,10 +242,12 @@ async function manageUser(input: {
     | "restore"
     | "delete"
     | "hard_delete"
+    | "purge"
+    | "sweep"
     | "change_role"
     | "promote_to_owner"
     | "enable_user";
-  user_id: string;
+  user_id?: string;
   password?: string;
   disabled_until?: string | null;
   disable_reason?: string | null;

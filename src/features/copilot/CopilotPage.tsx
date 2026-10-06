@@ -7,7 +7,9 @@ import { Button, Card, ErrorState, Field, PageHeader } from "@/components/ui";
 import { useAuth } from "@/features/auth/AuthProvider";
 import { isOwner } from "@/lib/permissions";
 import { MarkdownLite } from "@/lib/markdownLite";
+import { detectDraftAction } from "@/lib/shorthand/draftActions";
 import { citationNodes, CitationList } from "./CitationLinks";
+import { DraftActionCard } from "./DraftActionCard";
 import type { CopilotAnswer, CopilotMode } from "@/types";
 
 const MODE_KEY = "carem-copilot-mode";
@@ -21,10 +23,13 @@ const readStoredMode = (): CopilotMode => {
 };
 
 const QUESTIONS: { text: string; ownerOnly?: boolean }[] = [
+  { text: "Tình hình cửa hàng hôm nay?" },
   { text: "Còn bao nhiêu xe trong kho?" },
   { text: "Doanh thu tháng này?" },
+  { text: "Đơn bán gần đây?" },
   { text: "Xe nào tồn lâu nhất?" },
   { text: "Ai đang nợ nhiều nhất?" },
+  { text: "Thu tiền hôm nay ra sao?" },
   { text: "Chi phí sửa xe gần đây?" },
   { text: "Lịch sử thao tác hôm nay?", ownerOnly: true },
 ];
@@ -43,6 +48,12 @@ export default function CopilotPage() {
   });
   const answer = ask.data;
   const chips = useMemo(() => citationNodes(answer?.citations ?? []), [answer]);
+  // Commands typed into the question box become editable draft proposals for
+  // the existing forms; questions never do (the detector rejects interrogations).
+  const draftAction = useMemo(
+    () => (answer ? detectDraftAction(String(ask.variables ?? "")) : null),
+    [answer, ask.variables],
+  );
   const suggested = QUESTIONS.filter((item) => owner || !item.ownerOnly);
 
   return (
@@ -107,10 +118,11 @@ export default function CopilotPage() {
                     ask.reset();
                   }}
                 />
-                <span>
-                  <Sparkles size={14} aria-hidden="true" /> Bật AI viết câu tóm tắt
+                <span className="copilot-mode-label">
+                  <Sparkles size={14} aria-hidden="true" />
+                  <span>Bật AI viết câu tóm tắt</span>
                   <small className="muted">
-                    {" "}· vẫn chỉ dùng dữ liệu và tài liệu đã tra, mỗi nhận định có nút bằng chứng
+                    · vẫn chỉ dùng dữ liệu và tài liệu đã tra, mỗi nhận định có nút bằng chứng
                   </small>
                 </span>
               </label>
@@ -208,6 +220,8 @@ export default function CopilotPage() {
           </Card>
         </>
       )}
+
+      {draftAction && <DraftActionCard action={draftAction} />}
 
       {history.length > 0 && (
         <Card>

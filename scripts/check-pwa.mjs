@@ -29,6 +29,18 @@ try {
   });
   await page.reload();
   await page.waitForFunction(() => navigator.serviceWorker.controller !== null);
+  const cachedUrls = await page.evaluate(async () => {
+    const names = await caches.keys();
+    const urls = [];
+    for (const name of names) {
+      const cache = await caches.open(name);
+      urls.push(...(await cache.keys()).map((request) => request.url));
+    }
+    return urls;
+  });
+  assert.ok(cachedUrls.some((entry) => new URL(entry).pathname === "/index.html"));
+  assert.ok(cachedUrls.some((entry) => new URL(entry).pathname.startsWith("/assets/")));
+  assert.ok(cachedUrls.every((entry) => !/\/(rest|auth|functions)\/v1\//.test(entry)), "API responses must not be cached by the service worker");
   const cdp = await context.newCDPSession(page);
   const installability = await cdp.send("Page.getInstallabilityErrors");
   assert.deepEqual(installability.installabilityErrors, []);
@@ -49,9 +61,12 @@ try {
   await context.setOffline(true);
   await page.reload();
   await page.getByRole("heading", { name: "Chào mừng trở lại" }).waitFor();
+  await context.setOffline(false);
+  await page.reload();
+  await page.getByRole("heading", { name: "Chào mừng trở lại" }).waitFor();
   assert.deepEqual(errors, []);
   console.log(
-    "PASS production manifest, icons, Chromium installability, service worker control, desktop/mobile login, offline application shell; no browser runtime errors.",
+    "PASS production manifest, icons, Chromium installability, service worker control, static precache without API responses, desktop/mobile login, offline application shell and online recovery; no browser runtime errors.",
   );
 } finally {
   await browser.close();

@@ -12,6 +12,7 @@ export type Profile = {
   allowed_until?: string;
   working_days?: readonly number[];
   deleted_at?: string | null;
+  purged_at?: string | null;
   disable_reason?: string | null;
   created_at?: string;
   updated_at?: string;
@@ -57,6 +58,7 @@ export type Expense = {
   status: "ACTIVE" | "CANCELLED";
   created_at?: string;
   created_by?: string;
+  updated_at?: string;
 };
 /** Public showroom projection from list_showroom_vehicles — safe fields only. */
 export type ShowroomVehicle = {
@@ -199,6 +201,7 @@ export type Sale = {
   payments?: Payment[];
   vehicle?: Vehicle;
   created_at: string;
+  updated_at?: string;
 };
 export type DateFilter = { from: string; to: string };
 
@@ -357,7 +360,8 @@ export type CopilotCitationType =
   | "audit"
   | "profile"
   | "document"
-  | "settings";
+  | "settings"
+  | "customer";
 
 export type CopilotCitation = {
   id: string;

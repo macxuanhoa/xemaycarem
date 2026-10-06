@@ -1,13 +1,14 @@
 import assert from 'node:assert/strict'
 import { randomUUID } from 'node:crypto'
 import { createDatabase, asUser, rpc } from '../../scripts/db-harness.mjs'
+import { verifiedPayment } from './payment-fixtures.mjs'
 
 // Only the repository's disposable database harness is used. No URLs or cloud keys.
 export async function runOperationalTests(externalDb, { engine = 'postgres' } = {}) {
   const db = externalDb ?? await createDatabase({ engine })
   const users = Object.fromEntries(['owner', 'manager', 'financialManager', 'staff', 'disabled'].map(name => [name, randomUUID()]))
   const run = (name, operation) => asUser(db, users[name], operation)
-  const call = (name, fn, input) => run(name, client => rpc(client, fn, '$1::jsonb', [JSON.stringify(input)]))
+  const call = (name, fn, input) => fn === 'add_payment' ? verifiedPayment(db,users[name],users.owner,input) : run(name, client => rpc(client, fn, '$1::jsonb', [JSON.stringify(input)]))
   const read = (name, fn, args = '', values = []) => run(name, client => rpc(client, fn, args, values))
   const deny = (operation, expression = /ACCESS_DENIED|permission denied|row-level security/) => assert.rejects(operation, expression)
   const row = async (sql, values = []) => (await db.query(sql, values)).rows[0]
@@ -25,7 +26,7 @@ export async function runOperationalTests(externalDb, { engine = 'postgres' } = 
     let sequence = 0
     const vehicle = async (overrides = {}) => {
       sequence++
-      return call('owner', 'save_vehicle', { brand: 'Honda', model: `Xe kiểm thử ${sequence}`, frame_number: `${suite}-FRAME-${sequence}`, engine_number: `${suite}-ENGINE-${sequence}`, license_plate: `${suite}-PLATE-${sequence}`, purchase_date: intake, purchase_price: 10_000_000, asking_price: 110_000_000, ...overrides })
+      return call('owner', 'save_vehicle', { request_id: randomUUID(), brand: 'Honda', model: `Xe kiểm thử ${sequence}`, frame_number: `${suite}-FRAME-${sequence}`, engine_number: `${suite}-ENGINE-${sequence}`, license_plate: `${suite}-PLATE-${sequence}`, purchase_date: intake, purchase_price: 10_000_000, asking_price: 110_000_000, ...overrides })
     }
     const sale = async (price, date, initial = 0, overrides = {}) => {
       const vehicleId = await vehicle()
@@ -70,12 +71,17 @@ export async function runOperationalTests(externalDb, { engine = 'postgres' } = 
       await deny(() => call('staff', 'list_receivables', { payment_status: 'UNKNOWN' }), /INVALID_PAYMENT_STATUS/)
     })
     await test('due-date changes are audited, constrained and rejected for inactive users/cancelled sale', async () => {
-      const changed = await read('staff', 'update_sale_due_date', '$1::uuid, $2::date', [partial.id, day])
+      const changeDue = async (actor, id, date) => {
+        const current = await row('SELECT updated_at::text AS revision FROM public.sales WHERE id=$1', [id])
+        return read(actor, 'update_sale_due_date', '$1::uuid,$2::date,$3::timestamptz', [id, date, current.revision])
+      }
+      await deny(() => read('staff', 'update_sale_due_date', '$1::uuid,$2::date', [partial.id, day]), /CLIENT_UPGRADE_REQUIRED/)
+      const changed = await changeDue('staff', partial.id, day)
       assert.equal(changed.due_date, day)
       assert.equal(changed.is_overdue, false)
-      await deny(() => read('staff', 'update_sale_due_date', '$1::uuid, $2::date', [partial.id, yesterday]), /INVALID_DUE_DATE/)
-      await deny(() => read('disabled', 'update_sale_due_date', '$1::uuid, $2::date', [partial.id, day]))
-      await deny(() => read('staff', 'update_sale_due_date', '$1::uuid, $2::date', [cancelled.id, day]), /SALE_NOT_ACTIVE/)
+      await deny(() => changeDue('staff', partial.id, yesterday), /INVALID_DUE_DATE/)
+      await deny(() => changeDue('disabled', partial.id, day))
+      await deny(() => changeDue('staff', cancelled.id, day), /SALE_NOT_ACTIVE/)
       assert.equal(Number((await row("SELECT count(*) AS n FROM public.audit_logs WHERE entity_id=$1 AND action='UPDATE_SALE_DUE_DATE'", [partial.id])).n), 1)
     })
     await test('daily reconciliation distinguishes sales revenue from new-sale and older debt receipts', async () => {
@@ -224,6 +230,7 @@ export async function runOperationalTests(externalDb, { engine = 'postgres' } = 
       assert.equal((await read('owner', 'get_sale', '$1::uuid', [partial.id])).gross_profit, 90_000_000)
     })
     const importRow = (overrides = {}) => ({ frame_number: `${suite}-IMPORT-${randomUUID().slice(0, 8)}`, brand: 'Yamaha', model: 'Xe nhập thử', purchase_date: day, purchase_price: 12_000_000, asking_price: 15_000_000, ...overrides })
+    const importBatch = (actor, rows) => call(actor, 'import_vehicles', { request_id: randomUUID(), rows })
     await test('import server preview rejects negative/fractional/garbage money and malformed date/year/enum', async () => {
       // Brand and frame_number are optional as of migration 20261005000000,
       // so an empty brand must NOT be flagged as an error. Keep the other
@@ -250,7 +257,7 @@ export async function runOperationalTests(externalDb, { engine = 'postgres' } = 
       const plateVehicle = await vehicle({ license_plate: '43A1-123.45' })
       const punctuated = await call('owner', 'validate_import_vehicles', [importRow({ license_plate: '43a1 12345' })])
       assert.deepEqual(punctuated.duplicates.map(d => d.field), ['license_plate'])
-      await deny(() => call('owner', 'import_vehicles', [importRow({ license_plate: '43a1 12345' })]), /DUPLICATE_IMPORT_VEHICLE/)
+      await deny(() => importBatch('owner', [importRow({ license_plate: '43a1 12345' })]), /DUPLICATE_IMPORT_VEHICLE/)
       const batchPlates = await call('owner', 'validate_import_vehicles', [importRow({ license_plate: '59B1-987.65' }), importRow({ license_plate: '59b1 98765' })])
       assert.deepEqual(batchPlates.duplicates.map(d => [d.index, d.field]), [[1, 'license_plate']])
       assert.equal((await read('owner', 'get_vehicle', '$1::uuid', [plateVehicle])).license_plate, '43A1-123.45')
@@ -259,8 +266,8 @@ export async function runOperationalTests(externalDb, { engine = 'postgres' } = 
       const a = importRow()
       const countBefore = Number((await row('SELECT count(*) AS n FROM public.vehicles')).n)
       const logsBefore = Number((await row('SELECT count(*) AS n FROM public.audit_logs')).n)
-      await deny(() => call('owner', 'import_vehicles', [a, importRow({ year: 1800 })]), /INVALID_IMPORT_DATA/)
-      await deny(() => call('owner', 'import_vehicles', [a, { ...a }]), /DUPLICATE_IMPORT_VEHICLE/)
+      await deny(() => importBatch('owner', [a, importRow({ year: 1800 })]), /INVALID_IMPORT_DATA/)
+      await deny(() => importBatch('owner', [a, { ...a }]), /DUPLICATE_IMPORT_VEHICLE/)
       assert.equal(Number((await row('SELECT count(*) AS n FROM public.vehicles')).n), countBefore)
       assert.equal(Number((await row('SELECT count(*) AS n FROM public.audit_logs')).n), logsBefore)
     })
@@ -270,14 +277,14 @@ export async function runOperationalTests(externalDb, { engine = 'postgres' } = 
       const second = importRow({ model: 'TEST_IMPORT_ROLLBACK' })
       const logsBefore = Number((await row('SELECT count(*) AS n FROM public.audit_logs')).n)
       try {
-        await deny(() => call('owner', 'import_vehicles', [first, second]), /TEST_IMPORT_FAILURE/)
+        await deny(() => importBatch('owner', [first, second]), /TEST_IMPORT_FAILURE/)
         assert.equal(Number((await row('SELECT count(*) AS n FROM public.vehicles WHERE frame_number=ANY($1::text[])', [[first.frame_number, second.frame_number]])).n), 0)
         assert.equal(Number((await row('SELECT count(*) AS n FROM public.audit_logs')).n), logsBefore)
       } finally { await db.exec('DROP TRIGGER test_import_failure ON public.vehicles; DROP FUNCTION private.test_import_failure()') }
     })
     await test('valid import reuses acquisition lifecycle and audit and rejects replayed inventory', async () => {
       const batch = [importRow({ supplier_name: 'Người bán thử', supplier_phone: '0007777777' }), importRow()]
-      const data = await call('owner', 'import_vehicles', batch)
+      const data = await importBatch('owner', batch)
       assert.equal(data.imported_count, 2)
       assert.equal(Number((await row('SELECT count(*) AS n FROM public.acquisitions WHERE vehicle_id=ANY($1::uuid[])', [data.vehicle_ids])).n), 2)
       for (const id of data.vehicle_ids) {
@@ -286,22 +293,22 @@ export async function runOperationalTests(externalDb, { engine = 'postgres' } = 
         assert.equal(record.purchase_price, 12_000_000)
         assert.ok(record.activity.some(a => a.action === 'CREATE_ACQUISITION'))
       }
-      await deny(() => call('owner', 'import_vehicles', batch), /DUPLICATE_IMPORT_VEHICLE/)
+      await deny(() => importBatch('owner', batch), /DUPLICATE_IMPORT_VEHICLE/)
     })
     await test('inactive users cannot import and nonfinancial staff cannot set purchase cost', async () => {
       for (const user of ['disabled']) {
         await deny(() => call(user, 'validate_import_vehicles', [importRow()]))
-        await deny(() => call(user, 'import_vehicles', [importRow()]))
+        await deny(() => importBatch(user, [importRow()]))
       }
       for (const user of ['manager', 'staff']) {
         const data = await call(user, 'validate_import_vehicles', [importRow()])
         assert.ok(data.errors.some(e => e.message === 'FINANCIAL_ACCESS_DENIED'))
-        await deny(() => call(user, 'import_vehicles', [importRow()]), /INVALID_IMPORT_DATA/)
-        await deny(() => call(user, 'acquire_vehicle', { ...importRow(), acquisition_date: day }), /FINANCIAL_ACCESS_DENIED/)
+        await deny(() => importBatch(user, [importRow()]), /INVALID_IMPORT_DATA/)
+        await deny(() => call(user, 'acquire_vehicle', { ...importRow(), request_id: randomUUID(), acquisition_date: day }), /FINANCIAL_ACCESS_DENIED/)
       }
       const noCost = importRow()
       delete noCost.purchase_price
-      const data = await call('staff', 'import_vehicles', [noCost])
+      const data = await importBatch('staff', [noCost])
       assert.equal((await read('owner', 'get_vehicle', '$1::uuid', [data.vehicle_ids[0]])).cost_pending, true)
     })
     await test('payment request UUID prevents duplicate payments/audit across identical retries', async () => {
@@ -310,8 +317,8 @@ export async function runOperationalTests(externalDb, { engine = 'postgres' } = 
       assert.equal(await call('staff', 'add_payment', input), input.request_id)
       assert.equal(Number((await row('SELECT count(*) AS n FROM public.payments WHERE id=$1', [input.request_id])).n), 1)
       assert.equal(Number((await row("SELECT count(*) AS n FROM public.audit_logs WHERE entity_id=$1 AND action='CREATE_PAYMENT'", [input.request_id])).n), 1)
-      await deny(() => call('staff', 'add_payment', { ...input, amount: 11_000_000 }), /PAYMENT_REQUEST_CONFLICT/)
-      await deny(() => call('owner', 'add_payment', input), /PAYMENT_REQUEST_CONFLICT/)
+      await deny(() => call('staff', 'add_payment', { ...input, amount: 11_000_000 }), /PAYMENT_RECEIPT_CONFLICT/)
+      assert.equal(await call('owner', 'add_payment', input), input.request_id, 'verified shared receipt replays across actors without another ledger row')
       assert.equal((await read('staff', 'get_sale', '$1::uuid', [partial.id])).remaining_amount, 60_000_000)
     })
     await test('overpayment/cancellation guards survive retry enhancement and inactive users cannot collect', async () => {
@@ -342,15 +349,16 @@ export async function runOperationalTests(externalDb, { engine = 'postgres' } = 
       assert.equal(job.recipient_phone, '+84912345678')
       assert.ok(!JSON.stringify(job.template_variables).includes('sale_price'))
       assert.equal((await read('staff', 'list_customer_communications', '$1::text', ['0912345678'])).length, 1)
-      const claimed = await read('staff', 'claim_message', '$1::uuid', [job.id])
+      const claimed = await read('staff', 'claim_message', '$1::uuid,$2::text', [job.id, 'MOCK'])
       assert.equal(claimed.status, 'PROCESSING')
-      const temporary = await read('staff', 'fail_message', '$1::uuid,$2::text,$3::text,$4::boolean', [job.id, 'NETWORK_TIMEOUT', 'Nhà cung cấp tạm thời không phản hồi.', false])
+      const temporary = await read('staff', 'fail_message', '$1::uuid,$2::text,$3::text,$4::boolean,$5::uuid', [job.id, 'NETWORK_TIMEOUT', 'Nhà cung cấp tạm thời không phản hồi.', false, claimed.lease_token])
       assert.equal(temporary.status, 'QUEUED')
       assert.ok(new Date(temporary.next_attempt_at) > new Date())
       assert.equal((await read('staff', 'get_sale', '$1::uuid', [saleId])).status, 'COMPLETED')
       await db.query('UPDATE public.message_outbox SET next_attempt_at=now() WHERE id=$1', [job.id])
-      assert.equal((await read('staff', 'claim_message', '$1::uuid', [job.id])).attempt_count, 2)
-      const sent = await read('staff', 'finish_mock_message', '$1::uuid,$2::text', [job.id, 'mock_test_123'])
+      const reclaimed = await read('staff', 'claim_message', '$1::uuid,$2::text', [job.id, 'MOCK'])
+      assert.equal(reclaimed.attempt_count, 2)
+      const sent = await read('staff', 'finish_mock_message', '$1::uuid,$2::text,$3::uuid', [job.id, `mock_${job.id}`, reclaimed.lease_token])
       assert.equal(sent.status, 'SENT')
       const history = await read('staff', 'list_customer_communications', '$1::text', ['+84912345678'])
       assert.equal(history.length, 1)
@@ -386,9 +394,9 @@ export async function runOperationalTests(externalDb, { engine = 'postgres' } = 
       const saleId = await call('staff', 'sell_vehicle', { vehicle_id: await vehicle(), customer_name: 'Thử lại tin nhắn', customer_phone: '0934567890', sale_price: 80_000_000, sale_date: day, initial_payment: 0 })
       const job = await read('staff', 'get_sale_communication', '$1::uuid', [saleId])
       for (let attempt = 1; attempt <= 3; attempt++) {
-        const claimed = await read('staff', 'claim_message', '$1::uuid', [job.id])
+        const claimed = await read('staff', 'claim_message', '$1::uuid,$2::text', [job.id, 'MOCK'])
         assert.equal(claimed.attempt_count, attempt)
-        const state = await read('staff', 'fail_message', '$1::uuid,$2::text,$3::text,$4::boolean', [job.id, 'NETWORK_TIMEOUT', 'Tạm thời không kết nối được.', false])
+        const state = await read('staff', 'fail_message', '$1::uuid,$2::text,$3::text,$4::boolean,$5::uuid', [job.id, 'NETWORK_TIMEOUT', 'Tạm thời không kết nối được.', false, claimed.lease_token])
         assert.equal(state.status, attempt === 3 ? 'FAILED' : 'QUEUED')
         if (attempt < 3) await db.query('UPDATE public.message_outbox SET next_attempt_at=now() WHERE id=$1', [job.id])
       }
@@ -403,8 +411,8 @@ export async function runOperationalTests(externalDb, { engine = 'postgres' } = 
       await read('owner', 'save_settings', '$1::jsonb', [JSON.stringify({ customer_messaging_enabled: true, sale_thank_you_enabled: true, primary_message_channel: 'ZALO_ZNS' })])
       const saleId = await call('staff', 'sell_vehicle', { vehicle_id: await vehicle(), customer_name: 'Thiếu nhà cung cấp', customer_phone: '0987654321', sale_price: 80_000_000, sale_date: day, initial_payment: 0 })
       const job = await read('staff', 'get_sale_communication', '$1::uuid', [saleId])
-      const claimed = await read('staff', 'claim_message', '$1::uuid', [job.id])
-      const skipped = await read('staff', 'skip_message', '$1::uuid,$2::text,$3::text', [claimed.id, 'PROVIDER_NOT_CONFIGURED', 'Chưa cấu hình nhà cung cấp tin nhắn.'])
+      const claimed = await read('staff', 'claim_message', '$1::uuid,$2::text', [job.id, 'DISABLED'])
+      const skipped = await read('staff', 'skip_message', '$1::uuid,$2::text,$3::text,$4::uuid', [claimed.id, 'PROVIDER_NOT_CONFIGURED', 'Chưa cấu hình nhà cung cấp tin nhắn.', claimed.lease_token])
       assert.equal(skipped.status, 'SKIPPED')
       assert.equal(skipped.last_error_code, 'PROVIDER_NOT_CONFIGURED')
       assert.equal((await read('staff', 'get_sale', '$1::uuid', [saleId])).status, 'COMPLETED')
@@ -463,9 +471,13 @@ export async function runOperationalTests(externalDb, { engine = 'postgres' } = 
         const connections = [await db.connection(), await db.connection()]
         try {
           const input = { request_id: randomUUID(), sale_id: debt.id, amount: 30_000_000, payment_method: 'CASH', payment_date: day }
-          const same = await Promise.all(connections.map(client => asUser(client, users.staff, conn => rpc(conn, 'add_payment', '$1::jsonb', [JSON.stringify(input)]))))
+          const prepare = data => call('staff', 'prepare_payment_receipt', { ...data, evidence_kind:'CASH_VOUCHER',evidence_scope:'SYNTHETIC CONCURRENCY',evidence_reference:data.request_id })
+          const receipt = await prepare(input)
+          const approved = { ...input, receipt_id:receipt.id,verification_reference:'Synthetic manager reviewed the physical voucher and ledger' }
+          const same = await Promise.all(connections.map(client => asUser(client, users.owner, conn => rpc(conn, 'add_payment', '$1::jsonb', [JSON.stringify(approved)]))))
           assert.deepEqual(same, [input.request_id, input.request_id])
-          const competing = await Promise.allSettled(connections.map(client => asUser(client, users.staff, conn => rpc(conn, 'add_payment', '$1::jsonb', [JSON.stringify({ ...input, request_id: randomUUID(), amount: 50_000_000 })]))))
+          const other = await Promise.all([0,1].map(() => prepare({ ...input,request_id:randomUUID(),amount:50_000_000 })))
+          const competing = await Promise.allSettled(connections.map((client,i) => asUser(client, users.owner, conn => rpc(conn, 'add_payment', '$1::jsonb', [JSON.stringify({ request_id:randomUUID(),receipt_id:other[i].id,verification_reference:approved.verification_reference })]))))
           assert.equal(competing.filter(r => r.status === 'fulfilled').length, 1)
           assert.equal(competing.filter(r => r.status === 'rejected').length, 1)
           assert.equal((await read('owner', 'get_sale', '$1::uuid', [debt.id])).paid_amount, 80_000_000)

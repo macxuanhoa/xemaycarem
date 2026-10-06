@@ -29,7 +29,8 @@ async function setupFixtures(page, { role = 'OWNER', validate = { duplicates: []
     if (name === 'validate_import_vehicles') { calls.validate.push(body); return reply(validate) }
     if (name === 'import_vehicles') {
       calls.imports.push(body)
-      return reply({ imported_count: body.p_vehicles.length, vehicle_ids: body.p_vehicles.map(() => userId) })
+      const rows = body.p_vehicles.rows
+      return reply({ imported_count: rows.length, vehicle_ids: rows.map(() => userId) })
     }
     if (name === 'acquire_vehicle') { calls.single.push(body); return reply(userId) }
     return reply({ items: [], total: 0 })
@@ -50,18 +51,16 @@ test('parses shorthand notes, requires review and imports the whole batch in one
   await expect(first.getByLabel('Dòng xe')).toHaveValue('SH')
   await expect(first.getByLabel('Biển số')).toHaveValue('29-B1 123.45')
   await expect(first.getByLabel('Màu sắc')).toHaveValue('Đen')
-  await expect(first.getByLabel('Giá thu')).toHaveValue('18500000')
+  await expect(first.getByLabel('Giá thu')).toHaveValue('18.500.000')
   await expect(first.getByText(/=\s*18\.500\.000/)).toBeVisible()
   const second = page.locator('.intake-entry').nth(1)
   await expect(second.getByLabel('Dòng xe')).toHaveValue('Wave RSX')
-  await expect(second.getByLabel('Giá bán dự kiến')).toHaveValue('12000000')
+  await expect(second.getByLabel('Giá bán dự kiến')).toHaveValue('12.000.000')
 
-  // Blocking: chassis and purchase price are missing, so nothing can be sent yet.
-  await expect(page.getByRole('button', { name: /Thu 2 xe vào kho/ })).toBeDisabled()
+  // Missing purchase price is allowed; remaining card fields can be completed later.
+  await expect(page.getByRole('button', { name: /Thu 2 xe vào kho/ })).toBeEnabled()
   await first.getByLabel('Số khung').fill('RLH-E2E-001')
   await second.getByLabel('Số khung').fill('RLH-E2E-002')
-  await second.getByLabel('Giá thu').fill('9tr5')
-  await expect(page.getByRole('button', { name: /Thu 2 xe vào kho/ })).toBeEnabled()
 
   await page.getByRole('button', { name: /Thu 2 xe vào kho/ }).click()
   const dialog = page.getByRole('alertdialog')
@@ -72,12 +71,14 @@ test('parses shorthand notes, requires review and imports the whole batch in one
   expect(calls.validate).toHaveLength(1)
   expect(calls.imports).toHaveLength(1)
   expect(calls.single).toHaveLength(0) // never row-by-row writes: one atomic batch
-  const rows = calls.imports[0].p_vehicles
+  expect(calls.imports[0].p_vehicles.request_id).toMatch(/^[0-9a-f-]{36}$/)
+  const rows = calls.imports[0].p_vehicles.rows
   expect(rows).toHaveLength(2)
   expect(rows[0]).toMatchObject({ brand: 'Honda', model: 'SH', frame_number: 'RLH-E2E-001',
     license_plate: '29-B1 123.45', color: 'Đen', purchase_price: 18500000 })
-  expect(rows[1]).toMatchObject({ model: 'Wave RSX', frame_number: 'RLH-E2E-002', purchase_price: 9500000,
+  expect(rows[1]).toMatchObject({ model: 'Wave RSX', frame_number: 'RLH-E2E-002',
     asking_price: 12000000 })
+  expect('purchase_price' in rows[1]).toBe(false)
 })
 
 test('learns a new abbreviation from an unrecognized token and reuses it on the next parse', async ({ page }) => {
@@ -131,7 +132,7 @@ test('staff without financial rights never sees or sends the purchase price', as
   const dialog = page.getByRole('alertdialog')
   await dialog.getByRole('button', { name: 'Xác nhận thu xe' }).click()
   expect(calls.imports).toHaveLength(1)
-  const [row] = calls.imports[0].p_vehicles
+  const [row] = calls.imports[0].p_vehicles.rows
   expect('purchase_price' in row).toBe(false)
   expect(row).toMatchObject({ brand: 'Honda', model: 'Vision', asking_price: 25000000 })
 })

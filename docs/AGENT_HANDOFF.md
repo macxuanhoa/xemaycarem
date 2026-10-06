@@ -1,6 +1,16 @@
 # Release handoff — Xe CRM
 
-Last reviewed: 2026-10-04 (Asia/Saigon)
+Last reviewed: 2026-10-06 (Asia/Saigon)
+
+## Copilot answering + draft-to-save and release-candidate commit — 2026-10-06
+
+Two Copilot capability batches plus supporting migrations were developed by a concurrent agent (Copilot) that is now confirmed stopped by process ownership (zero Codex/node/deno writer processes; newest dirty write frozen 17:31:13; Git drift 0). Both are COMPLETE and integrated and were reviewed as part of the final snapshot, not deleted for being off-roadmap:
+- **Answering upgrade** — `supabase/functions/ai-assist/copilot.ts` broadens keyword intents and adds four read-only intents (Tổng quan, Đơn bán gần đây, Đối soát trong ngày, Khách hàng) reusing existing server-gated RPCs, a grounded `global_search` entity fallback, and Asia/Ho_Chi_Minh period parsing; a new `customer` citation type is wired through `src/types/index.ts` + `src/features/copilot/CitationLinks.tsx`, with suggested-question chips on `CopilotPage`. No write path, no provider needed.
+- **Draft-to-save handoff** — `src/lib/shorthand/draftActions.ts` (deterministic parser) + `src/features/copilot/DraftActionCard.tsx` prefill existing secure forms only (`QuickExpenseModal`, `SellVehiclePage`, `ShorthandIntakePage`); no RPC fires without the human pressing save. One documented incomplete path: an unresolved expense plate navigates to `/expenses` with `location.state.aiDraft`, but `ExpensePages` does not yet consume that state (graceful degradation — see `docs/KNOWN_ISSUES.md`).
+
+**Commit decision (validated necessity):** the 119-file tree was landed as a **single atomic commit**, not the earlier C1–C4 split. `npm run knowledge:check` is a whole-tree generated-artifact gate (SYSTEM_REFERENCE regenerated from every public RPC across migrations; the `20261006001400` reseed byte-compared against the markdown corpus), so any migration-only intermediate commit is provably red and intermediate reseeds would corrupt the real 42-applied/15-pending ledger. Combining into one always-green commit is the authorized alternative to knowingly-broken intermediates; it also makes `src/types/index.ts` hunk-splitting moot (types + `CitationLinks` + `CopilotPage` land together).
+
+**Verification:** full green gate suite on the final tree (lint, typecheck, 372 unit, knowledge:check, test:db 30, core 16, ext 22, build, e2e 112, pwa + pwa-upgrade). Ledger re-confirmed LIVE read-only: 42 applied / 15 pending / 0 divergent. External secret-free byte-exact checkpoint retained at `carem-checkpoint-20261006` (0 restore mismatches). **No migration applied, no production write, no push, no deploy performed.** The 15 pending migrations remain LOCAL and require the backup → dry-run → push → verify protocol plus explicit authorization; the `20261006001400` reseed must only be deployed after the docs corpus it reflects is live.
 
 ## Business notification bell handoff — 2026-10-04
 

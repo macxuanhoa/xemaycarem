@@ -16,6 +16,7 @@ type AuthContextValue = {
   user: User | null;
   profile: Profile | null;
   loading: boolean;
+  endingSession: boolean;
   error: unknown;
   refresh: () => Promise<void>;
   signOut: () => Promise<void>;
@@ -26,10 +27,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     [profile, setProfile] = useState<Profile | null>(null),
     [loading, setLoading] = useState(true),
     [error, setError] = useState<unknown>(null);
+  const [endingSession, setEndingSession] = useState(false);
   const client = useQueryClient();
   const identity = useRef<string | null>(null);
   const refreshVersion = useRef(0);
+  const signedOutLocally = useRef(false);
+  const signingOut = useRef(false);
   const refresh = useCallback(async () => {
+    if (signedOutLocally.current) return;
     const version = ++refreshVersion.current;
     if (!supabase) {
       setLoading(false);
@@ -150,11 +155,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const { data } = supabase?.auth.onAuthStateChange((event, session) => {
       refreshVersion.current += 1;
       if (event === "SIGNED_OUT") {
+        signedOutLocally.current = true;
         identity.current = null;
         client.clear();
         setUser(null);
         setProfile(null);
+        setLoading(false);
       } else if (event === "SIGNED_IN") {
+        if (signingOut.current) return;
+        signedOutLocally.current = false;
         const nextUserId = session?.user.id ?? null;
         const verifiedUserId = identity.current?.split(":", 1)[0] ?? null;
         if (!nextUserId || nextUserId !== verifiedUserId) {
@@ -176,16 +185,41 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
   }, [refresh, client]);
   async function signOut() {
+    if (signingOut.current) return;
+    signingOut.current = true;
+    setEndingSession(true);
+    signedOutLocally.current = true;
     refreshVersion.current += 1;
-    await supabase?.auth.signOut({ scope: "local" });
+    // Close the shared-device access gate immediately. Auth may be offline or
+    // slow; neither its response nor a concurrent refresh may reveal old data.
     client.clear();
     identity.current = null;
     setUser(null);
     setProfile(null);
+    setLoading(false);
+    setError(null);
+    try {
+      const result = await supabase?.auth.signOut({ scope: "local" });
+      if (result?.error)
+        setError(
+          new AppError(
+            "Đã đóng phiên trên màn hình này, nhưng chưa xác nhận đăng xuất với máy chủ. Hãy kiểm tra kết nối và đăng xuất lại trước khi giao thiết bị cho người khác.",
+          ),
+        );
+    } catch {
+      setError(
+        new AppError(
+          "Không thể xóa hoàn toàn phiên đăng nhập trên trình duyệt. Hãy xóa dữ liệu trang web trước khi giao thiết bị cho người khác.",
+        ),
+      );
+    } finally {
+      signingOut.current = false;
+      setEndingSession(false);
+    }
   }
   return (
     <AuthContext.Provider
-      value={{ user, profile, loading, error, refresh, signOut }}
+      value={{ user, profile, loading, endingSession, error, refresh, signOut }}
     >
       {children}
     </AuthContext.Provider>

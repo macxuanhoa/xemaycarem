@@ -13,6 +13,7 @@
 import assert from 'node:assert/strict'
 import { randomUUID } from 'node:crypto'
 import { createDatabase, asUser, rpc } from '../../scripts/db-harness.mjs'
+import { verifiedPayment } from './payment-fixtures.mjs'
 
 export async function runNotificationsTests(externalDb, { engine = 'postgres' } = {}) {
   const ownDb = !externalDb
@@ -29,7 +30,7 @@ export async function runNotificationsTests(externalDb, { engine = 'postgres' } 
       ['owner', 'manager', 'financialManager', 'staff', 'staff2'].map((role) => [role, randomUUID()]),
     )
     const run = (user, fn) => asUser(db, users[user], fn)
-    const call = (user, name, data) => run(user, (client) => rpc(client, name, '$1::jsonb', [JSON.stringify(data)]))
+    const call = (user, name, data) => name === 'add_payment' ? verifiedPayment(db,users[user],users[user],data) : run(user, (client) => rpc(client, name, '$1::jsonb', [JSON.stringify(data)]))
     const row = async (sql, args = []) => (await db.query(sql, args)).rows[0]
     const rows = async (sql, args = []) => (await db.query(sql, args)).rows
     const count = async (sql, args = []) => Number((await row(sql, args)).count)
@@ -55,6 +56,7 @@ export async function runNotificationsTests(externalDb, { engine = 'postgres' } 
 
     // 1. save_vehicle by staff notifies the actor plus bosses, not other staff.
     const vehicleData = (overrides = {}) => ({
+      request_id: randomUUID(),
       brand: 'Honda', model: 'SH 160', license_plate: `NB-${randomUUID().slice(0, 6).toUpperCase()}`,
       frame_number: `NFRAME${randomUUID().slice(0, 8)}`, purchase_date: day,
       purchase_price: 80_000_000, asking_price: 90_000_000, ...overrides,
@@ -82,6 +84,7 @@ export async function runNotificationsTests(externalDb, { engine = 'postgres' } 
     //    the paired CREATE_VEHICLE is deduped. Then the financial MANAGER completes
     //    the cost, which reaches the acquiring STAFF as an UPDATE_VEHICLE notice.
     const acquired = await call('staff2', 'acquire_vehicle', {
+      request_id: randomUUID(),
       ...vehicleData({ seller_name: 'Người bán A', purchase_price: undefined }), initial_payment: 0,
     })
     created = await notifs('CREATE_ACQUISITION', (await row(

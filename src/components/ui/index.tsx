@@ -11,10 +11,11 @@ import {
 import { Button } from "./button";
 import { DatePicker } from "./DatePicker";
 import { ColorSwatchAction } from "./ColorSwatchAction";
+import { GroupedIntegerInput } from "./GroupedIntegerInput";
 import { friendlyError } from "@/lib/errors";
 import { datePreset } from "@/lib/format";
 import type { DateFilter } from "@/types";
-export { Button, DatePicker, ColorSwatchAction };
+export { Button, DatePicker, ColorSwatchAction, GroupedIntegerInput };
 export function PageHeader({
   title,
   description,

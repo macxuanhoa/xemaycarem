@@ -7,7 +7,7 @@
  * databases get the same rows without touching the filesystem at runtime).
  *
  * Usage:
- *   node scripts/build-knowledge-seed.mjs                 # write the mutable seed migration (038)
+ *   node scripts/build-knowledge-seed.mjs                 # write the current forward seed migration
  *   node scripts/build-knowledge-seed.mjs --out <path>     # write elsewhere (explicit forward reseed)
  *   node scripts/build-knowledge-seed.mjs --stdout          # print without writing
  *   node scripts/build-knowledge-seed.mjs --check           # fail if the committed seed is stale
@@ -26,11 +26,13 @@ import { dirname, join, basename, resolve } from 'node:path';
 const root = dirname(dirname(fileURLToPath(import.meta.url)));
 // The mutable canonical seed migration that the generator writes to.
 // Future doc changes go here, NOT into a historical applied migration.
-const SEED_FILE = '20261002003800_knowledge_reseed.sql';
+const SEED_FILE = '20261006001400_knowledge_reseed.sql';
 // Historical seed migrations that are already applied in production and must
 // never be overwritten. The generator refuses to target these.
 const HISTORICAL_SEED_FILES = new Set([
   '20261001002900_knowledge_seed.sql',
+  '20261002003800_knowledge_reseed.sql',
+  '20261006000800_knowledge_reseed.sql',
 ]);
 const MAX_BODY = 58_000;
 

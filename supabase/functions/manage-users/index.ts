@@ -12,6 +12,9 @@ const url = Deno.env.get('SUPABASE_URL');
 const anonKey = Deno.env.get('SUPABASE_ANON_KEY') ?? Deno.env.get('SUPABASE_PUBLISHABLE_KEY');
 const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? Deno.env.get('SUPABASE_SECRET_KEY');
 
+// Số ngày giữ tài khoản trong thùng rác trước khi dọn vĩnh viễn (purge/sweep).
+const TRASH_RETENTION_DAYS = 30;
+
 // CORS origin policy. Production deployments MUST set ALLOWED_ORIGINS to a
 // comma-separated list of exact browser origins (no trailing slashes), e.g.
 //   https://carem.example,http://127.0.0.1:5173
@@ -103,7 +106,7 @@ Deno.serve(async (request: Request) => {
     const password = typeof body.password === 'string' ? body.password : '';
     const role = typeof body.role === 'string' ? body.role : 'STAFF';
     const userId = typeof body.user_id === 'string' ? body.user_id : '';
-    if (action !== 'create' && !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(userId)) {
+    if (action !== 'create' && action !== 'sweep' && !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(userId)) {
       return response(400, { error: 'INVALID_USER_ID' });
     }
 
@@ -156,6 +159,52 @@ Deno.serve(async (request: Request) => {
         console.error('Audit logging failed', { action, targetUserId, error });
         // Audit failure should not block the action itself
       }
+    };
+
+    // Helper: dọn vĩnh viễn MỘT tài khoản đang trong thùng rác.
+    //   * check_user_can_hard_delete.can_delete = true  -> xóa sạch profile + auth.
+    //   * can_delete = false (đã có lịch sử)            -> tombstone: giữ profile, đặt purged_at.
+    // Dùng service-role để bỏ qua gate update_profile; KHÔNG xóa raw auth.users.
+    const purgeOne = async (
+      target: Record<string, unknown>
+    ): Promise<{ outcome: 'deleted' | 'tombstoned' | 'already' | 'failed'; error?: Response }> => {
+      const id = String(target.id);
+      if (target.purged_at) return { outcome: 'already' };
+
+      const { data: check, error: checkError } = await caller.rpc('check_user_can_hard_delete', { p_user_id: id });
+      if (checkError) {
+        return { outcome: 'failed', error: response(500, { error: 'PURGE_CHECK_FAILED', message: 'Không kiểm tra được điều kiện xóa vĩnh viễn.' }) };
+      }
+
+      if (check?.can_delete) {
+        // Lưu profile đầy đủ để rollback nếu xóa auth thất bại (auth và Postgres không chung transaction).
+        const { data: savedProfile } = await admin.from('profiles').select('*').eq('id', id).single();
+        const { error: profileDeleteError } = await admin.from('profiles').delete().eq('id', id);
+        if (profileDeleteError) {
+          console.error('Purge profile deletion failed', profileDeleteError);
+          return { outcome: 'failed', error: response(500, { error: 'PROFILE_DELETE_FAILED', message: 'Không thể xóa hồ sơ người dùng.' }) };
+        }
+        const { error: authDeleteError } = await admin.auth.admin.deleteUser(id);
+        if (authDeleteError) {
+          console.error('Purge auth deletion failed', authDeleteError);
+          if (savedProfile) {
+            const { error: restoreError } = await admin.from('profiles').insert(savedProfile);
+            if (restoreError) console.error('Purge profile restoration requires repair', { id });
+          }
+          return { outcome: 'failed', error: response(500, { error: 'AUTH_DELETE_FAILED', message: 'Không thể xóa tài khoản xác thực.' }) };
+        }
+        await auditAction('HARD_DELETE_USER', id, { username: target.username }, null);
+        return { outcome: 'deleted' };
+      }
+
+      const now = new Date().toISOString();
+      const { error: tombstoneError } = await admin.from('profiles').update({ purged_at: now }).eq('id', id);
+      if (tombstoneError) {
+        console.error('Purge tombstone failed', tombstoneError);
+        return { outcome: 'failed', error: response(500, { error: 'PURGE_TOMBSTONE_FAILED', message: 'Không thể đánh dấu xóa vĩnh viễn.' }) };
+      }
+      await auditAction('PURGE_USER', id, { deleted_at: target.deleted_at }, { purged_at: now });
+      return { outcome: 'tombstoned' };
     };
 
     // 1. CREATE USER (OWNER ONLY). New accounts follow the shared staff schedule.
@@ -350,6 +399,16 @@ Deno.serve(async (request: Request) => {
       const currentProfile = await loadTargetProfile();
       if (currentProfile instanceof Response) return currentProfile;
 
+      // Đã dọn vĩnh viễn -> không bao giờ khôi phục được.
+      if (currentProfile.purged_at) {
+        return response(400, { error: 'ALREADY_PURGED', message: 'Tài khoản đã xóa vĩnh viễn, không thể khôi phục.' });
+      }
+      // Quá cửa sổ 30 ngày trong thùng rác -> hết hạn khôi phục.
+      const deletedAtMs = currentProfile.deleted_at ? new Date(String(currentProfile.deleted_at)).getTime() : NaN;
+      if (!Number.isNaN(deletedAtMs) && Date.now() - deletedAtMs > TRASH_RETENTION_DAYS * 86400000) {
+        return response(400, { error: 'RESTORE_WINDOW_EXPIRED', message: 'Đã quá 30 ngày trong thùng rác, không thể khôi phục.' });
+      }
+
       const { error } = await caller.rpc('update_profile', {
         p_id: userId,
         p_data: {
@@ -444,6 +503,58 @@ Deno.serve(async (request: Request) => {
       await auditAction('HARD_DELETE_USER', userId, { username: savedProfile.username }, null);
 
       return response(200, { success: true, message: 'Đã xóa hoàn toàn tài khoản chưa sử dụng.' });
+    }
+
+    // 6b. PURGE A TRASHED ACCOUNT PERMANENTLY (OWNER ONLY)
+    //     Chưa có lịch sử -> xóa sạch; đã có lịch sử -> tombstone (giữ dữ liệu, chặn đăng nhập).
+    if (action === 'purge') {
+      if (callerRole !== 'OWNER') return requireOwner();
+
+      const currentProfile = await loadTargetProfile();
+      if (currentProfile instanceof Response) return currentProfile;
+
+      if (currentProfile.role === 'OWNER') {
+        return response(400, { error: 'CANNOT_DELETE_OWNER', message: 'Không thể xóa vĩnh viễn tài khoản Chủ cửa hàng.' });
+      }
+      if (!currentProfile.deleted_at) {
+        return response(400, { error: 'NOT_IN_TRASH', message: 'Tài khoản chưa nằm trong thùng rác.' });
+      }
+
+      const result = await purgeOne(currentProfile);
+      if (result.error) return result.error;
+      if (result.outcome === 'already') {
+        return response(400, { error: 'ALREADY_PURGED', message: 'Tài khoản đã xóa vĩnh viễn.' });
+      }
+      return response(200, { success: true, outcome: result.outcome });
+    }
+
+    // 6c. SWEEP THE TRASH: dọn mọi tài khoản quá hạn lưu (OWNER ONLY).
+    //     Chạy khi OWNER mở trang Nhân sự (Supabase free plan không có scheduler).
+    if (action === 'sweep') {
+      if (callerRole !== 'OWNER') return requireOwner();
+
+      const cutoff = new Date(Date.now() - TRASH_RETENTION_DAYS * 86400000).toISOString();
+      const { data: expired, error: listError } = await admin
+        .from('profiles')
+        .select('id, username, deleted_at, purged_at, role')
+        .not('deleted_at', 'is', null)
+        .lt('deleted_at', cutoff)
+        .is('purged_at', null);
+      if (listError) {
+        console.error('Sweep listing failed', listError);
+        return response(500, { error: 'SWEEP_LIST_FAILED', message: 'Không thể quét thùng rác.' });
+      }
+
+      let fullyDeleted = 0;
+      let tombstonedCount = 0;
+      for (const row of expired ?? []) {
+        if (row.role === 'OWNER') continue;
+        const result = await purgeOne(row);
+        if (result.outcome === 'deleted') fullyDeleted += 1;
+        else if (result.outcome === 'tombstoned') tombstonedCount += 1;
+        else if (result.outcome === 'failed') console.error('Sweep purge skipped', { id: row.id });
+      }
+      return response(200, { success: true, fully_deleted: fullyDeleted, tombstoned: tombstonedCount });
     }
 
     // 7. CHANGE ROLE (OWNER for anyone below OWNER; MANAGER only for STAFF accounts)

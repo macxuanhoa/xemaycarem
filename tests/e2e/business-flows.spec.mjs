@@ -10,7 +10,7 @@ import { test, expect } from "@playwright/test";
 import { randomUUID } from "node:crypto";
 import { createDatabase, asUser, rpc } from "../../scripts/db-harness.mjs";
 
-let db, day, ids, createdVehicles, failNextPaymentResponse;
+let db, day, ids, createdVehicles, failNextPaymentResponse, failNextOperationResponse, failBeforeCommit, slowMutation;
 
 test.beforeAll(async () => {
   db = await createDatabase({ engine: "postgres" });
@@ -29,6 +29,9 @@ test.beforeEach(async ({ page }) => {
   };
   createdVehicles = [];
   failNextPaymentResponse = false;
+  failNextOperationResponse = null;
+  failBeforeCommit = null;
+  slowMutation = null;
 
   for (const [role, id] of Object.entries(ids)) {
     await db.query(
@@ -51,6 +54,7 @@ test.beforeEach(async ({ page }) => {
     const seeded = await asUser(connection, ids.OWNER, (c) =>
       rpc(c, "save_vehicle", "$1::jsonb", [
         JSON.stringify({
+          request_id: randomUUID(),
           brand: "Honda",
           model: `Wave Alpha Seed ${ids.OWNER.slice(0, 4)}`,
           purchase_date: day,
@@ -153,6 +157,13 @@ test.beforeEach(async ({ page }) => {
     if (url.pathname === "/auth/v1/user") {
       return userId ? reply(authUser(userId)) : reply({ message: "Unauthorized" }, 401);
     }
+    if (url.pathname === `/rest/v1/rpc/${failBeforeCommit}`) {
+      failBeforeCommit = null;
+      return reply({ code: "TEST_OUTAGE", message: "Network service unavailable" }, 503);
+    }
+    if (slowMutation && url.pathname === `/rest/v1/rpc/${slowMutation.name}`) {
+      await slowMutation.wait;
+    }
 
     const client = await db.connection();
     try {
@@ -205,6 +216,10 @@ test.beforeEach(async ({ page }) => {
         failNextPaymentResponse = false;
         return route.abort("failed"); // Commit succeeded but its network response was lost.
       }
+      if (url.pathname === `/rest/v1/rpc/${failNextOperationResponse}`) {
+        failNextOperationResponse = null;
+        return route.abort("failed"); // Business transaction committed; confirmation did not reach the browser.
+      }
       return reply(result);
     } catch (error) {
       return reply({ code: error.code ?? "TEST", message: error.message }, 400);
@@ -216,7 +231,12 @@ test.beforeEach(async ({ page }) => {
 
 async function loginAs(page, role = "owner") {
   await page.goto("/login");
-  await expect(page.getByRole("heading", { name: "Chào mừng trở lại", exact: true })).toBeVisible();
+  const welcome = page.getByRole("heading", { name: "Chào mừng trở lại", exact: true });
+  await expect(welcome.or(page.getByRole("heading", { name: /Xin chào/ }))).toBeVisible();
+  if (!await welcome.isVisible()) {
+    await page.getByRole("button", { name: "Đăng xuất", exact: true }).last().click();
+    await expect(welcome).toBeVisible();
+  }
   const username = page.getByRole("textbox", { name: /Tên đăng nhập hoặc email/i });
   const password = page.getByLabel("Mật khẩu", { exact: true });
   await username.fill(`${role}@example.test`);
@@ -225,6 +245,17 @@ async function loginAs(page, role = "owner") {
   await expect(password).toHaveValue("Password-Test-2026");
   await page.getByRole("button", { name: "Đăng nhập", exact: true }).click();
   await expect(page.getByRole("heading", { name: /Xin chào/ })).toBeVisible();
+}
+
+async function verifyPendingReceipt(page) {
+  const card = page.locator(".card").filter({ has: page.getByRole("heading", { name: "Khoản thu chờ xác minh" }) });
+  await expect(card).toBeVisible();
+  await card.getByLabel("Tài khoản nhận / sổ chứng từ").fill("SYNTHETIC RECEIPT REGISTER");
+  await card.getByLabel("Mã giao dịch / phiếu thu dùng chung").fill(`SYNTHETIC-${randomUUID()}`);
+  await card.getByLabel("Bằng chứng đối chiếu / lý do từ chối").fill("Synthetic physical receipt and existing ledger reviewed by manager");
+  await card.getByRole("checkbox").check();
+  await card.getByRole("button", { name: "Xác minh và ghi nhận", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Khoản thu chờ xác minh" })).toHaveCount(0);
 }
 
 test("FLOW A: OWNER full lifecycle (create vehicle -> inventory -> expense -> sell -> payment -> dashboard)", async ({
@@ -266,6 +297,7 @@ test("FLOW A: OWNER full lifecycle (create vehicle -> inventory -> expense -> se
   await expect(page.getByText(/28\.000\.000/)).toBeVisible(); // Remaining amount 48M - 20M = 28M
   await page.getByRole("button", { name: "Thu tiền", exact: true }).click();
   await page.getByRole("button", { name: "Lưu thanh toán", exact: true }).click();
+  await verifyPendingReceipt(page);
   await expect(page.getByText("Đã thanh toán đủ")).toBeVisible();
 
   // 6. Verify dashboard
@@ -300,6 +332,7 @@ test("FLOW B: Partial payment -> second payment -> fully paid", async ({ page })
   // Second payment: remaining 30M -> fully paid
   await page.getByRole("button", { name: "Thu tiền", exact: true }).click();
   await page.getByRole("button", { name: "Lưu thanh toán", exact: true }).click();
+  await verifyPendingReceipt(page);
   await expect(page.getByText("Đã thanh toán đủ")).toBeVisible();
 });
 
@@ -370,6 +403,14 @@ test("Operational: receivable collection reuses payment flow and refreshes real 
   await saleRow.getByRole("button", { name: "Thu tiền", exact: true }).click();
   await page.getByLabel("Số tiền (₫) *", { exact: false }).fill("3000000");
   await page.getByRole("button", { name: "Lưu thanh toán", exact: true }).click();
+  await expect(page.getByText("Đã lưu đề nghị thu tiền, chờ quản lý xác minh. Tiền đã thu chưa thay đổi.")).toBeVisible();
+  await expect(saleRow).toContainText("13.000.000");
+  expect((await db.query("SELECT sum(amount)::text AS paid FROM public.payments WHERE sale_id=$1 AND status='ACTIVE'", [saleId])).rows[0].paid).toBe("5000000");
+  await loginAs(page, "owner");
+  await page.goto(`/sales/${saleId}`);
+  await verifyPendingReceipt(page);
+  await page.goto("/receivables");
+  await page.getByLabel("Tìm công nợ").fill(`Khách công nợ ${ids.OWNER.slice(0, 6)}`);
   await expect(saleRow).toContainText("10.000.000");
   const paid = await db.query("SELECT sum(amount)::text AS paid FROM public.payments WHERE sale_id=$1 AND status='ACTIVE'", [saleId]);
   expect(paid.rows[0].paid).toBe("8000000");
@@ -382,23 +423,211 @@ test("Operational: receivable collection reuses payment flow and refreshes real 
   await page.screenshot({ path: "test-results/customer-history-desktop.png", fullPage: true });
 });
 
-test("Operational: lost payment response retries the same UUID once without duplicating collection", async ({ page }) => {
+test("Operational: lost receipt proposal response reconciles its UUID without recording unverified money", async ({ page }) => {
   const saleId = await seedSale();
   await loginAs(page, "staff");
   await page.goto(`/sales/${saleId}`);
   await page.getByRole("button", { name: "Thu tiền", exact: true }).click();
   await page.getByLabel("Số tiền (₫) *", { exact: false }).fill("3000000");
   const requests = [];
-  page.on("request", request => { if (request.url().endsWith("/rest/v1/rpc/add_payment")) requests.push(request.postDataJSON().p_data); });
-  failNextPaymentResponse = true;
+  page.on("request", request => { if (request.url().endsWith("/rest/v1/rpc/prepare_payment_receipt")) requests.push(request.postDataJSON().p_data); });
+  failNextOperationResponse = "prepare_payment_receipt";
   await page.getByRole("button", { name: "Lưu thanh toán", exact: true }).click();
   await expect(page.locator(".inset-form .error-state, .inset-form .state-error").or(page.locator(".inset-form").getByText(/Không thể|Failed|fetch/i)).first()).toBeVisible();
   await page.getByRole("button", { name: "Lưu thanh toán", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Ghi nhận thanh toán", exact: true })).toHaveCount(0);
-  expect(requests.length).toBe(2);
-  expect(requests[0].request_id).toBe(requests[1].request_id);
+  expect(requests.length).toBe(1);
+  await expect(page.getByText("Đề nghị thu tiền trước đã được lưu. Không tạo thêm; quản lý kiểm tra mục chờ xác minh.")).toBeVisible();
+  expect((await db.query("SELECT count(*)::text AS count FROM public.payment_receipts WHERE sale_id=$1", [saleId])).rows[0].count).toBe("1");
+  expect((await db.query("SELECT sum(amount)::text AS paid FROM public.payments WHERE sale_id=$1", [saleId])).rows[0].paid).toBe("5000000");
+  await loginAs(page, "owner");
+  await page.goto(`/sales/${saleId}`);
+  await verifyPendingReceipt(page);
   const amounts = await db.query("SELECT count(*)::text AS count, sum(amount)::text AS paid FROM public.payments WHERE sale_id=$1", [saleId]);
   expect(amounts.rows[0]).toEqual({ count: "2", paid: "8000000" });
+});
+
+test("Recovery: reloading after a committed receipt proposal preserves its key and creates no duplicate", async ({ page }) => {
+  const saleId = await seedSale();
+  await loginAs(page, "staff");
+  await page.goto(`/sales/${saleId}`);
+  await page.getByRole("button", { name: "Thu tiền", exact: true }).click();
+  await page.getByLabel("Số tiền (₫) *", { exact: false }).fill("3000000");
+  failNextOperationResponse = "prepare_payment_receipt";
+  await page.getByRole("button", { name: "Lưu thanh toán", exact: true }).click();
+  await expect(page.locator(".inset-form .error-state, .inset-form .state-error").or(page.locator(".inset-form").getByText(/Không thể|Failed|fetch/i)).first()).toBeVisible();
+  await page.reload();
+  await page.getByRole("button", { name: "Thu tiền", exact: true }).click();
+  await page.getByLabel("Số tiền (₫) *", { exact: false }).fill("3000000");
+  await page.getByRole("button", { name: "Lưu thanh toán", exact: true }).click();
+  await expect(page.getByText("Đề nghị thu tiền trước đã được lưu. Không tạo thêm; quản lý kiểm tra mục chờ xác minh.")).toBeVisible();
+  expect((await db.query("SELECT count(*)::text AS count FROM public.payment_receipts WHERE sale_id=$1", [saleId])).rows[0].count).toBe("1");
+  expect((await db.query("SELECT sum(amount)::text AS paid FROM public.payments WHERE sale_id=$1", [saleId])).rows[0].paid).toBe("5000000");
+  await loginAs(page, "owner");
+  await page.goto(`/sales/${saleId}`);
+  await verifyPendingReceipt(page);
+  const amounts = await db.query("SELECT count(*)::text AS count, sum(amount)::text AS paid FROM public.payments WHERE sale_id=$1", [saleId]);
+  expect(amounts.rows[0]).toEqual({ count: "2", paid: "8000000" });
+});
+
+test("Recovery: lost manager approval response retries the actual financial transaction without another payment", async ({ page }) => {
+  const saleId = await seedSale();
+  await loginAs(page, "owner");
+  await page.goto(`/sales/${saleId}`);
+  await page.getByRole("button", { name: "Thu tiền", exact: true }).click();
+  await page.getByLabel("Số tiền (₫) *", { exact: false }).fill("3000000");
+  await page.getByRole("button", { name: "Lưu thanh toán", exact: true }).click();
+  const card = page.locator(".card").filter({ has: page.getByRole("heading", { name: "Khoản thu chờ xác minh" }) });
+  await card.getByLabel("Tài khoản nhận / sổ chứng từ").fill("SYNTHETIC REGISTER");
+  await card.getByLabel("Mã giao dịch / phiếu thu dùng chung").fill(`SYNTHETIC-${randomUUID()}`);
+  await card.getByLabel("Bằng chứng đối chiếu / lý do từ chối").fill("Synthetic manager checked physical payment and all prior history");
+  await card.getByRole("checkbox").check();
+  const requests = [];
+  page.on("request", request => { if (request.url().endsWith("/rest/v1/rpc/add_payment")) requests.push(request.postDataJSON().p_data); });
+  failNextPaymentResponse = true;
+  await card.getByRole("button", { name: "Xác minh và ghi nhận", exact: true }).click();
+  await expect(card.locator(".error-state, .state-error").or(card.getByText(/Không thể|Failed|fetch/i)).first()).toBeVisible();
+  expect((await db.query("SELECT count(*)::text AS n,sum(amount)::text AS paid FROM public.payments WHERE sale_id=$1", [saleId])).rows[0]).toEqual({ n:"2",paid:"8000000" });
+  await card.getByRole("button", { name: "Xác minh và ghi nhận", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Khoản thu chờ xác minh" })).toHaveCount(0);
+  expect(requests).toHaveLength(2);
+  expect(requests[1].receipt_id).toBe(requests[0].receipt_id);
+  expect((await db.query("SELECT count(*)::text AS n,sum(amount)::text AS paid FROM public.payments WHERE sale_id=$1", [saleId])).rows[0]).toEqual({ n:"2",paid:"8000000" });
+  await page.reload();
+  await expect(page.getByRole("heading", { name: "Khoản thu chờ xác minh" })).toHaveCount(0);
+});
+
+test("Compatibility: a retained legacy financial UUID reconciles the existing ledger before proposing new money", async ({ page }) => {
+  const saleId = await seedSale();
+  // Initial/historical ledger entries have no proposal alias. This reproduces
+  // the durable UUID left by a client before the receipt protocol upgrade.
+  const oldPayment = (await db.query("SELECT id FROM public.payments WHERE sale_id=$1",[saleId])).rows[0].id;
+  await loginAs(page, "staff");
+  await page.evaluate(({ userId,saleId,oldPayment }) => localStorage.setItem(`xe_payment_pending_v1:${userId}:${saleId}`,oldPayment),{userId:ids.STAFF,saleId,oldPayment});
+  await page.goto(`/sales/${saleId}`);
+  await page.getByRole("button", { name: "Thu tiền", exact: true }).click();
+  await page.getByRole("button", { name: "Lưu thanh toán", exact: true }).click();
+  await expect(page.getByText("Khoản thu trước đã được ghi nhận. Đã đối soát, không tạo thêm khoản thu.")).toBeVisible();
+  expect((await db.query("SELECT count(*)::text AS n FROM public.payment_receipts WHERE sale_id=$1",[saleId])).rows[0].n).toBe("0");
+  expect((await db.query("SELECT count(*)::text AS n,sum(amount)::text AS paid FROM public.payments WHERE sale_id=$1",[saleId])).rows[0]).toEqual({n:"1",paid:"5000000"});
+});
+
+test("Recovery: canonical receipt alias survives lost response and reload without another proposal", async ({ page }) => {
+  const saleId = await seedSale();
+  const reference = `SYNTHETIC-BANK-${randomUUID()}`;
+  const canonical = await asUser(db, ids.MANAGER, c => rpc(c,"prepare_payment_receipt","$1::jsonb",[JSON.stringify({request_id:randomUUID(),sale_id:saleId,amount:3000000,payment_method:"BANK_TRANSFER",payment_date:day,reference,evidence_kind:"BANK_TRANSACTION",evidence_scope:"SYNTHETIC ACCOUNT",evidence_reference:reference})]));
+  await loginAs(page, "staff");
+  await page.goto(`/sales/${saleId}`);
+  await page.getByRole("button", { name: "Thu tiền", exact: true }).click();
+  await page.getByLabel("Số tiền (₫) *", { exact: false }).fill("3000000");
+  await page.getByLabel("Mã tham chiếu", { exact: true }).fill(reference);
+  await page.getByLabel("Tài khoản nhận / sổ chứng từ", { exact: true }).fill("SYNTHETIC ACCOUNT");
+  failNextOperationResponse = "prepare_payment_receipt";
+  await page.getByRole("button", { name: "Lưu thanh toán", exact: true }).click();
+  await expect(page.locator(".inset-form .error-state, .inset-form .state-error").first()).toBeVisible();
+  await page.reload();
+  await page.getByRole("button", { name: "Thu tiền", exact: true }).click();
+  await page.getByRole("button", { name: "Lưu thanh toán", exact: true }).click();
+  await expect(page.getByText("Đề nghị thu tiền trước đã được lưu. Không tạo thêm; quản lý kiểm tra mục chờ xác minh.")).toBeVisible();
+  expect((await db.query("SELECT id FROM public.payment_receipts WHERE sale_id=$1",[saleId])).rows.map(r=>r.id)).toEqual([canonical.id]);
+  expect((await db.query("SELECT sum(amount)::text AS paid FROM public.payments WHERE sale_id=$1",[saleId])).rows[0].paid).toBe("5000000");
+});
+
+test("Recovery: intake without chassis reconciles a lost response after reload without a second acquisition", async ({ page }) => {
+  await loginAs(page, "owner");
+  await page.goto("/acquisitions/new");
+  await page.getByLabel("Hãng xe", { exact: true }).fill("Honda");
+  await page.getByLabel("Dòng xe *", { exact: true }).fill("Synthetic intake recovery");
+  await page.getByLabel("Giá thu (₫) *", { exact: false }).fill("18000000");
+  const requests = [];
+  page.on("request", request => { if (request.url().endsWith("/rest/v1/rpc/acquire_vehicle")) requests.push(request.postDataJSON()); });
+  await page.getByRole("button", { name: "Thu xe & tạo phiếu", exact: true }).click();
+  failNextOperationResponse = "acquire_vehicle";
+  await page.getByRole("dialog").getByRole("button", { name: /Xác nhận thu xe/ }).click();
+  await expect(page.getByRole("dialog").getByText(/Giao dịch chưa được xác nhận/)).toBeVisible();
+  await page.reload();
+  await page.getByRole("button", { name: "Kiểm tra giao dịch trước", exact: true }).click();
+  await expect(page).toHaveURL(/\/vehicles\/[a-f0-9-]{36}$/);
+  expect(requests).toHaveLength(1);
+  const vehicleId = page.url().split("/").at(-1);
+  expect(Number((await db.query("SELECT count(*) AS n FROM public.acquisitions WHERE vehicle_id=$1", [vehicleId])).rows[0].n)).toBe(1);
+});
+
+test("Recovery: shorthand batch reconciles after commit and reload without repeating the import", async ({ page }) => {
+  await loginAs(page, "owner");
+  await page.goto("/intake");
+  await page.locator("textarea.intake-notes").fill("wave den 18tr\nvision trang 20tr");
+  await page.getByRole("button", { name: "Tách thành danh sách" }).click();
+  const requests = [];
+  page.on("request", request => { if (request.url().endsWith("/rest/v1/rpc/import_vehicles")) requests.push(request.postDataJSON()); });
+  await page.getByRole("button", { name: /Thu 2 xe vào kho/ }).click();
+  failNextOperationResponse = "import_vehicles";
+  await page.getByRole("alertdialog").getByRole("button", { name: "Xác nhận thu xe", exact: true }).click();
+  await expect(page.getByText(/Giao dịch chưa được xác nhận/)).toBeVisible();
+  await page.reload();
+  await page.getByRole("button", { name: "Kiểm tra giao dịch trước", exact: true }).click();
+  await expect(page).toHaveURL(/\/acquisitions$/);
+  expect(requests).toHaveLength(1);
+  const receipt = (await db.query("SELECT result FROM private.operation_receipts WHERE actor_id=$1 AND operation='import_vehicles'", [ids.OWNER])).rows[0].result;
+  expect(receipt.imported_count).toBe(2);
+  expect(Number((await db.query("SELECT count(*) AS n FROM public.acquisitions WHERE vehicle_id=ANY($1::uuid[])", [receipt.vehicle_ids])).rows[0].n)).toBe(2);
+});
+
+test("Recovery: committed sale with initial payment reconciles from the sold vehicle after reload", async ({ page }) => {
+  await loginAs(page, "owner");
+  const vehicleId = createdVehicles[0];
+  await page.goto(`/vehicles/${vehicleId}/sell`);
+  await page.getByLabel("Tên khách hàng *", { exact: true }).fill("Synthetic sale recovery");
+  await page.getByLabel("Thu tiền lần đầu (₫)", { exact: false }).fill("3000000");
+  const requests = [];
+  page.on("request", request => { if (request.url().endsWith("/rest/v1/rpc/sell_vehicle")) requests.push(request.postDataJSON()); });
+  failNextOperationResponse = "sell_vehicle";
+  await page.getByRole("button", { name: "Xác nhận bán xe", exact: true }).click();
+  await expect(page.getByText(/Giao dịch chưa được xác nhận/)).toBeVisible();
+  await page.reload();
+  await page.getByRole("button", { name: "Kiểm tra giao dịch trước", exact: true }).click();
+  await expect(page).toHaveURL(/\/sales\/[a-f0-9-]{36}$/);
+  expect(requests).toHaveLength(1);
+  const saleId = page.url().split("/").at(-1);
+  expect(Number((await db.query("SELECT count(*) AS n FROM public.sales WHERE vehicle_id=$1", [vehicleId])).rows[0].n)).toBe(1);
+  expect(Number((await db.query("SELECT count(*) AS n FROM public.payments WHERE sale_id=$1", [saleId])).rows[0].n)).toBe(1);
+});
+
+test("Failure: a 503 before sale commit preserves input and manual retry records one sale", async ({ page }) => {
+  await loginAs(page, "owner");
+  const vehicleId = createdVehicles[0];
+  await page.goto(`/vehicles/${vehicleId}/sell`);
+  await page.getByLabel("Tên khách hàng *", { exact: true }).fill("Synthetic outage recovery");
+  failBeforeCommit = "sell_vehicle";
+  await page.getByRole("button", { name: "Xác nhận bán xe", exact: true }).click();
+  await expect(page.getByText(/Giao dịch chưa được xác nhận/)).toBeVisible();
+  await expect(page.getByLabel("Tên khách hàng *", { exact: true })).toHaveValue("Synthetic outage recovery");
+  expect(Number((await db.query("SELECT count(*) AS n FROM public.sales WHERE vehicle_id=$1", [vehicleId])).rows[0].n)).toBe(0);
+  await page.getByRole("button", { name: "Xác nhận bán xe", exact: true }).click();
+  await expect(page).toHaveURL(/\/sales\/[a-f0-9-]{36}$/);
+  expect(Number((await db.query("SELECT count(*) AS n FROM public.sales WHERE vehicle_id=$1", [vehicleId])).rows[0].n)).toBe(1);
+});
+
+test("Failure: slow sale remains pending without false success or duplicate requests", async ({ page }) => {
+  await loginAs(page, "owner");
+  const vehicleId = createdVehicles[0];
+  await page.goto(`/vehicles/${vehicleId}/sell`);
+  await page.getByLabel("Tên khách hàng *", { exact: true }).fill("Synthetic slow request");
+  let release;
+  slowMutation = { name: "sell_vehicle", wait: new Promise(resolve => { release = resolve; }) };
+  const requests = [];
+  page.on("request", request => { if (request.url().endsWith("/rest/v1/rpc/sell_vehicle")) requests.push(request.postDataJSON()); });
+  try {
+    await page.getByRole("button", { name: "Xác nhận bán xe", exact: true }).click();
+    await expect(page.getByRole("button", { name: /Đang hoàn tất/ })).toBeDisabled();
+    await page.waitForTimeout(500);
+    expect(requests).toHaveLength(1);
+    expect(Number((await db.query("SELECT count(*) AS n FROM public.sales WHERE vehicle_id=$1", [vehicleId])).rows[0].n)).toBe(0);
+    await expect(page).toHaveURL(new RegExp(`/vehicles/${vehicleId}/sell$`));
+  } finally { release(); slowMutation = null; }
+  await expect(page).toHaveURL(/\/sales\/[a-f0-9-]{36}$/);
+  expect(requests).toHaveLength(1);
+  expect(Number((await db.query("SELECT count(*) AS n FROM public.sales WHERE vehicle_id=$1", [vehicleId])).rows[0].n)).toBe(1);
 });
 
 test("Operational: global search debounces typing, opens with Ctrl+K and resolves keyboard selection", async ({ page }) => {

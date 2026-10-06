@@ -48,6 +48,7 @@ export async function runShowroomTests(externalDb, { engine = 'postgres' } = {})
 
     const seedVehicle = async (overrides = {}) => {
       const id = await call('owner', 'save_vehicle', {
+        request_id: randomUUID(),
         brand: 'Yamaha',
         model: 'Grande',
         license_plate: `SR-${randomUUID().slice(0, 6).toUpperCase()}`,

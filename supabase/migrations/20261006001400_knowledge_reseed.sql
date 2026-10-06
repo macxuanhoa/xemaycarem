@@ -879,12 +879,16 @@ Checks below use disposable PostgreSQL and browser fixtures. They do not verify 
 | Kiểm tra | Kết quả |
 |---|---|
 | npx tsc --noEmit | Đạt (toàn bộ rewrite `SmartVehicleScan` + lớp `smartcam/local/`) |
-| npx eslint src tests scripts | Đạt |
+| npm run lint (cả repo) | Đạt; 0 lỗi — sửa bắt buộc: thêm `public/tesseract/**` (tài sản OCR sinh ra bởi `prepare-ocr-assets.mjs`) và `backups/**` vào ESLint ignore, vì `eslint .` quét chúng sau `npm run build` và báo ~1.300 lỗi trên mã minified không phải nguồn dự án |
+| git diff --check | Đạt, không whitespace error |
 | npx vitest run | 404 test / 38 file đạt (thêm 18 ca `tests/unit/smartcam-local.test.ts`) |
-| npx playwright test | 116/116 đạt, 4.1 phút; e2e `smart-camera.spec.mjs` chạy với `localOcr:false` nên không tải WASM, assert `register_vehicle_image.p_vehicle_id` đúng `vehicle_ids` do transaction trả |
-| npx playwright test tests/e2e/smartcam-ocr-runtime.spec.mjs | Đạt 6.7s bằng chứng runtime: Chromium thật nạp `worker.min.js` + core LSTM cùng nguồn, tải traineddata, OCR THAT đọc ảnh biển số render sạch → xác khớp unique, `ai-assist` = 0 lượt |
+| npx playwright test | 116/116 đạt, 0 skip (hai vòng: 4.1 phút và 3.7 phút trong đợt tích hợp); e2e `smart-camera.spec.mjs` chạy với `localOcr:false` nên không tải WASM, assert `register_vehicle_image.p_vehicle_id` đúng `vehicle_ids` do transaction trả |
+| npx playwright test tests/e2e/smartcam-ocr-runtime.spec.mjs | Đạt bằng chứng runtime (6.7s; chạy lại trong suite đầy đủ 2.6s, không skip): Chromium thật nạp `worker.min.js` + core LSTM cùng nguồn, tải traineddata, OCR THAT đọc ảnh biển số render sạch → xác khớp unique, `ai-assist` = 0 lượt |
 | npm run build | Đạt; CapturePage chunk ~40 kB chứa tham chiếu OCR local, `@zxing/library` import động; PWA precache 72 mục 2.684 KiB — `public/tesseract` (19.44 MB worker + cores) nằm ngoài precache, phục vụ CacheFirst |
-| node scripts/check-edge-types.mjs | Đạt cho 6 tệp Edge; Deno/deploy chưa xác minh |
+| node scripts/check-edge-types.mjs | Đạt cho 6 tệp Edge; Deno/deploy chưa xác minh (`check-edge-native` cần binary `deno` — không có trên máy, NOT VERIFIED, không phải lỗi mã) |
+| npm run test:db + audit đồng thời lõi/mở rộng | Đạt trước và sau khi tái sinh seed tri thức (`20261006001400_knowledge_reseed.sql`, 198 mục) — migration mới áp sạch trên PostgreSQL tạm |
+| npm run test:pwa / check-pwa-upgrade | Đạt với `vite preview` thật: manifest/icons, installability, service worker, precache không chứa API, offline shell, recovery upgrade; WASM OCR nằm ngoài precache chủ ý (CacheFirst) |
+| Nghiệm thu tích hợp (06/10, ca trực sau handoff) | Toàn 35 đường viền delta thuộc phạm vi Smart Camera; không secrets, không binary lạ; checkpoint ngoài `backups\smartcam-ckpt-20261006-223832` (bundle + diff thô autocrlf=false + bản sao worktree) diễn tập khôi phục khớp từng byte 33/33, 0 sai khác |
 
 Trạng thái triển khai so với chưa xác minh được (thật → bắt buộc đo trên máy thật):
 

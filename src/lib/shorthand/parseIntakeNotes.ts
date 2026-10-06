@@ -71,6 +71,14 @@ export type IntakeEntry = {
   /** Which raw token produced each field — powers "teach this abbreviation". */
   provenance: Partial<Record<IntakeFieldKey, string>>;
   unknownTokens: string[];
+  /**
+   * Smart Camera provenance per field (see `@/lib/smartcam/recognition`).
+   * The shorthand parser never sets it; only the camera handoff does, so the
+   * review cards can highlight values that still need a human check.
+   */
+  fieldStatus?: Partial<Record<IntakeFieldKey, "VERIFIED" | "SUGGESTED" | "UNREADABLE" | "CONFLICT">>;
+  /** Approved Smart Camera photos (dataURLs) uploaded after the save. */
+  photos?: string[];
 };
 
 /** VND shorthand: "18tr5" → 18_500_000, "1.2ty" → 1_200_000_000, "450k" → 450_000. */

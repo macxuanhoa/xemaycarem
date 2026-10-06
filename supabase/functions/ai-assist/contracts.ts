@@ -4,7 +4,7 @@ export class AssistError extends Error {
 }
 export type Caller = { rpc: (name: string, parameters?: Record<string, unknown>) => PromiseLike<{ data: unknown; error: unknown }> };
 export type AccessProfile = { role: string; can_view_financials: boolean };
-export const tasks = ['receipt', 'vehicle_document', 'license_plate', 'odometer', 'voice', 'business_question', 'copilot'] as const;
+export const tasks = ['receipt', 'vehicle_document', 'vehicle_scan', 'license_plate', 'odometer', 'voice', 'business_question', 'copilot'] as const;
 export type Task = typeof tasks[number];
 // 'deterministic' answers come only from authorized read RPCs; 'llm' adds a
 // provider-written summary on top of the same retrieved evidence (OWNER only).
@@ -34,7 +34,7 @@ export function validateInput(value: unknown, profile: AccessProfile): AssistInp
   }
   if (input.vehicle_id !== undefined && (typeof input.vehicle_id !== 'string' || !uuid.test(input.vehicle_id))) throw new AssistError(400, 'INVALID_VEHICLE_ID');
   if (['receipt'].includes(String(input.task)) && !canManage(profile)) throw new AssistError(403, 'ACCESS_DENIED');
-  if (['vehicle_document', 'voice'].includes(String(input.task)) && !canOperate(profile)) throw new AssistError(403, 'ACCESS_DENIED');
+  if (['vehicle_document', 'vehicle_scan', 'voice'].includes(String(input.task)) && !canOperate(profile)) throw new AssistError(403, 'ACCESS_DENIED');
   if (input.task === 'copilot' && !canOperate(profile)) throw new AssistError(403, 'ACCESS_DENIED');
   if (['voice', 'business_question', 'copilot'].includes(String(input.task))) {
     if (typeof input.text !== 'string' || !input.text.trim() || input.text.length > 2000 || input.image !== undefined) throw new AssistError(400, 'INVALID_TEXT');
@@ -71,6 +71,13 @@ export function outputSchema(task: Task) {
   if (task === 'receipt') return schema({ amount: nullableMoney, date: nullableDate, merchant: nullableText, description: nullableText, expense_type: category });
   if (task === 'vehicle_document') return schema({ frame_number: nullableText, engine_number: nullableText, license_plate: nullableText,
     brand: nullableText, model: nullableText, color: nullableText, year: { type: ['integer', 'null'], minimum: 1900, maximum: 2100 } });
+  // Smart Camera reads everything visible on one bike in one pass. `variant` and
+  // `odometer` join the document fields so the intake form can be prefilled from
+  // a single normalized result; every field stays nullable because the provider
+  // must answer null for anything it cannot actually see.
+  if (task === 'vehicle_scan') return schema({ license_plate: nullableText, frame_number: nullableText, engine_number: nullableText,
+    brand: nullableText, model: nullableText, variant: nullableText, color: nullableText,
+    year: { type: ['integer', 'null'], minimum: 1900, maximum: 2100 }, odometer: { type: ['integer', 'null'], minimum: 0, maximum: 10_000_000 } });
   if (task === 'license_plate') return schema({ license_plate: nullableText });
   if (task === 'odometer') return schema({ odometer: { type: ['integer', 'null'], minimum: 0, maximum: 10_000_000 } });
   if (task === 'voice') return schema({ intent: { type: 'string', enum: ['CREATE_ACQUISITION', 'ADD_VEHICLE_EXPENSE', 'PREPARE_SALE', 'UNKNOWN'] },
@@ -78,7 +85,7 @@ export function outputSchema(task: Task) {
     purchase_price: nullableMoney, sale_price: nullableMoney, amount: nullableMoney, description: nullableText, expense_type: category, date: nullableDate });
   return schema({ kind: { type: 'string', enum: queryKinds }, month: nullableText, query: nullableText, vehicle_id: nullableText });
 }
-const textLimits: Record<string, number> = { frame_number: 100, engine_number: 100, license_plate: 30, brand: 80, model: 120, color: 80,
+const textLimits: Record<string, number> = { frame_number: 100, engine_number: 100, license_plate: 30, brand: 80, model: 120, variant: 120, color: 80,
   merchant: 200, description: 1000, date: 10, month: 7, query: 100, vehicle_id: 36 };
 export function validateOutput(task: Task, value: unknown, profile: AccessProfile): Record<string, unknown> {
   const result = object(value);

@@ -1,5 +1,7 @@
 node_modules/
 dist/
+# Generated Tesseract WASM runtime for on-device OCR (scripts/prepare-ocr-assets.mjs).
+public/tesseract/
 .env
 .env.*
 !.env.example

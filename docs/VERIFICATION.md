@@ -132,6 +132,28 @@ Checks below use disposable PostgreSQL and browser fixtures. They do not verify 
 | npm run build | Đạt 01/10/2026; entry 744.36 kB / 223.02 kB gzip; cảnh báo chunk >500 kB |
 | npm run test:pwa | Đạt: manifest/icons, installability Chromium, service worker, login desktop/mobile, offline shell; không có lỗi runtime |
 
+## Đợt 2026-10-06 — Camera thông minh quét thật (local-first) sau khi mở rộng pipeline
+
+| Kiểm tra | Kết quả |
+|---|---|
+| npx tsc --noEmit | Đạt (toàn bộ rewrite `SmartVehicleScan` + lớp `smartcam/local/`) |
+| npm run lint (cả repo) | Đạt; 0 lỗi — sửa bắt buộc: thêm `public/tesseract/**` (tài sản OCR sinh ra bởi `prepare-ocr-assets.mjs`) và `backups/**` vào ESLint ignore, vì `eslint .` quét chúng sau `npm run build` và báo ~1.300 lỗi trên mã minified không phải nguồn dự án |
+| git diff --check | Đạt, không whitespace error |
+| npx vitest run | 404 test / 38 file đạt (thêm 18 ca `tests/unit/smartcam-local.test.ts`) |
+| npx playwright test | 116/116 đạt, 0 skip (hai vòng: 4.1 phút và 3.7 phút trong đợt tích hợp); e2e `smart-camera.spec.mjs` chạy với `localOcr:false` nên không tải WASM, assert `register_vehicle_image.p_vehicle_id` đúng `vehicle_ids` do transaction trả |
+| npx playwright test tests/e2e/smartcam-ocr-runtime.spec.mjs | Đạt bằng chứng runtime (6.7s; chạy lại trong suite đầy đủ 2.6s, không skip): Chromium thật nạp `worker.min.js` + core LSTM cùng nguồn, tải traineddata, OCR THAT đọc ảnh biển số render sạch → xác khớp unique, `ai-assist` = 0 lượt |
+| npm run build | Đạt; CapturePage chunk ~40 kB chứa tham chiếu OCR local, `@zxing/library` import động; PWA precache 72 mục 2.684 KiB — `public/tesseract` (19.44 MB worker + cores) nằm ngoài precache, phục vụ CacheFirst |
+| node scripts/check-edge-types.mjs | Đạt cho 6 tệp Edge; Deno/deploy chưa xác minh (`check-edge-native` cần binary `deno` — không có trên máy, NOT VERIFIED, không phải lỗi mã) |
+| npm run test:db + audit đồng thời lõi/mở rộng | Đạt trước và sau khi tái sinh seed tri thức (`20261006001400_knowledge_reseed.sql`, 198 mục) — migration mới áp sạch trên PostgreSQL tạm |
+| npm run test:pwa / check-pwa-upgrade | Đạt với `vite preview` thật: manifest/icons, installability, service worker, precache không chứa API, offline shell, recovery upgrade; WASM OCR nằm ngoài precache chủ ý (CacheFirst) |
+| Nghiệm thu tích hợp (06/10, ca trực sau handoff) | Toàn 35 đường viền delta thuộc phạm vi Smart Camera; không secrets, không binary lạ; checkpoint ngoài `backups\smartcam-ckpt-20261006-223832` (bundle + diff thô autocrlf=false + bản sao worktree) diễn tập khôi phục khớp từng byte 33/33, 0 sai khác |
+
+Trạng thái triển khai so với chưa xác minh được (thật → bắt buộc đo trên máy thật):
+
+- **Đã triển khai, đã kiểm chứng tự động:** quét liên tục không cần chụp từng tấm; OCR biển số Việt Nam (band + sparse, whitelist, glyph-variants, cổng `plate.ts`, chỉ chặn tiền tố 00–10 chưa từng cấp — mã cũ 11/12/14/15–20 và 80 hợp lệ); OCR số khung/số máy; QR/barcode đa mã ZXing (QR phải được `get_vehicle` xác nhận rồi mới reo); bình chọn frame ổn định + reset khi cảnh đổi; sampling thích ứng; beep chỉ cho khớp duy nhất đã xác minh; dedupe theo mục tiêu quét; ledger ngân sách mây (≤6/giờ, ≤1/mục tiêu, mặc định cloud = manual) + đo latency/số byte mỗi lượt; gắn ảnh bằng `vehicle_ids` tin cậy của transaction, không tìm substring.
+- **CHƯA xác minh (không thể đo trong workspace này — cần điện tử/xe/biển thật):** độ chính xác OCR trên biển số Việt Nam thật, tỉ lệ khớp sai, thời gian trung bình nhận diện một xe, tỉ lệ prefill intake thành công, số lượt gọi API/mỗi quét trong điều kiện 4G, chi phí provider/1.000 lượt, tác động CPU/pin/nhiệt trên di động Android/iOS. Hàng đợi đo: chạy `/capture` trên máy thật với ảnh xe đại diện, ghi lại dòng metrics của camera (OCR ms, lookup ms, lượt mây hôm nay, JS heap nếu Chromium cho phép).
+- Giới hạn kỹ thuật cần biết: Tesseract chỉ hợp nhất OCR Latin (`eng`) — biển Việt Nam dùng chữ A–Z/0–9 nên phù hợp, nhưng ký tự mờ/nghoang ngoảnh vẫn cần cloud fallback; traineddata ~2 MB tải từ CDN lần đầu rồi cache; `performance.memory` chỉ có trên Chromium.
+
 ## Phạm vi các kiểm tra quan trọng
 
 - DB suite chạy toàn bộ 26 migration trên PostgreSQL tạm; tạo schema Auth/Storage tối thiểu, dùng dữ liệu giả và kiểm quyền/RLS bằng các role PostgreSQL thật. Communication cases verify atomic outbox behavior, isolated outbox failures, unique idempotency, skips/configuration, retry/backoff, mock state/history and direct-table denial.

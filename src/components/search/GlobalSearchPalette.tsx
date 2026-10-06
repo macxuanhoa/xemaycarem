@@ -47,7 +47,7 @@ export function GlobalSearchPalette() {
     { label: "Công nợ", to: "/receivables" },
     { label: "Khách hàng", to: "/customers" },
     { label: "Tồn kho", to: "/vehicles" },
-    { label: "Quét QR", to: "/capture" },
+    { label: "Camera thông minh", to: "/capture" },
   ];
   const recentVehicles = isOpen ? getRecentVehicles(profile?.id) : [];
   useEffect(() => {

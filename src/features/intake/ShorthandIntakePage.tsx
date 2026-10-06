@@ -69,6 +69,13 @@ import {
   validateIntakeEntry,
 } from "@/lib/shorthand/intakeRows";
 import { vehicleSuggestions } from "@/lib/vehicleSuggestions";
+import {
+  parseRecognition,
+  readRecognitionDraft,
+  recognitionToIntakeEntry,
+  clearRecognitionDraft,
+} from "@/lib/smartcam/recognition";
+import { uploadEntryPhotos } from "@/lib/smartcam/photos";
 import type { Paged, Vehicle } from "@/types";
 import { normalizeVehicleYear } from "@/lib/vehicleInputFormatting";
 
@@ -118,9 +125,22 @@ export default function ShorthandIntakePage() {
     "string"
       ? String((location.state as { seedText: string }).seedText).slice(0, 4000)
       : "";
+  // Smart Camera handoff: one structured recognition result becomes one
+  // reviewed intake entry — no parallel form, no second save path.
+  const cameraRecognition = parseRecognition(
+    (location.state as { recognition?: unknown } | null)?.recognition,
+  );
 
-  const [text, setText] = useState(seedText);
-  const [entries, setEntries] = useState<IntakeEntry[]>([]);
+  const [entries, setEntries] = useState<IntakeEntry[]>(() => {
+    if (!cameraRecognition) return [];
+    const entry = recognitionToIntakeEntry(
+      cameraRecognition,
+      crypto.randomUUID?.() ?? `cam-${Date.now()}`,
+      today(),
+    );
+    if (cameraRecognition.photos.length) entry.photos = cameraRecognition.photos;
+    return [entry];
+  });
   const [dict, setDict] = useState<LearnedDictionary>(() =>
     loadDictionary(profile?.id, dictionaryStorage),
   );
@@ -134,6 +154,20 @@ export default function ShorthandIntakePage() {
     if (dictionaryRef.current) dictionaryRef.current.open = true;
   };
   const [serverIssues, setServerIssues] = useState<Record<number, string[]>>({});
+
+  const [text, setText] = useState(seedText);
+  // Interruption safety: a camera result that never reached the form (page
+  // reload, crash) is restored once from the session draft.
+  const didRestoreCamera = useRef(false);
+  useEffect(() => {
+    if (didRestoreCamera.current || cameraRecognition || !profile?.id) return;
+    didRestoreCamera.current = true;
+    if (seedText) return;
+    const stored = readRecognitionDraft(profile.id);
+    if (!stored) return;
+    const entry = recognitionToIntakeEntry(stored, crypto.randomUUID?.() ?? `cam-${Date.now()}`, today());
+    setEntries((prev) => (prev.length ? prev : [entry]));
+  }, [cameraRecognition, profile?.id, seedText]);
 
   const catalog = useQuery({
     queryKey: ["vehicle-form-suggestions", profile?.id],
@@ -250,8 +284,13 @@ export default function ShorthandIntakePage() {
   const submit = useMutation({
     mutationFn: async () => {
       if (!profile) throw new AppError("Vui lòng đăng nhập lại trước khi thu xe.");
-      const previous = await reconcileOperation<{ imported_count: number }>(profile.id, "import_vehicles", "batch");
-      if (previous.confirmed) return { status: "done" as const, count: previous.result!.imported_count };
+      const previous = await reconcileOperation<{ imported_count: number; vehicle_ids?: string[] }>(profile.id, "import_vehicles", "batch");
+      if (previous.confirmed) {
+        // The stored receipt replays the same vehicle_ids the write returned,
+        // so even recovery after a lost response attaches photos by id.
+        const recovered = await uploadEntryPhotos(entries, previous.result?.vehicle_ids);
+        return { status: "done" as const, count: previous.result!.imported_count, photos: recovered };
+      }
       const rows = entries.map((entry) => entryToImportRow(entry, financial));
       const check = await api.call<ImportCheck>("validate_import_vehicles", {
         p_vehicles: rows,
@@ -271,18 +310,28 @@ export default function ShorthandIntakePage() {
         confirmLabel: "Xác nhận thu xe",
       });
       if (!confirmed) return { status: "cancelled" as const };
-      const result = await executeOperation<{ imported_count: number }>(
+      const result = await executeOperation<{ imported_count: number; vehicle_ids?: string[] }>(
         profile.id, "import_vehicles", "batch", requestId => api.call("import_vehicles", {
           p_vehicles: { rows, request_id: requestId },
         }),
       );
-      return { status: "done" as const, count: result.imported_count };
+      // Camera photos go through the normal secure upload only after the
+      // confirmed write — a failed import can never leave stray images.
+      const photos = await uploadEntryPhotos(entries, result.vehicle_ids);
+      return { status: "done" as const, count: result.imported_count, photos };
     },
     onSuccess: async (outcome) => {
       if (outcome.status !== "done") return;
+      clearRecognitionDraft(profile?.id);
       toast.success(`Đã thu ${outcome.count} xe vào kho.`, {
         description: "Phiếu thu và xe đã sẵn sàng trong danh sách Thu vào.",
       });
+      if (outcome.photos.uploaded)
+        toast.success(`Đã đính ${outcome.photos.uploaded} ảnh camera vào xe mới.`);
+      if (outcome.photos.failed)
+        toast.info(
+          `${outcome.photos.failed} ảnh chưa tải lên được — mở chi tiết xe để thêm ảnh.`,
+        );
       await client.invalidateQueries({ queryKey: ["acquisitions"] });
       await client.invalidateQueries({ queryKey: ["vehicles"] });
       await client.invalidateQueries({ queryKey: ["dashboard"] });
@@ -294,6 +343,21 @@ export default function ShorthandIntakePage() {
     () => entries.map((entry) => validateIntakeEntry(entry, financial)),
     [entries, financial],
   );
+  // Smart Camera provenance badges: only camera entries carry fieldStatus,
+  // so parsed notes render exactly as before.
+  const cameraClass = (entry: IntakeEntry, key: IntakeFieldKey, base = "") => {
+    const status = entry.fieldStatus?.[key];
+    const extra =
+      status === "CONFLICT" ? " fs-conflict" : status === "SUGGESTED" ? " fs-verify" : status === "VERIFIED" ? " fs-verified" : "";
+    return `${base}${extra}`.trim() || undefined;
+  };
+  const cameraNote = (entry: IntakeEntry, key: IntakeFieldKey) => {
+    const status = entry.fieldStatus?.[key];
+    if (status === "VERIFIED") return <span className="fs-badge ok">Đã xác khớp với kho</span>;
+    if (status === "SUGGESTED") return <span className="fs-badge warn">Camera đoán — kiểm tra lại</span>;
+    if (status === "CONFLICT") return <span className="fs-badge danger">Mâu thuẫn — cần xác minh thủ công</span>;
+    return null;
+  };
   const blockingCount = clientErrorsByEntry.filter((list) => list.length).length;
   const unknownCount = entries.reduce(
     (sum, entry) => sum + entry.unknownTokens.length,
@@ -352,6 +416,12 @@ export default function ShorthandIntakePage() {
               : "Càng sửa, lần sau tách càng đúng."}
           </span>
         </div>
+        {entries.some((entry) => entry.sourceLine === "Camera thông minh") && (
+          <div className="notice" role="status">
+            Bản nháp từ Camera thông minh — kiểm tra các trường được đánh dấu
+            trước khi thu xe. Ảnh camera sẽ đính vào xe sau khi lưu.
+          </div>
+        )}
         {dictionaryChanged && entries.length > 0 && (
           <div className="notice" role="status">
             Bộ nhớ viết tắt vừa được cập nhật.
@@ -392,24 +462,51 @@ export default function ShorthandIntakePage() {
               </button>
             </div>
             <p className="muted small intake-source">Gốc: {entry.sourceLine}</p>
+            {!!entry.photos?.length && (
+              <div className="intake-camera-photos" aria-label="Ảnh camera kèm theo xe này">
+                {entry.photos.map((photo, index) => (
+                  <span className="intake-camera-photo" key={photo.slice(-24)}>
+                    <img src={photo} alt={`Ảnh camera ${index + 1}`} />
+                    <button
+                      type="button"
+                      aria-label={`Bỏ ảnh camera ${index + 1}`}
+                      onClick={() =>
+                        setEntries((prev) =>
+                          prev.map((row) =>
+                            row.id === entry.id
+                              ? { ...row, photos: row.photos?.filter((_, i) => i !== index) }
+                              : row,
+                          ),
+                        )
+                      }
+                    >
+                      ×
+                    </button>
+                  </span>
+                ))}
+                <small className="muted">Ảnh sẽ được đính vào xe sau khi thu.</small>
+              </div>
+            )}
             <div className="form-grid intake-entry-grid">
-              <Field label="Hãng xe" className="intake-span2">
+              <Field label="Hãng xe" className={cameraClass(entry, "brand", "intake-span2")}>
                 <AutocompleteInput
                   value={entry.fields.brand ?? ""}
                   suggestions={suggestionsFor("brand", entry)}
                   onChange={(value) => updateField(entry.id, "brand", value)}
                   placeholder="Honda"
                 />
+                {cameraNote(entry, "brand")}
               </Field>
-              <Field label="Dòng xe" className="intake-span2">
+              <Field label="Dòng xe" className={cameraClass(entry, "model", "intake-span2")}>
                 <AutocompleteInput
                   value={entry.fields.model ?? ""}
                   suggestions={suggestionsFor("model", entry)}
                   onChange={(value) => updateField(entry.id, "model", value)}
                   placeholder="SH 160i"
                 />
+                {cameraNote(entry, "model")}
               </Field>
-              <Field label="Số khung">
+              <Field label="Số khung" className={cameraClass(entry, "frame_number")}>
                 <input
                   value={entry.fields.frame_number ?? ""}
                   onChange={(event) =>
@@ -418,8 +515,9 @@ export default function ShorthandIntakePage() {
                   autoCapitalize="characters"
                   placeholder="RLH160…"
                 />
+                {cameraNote(entry, "frame_number")}
               </Field>
-              <Field label="Số máy">
+              <Field label="Số máy" className={cameraClass(entry, "engine_number")}>
                 <input
                   value={entry.fields.engine_number ?? ""}
                   onChange={(event) =>
@@ -428,8 +526,9 @@ export default function ShorthandIntakePage() {
                   autoCapitalize="characters"
                   placeholder="KF160…"
                 />
+                {cameraNote(entry, "engine_number")}
               </Field>
-              <Field label="Biển số">
+              <Field label="Biển số" className={cameraClass(entry, "license_plate")}>
                 <input
                   value={entry.fields.license_plate ?? ""}
                   onChange={(event) =>
@@ -447,9 +546,11 @@ export default function ShorthandIntakePage() {
                   autoCapitalize="characters"
                   placeholder={PLATE_EXAMPLE}
                 />
+                {cameraNote(entry, "license_plate")}
               </Field>
               <Field
                 label="Màu sắc"
+                className={cameraClass(entry, "color")}
                 labelAction={
                   <ColorSwatchAction
                     value={entry.fields.color ?? ""}
@@ -464,16 +565,18 @@ export default function ShorthandIntakePage() {
                   onChange={(value) => updateField(entry.id, "color", value)}
                   placeholder="Đen"
                 />
+                {cameraNote(entry, "color")}
               </Field>
-              <Field label="Phiên bản">
+              <Field label="Phiên bản" className={cameraClass(entry, "variant")}>
                 <AutocompleteInput
                   value={entry.fields.variant ?? ""}
                   suggestions={suggestionsFor("variant", entry)}
                   onChange={(value) => updateField(entry.id, "variant", value)}
                   placeholder="ABS"
                 />
+                {cameraNote(entry, "variant")}
               </Field>
-              <Field label="Năm sản xuất">
+              <Field label="Năm sản xuất" className={cameraClass(entry, "year")}>
                 <input
                   value={entry.fields.year ?? ""}
                   onChange={(event) => updateField(entry.id, "year", event.target.value)}
@@ -486,14 +589,16 @@ export default function ShorthandIntakePage() {
                   inputMode="numeric"
                   placeholder="2022"
                 />
+                {cameraNote(entry, "year")}
               </Field>
-              <Field label="Số km đã đi">
+              <Field label="Số km đã đi" className={cameraClass(entry, "odometer")}>
                 <GroupedIntegerInput
                   aria-label="Số km đã đi"
                   value={entry.fields.odometer ?? ""}
                   onChange={(digits) => updateField(entry.id, "odometer", digits)}
                   placeholder="12.500"
                 />
+                {cameraNote(entry, "odometer")}
               </Field>
               <Field label="Ngày thu">
                 <input

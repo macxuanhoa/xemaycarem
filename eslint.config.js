@@ -12,6 +12,10 @@ export default tseslint.config(
       "playwright-report/**",
       "test-results/**",
       "scratch/**",
+      "backups/**",
+      // Generated Tesseract runtime (scripts/prepare-ocr-assets.mjs): vendored
+      // minified WASM loaders, not project source — same class as dist/.
+      "public/tesseract/**",
       ".vercel-tmp/**",
     ],
   },

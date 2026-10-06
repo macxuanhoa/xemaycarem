@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button, Card, Field, PageHeader } from "@/components/ui";
 import { resolveVehicleQr } from "@/lib/qrcode";
+import SmartVehicleScan from "./SmartVehicleScan";
 import type { Html5Qrcode } from "html5-qrcode";
 
 export default function CapturePage() {
@@ -72,9 +73,10 @@ export default function CapturePage() {
   return (
     <div className="stack">
       <PageHeader
-        title="Quét / Chụp"
-        description="Quét QR để mở xe; chụp ảnh trong hồ sơ xe để lưu đúng xe."
+        title="Camera thông minh"
+        description="Nhận diện xe bằng ảnh, quét QR mở hồ sơ, hoặc nhập biển số/số khung."
       />
+      <SmartVehicleScan />
       <Card>
         <h2 className="section-title">Quét QR xe</h2>
         <div id="vehicle-qr-reader" className="qr-reader" />

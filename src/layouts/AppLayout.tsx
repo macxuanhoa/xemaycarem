@@ -111,7 +111,7 @@ export function AppLayout() {
     if (pathname.startsWith("/settings")) return "Cài đặt";
     if (pathname.startsWith("/audit")) return "Lịch sử thao tác";
     if (pathname.startsWith("/users")) return "Nhân sự";
-    if (pathname.startsWith("/capture")) return "Quét giấy tờ";
+    if (pathname.startsWith("/capture")) return "Camera thông minh";
     if (pathname.startsWith("/intake")) return "Thu xe tốc ký";
     if (pathname.startsWith("/copilot")) return "Trợ lý AI";
     if (pathname.startsWith("/docs")) return "Tài liệu cửa hàng";

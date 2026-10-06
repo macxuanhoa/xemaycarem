@@ -4333,6 +4333,227 @@ mark.search-hit {
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
+/* --- Smart Camera (Capture) — mobile-first, no hover motion ------------- */
+/* Live preview wrapper: guide frame + transient OCR hint overlay. */
+.smartcam-stage {
+  position: relative;
+}
+.smartcam-guide {
+  position: absolute;
+  inset: 40% 8% 18%;
+  border: 1.5px dashed rgba(255, 255, 255, 0.75);
+  border-radius: 10px;
+  pointer-events: none;
+}
+.smartcam-hint {
+  position: absolute;
+  left: 8%;
+  right: 8%;
+  bottom: 6%;
+  padding: 6px 10px;
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.65);
+  color: #fff;
+  font-size: 0.85rem;
+  text-align: center;
+  pointer-events: none;
+}
+.smartcam-engine {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.smartcam-video {
+  width: 100%;
+  max-height: 55vh;
+  object-fit: cover;
+  border-radius: 12px;
+  border: 1px solid var(--border, #d9d9d9);
+  background: #000;
+}
+.smartcam-controls {
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 12px;
+}
+.smartcam-settings {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 10px;
+}
+.smartcam-settings label.row,
+.smartcam-consent {
+  font-size: 14px;
+  gap: 8px;
+}
+.smartcam-result {
+  margin-top: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.smartcam-verdict {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: rgba(128, 128, 128, 0.12);
+}
+.smartcam-verdict.ok {
+  background: rgba(22, 163, 74, 0.12);
+  color: var(--success, #15803d);
+}
+.smartcam-verdict.warn {
+  background: rgba(217, 119, 6, 0.14);
+  color: var(--warning, #b45309);
+}
+.smartcam-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.smartcam-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 13px;
+  border: 1px solid var(--border, #d9d9d9);
+  background: var(--card, #fff);
+}
+.smartcam-chip small {
+  opacity: 0.75;
+}
+.smartcam-chip.status-verified {
+  border-color: rgba(22, 163, 74, 0.5);
+  color: var(--success, #15803d);
+}
+.smartcam-chip.status-suggested {
+  border-color: rgba(217, 119, 6, 0.55);
+  color: var(--warning, #b45309);
+}
+.smartcam-chip.status-conflict {
+  border-color: rgba(220, 38, 38, 0.55);
+  color: var(--danger, #b91c1c);
+}
+.smartcam-candidates {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.smartcam-candidate {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  text-align: left;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--border, #d9d9d9);
+  background: var(--card, #fff);
+  cursor: pointer;
+}
+.smartcam-actions {
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.smartcam-photos {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.smartcam-photo {
+  position: relative;
+  display: inline-block;
+}
+.smartcam-photo img {
+  width: 84px;
+  height: 84px;
+  object-fit: cover;
+  border-radius: 10px;
+  border: 1px solid var(--border, #d9d9d9);
+}
+.smartcam-photo button {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 22px;
+  height: 22px;
+  display: grid;
+  place-items: center;
+  border-radius: 999px;
+  border: none;
+  background: rgba(0, 0, 0, 0.62);
+  color: #fff;
+  cursor: pointer;
+}
+/* Intake review badges for camera provenance (spec §3 field statuses). */
+.fs-badge {
+  display: inline-block;
+  margin-top: 4px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 11.5px;
+  line-height: 1.5;
+}
+.fs-badge.ok {
+  background: rgba(22, 163, 74, 0.13);
+  color: var(--success, #15803d);
+}
+.fs-badge.warn {
+  background: rgba(217, 119, 6, 0.15);
+  color: var(--warning, #b45309);
+}
+.fs-badge.danger {
+  background: rgba(220, 38, 38, 0.13);
+  color: var(--danger, #b91c1c);
+}
+.intake-entry-grid .fs-verify input,
+.intake-entry-grid .fs-verify .autocomplete-input,
+.intake-entry-grid fieldset.fs-verify input {
+  border-color: rgba(217, 119, 6, 0.65);
+}
+.intake-entry-grid .fs-conflict input {
+  border-color: rgba(220, 38, 38, 0.7);
+}
+.intake-entry-grid .fs-verified input {
+  border-color: rgba(22, 163, 74, 0.55);
+}
+.intake-camera-photos {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 8px;
+}
+.intake-camera-photo {
+  position: relative;
+  display: inline-block;
+}
+.intake-camera-photo img {
+  width: 64px;
+  height: 64px;
+  object-fit: cover;
+  border-radius: 8px;
+  border: 1px solid var(--border, #d9d9d9);
+}
+.intake-camera-photo button {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  width: 20px;
+  height: 20px;
+  border-radius: 999px;
+  border: none;
+  background: rgba(0, 0, 0, 0.62);
+  color: #fff;
+  line-height: 1;
+  cursor: pointer;
+}
 .customer-receipt {
   padding: 24px;
   color: #111;

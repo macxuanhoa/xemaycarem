@@ -49,6 +49,17 @@ describe('AI drafts and read tools preserve authority outside the model', () => 
     expect(() => validateOutput('business_question', plan('profit'), staff)).toThrow('FINANCIAL_ACCESS_DENIED')
     expect(() => validateOutput('voice', draft('voice', { intent: 'ADD_VEHICLE_EXPENSE' }), staff)).toThrow('ACCESS_DENIED')
   })
+  it('gates the smart camera vehicle_scan task on consent, role and exact image output', () => {
+    expect(() => validateInput({ task: 'vehicle_scan', image: inputImage }, staff)).toThrow('EXPLICIT_PROCESSING_CONSENT_REQUIRED')
+    expect(() => validateInput({ task: 'vehicle_scan', consent: true, text: 'xe vision đen' }, staff)).toThrow('INVALID_INPUT')
+    expect(validateInput({ task: 'vehicle_scan', consent: true, image: inputImage }, staff)).toMatchObject({ task: 'vehicle_scan' })
+    // A STAFF scan is allowed (intake is an operational task) but extra keys never pass.
+    expect(() => validateOutput('vehicle_scan', { ...draft('vehicle_scan'), purchase_price: 18000000 }, staff)).toThrow('INVALID_INPUT')
+    expect(() => validateOutput('vehicle_scan', draft('vehicle_scan', { odometer: 99999999 }), staff)).toThrow('INVALID_AI_RESULT')
+    expect(() => validateOutput('vehicle_scan', draft('vehicle_scan', { year: 1850 }), staff)).toThrow('INVALID_AI_RESULT')
+    expect(validateOutput('vehicle_scan', draft('vehicle_scan', { license_plate: '59-A1 234.56', brand: 'Honda', odometer: 18500 }), staff))
+      .toMatchObject({ license_plate: '59-A1 234.56', brand: 'Honda', odometer: 18500 })
+  })
   it('executes only allowlisted read RPCs and uses database facts, preserving known vehicle context', async () => {
     const caller = { rpc: vi.fn(async (name: string) => { void name; return { data: { gross_profit: 123, expenses: [] }, error: null } }) }
     expect(await readBusinessFacts(plan('profit'), caller)).toMatchObject({ month: '2026-09', gross_profit: 123 })

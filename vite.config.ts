@@ -38,9 +38,33 @@ export default defineConfig({
       },
       workbox: {
         globPatterns: ["**/*.{js,css,html,svg,png,woff2}"],
+        // The Tesseract WASM runtime (~13 MB) must never be precached with the
+        // app shell; the OCR worker fetches it on demand and CacheFirst keeps
+        // it for offline scanning afterwards.
+        globIgnores: ["**/tesseract/**"],
         navigateFallback: "/index.html",
         cleanupOutdatedCaches: true,
-        runtimeCaching: [],
+        runtimeCaching: [
+          {
+            urlPattern: ({ url, sameOrigin }) => sameOrigin && url.pathname.startsWith("/tesseract/"),
+            handler: "CacheFirst",
+            options: {
+              cacheName: "smartcam-ocr-runtime",
+              expiration: { maxEntries: 12, maxAgeSeconds: 60 * 60 * 24 * 60 },
+            },
+          },
+          {
+            // Tesseract language model (first OCR run only, then offline).
+            urlPattern: ({ url }) =>
+              (url.hostname === "cdn.jsdelivr.net" || url.hostname === "unpkg.com") &&
+              url.pathname.includes("traineddata"),
+            handler: "CacheFirst",
+            options: {
+              cacheName: "smartcam-ocr-language",
+              expiration: { maxEntries: 4, maxAgeSeconds: 60 * 60 * 24 * 180 },
+            },
+          },
+        ],
       },
       devOptions: { enabled: false },
     }),

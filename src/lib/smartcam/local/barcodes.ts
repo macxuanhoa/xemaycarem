@@ -1,0 +1,76 @@
+/**
+ * Local QR/barcode recognition with ZXing (WASM-free, pure JS, lazy-loaded).
+ * A frame is decoded on two regions — the whole picture and the lower band
+ * where stickers usually sit — and distinct payloads are merged, so multiple
+ * visible codes in one frame are all reported. Decoding is synchronous CPU
+ * work, so callers keep it behind the loop's busy guard and a slower cadence
+ * than the sharpness check.
+ */
+import { sourceCanvas, toGray } from "./frames";
+
+/** Reusable module handle; a failed import disables codes for the session. */
+let zxDynamic: Promise<typeof import("@zxing/library") | null> | null = null;
+
+function zxing() {
+  if (!zxDynamic)
+    zxDynamic = import("@zxing/library").catch(() => null);
+  return zxDynamic;
+}
+
+let reader: InstanceType<typeof import("@zxing/library").MultiFormatReader> | null = null;
+let hints: Map<import("@zxing/library").DecodeHintType, unknown> | null = null;
+
+function buildHints(mod: typeof import("@zxing/library")): Map<import("@zxing/library").DecodeHintType, unknown> {
+  const map = new Map<import("@zxing/library").DecodeHintType, unknown>();
+  map.set(mod.DecodeHintType.POSSIBLE_FORMATS, [
+    mod.BarcodeFormat.QR_CODE,
+    mod.BarcodeFormat.AZTEC,
+    mod.BarcodeFormat.DATA_MATRIX,
+    mod.BarcodeFormat.CODE_128,
+    mod.BarcodeFormat.CODE_39,
+    mod.BarcodeFormat.CODE_93,
+    mod.BarcodeFormat.ITF,
+    mod.BarcodeFormat.EAN_8,
+    mod.BarcodeFormat.EAN_13,
+    mod.BarcodeFormat.UPC_A,
+  ]);
+  map.set(mod.DecodeHintType.TRY_HARDER, true);
+  return map;
+}
+
+/** Decode every configured region of one frame; returns distinct payloads. */
+export async function detectCodes(video: HTMLVideoElement | HTMLCanvasElement): Promise<string[]> {
+  const mod = await zxing();
+  if (!mod) return [];
+  reader ??= new mod.MultiFormatReader();
+  hints ??= buildHints(mod);
+  const full = video instanceof HTMLCanvasElement ? video : sourceCanvas(video, 640);
+  if (!full) return [];
+  const height = full.height;
+  const regions: HTMLCanvasElement[] = [full];
+  // Lower-middle band (vehicle stickers often sit below the plate line).
+  const band = document.createElement("canvas");
+  band.width = full.width;
+  band.height = Math.round(height * 0.45);
+  const ctx = band.getContext("2d", { willReadFrequently: true });
+  if (ctx) {
+    ctx.drawImage(full, 0, Math.round(height * 0.4), full.width, band.height, 0, 0, band.width, band.height);
+    regions.push(band);
+  }
+  const found = new Set<string>();
+  for (const region of regions) {
+    const gray = toGray(region);
+    if (!gray) continue;
+    const source = new mod.RGBLuminanceSource(gray.data, gray.width, gray.height);
+    const bitmap = new mod.BinaryBitmap(new mod.HybridBinarizer(source));
+    try {
+      const result = reader.decode(bitmap, hints);
+      const text = result.getText()?.trim();
+      if (text) found.add(text);
+    } catch {
+      // NotFoundException/ChecksumException are the normal "no code here".
+    }
+    reader.reset();
+  }
+  return [...found];
+}

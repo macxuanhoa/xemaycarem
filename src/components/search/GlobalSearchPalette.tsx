@@ -11,37 +11,20 @@ import { useQuery } from "@tanstack/react-query";
 import {
   ArrowRight,
   Bike,
-  Camera,
   Clock3,
   Command,
-  Plus,
-  Receipt,
   Search,
-  Sparkles,
-  Tag,
-  Users,
-  Wallet,
-  Warehouse,
   X,
-  type LucideIcon,
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { Badge, ErrorState } from "@/components/ui";
 import { useAuth } from "@/features/auth/AuthProvider";
-import { canManage, canOperate } from "@/lib/permissions";
+import { canOperate } from "@/lib/permissions";
 import { useDebouncedValue } from "@/lib/useDebouncedValue";
 import { useDialog } from "@/lib/useDialog";
 import { getRecentVehicles, formatRelativeTime } from "@/lib/recentVehicles";
 import { Highlight } from "@/components/search/Highlight";
 import type { GlobalSearchResult } from "@/types";
-
-const normalizeCommand = (value: string) =>
-  value
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .replace(/đ/g, "d")
-    .trim()
-    .toLowerCase();
 
 export function GlobalSearchPalette() {
   const { profile } = useAuth();
@@ -88,37 +71,6 @@ export function GlobalSearchPalette() {
       window.removeEventListener("resize", update);
     };
   }, [mobile, isOpen, dialogRef]);
-  // Priority-ordered quick commands. `access` preserves the old role gating
-  // (operate-only / everyone / manage-only) while letting us rank the most
-  // used actions first: Thu xe · Bán xe · Tồn kho · Thu xe tốc ký.
-  const commandCatalog: {
-    label: string;
-    short?: string;
-    to: string;
-    icon: LucideIcon;
-    access: "all" | "operate" | "manage";
-  }[] = [
-    { label: "Thu xe", to: "/acquisitions/new", icon: Plus, access: "operate" },
-    { label: "Bán xe", to: "/sell", icon: Tag, access: "operate" },
-    { label: "Tồn kho", to: "/vehicles", icon: Warehouse, access: "all" },
-    {
-      label: "Thu xe tốc ký (dán ghi chú)",
-      short: "Thu xe tốc ký",
-      to: "/intake",
-      icon: Sparkles,
-      access: "operate",
-    },
-    { label: "Camera thông minh", to: "/capture", icon: Camera, access: "all" },
-    { label: "Khách hàng", to: "/customers", icon: Users, access: "all" },
-    { label: "Công nợ", to: "/receivables", icon: Receipt, access: "all" },
-    { label: "Chi phí", to: "/expenses", icon: Wallet, access: "manage" },
-  ];
-  const commands = commandCatalog.filter(
-    (command) =>
-      command.access === "all" ||
-      (command.access === "operate" && canOperate(profile)) ||
-      (command.access === "manage" && canManage(profile)),
-  );
   const recentVehicles = isOpen ? getRecentVehicles(profile?.id) : [];
   useEffect(() => {
     const keydown = (event: globalThis.KeyboardEvent) => {
@@ -175,11 +127,6 @@ export function GlobalSearchPalette() {
   // The term actually used for the rendered results — same value on desktop
   // and mobile, so highlights land identically regardless of screen size.
   const term = debouncedQuery;
-  const matchingCommands = commands.filter(
-    (command) =>
-      !query.trim() ||
-      normalizeCommand(command.label).includes(normalizeCommand(query)),
-  );
   const hasResults = !!(
     results?.vehicles.length ||
     results?.customers.length ||
@@ -208,10 +155,6 @@ export function GlobalSearchPalette() {
   };
   const submit = (event: FormEvent) => {
     event.preventDefault();
-    const command = commands.find(
-      (item) => normalizeCommand(item.label) === normalizeCommand(query),
-    );
-    if (command) return open(command.to);
     if (
       results?.vehicles.length === 1 &&
       !results.customers.length &&
@@ -242,35 +185,8 @@ export function GlobalSearchPalette() {
       autoComplete="off"
     />
   );
-  const commandSection = matchingCommands.length > 0 && (
-    <div className="search-palette-section">
-      <div className="search-palette-heading">LỆNH NHANH</div>
-      <div className="palette-commands">
-        {matchingCommands.map((command) => {
-          const Icon = command.icon;
-          return (
-            <button
-              type="button"
-              className="palette-cmd-btn"
-              key={command.to}
-              onClick={() => open(command.to)}
-            >
-              <span className="palette-cmd-icon" aria-hidden="true">
-                <Icon size={16} />
-              </span>
-              <span className="palette-cmd-label">
-                <Highlight text={command.short ?? command.label} query={term} />
-              </span>
-              <ArrowRight size={16} className="palette-cmd-arrow" aria-hidden="true" />
-            </button>
-          );
-        })}
-      </div>
-    </div>
-  );
   const resultContent = (
     <>
-      {query.trim().length < 2 || !hasResults ? commandSection : null}
       {query.trim().length >= 2 ? (
         <div className="search-palette-section">
           <div className="search-palette-heading" role="status">
@@ -411,7 +327,6 @@ export function GlobalSearchPalette() {
           </div>
         )
       )}
-      {query.trim().length >= 2 && hasResults ? commandSection : null}
     </>
   );
   return (

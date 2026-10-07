@@ -835,7 +835,7 @@ test("Mobile search contains focus, preserves scroll and fits a reduced visible 
   ).toBe(false);
 });
 
-test("Matching vehicle results precede quick commands without changing search writes", async ({
+test("Matching vehicle results render without quick commands and never write", async ({
   page,
 }) => {
   const calls = await installMock(page);
@@ -851,7 +851,8 @@ test("Matching vehicle results precede quick commands without changing search wr
   });
   await expect(results.locator(".palette-result-item")).toHaveCount(1);
   await expect(results.locator("button").first()).toContainText("Honda Vision");
-  await expect(results.locator(".palette-cmd-btn").first()).toBeVisible();
+  // Quick-command tiles were removed from the shared search palette.
+  await expect(results.locator(".palette-cmd-btn")).toHaveCount(0);
   expect(calls.filter((call) => call.name === "global_search")).toHaveLength(1);
   expect(
     calls.some((call) =>

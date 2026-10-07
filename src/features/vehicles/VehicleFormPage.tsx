@@ -424,7 +424,7 @@ function VehicleEditor({ vehicle }: { vehicle?: Vehicle }) {
           <Card>
             <div className="section-heading">
               <h2 className="section-title" style={{ margin: 0 }}>2. Giá cả & Nhập kho</h2>
-              <span className="muted small">Bắt buộc: Ngày nhập, Giá niêm yết</span>
+              <span className="muted small">Bắt buộc: Ngày nhập, Giá bán dự kiến</span>
             </div>
             {!financial && (
               <p className="notice">
@@ -465,9 +465,9 @@ function VehicleEditor({ vehicle }: { vehicle?: Vehicle }) {
                   />
                 </Field>
               )}
-              <Field label="Giá niêm yết (₫) *" error={error("asking_price")}>
+              <Field label="Giá bán dự kiến (₫) *" error={error("asking_price")}>
                 <MoneyInput
-                  aria-label="Giá niêm yết (₫) *"
+                  aria-label="Giá bán dự kiến (₫) *"
                   value={form.watch("asking_price")}
                   onChange={(value) =>
                     form.setValue("asking_price", value ?? Number.NaN, {
@@ -486,7 +486,7 @@ function VehicleEditor({ vehicle }: { vehicle?: Vehicle }) {
                   form.watch("asking_price") > 0 &&
                   form.watch("asking_price") <= (form.watch("purchase_price") ?? 0) && (
                     <p className="notice" style={{ marginTop: "4px", fontSize: "12px" }}>
-                      Lưu ý: Giá niêm yết bán đang thấp hơn hoặc bằng giá mua vào.
+                      Lưu ý: Giá bán dự kiến đang thấp hơn hoặc bằng giá mua vào.
                     </p>
                   )}
               </Field>

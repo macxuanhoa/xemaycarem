@@ -4,6 +4,9 @@ import { test, expect } from "@playwright/test";
 // row as the page title at 375 / 390 / 430, stay on that row at 320 through
 // compact styling, and only drop below the title when the width is physically
 // impossible (< 320). The description always owns the full width below the row.
+// A dense cluster (two or more buttons) is the one exception: it folds below the
+// title as an even full-width action bar, never as buttons floating right beside
+// dead space with the caption glued under them.
 
 const ownerId = "00000000-0000-4000-8000-000000000001";
 
@@ -183,6 +186,71 @@ test.describe("Page header keeps the primary CTA on the title row", () => {
     await page.screenshot({
       path: "test-results/page-header-cta-sales-320.png",
       clip: { x: 0, y: 0, width: 320, height: 260 },
+    });
+  });
+
+  test("Dense two-button header folds into an even full-width action bar", async ({
+    page,
+  }) => {
+    for (const width of [430, 390, 360, 320]) {
+      await page.setViewportSize({ width, height: 844 });
+      await installMock(page);
+      await page.goto("/acquisitions");
+      const buttons = page.locator(".heading-actions .button");
+      await expect(buttons).toHaveCount(2);
+      await expect(buttons.first()).toBeVisible();
+
+      const geometry = await page.evaluate(() => {
+        const box = (node) => {
+          const r = node.getBoundingClientRect();
+          return {
+            x: r.x,
+            y: r.y,
+            w: r.width,
+            h: r.height,
+            right: r.right,
+            bottom: r.bottom,
+          };
+        };
+        const caption = document.querySelector(".page-heading p");
+        const css = getComputedStyle(caption);
+        const lineHeight =
+          parseFloat(css.lineHeight) || parseFloat(css.fontSize) * 1.6;
+        const captionLines = Math.round(
+          caption.getBoundingClientRect().height / lineHeight,
+        );
+        const actions = document.querySelector(".heading-actions");
+        return {
+          row: box(document.querySelector(".heading-row")),
+          title: box(document.querySelector(".page-heading h1")),
+          actions: box(actions),
+          caption: box(caption),
+          captionLines,
+          buttons: [...actions.querySelectorAll(".button")].map(box),
+        };
+      });
+      const [first, last] = geometry.buttons;
+      // A dense cluster folds onto its own line below the title rather than
+      // squeezing next to it and stealing the title's room.
+      expect(first.y).toBeGreaterThanOrEqual(geometry.title.bottom - 1);
+      // That line is an even action bar: it starts and ends with the header,
+      // and both buttons take the same width, so no dead space is left beside
+      // the title.
+      expect(Math.abs(first.x - geometry.row.x)).toBeLessThanOrEqual(1);
+      expect(geometry.row.right - last.right).toBeLessThanOrEqual(2);
+      expect(Math.abs(first.w - last.w)).toBeLessThanOrEqual(1);
+      // The caption stays a single line and keeps clear air below the bar.
+      expect(geometry.captionLines).toBeLessThanOrEqual(1);
+      expect(geometry.caption.y).toBeGreaterThanOrEqual(
+        geometry.actions.bottom + 6,
+      );
+      expect(
+        await page.evaluate(() => document.documentElement.scrollWidth),
+      ).toBeLessThanOrEqual(width);
+    }
+    await page.screenshot({
+      path: "test-results/page-header-cta-acquisitions-390.png",
+      clip: { x: 0, y: 0, width: 390, height: 250 },
     });
   });
 });

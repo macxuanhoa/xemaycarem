@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Camera } from "lucide-react";
 import { api } from "@/lib/api";
+import { toast } from "@/lib/toast";
 import { Button, ErrorState } from "@/components/ui";
 import type { VehicleImage } from "@/types";
 
@@ -23,7 +24,10 @@ export function VehiclePhoto({
   });
   const remove = useMutation({
     mutationFn: () => api.call("remove_vehicle_image", { p_id: photo.id }),
-    onSuccess: () => client.invalidateQueries(),
+    onSuccess: () => {
+      toast.success("Đã gỡ ảnh khỏi xe.");
+      client.invalidateQueries();
+    },
   });
   return (
     <div className="vehicle-photo">
@@ -38,7 +42,7 @@ export function VehiclePhoto({
         </div>
       )}
       {removable && (
-        <div className="row">
+        <div className="photo-actions">
           {confirm ? (
             <>
               <Button

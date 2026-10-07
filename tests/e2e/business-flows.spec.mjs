@@ -268,7 +268,7 @@ test("FLOW A: OWNER full lifecycle (create vehicle -> inventory -> expense -> se
   await page.getByLabel("Hãng xe", { exact: true }).fill("Yamaha");
   await page.getByLabel("Dòng xe *", { exact: true }).fill("Exciter 155 Flow A");
   await page.getByLabel("Giá mua (₫) *", { exact: false }).fill("40000000");
-  await page.getByLabel("Giá niêm yết (₫) *", { exact: false }).fill("48000000");
+  await page.getByLabel("Giá bán dự kiến (₫) *", { exact: false }).fill("48000000");
   await page.getByRole("button", { name: "Lưu xe mới", exact: true }).click();
   await expect(page).toHaveURL(/\/vehicles\/[a-f0-9-]{36}$/);
   const vehicleId = page.url().split("/").at(-1);
@@ -315,7 +315,7 @@ test("FLOW B: Partial payment -> second payment -> fully paid", async ({ page })
   await page.getByLabel("Hãng xe", { exact: true }).fill("Honda");
   await page.getByLabel("Dòng xe *", { exact: true }).fill("Air Blade Flow B");
   await page.getByLabel("Giá mua (₫) *", { exact: false }).fill("28000000");
-  await page.getByLabel("Giá niêm yết (₫) *", { exact: false }).fill("50000000");
+  await page.getByLabel("Giá bán dự kiến (₫) *", { exact: false }).fill("50000000");
   await page.getByRole("button", { name: "Lưu xe mới", exact: true }).click();
   await expect(page).toHaveURL(/\/vehicles\/[a-f0-9-]{36}$/);
   const vehicleId = page.url().split("/").at(-1);

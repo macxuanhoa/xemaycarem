@@ -94,10 +94,10 @@ export function AcquisitionsPage() {
     <div className="stack">
       <PageHeader
         title="Thu vào"
-        description="Thu xe mới: nhập từng xe. Thu xe tốc ký: dán danh sách từ ghi chú."
+        description="Nhập từng xe hoặc dán nhanh danh sách nhiều xe."
         actions={
           canOperate(profile) ? (
-            <div className="row" style={{ gap: 8 }}>
+            <div className="row">
               <Link className="button secondary" to="/intake">
                 <NotebookPen size={18} /> Thu xe tốc ký
               </Link>

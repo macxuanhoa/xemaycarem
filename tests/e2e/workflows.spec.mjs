@@ -230,7 +230,7 @@ test("Inventory creation: lost committed response survives reload and reconciles
   await page.getByLabel("Hãng xe", { exact: true }).fill("Honda");
   await page.getByLabel("Dòng xe *", { exact: true }).fill(model);
   await page.getByLabel("Giá mua (₫) *", { exact: false }).fill("18000000");
-  await page.getByLabel("Giá niêm yết (₫) *", { exact: false }).fill("20000000");
+  await page.getByLabel("Giá bán dự kiến (₫) *", { exact: false }).fill("20000000");
   failNextInventoryResponse = true;
   await page.getByRole("button", { name: "Lưu xe mới", exact: true }).click();
   await expect(page.getByText(/Giao dịch chưa được xác nhận/)).toBeVisible();
@@ -264,7 +264,7 @@ test("Owner: login, persistent session, add/edit vehicle, expense, sale, payment
   await page.getByLabel("Hãng xe", { exact: true }).fill("Honda");
   await page.getByLabel("Dòng xe *", { exact: true }).fill("SH Kiểm thử UI");
   await page.getByLabel("Giá mua (₫) *", { exact: false }).fill("80000000");
-  await page.getByLabel("Giá niêm yết (₫) *", { exact: false }).fill("90000000");
+  await page.getByLabel("Giá bán dự kiến (₫) *", { exact: false }).fill("90000000");
   await page.getByRole("button", { name: "Lưu xe mới", exact: true }).click();
   await expect(page).toHaveURL(/\/vehicles\/[a-f0-9-]{36}$/);
   const vehicleId = page.url().split("/").at(-1);

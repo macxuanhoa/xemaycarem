@@ -377,3 +377,88 @@ test("Dark long-detail labels preserve contrast and empty vehicle has a recovera
   ).toBeVisible();
   await state.close();
 });
+
+test("Sell picker rows stay inside the card and never fake a 0 ₫ price", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await installUiuxMock(page);
+  await page.route(
+    "https://xe-test.supabase.co/rest/v1/rpc/list_vehicles",
+    (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          items: [
+            {
+              id: vehicleId,
+              internal_code: "XE-2026-000021",
+              brand: "Honda",
+              model: "Wave Alpha",
+              license_plate: null,
+              asking_price: 0,
+              cost_pending: false,
+              status: "IN_STOCK",
+            },
+            {
+              id: "00000000-0000-4000-8000-000000000004",
+              internal_code: "XE-2026-000020",
+              brand: "Suzukidjjdjsjsd",
+              model: "Shxjd Phiên Bản Đặc Biệt",
+              license_plate: "92-D1728282",
+              asking_price: 17000000,
+              cost_pending: false,
+              status: "IN_STOCK",
+            },
+          ],
+          total: 2,
+        }),
+        headers: { "access-control-allow-origin": "*" },
+      }),
+  );
+  await page.goto("/sell");
+  const rows = page.locator(".compact-row.sell-pick-row");
+  await expect(rows).toHaveCount(2);
+  await expect(rows.first().getByRole("link", { name: "Chọn xe" })).toBeVisible();
+
+  const geometry = await page.evaluate(() => {
+    const card = document.querySelector(".table-card");
+    const row = document.querySelector(".compact-row.sell-pick-row");
+    const pag = document.querySelector(".table-card > .pagination");
+    const box = (node) => node.getBoundingClientRect();
+    const name = row.querySelector("strong");
+    return {
+      iconInset:
+        Math.round(box(row.querySelector(".vehicle-icon")).x - box(card).x) - 1,
+      actionInset: Math.round(
+        box(card).right - box(row.querySelector(".button")).right,
+      ) - 1,
+      rowPadLeft: parseFloat(getComputedStyle(row).paddingLeft),
+      dividerInset: parseFloat(getComputedStyle(pag, "::before").insetInlineStart),
+      dividerHeight: parseFloat(getComputedStyle(pag, "::before").height),
+      pagBorder: parseFloat(getComputedStyle(pag).borderTopWidth),
+      deadBelow: Math.round(box(card).bottom - box(pag).bottom),
+      nameHidden: name.scrollHeight - name.clientHeight,
+      prices: [...document.querySelectorAll(".price")].map((n) =>
+        // Intl inserts a no-break space before ₫; compare on plain text.
+        n.textContent.replace(/\u00a0/g, " ").trim(),
+      ),
+      overflow: document.documentElement.scrollWidth,
+    };
+  });
+  // Nothing may touch or cross the card border on a phone.
+  expect(geometry.iconInset).toBeGreaterThanOrEqual(14);
+  expect(geometry.actionInset).toBeGreaterThanOrEqual(14);
+  expect(geometry.overflow).toBeLessThanOrEqual(390);
+  // The footer divider starts where the row content starts, so the card reads
+  // as one aligned list instead of flush lines beside inset text.
+  expect(geometry.dividerHeight).toBe(1);
+  expect(geometry.pagBorder).toBe(0);
+  expect(Math.abs(geometry.dividerInset - geometry.rowPadLeft)).toBeLessThanOrEqual(1);
+  // A short list hugs its rows: the desktop floor must not leave a blank band.
+  expect(geometry.deadBelow).toBeLessThanOrEqual(2);
+  // A vehicle without an asking price is honest, and a real one still formats.
+  expect(geometry.prices).toEqual(["Chưa có giá", "17.000.000 ₫"]);
+  expect(geometry.nameHidden).toBeLessThanOrEqual(1);
+});

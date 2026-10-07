@@ -83,7 +83,11 @@ export function IdentityDocumentPanel({
   const uploadSide = async (side: Side, file: File) => {
     setUploadError("");
     try {
-      if (!query.data)
+      // Guard on the persisted row id, not the object's truthiness: get_identity_document
+      // returns an all-null jsonb object (not JSON null) before the first save, so a mere
+      // `!query.data` check would skip the create and trip the Storage upload RLS policy
+      // ("new row violates row-level security policy") that requires a registered row.
+      if (!query.data?.id)
         await api.call("save_identity_document", {
           p_data: { subject_type: subjectType, subject_id: subjectId },
         });

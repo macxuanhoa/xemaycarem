@@ -694,7 +694,7 @@ export default function ShowroomPage() {
 
                       <div className="bike-price-row">
                         <div className="price-block">
-                          <span className="price-label">Giá niêm yết:</span>
+                          <span className="price-label">Giá bán:</span>
                           <strong className="price-amount">
                             {bike.vehicle.asking_price.toLocaleString("vi-VN")}{" "}
                             đ

@@ -3,6 +3,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { Camera, Upload } from "lucide-react";
 import { api } from "@/lib/api";
 import { compressImage } from "@/lib/imageCompression";
+import { toast } from "@/lib/toast";
 import { Button } from "@/components/ui";
 
 type UploadItem = {
@@ -28,6 +29,9 @@ export function VehicleImageUpload({ vehicleId }: { vehicleId: string }) {
   const mounted = useRef(true);
   const urls = useRef<string[]>([]);
   const pending = useRef(0);
+  // Counts of the current in-flight batch so we can announce one concise
+  // confirmation once every queued photo settles.
+  const batch = useRef({ ok: 0, fail: 0 });
   useEffect(() => {
     mounted.current = true;
     const previewUrls = urls.current;
@@ -50,6 +54,29 @@ export function VehicleImageUpload({ vehicleId }: { vehicleId: string }) {
         old.map((item) => (item.id === id ? { ...item, state, error } : item)),
       );
   };
+  // A photo that uploaded successfully must leave the queue immediately: the
+  // gallery below already re-renders it via the vehicle query invalidation, so
+  // keeping it here would show the same image twice (the "3 uploads become 6" bug).
+  const retire = (item: UploadItem) => {
+    URL.revokeObjectURL(item.preview);
+    urls.current = urls.current.filter((url) => url !== item.preview);
+    if (mounted.current)
+      setItems((old) => old.filter((row) => row.id !== item.id));
+  };
+  const announce = () => {
+    const { ok, fail } = batch.current;
+    batch.current = { ok: 0, fail: 0 };
+    if (ok)
+      toast.success(
+        ok === 1 ? "Đã tải ảnh lên xe." : `Đã tải ${ok} ảnh lên xe.`,
+      );
+    if (fail)
+      toast.error(
+        fail === 1
+          ? "1 ảnh chưa tải được. Bấm nút Thử lại trên ảnh đó."
+          : `${fail} ảnh chưa tải được. Bấm nút Thử lại trên từng ảnh.`,
+      );
+  };
   const schedule = (item: UploadItem) => {
     pending.current++;
     update(item.id, "waiting");
@@ -58,9 +85,11 @@ export function VehicleImageUpload({ vehicleId }: { vehicleId: string }) {
         update(item.id, "uploading");
         const compressed = await compressImage(item.file);
         await api.uploadVehicleImage(vehicleId, compressed);
-        update(item.id, "uploaded");
+        batch.current.ok++;
+        retire(item);
         await client.invalidateQueries({ queryKey: ["vehicle", vehicleId] });
       } catch (reason) {
+        batch.current.fail++;
         update(
           item.id,
           "error",
@@ -70,6 +99,7 @@ export function VehicleImageUpload({ vehicleId }: { vehicleId: string }) {
         );
       } finally {
         pending.current--;
+        if (pending.current === 0) announce();
       }
     });
   };
@@ -134,7 +164,12 @@ export function VehicleImageUpload({ vehicleId }: { vehicleId: string }) {
                 src={item.preview}
                 alt={`Ảnh xe đang tải: ${item.file.name}`}
               />
-              <span role="status">{labels[item.state]}</span>
+              <span
+                className={`upload-status upload-status-${item.state}`}
+                role="status"
+              >
+                {labels[item.state]}
+              </span>
               {item.state === "error" && (
                 <>
                   <small className="field-error">{item.error}</small>

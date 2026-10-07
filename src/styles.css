@@ -290,6 +290,11 @@ pre {
   font-weight: 650;
   color: #0f172a;
 }
+/* A vehicle with no asking price set must not read as a free "0 ₫" bike. */
+.price.muted {
+  color: var(--muted);
+  font-weight: 500;
+}
 .align-right,
 .numeric {
   text-align: right !important;
@@ -347,6 +352,10 @@ pre {
   flex-wrap: wrap;
   flex: 0 1 auto;
   margin-left: auto;
+}
+/* A grouped action cluster stays tighter than the gap between columns. */
+.heading-actions .row {
+  gap: var(--space-sm);
 }
 .page-heading {
   display: grid;
@@ -2092,10 +2101,30 @@ pre {
   gap: 17px;
 }
 .table-card {
+  /* One shared inset so list content and the footer divider never drift apart
+     inside a card that carries no padding of its own. */
+  --table-inset: 22px;
   padding: 0;
   overflow: hidden;
   position: relative;
   min-height: 360px;
+}
+/* Rows rendered straight into the flush card (sell picker) would otherwise
+   press the vehicle icon and the action button against the card border. */
+.table-card > .compact-row {
+  padding-inline: var(--table-inset);
+}
+.table-card > .pagination {
+  border-top: 0;
+  position: relative;
+}
+.table-card > .pagination::before {
+  content: "";
+  position: absolute;
+  inset-inline: var(--table-inset);
+  top: 0;
+  height: 1px;
+  background: #e2e8f0;
 }
 .table-updating-bar {
   position: absolute;
@@ -2193,7 +2222,7 @@ pre {
   justify-content: space-between;
   align-items: center;
   gap: 15px;
-  padding: 17px 22px;
+  padding: 17px var(--table-inset, 22px);
   border-top: 1px solid #e2e8f0;
   font-size: 11px;
   color: #64748b;
@@ -2365,8 +2394,22 @@ pre {
   height: 160px;
   object-fit: cover;
 }
-.vehicle-photo .button {
-  margin: 7px;
+/* Compact, wrapping action bar so "Gỡ ảnh"/"Giữ lại" never squish or break
+   mid-word inside the narrow gallery cell on mobile and desktop. */
+.photo-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 7px 7px;
+}
+.photo-actions .button {
+  flex: 1 1 auto;
+  margin: 0;
+  min-width: 0;
+  padding: 6px 8px;
+  font-size: 12px;
+  white-space: nowrap;
 }
 .image-placeholder {
   display: flex;
@@ -3522,6 +3565,10 @@ pre {
     padding: 20px;
   }
   .table-card {
+    --table-inset: 15px;
+    /* A phone card must hug its own rows: the desktop floor only leaves a tall
+       blank area under short lists. */
+    min-height: 0;
     padding: 0;
   }
   .section-heading {
@@ -3721,7 +3768,7 @@ pre {
     height: 130px;
   }
   .pagination {
-    padding: 15px;
+    padding: 15px var(--table-inset, 15px);
     font-size: 11px;
   }
   .pagination .button {
@@ -3924,12 +3971,30 @@ pre {
 @media (max-width: 430px) {
   .heading-row:has(.heading-actions .button ~ .button) {
     flex-wrap: wrap;
+    row-gap: var(--space-sm);
   }
   .heading-row:has(.heading-actions .button ~ .button) .heading-actions {
     flex: 1 1 100%;
     max-width: 100%;
     margin-left: 0;
-    justify-content: flex-end;
+    /* The folded cluster owns the whole line and its buttons share it evenly,
+       so the pair never floats right with dead space beside the title. */
+    justify-content: stretch;
+  }
+  .heading-row:has(.heading-actions .button ~ .button) .heading-actions .row {
+    display: flex;
+    flex: 1 1 100%;
+    min-width: 0;
+    gap: var(--space-sm);
+  }
+  .heading-row:has(.heading-actions .button ~ .button) .heading-actions .button {
+    flex: 1 1 0;
+    min-width: 0;
+  }
+  /* The caption below a folded action bar needs air of its own, otherwise it
+     reads as glued to the buttons. */
+  .page-heading:has(.heading-actions .button ~ .button) {
+    gap: var(--space-sm);
   }
 }
 /* Smallest-phone tier (320px and nearby): the CTA still shares the title row.
@@ -4096,47 +4161,6 @@ pre {
   font-weight: 700;
   color: #64748b;
   margin: 6px 0;
-}
-.palette-commands {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-}
-.palette-cmd-btn {
-  display: flex;
-  align-items: center;
-  gap: 9px;
-  min-height: 44px;
-  padding: 8px 12px;
-  border: 1px solid #e2e8f0;
-  border-radius: 10px;
-  background: #f8fafc;
-  color: inherit;
-  text-align: left;
-  transition:
-    background 0.16s ease,
-    border-color 0.16s ease;
-}
-.palette-cmd-icon {
-  display: grid;
-  place-items: center;
-  width: 28px;
-  height: 28px;
-  flex-shrink: 0;
-  border-radius: 8px;
-  background: #eaf3ec;
-  color: var(--primary, #4f46e5);
-}
-.palette-cmd-label {
-  flex: 1;
-  min-width: 0;
-  font-size: 13px;
-  font-weight: 600;
-  line-height: 1.3;
-}
-.palette-cmd-arrow {
-  flex-shrink: 0;
-  color: #94a3b8;
 }
 .palette-result-item {
   display: flex;
@@ -4361,12 +4385,12 @@ mark.search-hit {
 }
 .upload-preview-list {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
   gap: 10px;
 }
 .upload-preview-item {
   display: grid;
-  gap: 6px;
+  gap: 5px;
   font-size: 12px;
   overflow-wrap: anywhere;
 }
@@ -4375,6 +4399,27 @@ mark.search-hit {
   aspect-ratio: 4/3;
   object-fit: cover;
   border-radius: 10px;
+}
+.upload-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--muted, #6b7280);
+}
+.upload-status::before {
+  content: "";
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: currentColor;
+}
+.upload-status-uploading {
+  color: var(--primary, #4f46e5);
+}
+.upload-status-error {
+  color: #b4231f;
 }
 .draft-notice {
   display: flex;
@@ -4701,6 +4746,60 @@ mark.search-hit {
   gap: 8px;
   z-index: 3;
 }
+/* Mode selector: two clearly distinct interaction styles, one choice at a time */
+.smartcam-mode-toggle {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+.smartcam-mode-btn {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  text-align: left;
+  padding: 9px 12px;
+  border-radius: 12px;
+  border: 1px solid var(--line, #e2e8f0);
+  background: var(--card, #fff);
+  color: var(--text, #0f172a);
+  cursor: pointer;
+  transition: border-color 150ms ease, background-color 150ms ease;
+}
+.smartcam-mode-btn span {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.smartcam-mode-btn strong {
+  font-size: 13px;
+  font-weight: 600;
+}
+.smartcam-mode-btn small {
+  font-size: 11px;
+  color: var(--muted, #64748b);
+  line-height: 1.3;
+}
+.smartcam-mode-btn:hover {
+  border-color: rgba(34, 197, 94, 0.45);
+}
+.smartcam-mode-btn.active {
+  border-color: #22c55e;
+  background: rgba(34, 197, 94, 0.1);
+}
+.smartcam-mode-btn.active strong {
+  color: #16a34a;
+}
+/* Frozen shot in photo mode — proof of what the camera actually took */
+.smartcam-preview {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  background: #090d16;
+  z-index: 2;
+}
 .smartcam-tool-btn {
   background: rgba(15, 23, 42, 0.72);
   color: #f8fafc;
@@ -4954,175 +5053,364 @@ mark.search-hit {
   }
 }
 
-/* Results & Verdict */
+/* Kết quả quét gom về MỘT panel duy nhất: verdict + ảnh bằng chứng + bảng
+   trường nhận diện + hành động. Viền trái đổi màu theo trạng thái thay vì
+   nền tint cả khối — ít chiếm chỗ hơn, vẫn đọc ra trạng thái trong 1 nhịp. */
 .smartcam-result {
-  margin-top: 16px;
+  margin-top: 12px;
+  padding: 10px 12px;
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 8px;
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--sc-accent, #94a3b8);
+  border-radius: 10px;
+  background: #fff;
 }
+.smartcam-result.state-unique { --sc-accent: #16a34a; }
+.smartcam-result.state-none { --sc-accent: #94a3b8; }
+.smartcam-result.state-ambiguous { --sc-accent: #d97706; }
+.smartcam-result.state-conflict { --sc-accent: #dc2626; }
+
 .smartcam-verdict {
   display: flex;
-  align-items: flex-start;
-  gap: 10px;
-  margin: 0;
-  padding: 12px 14px;
-  border-radius: 10px;
-  background: rgba(148, 163, 184, 0.12);
-  font-size: 14px;
-  font-weight: 500;
-}
-.smartcam-verdict.ok {
-  background: rgba(22, 163, 74, 0.12);
-  color: var(--success, #15803d);
-  border: 1px solid rgba(22, 163, 74, 0.25);
-}
-.smartcam-verdict.warn {
-  background: rgba(217, 119, 6, 0.14);
-  color: var(--warning, #b45309);
-  border: 1px solid rgba(217, 119, 6, 0.25);
-}
-.smartcam-chips {
-  display: flex;
-  flex-wrap: wrap;
+  align-items: center;
   gap: 8px;
+  min-width: 0;
 }
-.smartcam-chip {
-  display: inline-flex;
+.smartcam-verdict-icon {
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  flex-shrink: 0;
+  border-radius: 999px;
+  background: rgba(148, 163, 184, 0.16);
+  color: #475569;
+}
+.state-unique .smartcam-verdict-icon {
+  background: rgba(22, 163, 74, 0.14);
+  color: #15803d;
+}
+.state-ambiguous .smartcam-verdict-icon,
+.state-conflict .smartcam-verdict-icon {
+  background: rgba(217, 119, 6, 0.16);
+  color: #b45309;
+}
+.smartcam-verdict-text {
+  flex: 1;
+  min-width: 0;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.45;
+  color: #1e293b;
+  overflow-wrap: anywhere;
+}
+
+/* Bảng trường nhận diện: nhãn nhỏ - giá trị đậm. "đã xác khớp" im lặng vì
+   màu đã nói thay; cả nhóm chỉ ghi MỘT dòng tổng hợp trên đầu — lặp chữ
+   "cần kiểm tra" sau từng dòng là nhiễu, không phải thông tin. */
+.smartcam-fields-group {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  padding-top: 8px;
+  border-top: 1px solid var(--line-subtle, #f0f0f5);
+}
+.smartcam-fields-head {
+  display: flex;
   align-items: center;
   gap: 6px;
-  padding: 5px 12px;
+  margin: 0;
+  font-size: 11px;
+  font-weight: 600;
+  color: #b45309;
+}
+.smartcam-fields-head::before {
+  content: "";
+  width: 6px;
+  height: 6px;
+  flex-shrink: 0;
   border-radius: 999px;
-  font-size: 13px;
-  border: 1px solid var(--line, #e2e8f0);
-  background: var(--card, #fff);
+  background: currentColor;
 }
-.smartcam-chip small {
-  opacity: 0.75;
+.smartcam-fields-head.tone-danger {
+  color: #b91c1c;
 }
-.smartcam-chip.status-verified {
-  border-color: rgba(22, 163, 74, 0.5);
-  color: var(--success, #15803d);
-  background: rgba(22, 163, 74, 0.05);
+.smartcam-fields {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(158px, 1fr));
+  grid-auto-flow: row dense;
+  gap: 5px 14px;
+  margin: 0;
 }
-.smartcam-chip.status-suggested {
-  border-color: rgba(217, 119, 6, 0.55);
-  color: var(--warning, #b45309);
-  background: rgba(217, 119, 6, 0.05);
+.smartcam-field {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  min-width: 0;
 }
-.smartcam-chip.status-conflict {
-  border-color: rgba(220, 38, 38, 0.55);
-  color: var(--danger, #b91c1c);
-  background: rgba(220, 38, 38, 0.05);
+/* Số khung/số máy dài 17 ký tự — cho chiếm trọn hàng để không vỡ 3 dòng. */
+.smartcam-field.wide {
+  grid-column: 1 / -1;
 }
+.smartcam-field dt {
+  flex-shrink: 0;
+  font-size: 10.5px;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.smartcam-field dt::after {
+  content: ":";
+}
+.smartcam-field dd {
+  display: flex;
+  align-items: baseline;
+  gap: 5px;
+  margin: 0;
+  min-width: 0;
+  font-size: 12.5px;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+.smartcam-field-mark {
+  width: 5px;
+  height: 5px;
+  flex-shrink: 0;
+  border-radius: 999px;
+  background: currentColor;
+}
+.smartcam-field.tone-ok dd { color: #15803d; }
+.smartcam-field.tone-warn dd { color: #b45309; }
+.smartcam-field.tone-danger dd { color: #b91c1c; }
+
 .smartcam-candidates {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 6px;
+  padding-top: 2px;
+}
+.smartcam-candidates-label {
+  font-size: 10.5px;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: var(--muted);
 }
 .smartcam-candidate {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 10px;
+  gap: 8px;
   text-align: left;
-  padding: 12px 14px;
-  border-radius: 10px;
-  border: 1px solid var(--line, #e2e8f0);
-  background: var(--card, #fff);
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  background: #fff;
+  font-size: 12.5px;
   cursor: pointer;
   transition: background-color 150ms ease, border-color 150ms ease;
 }
+.smartcam-candidate span {
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+.smartcam-candidate small {
+  font-size: 11px;
+}
 .smartcam-candidate:hover {
-  background: var(--muted-bg, rgba(148, 163, 184, 0.08));
-  border-color: #22c55e;
+  background: rgba(148, 163, 184, 0.08);
+  border-color: #16a34a;
 }
+
+/* Một hàng hành động: CTA chính chiếm phần rộng, nút phụ mờ, chẩn đoán teo
+   về 11px góc phải — số liệu không được cạnh tranh với quyết định. */
 .smartcam-actions {
-  gap: 10px;
-  flex-wrap: wrap;
-}
-.smartcam-photos {
   display: flex;
+  align-items: center;
   gap: 8px;
   flex-wrap: wrap;
+  padding-top: 2px;
+}
+.smartcam-actions .button {
+  min-height: 38px;
+  padding: 0 14px;
+}
+.smartcam-actions .button-primary {
+  flex: 1 1 auto;
+}
+.smartcam-metrics {
+  margin-left: auto;
+  font-size: 11px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* Ảnh bằng chứng bám ngay cạnh verdict, 36px đủ nhìn rõ, chạm để xem lớn. */
+.smartcam-photos {
+  display: flex;
+  gap: 4px;
+  flex-shrink: 0;
 }
 .smartcam-photo {
   position: relative;
-  display: inline-block;
+  width: 36px;
+  height: 36px;
 }
-.smartcam-photo img {
-  width: 84px;
-  height: 84px;
+.smartcam-photo-thumb {
+  display: block;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  overflow: hidden;
+  background: none;
+  cursor: zoom-in;
+}
+.smartcam-photo-thumb img {
+  display: block;
+  width: 100%;
+  height: 100%;
   object-fit: cover;
-  border-radius: 10px;
-  border: 1px solid var(--line, #e2e8f0);
 }
-.smartcam-photo button {
+.smartcam-photo-remove {
   position: absolute;
-  top: 4px;
-  right: 4px;
-  width: 22px;
-  height: 22px;
+  top: -5px;
+  right: -5px;
+  width: 18px;
+  height: 18px;
   display: grid;
   place-items: center;
   border-radius: 999px;
-  border: none;
-  background: rgba(0, 0, 0, 0.62);
+  border: 1px solid #fff;
+  background: rgba(15, 23, 42, 0.72);
   color: #fff;
   cursor: pointer;
+  opacity: 0.72;
+  transition: opacity 150ms ease, background-color 150ms ease;
+}
+/* Hình 18px nhưng vùng chạm 34px — gọn mắt mà vẫn bấm trúng bằng ngón cái. */
+.smartcam-photo-remove::after {
+  content: "";
+  position: absolute;
+  inset: -8px;
+}
+.smartcam-photo:hover .smartcam-photo-remove,
+.smartcam-photo-remove:hover,
+.smartcam-photo-remove:focus-visible {
+  opacity: 1;
+  background: #b91c1c;
+}
+.smartcam-photo-lightbox {
+  position: fixed;
+  inset: 0;
+  z-index: 120;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgba(2, 6, 23, 0.72);
+  cursor: zoom-out;
+}
+.smartcam-photo-lightbox img {
+  max-width: 100%;
+  max-height: 100%;
+  border-radius: 12px;
+}
+/* Mobile: CTA chính rộng hết chỗ, nút phụ co lại, chẩn đoán xuống cuối. */
+@media (max-width: 640px) {
+  .smartcam-result {
+    padding: 10px;
+  }
+  .smartcam-fields {
+    grid-template-columns: 1fr;
+  }
+  .smartcam-actions .button {
+    flex: 1 1 auto;
+    min-height: 42px;
+  }
+  .smartcam-actions .button-ghost {
+    flex: 0 0 auto;
+    padding: 0 10px;
+  }
+  .smartcam-metrics {
+    flex-basis: 100%;
+    margin-left: 0;
+    text-align: right;
+  }
+  .smartcam-meta {
+    align-items: flex-start;
+  }
+  .smartcam-advanced-details {
+    align-items: flex-end;
+    flex-shrink: 0;
+  }
 }
 
-/* Footer Details & Settings */
+/* Chân thẻ: hai hàng rẻ chữ. Bỏ hẳn hộp viền bao quanh dòng đồng ý gửi ảnh —
+   nó chỉ là một checkbox phụ, không đáng chiếm một card con. */
 .smartcam-footer {
-  margin-top: 16px;
-  padding-top: 14px;
-  border-top: 1px dashed var(--line, #e2e8f0);
+  margin-top: 10px;
+  padding-top: 8px;
+  border-top: 1px solid var(--line-subtle, #f0f0f5);
   display: flex;
   flex-direction: column;
-  gap: 12px;
-}
-.smartcam-consent-row {
-  margin: 0;
-  padding: 10px 14px;
-  background: var(--muted-bg, rgba(148, 163, 184, 0.08));
-  border: 1px solid var(--line, #e2e8f0);
-  border-radius: 8px;
+  gap: 6px;
 }
 .smartcam-consent {
-  display: flex;
-  align-items: flex-start;
-  gap: 10px;
-  margin: 0;
-  font-size: 13px;
-  line-height: 1.45;
-  color: var(--muted, #64748b);
-  cursor: pointer;
-  user-select: none;
-}
-.smartcam-consent input[type="checkbox"] {
-  width: 16px;
-  height: 16px;
-  min-width: 16px;
-  min-height: 16px;
-  margin-top: 2px;
-  accent-color: #16a34a;
-  cursor: pointer;
-  flex-shrink: 0;
-}
-.smartcam-engine {
   display: flex;
   align-items: flex-start;
   gap: 8px;
   margin: 0;
   font-size: 12px;
+  line-height: 1.45;
+  color: var(--muted);
+  cursor: pointer;
+  user-select: none;
+  transition: color 150ms ease;
+}
+.smartcam-consent:hover {
+  color: #1e293b;
+}
+.smartcam-consent em {
+  font-style: normal;
+  opacity: 0.72;
+}
+.smartcam-consent input[type="checkbox"] {
+  width: 15px;
+  height: 15px;
+  min-width: 15px;
+  min-height: 15px;
+  margin-top: 1px;
+  accent-color: #16a34a;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+/* Trạng thái engine và ngăn tùy chọn đi chung một hàng; chỉ khi mở ngăn
+   mới chiếm trọn dòng để hộp cấu hình không bị chen ép. */
+.smartcam-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.smartcam-engine {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  margin: 0;
+  min-width: 0;
+  font-size: 11px;
   line-height: 1.5;
-  color: var(--muted, #64748b);
+  color: var(--muted);
 }
 .smartcam-engine svg {
-  width: 14px;
-  height: 14px;
-  min-width: 14px;
-  min-height: 14px;
+  width: 12px;
+  height: 12px;
+  min-width: 12px;
+  min-height: 12px;
   flex-shrink: 0;
   margin-top: 2px;
 }
@@ -5130,56 +5418,50 @@ mark.search-hit {
   flex: 1;
   word-break: break-word;
 }
-[data-theme="dark"] .smartcam-consent-row {
-  background: rgba(255, 255, 255, 0.03);
-  border-color: #232531;
-}
-[data-theme="dark"] .smartcam-consent {
-  color: #94a3b8;
-}
-[data-theme="dark"] .smartcam-engine {
-  color: #8f96a8;
-}
 .smartcam-advanced-details {
-  margin-top: 2px;
-  border-top: 1px dashed var(--line, #e2e8f0);
-  padding-top: 10px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+}
+.smartcam-advanced-details[open] {
+  flex-basis: 100%;
+  align-items: stretch;
 }
 .smartcam-advanced-summary {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  font-size: 13px;
-  color: var(--muted, #64748b);
+  gap: 5px;
+  font-size: 11.5px;
+  font-weight: 500;
+  color: var(--muted);
   cursor: pointer;
   user-select: none;
-  font-weight: 500;
-  padding: 4px 0;
+  padding: 2px 0;
   transition: color 150ms ease;
 }
 .smartcam-advanced-summary:hover {
-  color: var(--foreground, #1e293b);
+  color: #1e293b;
 }
 .smartcam-advanced-summary svg {
-  width: 14px;
-  height: 14px;
+  width: 12px;
+  height: 12px;
   flex-shrink: 0;
 }
 .smartcam-settings {
   display: flex;
   flex-direction: column;
-  gap: 10px;
-  margin-top: 10px;
-  padding: 12px 14px;
-  background: var(--muted-bg, rgba(148, 163, 184, 0.06));
-  border: 1px solid var(--line, #e2e8f0);
+  gap: 8px;
+  margin-top: 8px;
+  padding: 10px 12px;
+  background: rgba(148, 163, 184, 0.07);
+  border: 1px solid var(--line);
   border-radius: 8px;
 }
 .smartcam-settings label.row {
   display: flex;
   align-items: center;
   gap: 8px;
-  font-size: 13px;
+  font-size: 12.5px;
   cursor: pointer;
 }
 .smartcam-settings input[type="checkbox"] {
@@ -5188,6 +5470,76 @@ mark.search-hit {
   accent-color: #16a34a;
   cursor: pointer;
   flex-shrink: 0;
+}
+/* Trạng thái đang xử lý: vạch mảnh thay cho hộp notice đầy chữ. */
+.smartcam-busy {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 10px 0 0;
+  font-size: 12px;
+  color: var(--muted);
+}
+.smartcam-busy-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: #16a34a;
+  animation: smartcam-pulse 1.2s ease-in-out infinite;
+}
+[data-theme="dark"] .smartcam-result {
+  background: #101117;
+}
+[data-theme="dark"] .smartcam-verdict-text {
+  color: #dcdfe9;
+}
+[data-theme="dark"] .smartcam-verdict-icon {
+  background: rgba(148, 163, 184, 0.14);
+  color: #b1b8ca;
+}
+[data-theme="dark"] .state-unique .smartcam-verdict-icon {
+  background: rgba(74, 222, 128, 0.16);
+  color: #4ade80;
+}
+[data-theme="dark"] .state-ambiguous .smartcam-verdict-icon,
+[data-theme="dark"] .state-conflict .smartcam-verdict-icon {
+  background: rgba(251, 191, 36, 0.16);
+  color: #fbbf24;
+}
+[data-theme="dark"] .smartcam-fields-head {
+  color: #fbbf24;
+}
+[data-theme="dark"] .smartcam-fields-head.tone-danger {
+  color: #f87171;
+}
+[data-theme="dark"] .smartcam-field.tone-ok dd {
+  color: #4ade80;
+}
+[data-theme="dark"] .smartcam-field.tone-warn dd {
+  color: #fbbf24;
+}
+[data-theme="dark"] .smartcam-field.tone-danger dd {
+  color: #f87171;
+}
+[data-theme="dark"] .smartcam-candidate {
+  background: #171821;
+}
+[data-theme="dark"] .smartcam-candidate:hover {
+  background: #1d1f2a;
+}
+[data-theme="dark"] .smartcam-photo-thumb {
+  border-color: #262833;
+}
+[data-theme="dark"] .smartcam-photo-remove {
+  border-color: #101117;
+}
+[data-theme="dark"] .smartcam-consent:hover,
+[data-theme="dark"] .smartcam-advanced-summary:hover {
+  color: #dcdfe9;
+}
+[data-theme="dark"] .smartcam-settings {
+  background: #101117;
+  border-color: #232531;
 }
 /* Intake review badges for camera provenance (spec §3 field statuses). */
 .fs-badge {
@@ -5403,11 +5755,15 @@ mark.search-hit {
   .compact-row.sell-pick-row .vehicle-cell > div {
     min-width: 0;
   }
+  /* A phone row is narrow: let the name take two lines and fade out instead of
+     cutting "Honda Wave Alpha" down to "Honda Wa…". */
   .compact-row.sell-pick-row .vehicle-cell strong {
-    display: block;
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
     overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+    overflow-wrap: anywhere;
   }
   .compact-row.sell-pick-row > .row {
     width: auto;
@@ -9271,6 +9627,9 @@ html[data-theme] {
 [data-theme="dark"] .revenue-total {
   color: #eef1f8;
 }
+[data-theme="dark"] .price.muted {
+  color: var(--muted);
+}
 [data-theme="dark"] .empty-state {
   background: rgba(23, 24, 33, 0.55);
   color: #98a0b3;
@@ -9427,17 +9786,6 @@ html[data-theme="dark"] .header-theme-toggle {
   background: #101117;
   border-color: #262833;
 }
-[data-theme="dark"] .palette-cmd-btn {
-  background: #171821;
-  border-color: #262833;
-}
-[data-theme="dark"] .palette-cmd-icon {
-  background: rgba(79, 70, 229, 0.16);
-  color: #a5b4fc;
-}
-[data-theme="dark"] .palette-cmd-arrow {
-  color: #6b7280;
-}
 [data-theme="dark"] .search-field {
   background: #14161e;
   border-color: #262833;
@@ -9453,6 +9801,9 @@ html[data-theme="dark"] .header-theme-toggle {
 [data-theme="dark"] .pagination {
   border-top-color: #232531;
   color: #8f96a8;
+}
+[data-theme="dark"] .table-card > .pagination::before {
+  background: #232531;
 }
 [data-theme="dark"] .pagination-page {
   color: #9aa3b5;
@@ -12387,27 +12738,6 @@ html[data-theme="dark"] .header-theme-toggle {
   margin-top: var(--space-sm);
   overscroll-behavior: contain;
 }
-/* Quick commands read as a tidy grid of tappable tiles on the sheet, so the
-   priority row (Thu xe · Bán xe · Tồn kho · Thu xe tốc ký) lines up evenly. */
-.search-mobile-dialog .palette-commands {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 8px;
-}
-.search-mobile-dialog .palette-cmd-btn {
-  min-height: 48px;
-  padding: 9px 11px;
-  background: #fff;
-  border: 1px solid #e6ebf2;
-  border-radius: 12px;
-  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
-}
-.search-mobile-dialog .palette-cmd-btn:active {
-  background: #f1f5f9;
-}
-.search-mobile-dialog .palette-cmd-label {
-  font-size: 14px;
-}
 [data-theme="dark"] .search-mobile-dialog {
   background: #14161e;
   color: #dcdfe9;
@@ -12416,14 +12746,6 @@ html[data-theme="dark"] .header-theme-toggle {
 [data-theme="dark"] .search-mobile-close:active {
   background: #23252f;
   color: #cbd0dd;
-}
-[data-theme="dark"] .search-mobile-dialog .palette-cmd-btn {
-  background: #171821;
-  border-color: #262833;
-  box-shadow: none;
-}
-[data-theme="dark"] .search-mobile-dialog .palette-cmd-btn:active {
-  background: #20222c;
 }
 [data-theme="dark"] .sale-payment-summary[data-state="invalid"] dd {
   color: #fda4af;

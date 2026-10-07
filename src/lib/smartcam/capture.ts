@@ -176,7 +176,89 @@ export function scanTone(pattern: "match" | "new" | "review"): void {
   }
 }
 
+/**
+ * Device-control helpers (torch + lens choice). Pure over capability-shaped
+ * inputs so they are unit-testable without a real camera. Phones differ in
+ * ways that used to break the flash button: some Android builds expose `torch`
+ * as a numeric range instead of a boolean, Chrome resets torch on its own
+ * (the UI must re-sync from track settings, never from a remembered click),
+ * and device labels are blank before permission — so the camera flip is
+ * planned by facing mode and can always fall back to `{facingMode}`
+ * constraints even when enumeration returns unusable ids.
+ */
+export type TorchMode = "boolean" | "number" | "none";
+
+export type NextCameraPlan = { facing: "environment" | "user" } | { deviceId: string } | null;
+
+/** Which torch constraint shape the active track actually accepts. */
+export function torchMode(caps: unknown): TorchMode {
+  const torch = (caps as { torch?: unknown } | null | undefined)?.torch;
+  if (torch === true) return "boolean";
+  if (typeof torch === "object" && torch !== null) {
+    const range = torch as { min?: unknown; max?: unknown };
+    if (typeof range.min === "number" && typeof range.max === "number" && range.max > 0) return "number";
+  }
+  return "none";
+}
+
+/** Read the REAL torch state off the track — the only truth after driver resets. */
+export function torchStateFromSettings(track: { getSettings(): { torch?: unknown } }): boolean {
+  const torch = track.getSettings().torch;
+  if (typeof torch === "number") return torch > 0;
+  return torch === true;
+}
+
+export async function applyTorch(
+  track: { applyConstraints(c: MediaTrackConstraints): Promise<void> },
+  mode: TorchMode,
+  on: boolean,
+): Promise<void> {
+  const torch = mode === "number" ? (on ? 1 : 0) : on;
+  await track.applyConstraints({ advanced: [{ torch } as unknown as MediaTrackConstraintSet] });
+}
+
+/**
+ * Decide which lens the flip button should open next. With a real camera list
+ * it toggles rear ↔ front; several rear lenses cycle with a "+1" hint on the
+ * label. Without enumeration (empty ids) the facing-mode fallback still works.
+ */
+export function nextCameraPlan(
+  cameras: { deviceId: string; label: string }[],
+  activeDeviceId: string,
+  activeFacing: "environment" | "user",
+): NextCameraPlan {
+  if (!cameras.length) return { facing: activeFacing === "environment" ? "user" : "environment" };
+  const current = cameras.findIndex((c) => c.deviceId && c.deviceId === activeDeviceId);
+  const back = cameras.filter((c) => /back|rear|environment/i.test(c.label));
+  if (current === -1) {
+    // Active lens known from the list but not the one matching the facing
+    // guess (blank labels) — prefer the rear, else flip the facing request.
+    if (activeDeviceId && cameras.some((c) => c.deviceId === activeDeviceId))
+      return { deviceId: (back[0] ?? cameras[0]).deviceId };
+    // Active id unknown or every id is empty (pre-permission enumeration) —
+    // a plain facing-mode request is the only constraint that can still work.
+    return { facing: activeFacing === "environment" ? "user" : "environment" };
+  }
+  if (activeFacing === "user") {
+    return { deviceId: (back[0] ?? cameras[(current + 1) % cameras.length]).deviceId };
+  }
+  // From the rear: go to the front lens when there is one; phones with extra
+  // rear sensors cycle in list order instead (label always names the target).
+  const front = cameras.find((c) => !/back|rear|environment/i.test(c.label));
+  if (front) return { deviceId: front.deviceId };
+  return { deviceId: cameras[(current + 1) % cameras.length].deviceId };
+}
+
+/** Text for the flip button — always states which lens you are switching TO. */
+export function cameraFlipLabel(activeFacing: "environment" | "user"): string {
+  return activeFacing === "user" ? "Camera sau" : "Camera trước";
+}
+
+export type CaptureMode = "scan" | "photo";
+
 export type CameraSettings = {
+  /** "scan": camera tự nhận diện liên tục; "photo": bấm Chụp mới phân tích. */
+  mode: CaptureMode;
   autoCapture: boolean;
   sound: boolean;
   autoOpen: boolean;
@@ -193,6 +275,9 @@ export function loadCameraSettings(): CameraSettings {
     const raw = JSON.parse(localStorage.getItem(SETTINGS_KEY) ?? "null");
     if (raw && typeof raw === "object")
       return {
+        // Continuous scanning stays the default behaviour; "photo" is an
+        // explicit choice for people who want one deliberate shot.
+        mode: raw.mode === "photo" ? "photo" : "scan",
         // Continuous local scanning is the headline mode and costs nothing,
         // so it is on by default; it still only acts on sharp stable frames.
         autoCapture: raw.autoCapture !== false,
@@ -209,7 +294,7 @@ export function loadCameraSettings(): CameraSettings {
   } catch {
     /* defaults below */
   }
-  return { autoCapture: true, sound: true, autoOpen: false, localOcr: true, cloudMode: "manual" };
+  return { mode: "scan", autoCapture: true, sound: true, autoOpen: false, localOcr: true, cloudMode: "manual" };
 }
 
 export function saveCameraSettings(settings: CameraSettings): void {

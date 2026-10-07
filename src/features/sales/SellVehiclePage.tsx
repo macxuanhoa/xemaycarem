@@ -119,7 +119,7 @@ export function SellVehiclePage() {
                     <Bike size={25} />
                   </span>
                   <div>
-                    <strong>
+                    <strong title={`${item.brand} ${item.model}`}>
                       <Highlight text={`${item.brand} ${item.model}`} query={deferredSearch} />
                     </strong>
                     <small>
@@ -129,7 +129,9 @@ export function SellVehiclePage() {
                   </div>
                 </div>
                 <div className="row">
-                  <span className="price">{money(item.asking_price)}</span>
+                  <span className={item.asking_price ? "price" : "price muted"}>
+                    {item.asking_price ? money(item.asking_price) : "Chưa có giá"}
+                  </span>
                   {item.cost_pending ? (
                     <button
                       type="button"
@@ -509,7 +511,7 @@ function SaleEditor({ vehicle }: { vehicle: Vehicle }) {
             </div>
             <dl className="summary-list">
               <div>
-                <dt>Giá niêm yết</dt>
+                <dt>Giá bán dự kiến</dt>
                 <dd>{money(vehicle.asking_price)}</dd>
               </div>
               {canFinance(profile) && (

@@ -52,7 +52,14 @@ test('parses shorthand notes, requires review and imports the whole batch in one
   await expect(first.getByLabel('Biển số')).toHaveValue('29-B1 123.45')
   await expect(first.getByLabel('Màu sắc')).toHaveValue('Đen')
   await expect(first.getByLabel('Giá thu')).toHaveValue('18.500.000')
-  await expect(first.getByText(/=\s*18\.500\.000/)).toBeVisible()
+  // The review card must confirm the amount it read, in words under the
+  // committed field and in digits while shorthand is still being typed.
+  await expect(first.getByText(/mười tám triệu năm trăm nghìn đồng/i)).toBeVisible()
+  const priceField = first.getByLabel('Giá thu')
+  await priceField.fill('19tr5')
+  await expect(priceField).toHaveValue('19tr5')
+  await expect(first.getByText(/19\.500\.000/)).toBeVisible()
+  await priceField.fill('18.500.000')
   const second = page.locator('.intake-entry').nth(1)
   await expect(second.getByLabel('Dòng xe')).toHaveValue('Wave RSX')
   await expect(second.getByLabel('Giá bán dự kiến')).toHaveValue('12.000.000')

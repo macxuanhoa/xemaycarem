@@ -22,10 +22,11 @@ import {
   CircleAlert,
   Cpu,
   Images,
-  RefreshCw,
+  RotateCcw,
   ScanLine,
   SlidersHorizontal,
   Sparkles,
+  SwitchCamera,
   Trash2,
   Zap,
   ZapOff,
@@ -46,15 +47,21 @@ import {
   type ScannedKey,
 } from "@/lib/smartcam/recognition";
 import {
+  applyTorch,
+  cameraFlipLabel,
   captureFromFile,
   captureVideoFrame,
   dataUrlToCanvas,
   frameSharpness,
   loadCameraSettings,
+  nextCameraPlan,
   saveCameraSettings,
   scanTone,
+  torchMode,
+  torchStateFromSettings,
   type CameraSettings,
   type CapturedFrame,
+  type TorchMode,
 } from "@/lib/smartcam/capture";
 import { lookupScan } from "@/lib/smartcam/lookup";
 import { ensureOcrWorker, localReadFrame, onOcrStageChange, ocrStage, releaseOcrWorker, type OcrStage } from "@/lib/smartcam/local/ocr";
@@ -106,24 +113,111 @@ const CODE_TICK_EVERY = 2;
 /** Scene signature delta that invalidates the current candidate vote. */
 const SCENE_CHANGE_RESET = 0.35;
 
+const STATUS_TONE: Record<RecognitionFieldStatus, "ok" | "warn" | "danger"> = {
+  VERIFIED: "ok",
+  SUGGESTED: "warn",
+  CONFLICT: "danger",
+  UNREADABLE: "warn",
+};
+
+/** Các trường nhận diện xếp thành bảng thu gọn: nhãn nhỏ - giá trị đậm.
+ * "đã xác khớp" là mặc định nên im lặng; những trường còn phải xem lại chỉ
+ * đánh dấu bằng chấm màu, và tổng hợp thành một dòng duy nhất trên đầu —
+ * lặp lại chữ "cần kiểm tra" sau từng dòng là nhiễu, không phải thông tin. */
 function ResultChips({ recognition }: { recognition: Recognition }) {
   const entries = (Object.keys(FIELD_LABELS) as ScannedKey[])
     .filter((key) => recognition.fields[key])
     .sort((a, b) => STATUS_ORDER.indexOf(recognition.statuses[a]) - STATUS_ORDER.indexOf(recognition.statuses[b]));
   if (!entries.length) return null;
+  const pending = entries.filter((key) => recognition.statuses[key] !== "VERIFIED");
+  const conflicts = entries.filter((key) => recognition.statuses[key] === "CONFLICT");
   return (
-    <div className="smartcam-chips" aria-label="Các trường nhận diện được">
-      {entries.map((key) => (
-        <span key={key} className={`smartcam-chip status-${recognition.statuses[key].toLowerCase()}`}>
-          <strong>{FIELD_LABELS[key]}:</strong> {recognition.fields[key]}
-          <small>{STATUS_LABELS[recognition.statuses[key]]}</small>
-        </span>
-      ))}
+    <div className="smartcam-fields-group">
+      {pending.length > 0 && (
+        <p className={`smartcam-fields-head${conflicts.length ? " tone-danger" : ""}`}>
+          {pending.length} trường cần kiểm tra
+          {conflicts.length ? ` · ${conflicts.length} mâu thuẫn` : ""}
+        </p>
+      )}
+      <dl className="smartcam-fields" aria-label="Các trường nhận diện được">
+        {entries.map((key) => {
+          const status = recognition.statuses[key];
+          const wide = key === "frame_number" || key === "engine_number";
+          return (
+            <div key={key} className={`smartcam-field tone-${STATUS_TONE[status]}${wide ? " wide" : ""}`}>
+              <dt>{FIELD_LABELS[key]}</dt>
+              <dd>
+                {status !== "VERIFIED" && <span className="smartcam-field-mark" aria-hidden="true" />}
+                {recognition.fields[key]}
+                <small className="sr-only">{STATUS_LABELS[status]}</small>
+              </dd>
+            </div>
+          );
+        })}
+      </dl>
     </div>
   );
 }
 
+/** Ảnh bằng chứng của lượt quét: xem nhanh, bỏ nếu không muốn đưa vào nháp. */
+function PhotoStrip({ photos, onRemove }: { photos: string[]; onRemove: (index: number) => void }) {
+  const [preview, setPreview] = useState<string | null>(null);
+  return (
+    <span className="smartcam-photos" aria-label="Ảnh kèm theo bản nháp">
+      {photos.map((photo, index) => (
+        <span className="smartcam-photo" key={photo.slice(-24)}>
+          <button
+            type="button"
+            className="smartcam-photo-thumb"
+            onClick={() => setPreview(preview === photo ? null : photo)}
+            aria-label={`Xem lớn ảnh quét ${index + 1}`}
+            title="Xem lớn"
+          >
+            <img src={photo} alt={`Ảnh quét ${index + 1}`} />
+          </button>
+          <button
+            type="button"
+            className="smartcam-photo-remove"
+            aria-label={`Bỏ ảnh ${index + 1}`}
+            title="Bỏ ảnh này"
+            onClick={() => onRemove(index)}
+          >
+            <Trash2 size={10} />
+          </button>
+        </span>
+      ))}
+      {preview && (
+        <span
+          className="smartcam-photo-lightbox"
+          role="button"
+          tabIndex={0}
+          aria-label="Đóng ảnh xem lớn"
+          onClick={() => setPreview(null)}
+          onKeyDown={(event) => {
+            if (event.key === "Escape" || event.key === "Enter" || event.key === " ") setPreview(null);
+          }}
+        >
+          <img src={preview} alt="Ảnh quét phóng to" onClick={(event) => event.stopPropagation()} />
+        </span>
+      )}
+    </span>
+  );
+}
+
 type ScanMetrics = { ocrMs: number; lookupMs: number; cloudMs: number; via: "local" | "cloud" | "code" };
+
+/** Dòng chẩn đoán rẻ chữ: bỏ hẳn những số liệu 0ms (chưa chạy thì không có gì
+ * để báo cáo), còn lại xếp một hàng nhỏ gọn trong khối kết quả. */
+function metricParts(metrics: ScanMetrics, heapMb: number | null): string[] {
+  const via = metrics.via === "cloud" ? "AI trên mây" : metrics.via === "code" ? "QR/mã vạch" : "OCR trên máy";
+  return [
+    via,
+    metrics.ocrMs ? `OCR ${metrics.ocrMs}ms` : "",
+    metrics.cloudMs ? `AI ${metrics.cloudMs}ms` : "",
+    metrics.lookupMs ? `tra kho ${metrics.lookupMs}ms` : "",
+    heapMb ? `nhớ ${heapMb} MB` : "",
+  ].filter(Boolean);
+}
 
 export default function SmartVehicleScan() {
   const { profile } = useAuth();
@@ -151,9 +245,12 @@ export default function SmartVehicleScan() {
   const [metrics, setMetrics] = useState<ScanMetrics | null>(null);
   const [cloudUsage, setCloudUsage] = useState(() => summarize(ledgerRef.current, Date.now()));
   const [torchSupported, setTorchSupported] = useState(false);
+  const [torchModeState, setTorchModeState] = useState<TorchMode>("none");
   const [torchOn, setTorchOn] = useState(false);
   const [cameras, setCameras] = useState<MediaDeviceInfo[]>([]);
   const [activeCameraId, setActiveCameraId] = useState<string>("");
+  const [activeFacing, setActiveFacing] = useState<"environment" | "user">("environment");
+  const [frozenPreview, setFrozenPreview] = useState<string | null>(null);
   const [idlePaused, setIdlePaused] = useState(false);
   const lastActiveRef = useRef<number>(Date.now());
   const operate = canOperate(profile);
@@ -163,18 +260,20 @@ export default function SmartVehicleScan() {
       try {
         const track = streamRef.current.getVideoTracks()[0];
         if (track && torchOn) {
-          await track.applyConstraints({ advanced: [{ torch: false } as MediaTrackConstraintSet] });
+          await applyTorch(track, torchModeState === "none" ? "boolean" : torchModeState, false);
         }
       } catch {
         /* browser may not support torch constraint */
       }
+      streamRef.current.getTracks().forEach((track) => track.stop());
     }
+    streamRef.current = null;
     setTorchOn(false);
     setTorchSupported(false);
-    streamRef.current?.getTracks().forEach((track) => track.stop());
-    streamRef.current = null;
+    setTorchModeState("none");
+    setFrozenPreview(null);
     if (mounted.current) setRunning(false);
-  }, [torchOn]);
+  }, [torchOn, torchModeState]);
 
   useEffect(() => {
     mounted.current = true;
@@ -213,18 +312,28 @@ export default function SmartVehicleScan() {
     setCloudUsage(summarize(ledgerRef.current, Date.now()));
   };
 
-  const startCamera = useCallback(async (preferredDeviceId?: string) => {
+  const startCamera = useCallback(async (plan?: { facing: "environment" | "user" } | { deviceId: string }) => {
     if (streamRef.current || busyRef.current) return;
     setMessage("");
     // Notify external QR reader or other camera consumers to release device
     window.dispatchEvent(new CustomEvent("xe:qrscanner:stop"));
+    // Build constraints straight from the plan: deviceId may be an empty
+    // string when enumeration ran before permission was granted, so a
+    // facing-mode request is the reliable fallback for a lens flip.
+    const planDeviceId = plan && "deviceId" in plan ? plan.deviceId : "";
+    const facing: "environment" | "user" =
+      plan && "facing" in plan
+        ? plan.facing
+        : planDeviceId
+          ? (/front|frontal|user/i.test(cameras.find((c) => c.deviceId === planDeviceId)?.label ?? "")
+              ? "user"
+              : "environment")
+          : "environment";
+    const constraints: MediaStreamConstraints = {
+      video: planDeviceId ? { deviceId: { exact: planDeviceId } } : { facingMode: { ideal: facing } },
+      audio: false,
+    };
     try {
-      const constraints: MediaStreamConstraints = {
-        video: preferredDeviceId
-          ? { deviceId: { exact: preferredDeviceId } }
-          : { facingMode: { ideal: "environment" } },
-        audio: false,
-      };
       const stream = await navigator.mediaDevices.getUserMedia(constraints);
       if (!mounted.current) {
         stream.getTracks().forEach((track) => track.stop());
@@ -237,17 +346,27 @@ export default function SmartVehicleScan() {
       }
       setRunning(true);
       setIdlePaused(false);
+      setFrozenPreview(null);
+      setActiveFacing(facing);
       lastActiveRef.current = Date.now();
 
-      // Check torch capabilities on the active video track
+      // Torch: trust the CAPABILITY shape (boolean vs numeric on Android) and
+      // the ACTUAL track setting — not a remembered click. The driver may
+      // reset the flash on its own, so the button state re-syncs on every
+      // constraintchange instead of lying about being on.
       const track = stream.getVideoTracks()[0];
       if (track) {
-        try {
-          const caps = (track.getCapabilities?.() || {}) as { torch?: boolean };
-          setTorchSupported(Boolean(caps.torch));
-        } catch {
-          setTorchSupported(false);
-        }
+        const mode = torchMode(track.getCapabilities?.());
+        setTorchModeState(mode);
+        setTorchSupported(mode !== "none");
+        setTorchOn(mode === "none" ? false : torchStateFromSettings(track));
+        track.addEventListener("constraintchange", () => {
+          if (!mounted.current) return;
+          setTorchOn(torchStateFromSettings(track));
+          const s = track.getSettings();
+          if (s.deviceId) setActiveCameraId(s.deviceId);
+          if (s.facingMode === "user" || s.facingMode === "environment") setActiveFacing(s.facingMode);
+        });
       }
 
       // Enumerate available cameras
@@ -255,7 +374,7 @@ export default function SmartVehicleScan() {
         const devices = await navigator.mediaDevices.enumerateDevices();
         const videoInputs = devices.filter((d) => d.kind === "videoinput");
         setCameras(videoInputs);
-        if (track && !preferredDeviceId) {
+        if (track && !planDeviceId) {
           const trackSettings = track.getSettings();
           if (trackSettings.deviceId) setActiveCameraId(trackSettings.deviceId);
         }
@@ -271,31 +390,31 @@ export default function SmartVehicleScan() {
           "Không mở được camera. Kiểm tra quyền camera, chọn ảnh từ thư viện hoặc nhập biển số/số khung thủ công bên dưới.",
         );
     }
-  }, [settings.localOcr]);
+  }, [cameras, settings.localOcr]);
 
   const toggleTorch = useCallback(async () => {
     const track = streamRef.current?.getVideoTracks()[0];
-    if (!track) return;
+    if (!track || torchModeState === "none") return;
+    const next = !torchOn;
     try {
-      const next = !torchOn;
-      await track.applyConstraints({
-        advanced: [{ torch: next } as MediaTrackConstraintSet],
-      });
-      setTorchOn(next);
+      await applyTorch(track, torchModeState, next);
+      // Reflect what the driver actually did (some phones report success and
+      // immediately drop the torch while auto-exposure settles).
+      setTorchOn(torchStateFromSettings(track));
+      if (next && !torchStateFromSettings(track) && mounted.current)
+        setMessage("Thiết bị từ chối giữ đèn pin — thử lại lần nữa hoặc tăng ánh sáng môi trường.");
     } catch {
-      /* torch application failed */
+      setTorchOn(false);
+      if (mounted.current) setMessage("Đèn pin không bật được trên camera này — vẫn có thể chụp ở nơi đủ sáng.");
     }
-  }, [torchOn]);
+  }, [torchModeState, torchOn]);
 
   const switchCamera = useCallback(async () => {
-    if (cameras.length <= 1) return;
-    const currentIndex = cameras.findIndex((c) => c.deviceId === activeCameraId);
-    const nextCamera = cameras[(currentIndex + 1) % cameras.length];
-    if (!nextCamera) return;
-    setActiveCameraId(nextCamera.deviceId);
+    const plan = nextCameraPlan(cameras, activeCameraId, activeFacing);
+    if (!plan) return;
     await stopCamera();
-    await startCamera(nextCamera.deviceId);
-  }, [cameras, activeCameraId, stopCamera, startCamera]);
+    await startCamera(plan);
+  }, [cameras, activeCameraId, activeFacing, stopCamera, startCamera]);
 
   const wakeScanning = useCallback(() => {
     lastActiveRef.current = Date.now();
@@ -477,7 +596,9 @@ export default function SmartVehicleScan() {
   }, [cloudRead, finishWithFields, navigate, settings.cloudMode, settings.localOcr, settings.sound, stopCamera]);
 
   useEffect(() => {
-    if (!running || !settings.autoCapture || result) return;
+    // Photo mode = the shutter is the only trigger; never run the auto loop
+    // behind it, or the two interaction styles fight each other.
+    if (!running || !settings.autoCapture || settings.mode !== "scan" || result) return;
     let cancelled = false;
     let timer = 0;
     const step = async () => {
@@ -502,7 +623,7 @@ export default function SmartVehicleScan() {
       cancelled = true;
       window.clearTimeout(timer);
     };
-  }, [running, settings.autoCapture, result, scanTick, idlePaused]);
+  }, [running, settings.autoCapture, settings.mode, result, scanTick, idlePaused]);
 
   /** Manual "Chụp & nhận diện": one decisive local read, cloud per setting. */
   const shootNow = useCallback(async () => {
@@ -515,6 +636,9 @@ export default function SmartVehicleScan() {
       setMessage("Chưa chụp được khung hình nào. Thử lại hoặc chọn ảnh từ thư viện.");
       return;
     }
+    // Photo mode freezes the shot so the person SEES what was taken;
+    // scan mode keeps the live view (the loop is doing its job already).
+    setFrozenPreview(settings.mode === "photo" ? frame.dataUrl : null);
     if (settings.localOcr && ocrStage() !== "unavailable") {
       busyRef.current = true;
       setBusy(true);
@@ -533,7 +657,7 @@ export default function SmartVehicleScan() {
     } else {
       setMessage("Chưa đọc được gì từ ảnh này — thử đưa sát hơn, đủ sáng hơn, hoặc nhập thủ công.");
     }
-  }, [cloudRead, finishWithFields, settings.cloudMode, settings.localOcr]);
+  }, [cloudRead, finishWithFields, settings.cloudMode, settings.localOcr, settings.mode]);
 
   /** Explicit AI button (manual mode): always user-initiated, always budgeted. */
   const aiReadNow = useCallback(async () => {
@@ -584,6 +708,7 @@ export default function SmartVehicleScan() {
     voteRef.current = null;
     missRef.current = 0;
     setMetrics(null);
+    setFrozenPreview(null);
     lastActiveRef.current = Date.now();
     setIdlePaused(false);
     void startCamera();
@@ -609,6 +734,7 @@ export default function SmartVehicleScan() {
   const shown = result && (consent || result.source !== "cloud") ? result : null;
   const match = shown?.match;
   const heap = (performance as unknown as { memory?: { usedJSHeapSize: number } }).memory;
+  const mode = settings.mode;
 
   return (
     <Card className="smartcam-card">
@@ -626,6 +752,28 @@ export default function SmartVehicleScan() {
         <p className="muted small">
           Chĩa camera vào biển số xe hoặc mã QR để nhận diện tự động.
         </p>
+      </div>
+
+      {/* One clear interaction choice — scan continuously OR shoot deliberately. */}
+      <div className="smartcam-mode-toggle" role="group" aria-label="Chế độ camera">
+        <button
+          type="button"
+          className={`smartcam-mode-btn${mode === "scan" ? " active" : ""}`}
+          aria-pressed={mode === "scan"}
+          onClick={() => updateSettings({ mode: "scan" })}
+        >
+          <ScanLine size={15} aria-hidden="true" />
+          <span><strong>Quét liên tục</strong><small>Camera tự nhận diện biển số & QR</small></span>
+        </button>
+        <button
+          type="button"
+          className={`smartcam-mode-btn${mode === "photo" ? " active" : ""}`}
+          aria-pressed={mode === "photo"}
+          onClick={() => updateSettings({ mode: "photo" })}
+        >
+          <Camera size={15} aria-hidden="true" />
+          <span><strong>Chụp ảnh</strong><small>Bấm Chụp mới phân tích, có xem lại ảnh</small></span>
+        </button>
       </div>
 
       <div className="smartcam-stage" onClick={wakeScanning}>
@@ -658,7 +806,9 @@ export default function SmartVehicleScan() {
               </div>
             </div>
             <p className="smartcam-standby-title">Chạm để mở camera</p>
-            <span className="smartcam-standby-sub">Tự động nhận diện biển số & mã QR</span>
+            <span className="smartcam-standby-sub">
+              {mode === "photo" ? "Chế độ chụp ảnh: bấm Chụp để phân tích, có xem lại" : "Quét liên tục: tự nhận diện biển số & mã QR"}
+            </span>
           </div>
         )}
 
@@ -672,14 +822,14 @@ export default function SmartVehicleScan() {
                   e.stopPropagation();
                   void toggleTorch();
                 }}
-                aria-label={torchOn ? "Tắt đèn flash" : "Bật đèn flash"}
-                title={torchOn ? "Tắt đèn flash" : "Bật đèn flash"}
+                aria-label={torchOn ? "Tắt đèn pin" : "Bật đèn pin"}
+                title={torchOn ? "Tắt đèn pin" : "Bật đèn pin"}
               >
                 {torchOn ? <ZapOff size={15} /> : <Zap size={15} />}
                 <span>{torchOn ? "Tắt đèn" : "Đèn pin"}</span>
               </button>
             )}
-            {cameras.length > 1 && (
+            {(cameras.length > 1 || cameras.length === 0) && (
               <button
                 type="button"
                 className="smartcam-tool-btn"
@@ -687,30 +837,40 @@ export default function SmartVehicleScan() {
                   e.stopPropagation();
                   void switchCamera();
                 }}
-                aria-label="Đổi ống kính camera"
-                title="Đổi ống kính camera"
+                aria-label={`Chuyển sang ${cameraFlipLabel(activeFacing)}`}
+                title={`Chuyển sang ${cameraFlipLabel(activeFacing)}`}
               >
-                <RefreshCw size={15} />
-                <span>Đổi camera</span>
+                <SwitchCamera size={15} />
+                <span>{cameraFlipLabel(activeFacing)}</span>
               </button>
             )}
           </div>
         )}
 
-        {running && liveHint && (
+        {running && frozenPreview && (
+          <img className="smartcam-preview" src={frozenPreview} alt="Ảnh vừa chụp — đang xem lại" />
+        )}
+
+        {running && liveHint && mode === "scan" && (
           <div className="smartcam-hint" role="status">
             {liveHint}
           </div>
         )}
 
-        {running && (
+        {running && mode === "scan" && (
           <div className="smartcam-guide" aria-hidden="true">
             <div className="smartcam-scan-beam" />
             <span className="smartcam-guide-label">Căn biển số hoặc mã QR vào khung</span>
           </div>
         )}
 
-        {running && idlePaused && (
+        {running && mode === "photo" && !frozenPreview && (
+          <div className="smartcam-guide" aria-hidden="true">
+            <span className="smartcam-guide-label">Căn biển số vào khung rồi bấm Chụp</span>
+          </div>
+        )}
+
+        {running && mode === "scan" && idlePaused && (
           <div
             className="smartcam-idle-overlay"
             onClick={wakeScanning}
@@ -737,7 +897,7 @@ export default function SmartVehicleScan() {
               disabled={!running || busy}
               onClick={() => void shootNow()}
             >
-              <ScanLine size={16} /> <span>Chụp & nhận diện</span>
+              <ScanLine size={16} /> <span>{mode === "photo" ? (frozenPreview ? "Chụp tấm khác" : "Chụp & nhận diện") : "Chụp ngay & nhận diện"}</span>
             </Button>
             <div className="smartcam-sub-actions">
               <Button
@@ -795,7 +955,8 @@ export default function SmartVehicleScan() {
       </div>
 
       {busy && (
-        <p role="status" className="notice">
+        <p role="status" className="smartcam-busy">
+          <span className="smartcam-busy-dot" aria-hidden="true" />
           Đang nhận diện…
         </p>
       )}
@@ -806,187 +967,162 @@ export default function SmartVehicleScan() {
       )}
       {result && !consent && result.source === "cloud" && (
         <p className="notice">
-          Bật đồng ý gửi ảnh ở trên để Cà Rem được phép đọc ảnh xe bằng AI.
+          Bật đồng ý gửi ảnh bên dưới để Cà Rem được phép đọc ảnh xe bằng AI.
         </p>
       )}
 
       {shown && match && (
-        <div className="smartcam-result">
-          {match.state === "unique" && (
-            <>
-              <p className="smartcam-verdict ok">
-                <BadgeCheck size={16} aria-hidden="true" />
-                <span>
+        <div className={`smartcam-result state-${match.state}`}>
+          <div className="smartcam-verdict">
+            <span className="smartcam-verdict-icon" aria-hidden="true">
+              {match.state === "unique" ? <BadgeCheck size={14} /> : <CircleAlert size={14} />}
+            </span>
+            <span className="smartcam-verdict-text">
+              {match.state === "unique" && (
+                <>
                   Đã xác khớp xe trong kho: {match.vehicle.brand}{" "}
                   {match.vehicle.model}
                   {match.vehicle.license_plate ? ` · ${match.vehicle.license_plate}` : ""} ·{" "}
                   {VEHICLE_STATUS_LABELS[match.vehicle.status] ?? match.vehicle.status}
-                </span>
-              </p>
-              <ResultChips recognition={shown} />
-              <div className="row smartcam-actions">
-                <Button
-                  type="button"
-                  onClick={() => navigate(`/vehicles/${match.vehicle.id}`)}
-                >
-                  Mở hồ sơ xe
-                </Button>
-                <Button type="button" variant="secondary" onClick={rescan}>
-                  Quét tiếp
-                </Button>
-              </div>
-            </>
-          )}
-          {match.state === "none" && (
-            <>
-              <p className="smartcam-verdict">
-                <CircleAlert size={16} aria-hidden="true" />
-                <span>Không tìm thấy xe này trong kho. Có thể là xe mới về.</span>
-              </p>
-              <ResultChips recognition={shown} />
-              <div className="row smartcam-actions">
-                <Button type="button" onClick={toIntake}>
-                  Thu xe mới
-                </Button>
-                <Button type="button" variant="secondary" onClick={rescan}>
-                  Quét lại
-                </Button>
-              </div>
-            </>
-          )}
+                </>
+              )}
+              {match.state === "none" && "Không tìm thấy xe này trong kho. Có thể là xe mới về."}
+              {(match.state === "ambiguous" || match.state === "conflict") &&
+                (match.state === "conflict"
+                  ? "Biển số và số khung chỉ tới các xe khác nhau — cần người xác minh."
+                  : "Nhiều hơn một xe trùng thông tin — cần chọn đúng xe.")}
+            </span>
+            {!!shown.photos.length && <PhotoStrip photos={shown.photos} onRemove={removePhoto} />}
+          </div>
+
+          <ResultChips recognition={shown} />
+
           {(match.state === "ambiguous" || match.state === "conflict") && (
-            <>
-              <p className="smartcam-verdict warn">
-                <CircleAlert size={16} aria-hidden="true" />
-                <span>
-                  {match.state === "conflict"
-                    ? "Biển số và số khung chỉ tới các xe khác nhau — cần người xác minh."
-                    : "Nhiều hơn một xe trùng thông tin — cần chọn đúng xe."}
-                </span>
-              </p>
-              <Field label="Xe ứng viên (chọn xe đúng)">
-                <div className="smartcam-candidates">
-                  {match.candidates.map((row) => (
-                    <button
-                      type="button"
-                      key={row.id}
-                      className="smartcam-candidate"
-                      onClick={() => navigate(`/vehicles/${row.id}`)}
-                    >
-                      <strong>
-                        {row.brand} {row.model}
-                      </strong>
-                      <span>{row.license_plate || row.internal_code}</span>
-                      <small>{VEHICLE_STATUS_LABELS[row.status] ?? row.status}</small>
-                    </button>
-                  ))}
-                </div>
-              </Field>
-              <ResultChips recognition={shown} />
-              <div className="row smartcam-actions">
-                <Button type="button" variant="secondary" onClick={toIntake}>
-                  Thu xe mới (sau khi đã kiểm tra)
-                </Button>
-                <Button type="button" variant="secondary" onClick={rescan}>
-                  Quét lại
-                </Button>
-              </div>
-            </>
-          )}
-          {!!shown.photos.length && (
-            <div className="smartcam-photos" aria-label="Ảnh kèm theo bản nháp">
-              {shown.photos.map((photo, index) => (
-                <span className="smartcam-photo" key={photo.slice(-24)}>
-                  <img src={photo} alt={`Ảnh quét ${index + 1}`} />
-                  <button type="button" aria-label={`Bỏ ảnh ${index + 1}`} onClick={() => removePhoto(index)}>
-                    <Trash2 size={13} />
-                  </button>
-                </span>
+            <div className="smartcam-candidates">
+              <span className="smartcam-candidates-label">Xe ứng viên — chạm để mở đúng xe</span>
+              {match.candidates.map((row) => (
+                <button
+                  type="button"
+                  key={row.id}
+                  className="smartcam-candidate"
+                  onClick={() => navigate(`/vehicles/${row.id}`)}
+                >
+                  <strong>
+                    {row.brand} {row.model}
+                  </strong>
+                  <span>{row.license_plate || row.internal_code}</span>
+                  <small>{VEHICLE_STATUS_LABELS[row.status] ?? row.status}</small>
+                </button>
               ))}
             </div>
           )}
-          {metrics && (
-            <p className="muted small" aria-label="Chỉ số lượt quét">
-              Nguồn: {metrics.via === "cloud" ? "AI trên mây" : "OCR trên máy"} · OCR {metrics.ocrMs}ms · AI{" "}
-              {metrics.cloudMs}ms · tra kho {metrics.lookupMs}ms
-              {heap ? ` · bộ nhớ ${Math.round(heap.usedJSHeapSize / 1048576)} MB` : ""}
-            </p>
-          )}
+
+          <div className="smartcam-actions">
+            {match.state === "unique" && (
+              <Button
+                type="button"
+                onClick={() => navigate(`/vehicles/${match.vehicle.id}`)}
+              >
+                Mở hồ sơ xe
+              </Button>
+            )}
+            {match.state === "none" && (
+              <Button type="button" onClick={toIntake}>
+                Thu xe mới
+              </Button>
+            )}
+            {(match.state === "ambiguous" || match.state === "conflict") && (
+              <Button type="button" variant="secondary" onClick={toIntake}>
+                Thu xe mới (sau khi đã kiểm tra)
+              </Button>
+            )}
+            <Button type="button" variant="ghost" onClick={rescan}>
+              <RotateCcw size={14} aria-hidden="true" />{" "}
+              <span>{match.state === "unique" ? "Quét tiếp" : "Quét lại"}</span>
+            </Button>
+            {metrics && (
+              <span className="smartcam-metrics" aria-label="Chỉ số lượt quét">
+                {metricParts(metrics, heap ? Math.round(heap.usedJSHeapSize / 1048576) : null).join(" · ")}
+              </span>
+            )}
+          </div>
         </div>
       )}
 
       <div className="smartcam-footer">
-        <div className="smartcam-consent-row">
-          <label className="smartcam-consent">
-            <input
-              type="checkbox"
-              checked={consent}
-              disabled={busy}
-              onChange={(event) => setConsent(event.target.checked)}
-            />
-            <span>Cho phép gửi ảnh đang chụp tới dịch vụ AI khi cần (đọc trên máy không cần mạng)</span>
-          </label>
-        </div>
-
-        <p className="smartcam-engine muted small">
-          <Cpu size={14} aria-hidden="true" />
+        <label className="smartcam-consent">
+          <input
+            type="checkbox"
+            checked={consent}
+            disabled={busy}
+            onChange={(event) => setConsent(event.target.checked)}
+          />
           <span>
-            {settings.localOcr ? OCR_STAGE_LABELS[engine] : "OCR trên máy: tắt"}
-            {settings.cloudMode !== "off" &&
-              ` · AI: ${cloudUsage.callsToday} lượt hôm nay (giới hạn ${cloudUsage.perHour}/giờ)`}
+            Cho phép gửi ảnh đang chụp tới dịch vụ AI khi cần <em>(đọc trên máy không cần mạng)</em>
           </span>
-        </p>
+        </label>
 
-        <details className="smartcam-advanced-details">
-          <summary className="smartcam-advanced-summary">
-            <SlidersHorizontal size={14} aria-hidden="true" />
-            <span>Tùy chọn nhận diện nâng cao</span>
-          </summary>
-          <div className="smartcam-settings">
-            <label className="row">
-              <input
-                type="checkbox"
-                checked={settings.autoCapture}
-                onChange={(event) => updateSettings({ autoCapture: event.target.checked })}
-              />
-              Quét liên tục khi mở camera
-            </label>
-            <label className="row">
-              <input
-                type="checkbox"
-                checked={settings.localOcr}
-                onChange={(event) => updateSettings({ localOcr: event.target.checked })}
-              />
-              Đọc biển số/số khung trên máy (miễn phí, không gửi ảnh)
-            </label>
-            <label className="row">
-              <input
-                type="checkbox"
-                checked={settings.sound}
-                onChange={(event) => updateSettings({ sound: event.target.checked })}
-              />
-              Kêu "tít" khi xác khớp duy nhất một xe
-            </label>
-            <label className="row">
-              <input
-                type="checkbox"
-                checked={settings.autoOpen}
-                onChange={(event) => updateSettings({ autoOpen: event.target.checked })}
-              />
-              Tự mở hồ sơ khi khớp duy nhất
-            </label>
-            <Field label="Khi máy không đọc được, dùng AI trên mây">
-              <select
-                value={settings.cloudMode}
-                onChange={(event) => updateSettings({ cloudMode: event.target.value as CameraSettings["cloudMode"] })}
-              >
-                <option value="auto">Tự động thử 1 lần (có giới hạn lượt)</option>
-                <option value="manual">Chỉ khi bấm "AI đọc ảnh"</option>
-                <option value="off">Không dùng AI (0 chi phí)</option>
-              </select>
-            </Field>
-          </div>
-        </details>
+        <div className="smartcam-meta">
+          <p className="smartcam-engine">
+            <Cpu size={12} aria-hidden="true" />
+            <span>
+              {settings.localOcr ? OCR_STAGE_LABELS[engine] : "OCR trên máy: tắt"}
+              {settings.cloudMode !== "off" &&
+                ` · AI: ${cloudUsage.callsToday}/${cloudUsage.perHour} lượt/giờ`}
+            </span>
+          </p>
+
+          <details className="smartcam-advanced-details">
+            <summary className="smartcam-advanced-summary">
+              <SlidersHorizontal size={12} aria-hidden="true" />
+              <span>Tùy chọn nhận diện</span>
+            </summary>
+            <div className="smartcam-settings">
+              <label className="row">
+                <input
+                  type="checkbox"
+                  checked={settings.autoCapture}
+                  onChange={(event) => updateSettings({ autoCapture: event.target.checked })}
+                />
+                Quét liên tục khi mở camera
+              </label>
+              <label className="row">
+                <input
+                  type="checkbox"
+                  checked={settings.localOcr}
+                  onChange={(event) => updateSettings({ localOcr: event.target.checked })}
+                />
+                Đọc biển số/số khung trên máy (miễn phí, không gửi ảnh)
+              </label>
+              <label className="row">
+                <input
+                  type="checkbox"
+                  checked={settings.sound}
+                  onChange={(event) => updateSettings({ sound: event.target.checked })}
+                />
+                Kêu "tít" khi xác khớp duy nhất một xe
+              </label>
+              <label className="row">
+                <input
+                  type="checkbox"
+                  checked={settings.autoOpen}
+                  onChange={(event) => updateSettings({ autoOpen: event.target.checked })}
+                />
+                Tự mở hồ sơ khi khớp duy nhất
+              </label>
+              <Field label="Khi máy không đọc được, dùng AI trên mây">
+                <select
+                  value={settings.cloudMode}
+                  onChange={(event) => updateSettings({ cloudMode: event.target.value as CameraSettings["cloudMode"] })}
+                >
+                  <option value="auto">Tự động thử 1 lần (có giới hạn lượt)</option>
+                  <option value="manual">Chỉ khi bấm "AI đọc ảnh"</option>
+                  <option value="off">Không dùng AI (0 chi phí)</option>
+                </select>
+              </Field>
+            </div>
+          </details>
+        </div>
       </div>
     </Card>
   );

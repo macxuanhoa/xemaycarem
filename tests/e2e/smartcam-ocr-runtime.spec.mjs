@@ -24,7 +24,7 @@ test('smart camera runtime: real WASM OCR reads a rendered plate with zero cloud
     localStorage.setItem('xe-remember', 'true')
     localStorage.setItem('sb-xe-test-auth-token', JSON.stringify(session))
     // On-device OCR ON, cloud fully OFF: nothing may reach the provider.
-    localStorage.setItem('xe_crm_smartcam_settings', JSON.stringify({ autoCapture: false, sound: true, autoOpen: false, localOcr: true, cloudMode: 'off' }))
+    localStorage.setItem('xe_crm_smartcam_settings', JSON.stringify({ mode: 'photo', sound: true, autoOpen: false, localOcr: true, cloudMode: 'off' }))
   }, { session: { access_token: token, refresh_token: 'fixture-refresh', token_type: 'bearer', expires_in: 3600, expires_at: expires, user } })
   page.on('response', response => {
     const url = new URL(response.url())

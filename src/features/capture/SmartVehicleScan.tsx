@@ -259,8 +259,15 @@ export default function SmartVehicleScan() {
     if (streamRef.current) {
       try {
         const track = streamRef.current.getVideoTracks()[0];
-        if (track && torchOn) {
-          await applyTorch(track, torchModeState === "none" ? "boolean" : torchModeState, false);
+        // Tắt đèn theo SETTINGS THỰC của track, không đọc state React:
+        // stopCamera phải có danh sách phụ thuộc rỗng. Nếu nó phụ thuộc
+        // torchOn/torchModeState, mỗi lần đèn đổi trạng thái sẽ tái tạo
+        // callback, và cleanup của effect bên dưới — vốn chuyên giết
+        // stream + nhả OCR worker — chạy lại giữa chừng, làm sập camera
+        // ngay sau khi mở (lỗi 08/10 trên Android).
+        if (track && torchStateFromSettings(track)) {
+          const mode = torchMode(track.getCapabilities?.());
+          await applyTorch(track, mode === "none" ? "boolean" : mode, false);
         }
       } catch {
         /* browser may not support torch constraint */
@@ -273,13 +280,19 @@ export default function SmartVehicleScan() {
     setTorchModeState("none");
     setFrozenPreview(null);
     if (mounted.current) setRunning(false);
-  }, [torchOn, torchModeState]);
+  }, []);
 
+  // Cleanup chỉ được chạy MỘT lần khi trang rời khỏi cây. Handler bên ngoài
+  // gọi qua ref để effect giữ dependency rỗng, miễn nhiễm mọi đổi trạng thái.
+  const stopCameraRef = useRef(stopCamera);
+  useEffect(() => {
+    stopCameraRef.current = stopCamera;
+  }, [stopCamera]);
   useEffect(() => {
     mounted.current = true;
     const unsubscribe = onOcrStageChange(setEngine);
     const handleExternalStop = () => {
-      void stopCamera();
+      void stopCameraRef.current();
     };
     window.addEventListener("xe:smartcam:stop", handleExternalStop);
     return () => {
@@ -291,7 +304,7 @@ export default function SmartVehicleScan() {
       // Free the ~50 MB WASM heap when the camera screen goes away for good.
       releaseOcrWorker();
     };
-  }, [stopCamera]);
+  }, []);
 
   const commitResult = useCallback((recognition: Recognition | null) => {
     resultRef.current = recognition;
@@ -598,7 +611,9 @@ export default function SmartVehicleScan() {
   useEffect(() => {
     // Photo mode = the shutter is the only trigger; never run the auto loop
     // behind it, or the two interaction styles fight each other.
-    if (!running || !settings.autoCapture || settings.mode !== "scan" || result) return;
+    // `mode` là công tắc DUY NHẤT của vòng quét — không thêm điều kiện
+    // autoCapture rời rạc nữa (hai nguồn bật/tắt từng gây "mất khớp" logic).
+    if (!running || settings.mode !== "scan" || result) return;
     let cancelled = false;
     let timer = 0;
     const step = async () => {
@@ -623,7 +638,7 @@ export default function SmartVehicleScan() {
       cancelled = true;
       window.clearTimeout(timer);
     };
-  }, [running, settings.autoCapture, settings.mode, result, scanTick, idlePaused]);
+  }, [running, settings.mode, result, scanTick, idlePaused]);
 
   /** Manual "Chụp & nhận diện": one decisive local read, cloud per setting. */
   const shootNow = useCallback(async () => {
@@ -1081,8 +1096,8 @@ export default function SmartVehicleScan() {
               <label className="row">
                 <input
                   type="checkbox"
-                  checked={settings.autoCapture}
-                  onChange={(event) => updateSettings({ autoCapture: event.target.checked })}
+                  checked={settings.mode === "scan"}
+                  onChange={(event) => updateSettings({ mode: event.target.checked ? "scan" : "photo" })}
                 />
                 Quét liên tục khi mở camera
               </label>

@@ -259,7 +259,6 @@ export type CaptureMode = "scan" | "photo";
 export type CameraSettings = {
   /** "scan": camera tự nhận diện liên tục; "photo": bấm Chụp mới phân tích. */
   mode: CaptureMode;
-  autoCapture: boolean;
   sound: boolean;
   autoOpen: boolean;
   /** On-device Tesseract OCR — free, offline, no image ever uploaded. */
@@ -277,10 +276,9 @@ export function loadCameraSettings(): CameraSettings {
       return {
         // Continuous scanning stays the default behaviour; "photo" is an
         // explicit choice for people who want one deliberate shot.
+        // (Trước đây có thêm cờ autoCapture rời rạc — hai công tắc cùng
+        // điều khiển một vòng quét dễ mất khớp; mode là nguồn sự thật duy nhất.)
         mode: raw.mode === "photo" ? "photo" : "scan",
-        // Continuous local scanning is the headline mode and costs nothing,
-        // so it is on by default; it still only acts on sharp stable frames.
-        autoCapture: raw.autoCapture !== false,
         sound: raw.sound !== false,
         // Auto-open and cloud stay opt-in: nothing should navigate away or
         // spend provider credit without the user having asked for it.
@@ -294,7 +292,7 @@ export function loadCameraSettings(): CameraSettings {
   } catch {
     /* defaults below */
   }
-  return { mode: "scan", autoCapture: true, sound: true, autoOpen: false, localOcr: true, cloudMode: "manual" };
+  return { mode: "scan", sound: true, autoOpen: false, localOcr: true, cloudMode: "manual" };
 }
 
 export function saveCameraSettings(settings: CameraSettings): void {

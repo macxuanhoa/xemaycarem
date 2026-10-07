@@ -29,7 +29,7 @@ async function setup(page, { result } = {}) {
     localStorage.setItem('sb-xe-test-auth-token', JSON.stringify(session))
     // E2E runs never download the real Tesseract WASM: on-device OCR is turned
     // off here so the cloud path stays the one under test.
-    localStorage.setItem('xe_crm_smartcam_settings', JSON.stringify({ autoCapture: true, sound: true, autoOpen: false, localOcr: false, cloudMode: 'auto' }))
+    localStorage.setItem('xe_crm_smartcam_settings', JSON.stringify({ mode: 'scan', sound: true, autoOpen: false, localOcr: false, cloudMode: 'auto' }))
   }, { session: { access_token: token, refresh_token: 'fixture-refresh', token_type: 'bearer', expires_in: 3600, expires_at: expires, user } })
   await page.route('https://xe-test.supabase.co/**', async route => {
     const request = route.request()

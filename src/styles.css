@@ -2375,24 +2375,143 @@ pre {
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
-.vehicle-gallery {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 12px;
-}
-.vehicle-photo {
-  position: relative;
-  background: #f2f4ee;
-  border-radius: 9px;
-  overflow: hidden;
-  min-height: 130px;
+/* Ảnh xe dạng bộ sưu tập có ảnh lớn: chiều cao khối ảnh cố định nên bao
+   nhiêu ảnh cũng không kéo dài trang chi tiết; dải thumb cuộn ngang. */
+.vehicle-display {
   display: flex;
   flex-direction: column;
+  gap: 10px;
 }
-.vehicle-photo img {
+.vehicle-display-stage {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #f2f4ee;
+  border-radius: 12px;
+  overflow: hidden;
+}
+.vehicle-display-main {
+  display: block;
   width: 100%;
-  height: 160px;
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: zoom-in;
+}
+.vehicle-display-main img {
+  display: block;
+  width: 100%;
+  height: clamp(220px, 38vh, 420px);
+  object-fit: contain;
+}
+.vehicle-display-stage .image-placeholder {
+  width: 100%;
+  height: clamp(220px, 38vh, 420px);
+}
+.vehicle-display-nav {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.82);
+  color: #1f2937;
+  cursor: pointer;
+  transition: background-color 150ms ease;
+}
+.vehicle-display-nav:hover {
+  background: #fff;
+}
+.vehicle-display-nav-prev {
+  left: 8px;
+}
+.vehicle-display-nav-next {
+  right: 8px;
+}
+.vehicle-display-count {
+  position: absolute;
+  right: 10px;
+  bottom: 10px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: rgba(2, 6, 23, 0.62);
+  color: #f8fafc;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+.vehicle-display-thumbs {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding: 2px;
+  scrollbar-width: thin;
+}
+.vehicle-display-thumb {
+  flex-shrink: 0;
+  width: 64px;
+  height: 48px;
+  padding: 0;
+  border: 2px solid transparent;
+  border-radius: 8px;
+  overflow: hidden;
+  background: #f2f4ee;
+  cursor: pointer;
+}
+.vehicle-display-thumb img {
+  display: block;
+  width: 100%;
+  height: 100%;
   object-fit: cover;
+}
+.vehicle-display-thumb.is-active {
+  border-color: var(--accent, #6b835a);
+}
+.vehicle-display-thumb.is-empty {
+  cursor: default;
+  opacity: 0.55;
+}
+.vehicle-display-lightbox {
+  position: fixed;
+  inset: 0;
+  z-index: 120;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(2, 6, 23, 0.8);
+  cursor: zoom-out;
+}
+.vehicle-display-lightbox img {
+  max-width: 92vw;
+  max-height: 86vh;
+  border-radius: 12px;
+  cursor: default;
+}
+.vehicle-display-close {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.16);
+  color: #f8fafc;
+  cursor: pointer;
+  transition: background-color 150ms ease;
+}
+.vehicle-display-close:hover {
+  background: rgba(255, 255, 255, 0.3);
 }
 /* Compact, wrapping action bar so "Gỡ ảnh"/"Giữ lại" never squish or break
    mid-word inside the narrow gallery cell on mobile and desktop. */
@@ -3761,11 +3880,13 @@ pre {
     grid-template-columns: 1fr;
     gap: 0;
   }
-  .vehicle-gallery {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+  .vehicle-display-main img,
+  .vehicle-display-stage .image-placeholder {
+    height: clamp(200px, 56vw, 300px);
   }
-  .vehicle-photo img {
-    height: 130px;
+  .vehicle-display-thumb {
+    width: 56px;
+    height: 42px;
   }
   .pagination {
     padding: 15px var(--table-inset, 15px);
@@ -3965,36 +4086,24 @@ pre {
 [data-theme="dark"] .autocomplete-item.highlighted {
   background: #232634;
 }
-/* Dense headers (two or more action buttons, e.g. vehicle detail): a single
-   primary CTA still owns the title row above, while the crowded cluster takes
-   a full-width line instead of stacking into a tall column. */
+/* Dense headers (two or more action buttons, e.g. Thu vào): the pair behaves
+   like the nav items elsewhere — compact, natural width, sharing the title
+   row — instead of stretching into a full-width block on a line of its own.
+   The title gives way by wrapping its own text, exactly like every other
+   mobile header. */
 @media (max-width: 430px) {
-  .heading-row:has(.heading-actions .button ~ .button) {
-    flex-wrap: wrap;
-    row-gap: var(--space-sm);
-  }
   .heading-row:has(.heading-actions .button ~ .button) .heading-actions {
-    flex: 1 1 100%;
-    max-width: 100%;
-    margin-left: 0;
-    /* The folded cluster owns the whole line and its buttons share it evenly,
-       so the pair never floats right with dead space beside the title. */
-    justify-content: stretch;
+    max-width: none;
+    flex: 0 0 auto;
+    flex-wrap: nowrap;
   }
   .heading-row:has(.heading-actions .button ~ .button) .heading-actions .row {
-    display: flex;
-    flex: 1 1 100%;
-    min-width: 0;
-    gap: var(--space-sm);
+    flex-wrap: nowrap;
+    gap: 8px;
   }
   .heading-row:has(.heading-actions .button ~ .button) .heading-actions .button {
-    flex: 1 1 0;
+    flex: 0 0 auto;
     min-width: 0;
-  }
-  /* The caption below a folded action bar needs air of its own, otherwise it
-     reads as glued to the buttons. */
-  .page-heading:has(.heading-actions .button ~ .button) {
-    gap: var(--space-sm);
   }
 }
 /* Smallest-phone tier (320px and nearby): the CTA still shares the title row.
@@ -12903,8 +13012,16 @@ html[data-theme="dark"] .header-theme-toggle {
   background: #171821;
   color: #9fb088;
 }
-[data-theme="dark"] .vehicle-photo {
+[data-theme="dark"] .vehicle-display-stage,
+[data-theme="dark"] .vehicle-display-thumb {
   background: #101117;
+}
+[data-theme="dark"] .vehicle-display-nav {
+  background: rgba(22, 24, 32, 0.82);
+  color: #e5e7eb;
+}
+[data-theme="dark"] .vehicle-display-nav:hover {
+  background: #1d1f2a;
 }
 [data-theme="dark"] .vehicle-empty-photo {
   background: #101117;

@@ -38,7 +38,7 @@ import {
 import type { Vehicle } from "@/types";
 import { actionLabels } from "./vehicleSchema";
 import { vehicleExpenseLabels } from "@/features/expenses/expenseSchema";
-import { VehiclePhoto } from "./VehiclePhoto";
+import { VehiclePhotoDisplay } from "./VehiclePhoto";
 import { addRecentVehicle } from "@/lib/recentVehicles";
 import { QuickExpenseModal } from "@/features/expenses/QuickExpenseModal";
 import { VehicleImageUpload } from "./VehicleImageUpload";
@@ -279,16 +279,11 @@ export function VehicleDetailPage() {
                 <h2 className="section-title">Hình ảnh xe</h2>
               </div>
               {vehicle.images?.length ? (
-                <div className="vehicle-gallery">
-                  {vehicle.images.map((photo) => (
-                    <VehiclePhoto
-                      key={photo.id}
-                      photo={photo}
-                      vehicleName={`${vehicle.brand} ${vehicle.model}`}
-                      removable={canOperate(profile)}
-                    />
-                  ))}
-                </div>
+                <VehiclePhotoDisplay
+                  photos={vehicle.images}
+                  vehicleName={`${vehicle.brand} ${vehicle.model}`}
+                  removable={canOperate(profile)}
+                />
               ) : (
                 <div className="vehicle-empty-photo">
                   <Bike size={74} strokeWidth={1.2} />

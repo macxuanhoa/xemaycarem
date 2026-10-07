@@ -1,4 +1,5 @@
-import { useEffect, useDeferredValue, useState } from "react";
+import { useEffect, useState } from "react";
+import { useDebouncedValue } from "@/lib/useDebouncedValue";
 import { Link, useSearchParams } from "react-router-dom";
 import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowRight, CirclePlus, CreditCard, Receipt, Search } from "lucide-react";
@@ -16,6 +17,7 @@ import {
   PageHeader,
   Pagination,
 } from "@/components/ui";
+import { Highlight } from "@/components/search/Highlight";
 import type { Paged, ReceivablesSummary, Sale } from "@/types";
 import { ReceivablesPage } from "./ReceivablesPage";
 
@@ -44,7 +46,7 @@ export function SalesPage({
     to: params.get("to") || today(),
   });
   const [search, setSearch] = useState(params.get("search") || "");
-  const deferredSearch = useDeferredValue(search);
+  const deferredSearch = useDebouncedValue(search, 250);
   const [page, setPage] = useState(1);
 
   const overdueQuery = useQuery({
@@ -214,23 +216,22 @@ export function SalesPage({
                       <tr key={sale.id}>
                         <td>
                           <Link className="text-link" to={`/sales/${sale.id}`}>
-                            {sale.sale_code}
+                            <Highlight text={sale.sale_code} query={deferredSearch} />
                           </Link>
                           <small>{dateLabel(sale.sale_date)}</small>
                         </td>
                         <td>
                           <strong>
-                            {sale.vehicle_name ||
-                              `${sale.vehicle?.brand ?? ""} ${sale.vehicle?.model ?? ""}`}
+                            <Highlight text={sale.vehicle_name || `${sale.vehicle?.brand ?? ""} ${sale.vehicle?.model ?? ""}`} query={deferredSearch} />
                           </strong>
                           <small>
-                            {sale.vehicle_code || sale.vehicle?.internal_code}
+                            <Highlight text={sale.vehicle_code || sale.vehicle?.internal_code || ""} query={deferredSearch} />
                           </small>
                         </td>
                         <td>
-                          <strong>{sale.customer_name}</strong>
+                          <strong><Highlight text={sale.customer_name} query={deferredSearch} /></strong>
                           <small>
-                            {sale.customer_phone || "Chưa có số điện thoại"}
+                            {sale.customer_phone ? <Highlight text={sale.customer_phone} query={deferredSearch} /> : "Chưa có số điện thoại"}
                           </small>
                         </td>
                         <td className="numeric price">{money(sale.sale_price)}</td>
@@ -264,12 +265,12 @@ export function SalesPage({
                     key={sale.id}
                   >
                     <div className="row between">
-                      <strong>{sale.sale_code}</strong>
+                      <strong><Highlight text={sale.sale_code} query={deferredSearch} /></strong>
                       <Badge status={sale.status} />
                     </div>
-                    <span>{sale.vehicle_name || sale.vehicle_code}</span>
+                    <span><Highlight text={sale.vehicle_name || sale.vehicle_code || ""} query={deferredSearch} /></span>
                     <span className="muted">
-                      {sale.customer_name} · {dateLabel(sale.sale_date)}
+                      <Highlight text={sale.customer_name} query={deferredSearch} /> · {dateLabel(sale.sale_date)}
                     </span>
                     <div className="row between">
                       <strong className="price">{money(sale.sale_price)}</strong>

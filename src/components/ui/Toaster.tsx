@@ -29,7 +29,22 @@ export function Toaster() {
             role={t.variant === "error" ? "alert" : "status"}
             data-paused={t.leaving ? "true" : undefined}
             onMouseEnter={() => toast.pause(t.id)}
-            onMouseLeave={() => toast.resume(t.id)}
+            onMouseLeave={(event) => {
+              if (!event.currentTarget.contains(document.activeElement))
+                toast.resume(t.id);
+            }}
+            onFocusCapture={() => toast.pause(t.id)}
+            onBlurCapture={(event) => {
+              if (
+                !event.currentTarget.contains(event.relatedTarget) &&
+                !(
+                  typeof window.matchMedia === "function" &&
+                  window.matchMedia("(hover: hover)").matches &&
+                  event.currentTarget.matches(":hover")
+                )
+              )
+                toast.resume(t.id);
+            }}
           >
             <span className="toast-icon" aria-hidden="true">
               <Icon size={16} />
@@ -64,7 +79,9 @@ export function Toaster() {
               <span
                 className="toast-progress"
                 aria-hidden="true"
-                style={{ "--toast-duration": `${t.duration}ms` } as CSSProperties}
+                style={
+                  { "--toast-duration": `${t.duration}ms` } as CSSProperties
+                }
               />
             )}
           </div>

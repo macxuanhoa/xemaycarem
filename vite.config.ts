@@ -3,6 +3,7 @@ import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 import { VitePWA } from "vite-plugin-pwa";
 import { fileURLToPath, URL } from "node:url";
+
 export default defineConfig({
   plugins: [
     react(),
@@ -73,14 +74,30 @@ export default defineConfig({
   build: {
     rollupOptions: {
       output: {
-        // Carve the stable, large third-party libraries out of the entry chunk
-        // so the browser downloads them in parallel and keeps them cached across
-        // app deploys (their content hash only changes when the lib changes).
-        // This trims repeat-visit payload and speeds first-load parsing.
-        manualChunks: {
-          react: ["react", "react-dom", "react-router-dom"],
-          query: ["@tanstack/react-query"],
-          supabase: ["@supabase/supabase-js"],
+        // Carve stable vendor libraries into isolated cache chunks
+        // to enable parallel downloading, faster execution and long-term HTTP caching.
+        manualChunks(id) {
+          if (id.includes("node_modules")) {
+            if (id.includes("@zxing") || id.includes("html5-qrcode")) {
+              return "vendor-scanner";
+            }
+            if (id.includes("@supabase")) {
+              return "supabase";
+            }
+            if (id.includes("@tanstack")) {
+              return "query";
+            }
+            if (
+              id.includes("react-router") ||
+              id.includes("react-dom") ||
+              id.includes("/react/")
+            ) {
+              return "react";
+            }
+            if (id.includes("lucide-react")) {
+              return "vendor-icons";
+            }
+          }
         },
       },
     },

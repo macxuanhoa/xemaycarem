@@ -3,20 +3,9 @@
  * teach the tool every abbreviation you correct, then intake the whole
  * batch atomically through `import_vehicles`.
  */
-import {
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-  type ChangeEvent,
-  type KeyboardEvent,
-} from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
-import {
-  useMutation,
-  useQuery,
-  useQueryClient,
-} from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   ArrowLeft,
   CheckCircle2,
@@ -32,8 +21,9 @@ import { AppError, friendlyError } from "@/lib/errors";
 import { executeOperation, reconcileOperation } from "@/lib/operationRecovery";
 import { OperationRecoveryNotice } from "@/components/OperationRecoveryNotice";
 import { canFinance } from "@/lib/permissions";
-import { isoToDisplayDate, displayToIsoDate, money, today } from "@/lib/format";
-import { formatVndNumber } from "@/lib/moneyHelper";
+import { isoToDisplayDate, displayToIsoDate, today } from "@/lib/format";
+import { MoneyInput } from "@/components/ui/MoneyInput";
+import { parseMoneyInput } from "@/lib/moneyHelper";
 import { canonicalizePlate, PLATE_EXAMPLE } from "@/lib/plate";
 import { toast } from "@/lib/toast";
 import {
@@ -81,6 +71,21 @@ import { normalizeVehicleYear } from "@/lib/vehicleInputFormatting";
 
 type ImportIssue = { index: number; field: string; message: string };
 type ImportCheck = { duplicates: ImportIssue[]; errors: ImportIssue[] };
+
+// Review controls reject ambiguous punctuation while retaining established
+// Vietnamese shorthand such as18tr5. The import parser and payload stay unchanged.
+function parseReviewedIntakeMoney(text: string): number | undefined {
+  const strict = parseMoneyInput(text);
+  if (strict != null) return strict;
+  const normalized = normalizeKey(text)
+    .replace(/\s+/g, "")
+    .replaceAll("trieu", "tr")
+    .replaceAll("nghin", "k")
+    .replaceAll("ngan", "k");
+  return /^\d+(?:[.,]\d{1,6})?(?:k|tr|m|ty|b)\d{0,2}$/.test(normalized)
+    ? (parseShorthandMoney(text) ?? undefined)
+    : undefined;
+}
 
 /** Fields worth memorizing when the user types a better value than the token. */
 const TEACHABLE_FIELDS = new Set<IntakeFieldKey>([
@@ -138,24 +143,36 @@ export default function ShorthandIntakePage() {
       crypto.randomUUID?.() ?? `cam-${Date.now()}`,
       today(),
     );
-    if (cameraRecognition.photos.length) entry.photos = cameraRecognition.photos;
+    if (cameraRecognition.photos.length)
+      entry.photos = cameraRecognition.photos;
     return [entry];
   });
   const [dict, setDict] = useState<LearnedDictionary>(() =>
     loadDictionary(profile?.id, dictionaryStorage),
   );
   const [dictionaryChanged, setDictionaryChanged] = useState(false);
-  const [lesson, setLesson] = useState<{ key: string; field: IntakeFieldKey; value: string } | null>(null);
+  const [lesson, setLesson] = useState<{
+    key: string;
+    field: IntakeFieldKey;
+    value: string;
+  } | null>(null);
   const dictionaryRef = useRef<HTMLDetailsElement>(null);
   const notesRef = useRef<HTMLTextAreaElement>(null);
   // Opening the lesson form must also expand the collapsed memory panel.
-  const openLesson = (next: { key: string; field: IntakeFieldKey; value: string }) => {
+  const openLesson = (next: {
+    key: string;
+    field: IntakeFieldKey;
+    value: string;
+  }) => {
     setLesson(next);
     if (dictionaryRef.current) dictionaryRef.current.open = true;
   };
-  const [serverIssues, setServerIssues] = useState<Record<number, string[]>>({});
+  const [serverIssues, setServerIssues] = useState<Record<number, string[]>>(
+    {},
+  );
 
   const [text, setText] = useState(seedText);
+  const entriesEdited = useRef(false);
   // Interruption safety: a camera result that never reached the form (page
   // reload, crash) is restored once from the session draft.
   const didRestoreCamera = useRef(false);
@@ -165,7 +182,11 @@ export default function ShorthandIntakePage() {
     if (seedText) return;
     const stored = readRecognitionDraft(profile.id);
     if (!stored) return;
-    const entry = recognitionToIntakeEntry(stored, crypto.randomUUID?.() ?? `cam-${Date.now()}`, today());
+    const entry = recognitionToIntakeEntry(
+      stored,
+      crypto.randomUUID?.() ?? `cam-${Date.now()}`,
+      today(),
+    );
     setEntries((prev) => (prev.length ? prev : [entry]));
   }, [cameraRecognition, profile?.id, seedText]);
 
@@ -178,15 +199,32 @@ export default function ShorthandIntakePage() {
     staleTime: 5 * 60 * 1000,
   });
 
-  const suggestionsFor = (field: "brand" | "model" | "variant" | "color", entry: IntakeEntry) =>
+  const suggestionsFor = (
+    field: "brand" | "model" | "variant" | "color",
+    entry: IntakeEntry,
+  ) =>
     vehicleSuggestions(
       catalog.data?.items ?? [],
       field,
       profile?.id,
-      field === "model" ? entry.fields.brand ?? "" : "",
+      field === "model" ? (entry.fields.brand ?? "") : "",
     );
 
-  const handleParse = () => {
+  const handleParse = async () => {
+    if (
+      entries.length &&
+      (entriesEdited.current || entries.some((entry) => entry.photos?.length))
+    ) {
+      const confirmed = await confirmAction({
+        title: "Tách lại danh sách xe?",
+        description:
+          "Các thông tin đã sửa và ảnh trong danh sách hiện tại sẽ được thay bằng nội dung ghi chú. Bạn có thể ở lại để kiểm tra trước.",
+        confirmLabel: "Tách lại danh sách",
+        cancelLabel: "Giữ danh sách hiện tại",
+      });
+      if (!confirmed) return;
+    }
+    entriesEdited.current = false;
     const currentDate = today();
     const parsed = parseIntakeNotes(text, dict).map((entry) => ({
       ...entry,
@@ -199,7 +237,9 @@ export default function ShorthandIntakePage() {
     setServerIssues({});
     setDictionaryChanged(false);
     if (!parsed.length)
-      toast.info("Chưa tách được dòng nào. Mỗi dòng là một xe, ví dụ: \"sh đen 18tr5\".");
+      toast.info(
+        'Chưa tách được dòng nào. Mỗi dòng là một xe, ví dụ: "sh đen 18tr5".',
+      );
   };
 
   const didAutoParse = useRef(false);
@@ -234,6 +274,7 @@ export default function ShorthandIntakePage() {
   };
 
   const updateField = (id: string, field: IntakeFieldKey, value: string) => {
+    entriesEdited.current = true;
     // Row indexes from a rejected server check no longer apply after an edit.
     setServerIssues({});
     setEntries((prev) =>
@@ -251,7 +292,13 @@ export default function ShorthandIntakePage() {
   const saveLesson = () => {
     if (!lesson || !lesson.key.trim() || !lesson.value.trim()) return;
     setDict(
-      learnRule(profile?.id, lesson.key, lesson.field, lesson.value, dictionaryStorage),
+      learnRule(
+        profile?.id,
+        lesson.key,
+        lesson.field,
+        lesson.value,
+        dictionaryStorage,
+      ),
     );
     setDictionaryChanged(true);
     toast.success(
@@ -283,13 +330,24 @@ export default function ShorthandIntakePage() {
 
   const submit = useMutation({
     mutationFn: async () => {
-      if (!profile) throw new AppError("Vui lòng đăng nhập lại trước khi thu xe.");
-      const previous = await reconcileOperation<{ imported_count: number; vehicle_ids?: string[] }>(profile.id, "import_vehicles", "batch");
+      if (!profile)
+        throw new AppError("Vui lòng đăng nhập lại trước khi thu xe.");
+      const previous = await reconcileOperation<{
+        imported_count: number;
+        vehicle_ids?: string[];
+      }>(profile.id, "import_vehicles", "batch");
       if (previous.confirmed) {
         // The stored receipt replays the same vehicle_ids the write returned,
         // so even recovery after a lost response attaches photos by id.
-        const recovered = await uploadEntryPhotos(entries, previous.result?.vehicle_ids);
-        return { status: "done" as const, count: previous.result!.imported_count, photos: recovered };
+        const recovered = await uploadEntryPhotos(
+          entries,
+          previous.result?.vehicle_ids,
+        );
+        return {
+          status: "done" as const,
+          count: previous.result!.imported_count,
+          photos: recovered,
+        };
       }
       const rows = entries.map((entry) => entryToImportRow(entry, financial));
       const check = await api.call<ImportCheck>("validate_import_vehicles", {
@@ -310,8 +368,11 @@ export default function ShorthandIntakePage() {
         confirmLabel: "Xác nhận thu xe",
       });
       if (!confirmed) return { status: "cancelled" as const };
-      const result = await executeOperation<{ imported_count: number; vehicle_ids?: string[] }>(
-        profile.id, "import_vehicles", "batch", requestId => api.call("import_vehicles", {
+      const result = await executeOperation<{
+        imported_count: number;
+        vehicle_ids?: string[];
+      }>(profile.id, "import_vehicles", "batch", (requestId) =>
+        api.call("import_vehicles", {
           p_vehicles: { rows, request_id: requestId },
         }),
       );
@@ -327,7 +388,9 @@ export default function ShorthandIntakePage() {
         description: "Phiếu thu và xe đã sẵn sàng trong danh sách Thu vào.",
       });
       if (outcome.photos.uploaded)
-        toast.success(`Đã đính ${outcome.photos.uploaded} ảnh camera vào xe mới.`);
+        toast.success(
+          `Đã đính ${outcome.photos.uploaded} ảnh camera vào xe mới.`,
+        );
       if (outcome.photos.failed)
         toast.info(
           `${outcome.photos.failed} ảnh chưa tải lên được — mở chi tiết xe để thêm ảnh.`,
@@ -348,17 +411,32 @@ export default function ShorthandIntakePage() {
   const cameraClass = (entry: IntakeEntry, key: IntakeFieldKey, base = "") => {
     const status = entry.fieldStatus?.[key];
     const extra =
-      status === "CONFLICT" ? " fs-conflict" : status === "SUGGESTED" ? " fs-verify" : status === "VERIFIED" ? " fs-verified" : "";
+      status === "CONFLICT"
+        ? " fs-conflict"
+        : status === "SUGGESTED"
+          ? " fs-verify"
+          : status === "VERIFIED"
+            ? " fs-verified"
+            : "";
     return `${base}${extra}`.trim() || undefined;
   };
   const cameraNote = (entry: IntakeEntry, key: IntakeFieldKey) => {
     const status = entry.fieldStatus?.[key];
-    if (status === "VERIFIED") return <span className="fs-badge ok">Đã xác khớp với kho</span>;
-    if (status === "SUGGESTED") return <span className="fs-badge warn">Camera đoán — kiểm tra lại</span>;
-    if (status === "CONFLICT") return <span className="fs-badge danger">Mâu thuẫn — cần xác minh thủ công</span>;
+    if (status === "VERIFIED")
+      return <span className="fs-badge ok">Đã xác khớp với kho</span>;
+    if (status === "SUGGESTED")
+      return <span className="fs-badge warn">Camera đoán — kiểm tra lại</span>;
+    if (status === "CONFLICT")
+      return (
+        <span className="fs-badge danger">
+          Mâu thuẫn — cần xác minh thủ công
+        </span>
+      );
     return null;
   };
-  const blockingCount = clientErrorsByEntry.filter((list) => list.length).length;
+  const blockingCount = clientErrorsByEntry.filter(
+    (list) => list.length,
+  ).length;
   const unknownCount = entries.reduce(
     (sum, entry) => sum + entry.unknownTokens.length,
     0,
@@ -368,7 +446,9 @@ export default function ShorthandIntakePage() {
   return (
     <div className="stack intake-page">
       <OperationRecoveryNotice<{ imported_count: number }>
-        userId={profile?.id} operation="import_vehicles" scope="batch"
+        userId={profile?.id}
+        operation="import_vehicles"
+        scope="batch"
         onConfirmed={async () => {
           await client.invalidateQueries();
           navigate("/acquisitions");
@@ -379,7 +459,7 @@ export default function ShorthandIntakePage() {
       </Link>
       <PageHeader
         title="Thu xe tốc ký"
-        description="Dán tin nhắn — mỗi dòng một xe."
+        description="Dán ghi chú để thu nhiều xe, mỗi dòng một xe. Muốn nhập từng xe, chọn Thu xe mới."
       />
 
       <Card className="intake-notes-card">
@@ -407,7 +487,11 @@ export default function ShorthandIntakePage() {
           aria-label="Ghi chú tốc ký danh sách xe cần thu"
         />
         <div className="row intake-notes-actions">
-          <Button type="button" onClick={handleParse} disabled={!text.trim()}>
+          <Button
+            type="button"
+            onClick={() => void handleParse()}
+            disabled={!text.trim()}
+          >
             Tách thành danh sách
           </Button>
           <span className="muted small">
@@ -425,7 +509,11 @@ export default function ShorthandIntakePage() {
         {dictionaryChanged && entries.length > 0 && (
           <div className="notice" role="status">
             Bộ nhớ viết tắt vừa được cập nhật.
-            <Button type="button" variant="ghost" onClick={handleParse}>
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={() => void handleParse()}
+            >
               Tách lại danh sách
             </Button>
           </div>
@@ -446,7 +534,10 @@ export default function ShorthandIntakePage() {
           ...(serverIssues[index] ?? []),
         ];
         return (
-          <Card key={entry.id} className={`intake-entry ${issues.length ? "has-issues" : ""}`}>
+          <Card
+            key={entry.id}
+            className={`intake-entry ${issues.length ? "has-issues" : ""}`}
+          >
             <div className="section-heading">
               <h2 className="section-title" style={{ margin: 0 }}>
                 Xe {index + 1}
@@ -463,7 +554,10 @@ export default function ShorthandIntakePage() {
             </div>
             <p className="muted small intake-source">Gốc: {entry.sourceLine}</p>
             {!!entry.photos?.length && (
-              <div className="intake-camera-photos" aria-label="Ảnh camera kèm theo xe này">
+              <div
+                className="intake-camera-photos"
+                aria-label="Ảnh camera kèm theo xe này"
+              >
                 {entry.photos.map((photo, index) => (
                   <span className="intake-camera-photo" key={photo.slice(-24)}>
                     <img src={photo} alt={`Ảnh camera ${index + 1}`} />
@@ -474,7 +568,12 @@ export default function ShorthandIntakePage() {
                         setEntries((prev) =>
                           prev.map((row) =>
                             row.id === entry.id
-                              ? { ...row, photos: row.photos?.filter((_, i) => i !== index) }
+                              ? {
+                                  ...row,
+                                  photos: row.photos?.filter(
+                                    (_, i) => i !== index,
+                                  ),
+                                }
                               : row,
                           ),
                         )
@@ -484,11 +583,16 @@ export default function ShorthandIntakePage() {
                     </button>
                   </span>
                 ))}
-                <small className="muted">Ảnh sẽ được đính vào xe sau khi thu.</small>
+                <small className="muted">
+                  Ảnh sẽ được đính vào xe sau khi thu.
+                </small>
               </div>
             )}
             <div className="form-grid intake-entry-grid">
-              <Field label="Hãng xe" className={cameraClass(entry, "brand", "intake-span2")}>
+              <Field
+                label="Hãng xe"
+                className={cameraClass(entry, "brand", "intake-span2")}
+              >
                 <AutocompleteInput
                   value={entry.fields.brand ?? ""}
                   suggestions={suggestionsFor("brand", entry)}
@@ -497,7 +601,10 @@ export default function ShorthandIntakePage() {
                 />
                 {cameraNote(entry, "brand")}
               </Field>
-              <Field label="Dòng xe" className={cameraClass(entry, "model", "intake-span2")}>
+              <Field
+                label="Dòng xe"
+                className={cameraClass(entry, "model", "intake-span2")}
+              >
                 <AutocompleteInput
                   value={entry.fields.model ?? ""}
                   suggestions={suggestionsFor("model", entry)}
@@ -506,33 +613,54 @@ export default function ShorthandIntakePage() {
                 />
                 {cameraNote(entry, "model")}
               </Field>
-              <Field label="Số khung" className={cameraClass(entry, "frame_number")}>
+              <Field
+                label="Số khung"
+                className={cameraClass(entry, "frame_number")}
+              >
                 <input
                   value={entry.fields.frame_number ?? ""}
                   onChange={(event) =>
-                    updateField(entry.id, "frame_number", event.target.value.toUpperCase())
+                    updateField(
+                      entry.id,
+                      "frame_number",
+                      event.target.value.toUpperCase(),
+                    )
                   }
                   autoCapitalize="characters"
                   placeholder="RLH160…"
                 />
                 {cameraNote(entry, "frame_number")}
               </Field>
-              <Field label="Số máy" className={cameraClass(entry, "engine_number")}>
+              <Field
+                label="Số máy"
+                className={cameraClass(entry, "engine_number")}
+              >
                 <input
                   value={entry.fields.engine_number ?? ""}
                   onChange={(event) =>
-                    updateField(entry.id, "engine_number", event.target.value.toUpperCase())
+                    updateField(
+                      entry.id,
+                      "engine_number",
+                      event.target.value.toUpperCase(),
+                    )
                   }
                   autoCapitalize="characters"
                   placeholder="KF160…"
                 />
                 {cameraNote(entry, "engine_number")}
               </Field>
-              <Field label="Biển số" className={cameraClass(entry, "license_plate")}>
+              <Field
+                label="Biển số"
+                className={cameraClass(entry, "license_plate")}
+              >
                 <input
                   value={entry.fields.license_plate ?? ""}
                   onChange={(event) =>
-                    updateField(entry.id, "license_plate", event.target.value.toUpperCase())
+                    updateField(
+                      entry.id,
+                      "license_plate",
+                      event.target.value.toUpperCase(),
+                    )
                   }
                   onBlur={(event) => {
                     if (event.target.value.trim()) {
@@ -567,7 +695,10 @@ export default function ShorthandIntakePage() {
                 />
                 {cameraNote(entry, "color")}
               </Field>
-              <Field label="Phiên bản" className={cameraClass(entry, "variant")}>
+              <Field
+                label="Phiên bản"
+                className={cameraClass(entry, "variant")}
+              >
                 <AutocompleteInput
                   value={entry.fields.variant ?? ""}
                   suggestions={suggestionsFor("variant", entry)}
@@ -576,12 +707,19 @@ export default function ShorthandIntakePage() {
                 />
                 {cameraNote(entry, "variant")}
               </Field>
-              <Field label="Năm sản xuất" className={cameraClass(entry, "year")}>
+              <Field
+                label="Năm sản xuất"
+                className={cameraClass(entry, "year")}
+              >
                 <input
                   value={entry.fields.year ?? ""}
-                  onChange={(event) => updateField(entry.id, "year", event.target.value)}
+                  onChange={(event) =>
+                    updateField(entry.id, "year", event.target.value)
+                  }
                   onBlur={(event) => {
-                    const year = normalizeVehicleYear(event.currentTarget.value);
+                    const year = normalizeVehicleYear(
+                      event.currentTarget.value,
+                    );
                     if (year != null && String(year) !== entry.fields.year) {
                       updateField(entry.id, "year", String(year));
                     }
@@ -591,11 +729,16 @@ export default function ShorthandIntakePage() {
                 />
                 {cameraNote(entry, "year")}
               </Field>
-              <Field label="Số km đã đi" className={cameraClass(entry, "odometer")}>
+              <Field
+                label="Số km đã đi"
+                className={cameraClass(entry, "odometer")}
+              >
                 <GroupedIntegerInput
                   aria-label="Số km đã đi"
                   value={entry.fields.odometer ?? ""}
-                  onChange={(digits) => updateField(entry.id, "odometer", digits)}
+                  onChange={(digits) =>
+                    updateField(entry.id, "odometer", digits)
+                  }
                   placeholder="12.500"
                 />
                 {cameraNote(entry, "odometer")}
@@ -627,7 +770,6 @@ export default function ShorthandIntakePage() {
                     }
                     placeholder="18tr5"
                   />
-                  {moneyHint(entry.fields.purchase_price)}
                 </Field>
               )}
               <Field label="Giá bán dự kiến">
@@ -639,7 +781,6 @@ export default function ShorthandIntakePage() {
                   }
                   placeholder="22tr"
                 />
-                {moneyHint(entry.fields.asking_price)}
               </Field>
               <Field label="Tên người bán">
                 <input
@@ -665,7 +806,9 @@ export default function ShorthandIntakePage() {
               <textarea
                 rows={2}
                 value={entry.fields.notes ?? ""}
-                onChange={(event) => updateField(entry.id, "notes", event.target.value)}
+                onChange={(event) =>
+                  updateField(entry.id, "notes", event.target.value)
+                }
                 placeholder="Tình trạng, giấy tờ, phụ kiện…"
               />
             </Field>
@@ -675,7 +818,10 @@ export default function ShorthandIntakePage() {
                 {entry.unknownTokens.map((token) => (
                   <span className="intake-token-chip" key={token}>
                     <code>{token}</code>
-                    <button type="button" onClick={() => assignTokenToNotes(entry, token)}>
+                    <button
+                      type="button"
+                      onClick={() => assignTokenToNotes(entry, token)}
+                    >
                       + Ghi chú
                     </button>
                     <button
@@ -696,8 +842,7 @@ export default function ShorthandIntakePage() {
                     key={`${field}:${token}`}
                     onClick={() => teachFromEdit(entry, field)}
                   >
-                    <Plus size={13} /> Học: “{token}” = “
-                    {entry.fields[field]}”?
+                    <Plus size={13} /> Học: “{token}” = “{entry.fields[field]}”?
                   </button>
                 ))}
               </div>
@@ -714,7 +859,11 @@ export default function ShorthandIntakePage() {
               <Button
                 type="button"
                 variant="secondary"
-                disabled={!entry.fields.frame_number || !entry.fields.brand || !entry.fields.model}
+                disabled={
+                  !entry.fields.frame_number ||
+                  !entry.fields.brand ||
+                  !entry.fields.model
+                }
                 onClick={() =>
                   navigate("/acquisitions/new", {
                     state: { aiDraft: entryToAcquisitionDraft(entry) },
@@ -734,18 +883,22 @@ export default function ShorthandIntakePage() {
             <h2 className="section-title" style={{ margin: 0 }}>
               2. Xác nhận thu hàng loạt
             </h2>
-            <span className="muted small">{entries.length} xe trong danh sách</span>
+            <span className="muted small">
+              {entries.length} xe trong danh sách
+            </span>
           </div>
           {unknownCount > 0 && (
             <p className="muted small">
-              Còn {unknownCount} từ chưa nhận diện — gán vào ghi chú hoặc dạy Cà Rem
-              để lần sau tự hiểu.
+              Còn {unknownCount} từ chưa nhận diện — gán vào ghi chú hoặc dạy Cà
+              Rem để lần sau tự hiểu.
             </p>
           )}
           <div className="form-actions">
             <Button
               type="button"
-              disabled={blockingCount > 0 || submit.isPending || !entries.length}
+              disabled={
+                blockingCount > 0 || submit.isPending || !entries.length
+              }
               onClick={() => void submit.mutate()}
             >
               {submit.isPending ? (
@@ -758,9 +911,7 @@ export default function ShorthandIntakePage() {
             </Button>
           </div>
           {submit.isError && (
-            <p className="notice danger">
-              {friendlyError(submit.error)}
-            </p>
+            <p className="notice danger">{friendlyError(submit.error)}</p>
           )}
         </Card>
       )}
@@ -768,19 +919,22 @@ export default function ShorthandIntakePage() {
       <Card className="intake-dictionary">
         <details ref={dictionaryRef}>
           <summary>
-            <GraduationCap size={15} aria-hidden="true" /> Bộ nhớ viết tắt của bạn
-            ({rules.length})
+            <GraduationCap size={15} aria-hidden="true" /> Bộ nhớ viết tắt của
+            bạn ({rules.length})
           </summary>
           <p className="muted small">
-            Cà Rem học riêng theo tài khoản của bạn và lưu trên thiết bị này. Mỗi
-            lần bạn sửa hoặc dạy một từ viết tắt, lần dán sau sẽ tự đúng hơn.
+            Cà Rem học riêng theo tài khoản của bạn và lưu trên thiết bị này.
+            Mỗi lần bạn sửa hoặc dạy một từ viết tắt, lần dán sau sẽ tự đúng
+            hơn.
           </p>
           {lesson && (
             <div className="intake-lesson-form">
               <Field label="Viết tắt">
                 <input
                   value={lesson.key}
-                  onChange={(event) => setLesson({ ...lesson, key: event.target.value })}
+                  onChange={(event) =>
+                    setLesson({ ...lesson, key: event.target.value })
+                  }
                   autoFocus
                 />
               </Field>
@@ -788,10 +942,15 @@ export default function ShorthandIntakePage() {
                 <select
                   value={lesson.field}
                   onChange={(event) =>
-                    setLesson({ ...lesson, field: event.target.value as IntakeFieldKey })
+                    setLesson({
+                      ...lesson,
+                      field: event.target.value as IntakeFieldKey,
+                    })
                   }
                 >
-                  {INTAKE_FIELDS.filter(field => LOCAL_LEARNING_FIELDS.has(field.key)).map((field) => (
+                  {INTAKE_FIELDS.filter((field) =>
+                    LOCAL_LEARNING_FIELDS.has(field.key),
+                  ).map((field) => (
                     <option key={field.key} value={field.key}>
                       {field.label}
                     </option>
@@ -801,15 +960,25 @@ export default function ShorthandIntakePage() {
               <Field label="Thành">
                 <input
                   value={lesson.value}
-                  onChange={(event) => setLesson({ ...lesson, value: event.target.value })}
+                  onChange={(event) =>
+                    setLesson({ ...lesson, value: event.target.value })
+                  }
                   placeholder="Ví dụ: Wave RSX"
                 />
               </Field>
               <div className="row" style={{ gap: "8px" }}>
-                <Button type="button" onClick={saveLesson} disabled={!lesson.value.trim()}>
+                <Button
+                  type="button"
+                  onClick={saveLesson}
+                  disabled={!lesson.value.trim()}
+                >
                   Lưu quy tắc
                 </Button>
-                <Button type="button" variant="ghost" onClick={() => setLesson(null)}>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  onClick={() => setLesson(null)}
+                >
                   <X size={14} /> Đóng
                 </Button>
               </div>
@@ -821,12 +990,17 @@ export default function ShorthandIntakePage() {
                 <span className="intake-rule-chip" key={rule.key}>
                   <code>{rule.key}</code> → {rule.value}
                   <small>
-                    {INTAKE_FIELDS.find((f) => f.key === rule.field)?.label ?? rule.field}
+                    {INTAKE_FIELDS.find((f) => f.key === rule.field)?.label ??
+                      rule.field}
                   </small>
                   <button
                     type="button"
                     aria-label={`Quên quy tắc ${rule.key}`}
-                    onClick={() => setDict(forgetRule(profile?.id, rule.key, dictionaryStorage))}
+                    onClick={() =>
+                      setDict(
+                        forgetRule(profile?.id, rule.key, dictionaryStorage),
+                      )
+                    }
                   >
                     <X size={12} />
                   </button>
@@ -840,14 +1014,6 @@ export default function ShorthandIntakePage() {
   );
 }
 
-function moneyHint(raw?: string) {
-  if (!raw?.trim()) return null;
-  const value = parseShorthandMoney(raw);
-  if (value === null)
-    return <span className="intake-money-hint danger">Chưa hiểu số tiền này</span>;
-  return <span className="intake-money-hint">= {money(value)}</span>;
-}
-
 function IntakeMoneyInput({
   value,
   onChange,
@@ -859,108 +1025,15 @@ function IntakeMoneyInput({
   placeholder: string;
   ariaLabel: string;
 }) {
-  const inputRef = useRef<HTMLInputElement>(null);
-  // Values parsed from the pasted notes can arrive as plain digits without an
-  // input event, so normalize the displayed value as well as formatting edits.
-  const displayValue = (() => {
-    if (/[^\d.,\s]/u.test(value)) {
-      const shorthand = parseShorthandMoney(value);
-      return shorthand == null ? value : formatVndNumber(shorthand);
-    }
-    if (/^\d+(?:[.,]\d+)?\s+$/.test(value)) return value;
-    const digits = value.replace(/\D/g, "").replace(/^0+(?=\d)/, "").slice(0, 13);
-    if (!digits) return "";
-    const amount = Number(digits);
-    return Number.isSafeInteger(amount) && amount <= 1_000_000_000_000
-      ? formatVndNumber(amount)
-      : value;
-  })();
-
-  const formatTypedValue = (raw: string, cursorBefore: number) => {
-    // Preserve shorthand and invalid text as typed so the existing parser can
-    // interpret it or show its per-field warning without losing the input.
-    if (/[^\d.,\s]/u.test(raw)) {
-      const shorthand = parseShorthandMoney(raw);
-      if (shorthand != null) {
-        const formatted = formatVndNumber(shorthand);
-        onChange(formatted);
-        requestAnimationFrame(() => {
-          inputRef.current?.setSelectionRange(formatted.length, formatted.length);
-        });
-        return;
-      }
-      onChange(raw);
-      return;
-    }
-    if (/^\d+(?:[.,]\d+)?\s+$/.test(raw)) {
-      onChange(raw);
-      return;
-    }
-
-    const rawDigits = raw.replace(/\D/g, "");
-    if (!rawDigits) {
-      onChange("");
-      return;
-    }
-
-    const digitsBeforeCursor = raw.slice(0, cursorBefore).replace(/\D/g, "").length;
-    const boundedDigits = rawDigits.replace(/^0+(?=\d)/, "").slice(0, 13);
-    const amount = Number(boundedDigits);
-    if (!Number.isSafeInteger(amount) || amount > 1_000_000_000_000) return;
-
-    const formatted = formatVndNumber(amount);
-    let nextCursor = 0;
-    let digitCount = 0;
-    if (digitsBeforeCursor > 0) {
-      nextCursor = formatted.length;
-      for (let index = 0; index < formatted.length; index++) {
-        if (/\d/.test(formatted[index])) digitCount++;
-        if (digitCount === digitsBeforeCursor) {
-          nextCursor = index + 1;
-          break;
-        }
-      }
-    }
-
-    onChange(formatted);
-    requestAnimationFrame(() => {
-      inputRef.current?.setSelectionRange(nextCursor, nextCursor);
-    });
-  };
-
-  const handleChange = (event: ChangeEvent<HTMLInputElement>) => {
-    const input = event.currentTarget;
-    formatTypedValue(input.value, input.selectionStart ?? input.value.length);
-  };
-
-  const handleKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
-    if (event.key !== "Backspace") return;
-    const input = event.currentTarget;
-    const { selectionStart, selectionEnd } = input;
-    if (
-      selectionStart != null &&
-      selectionStart === selectionEnd &&
-      selectionStart > 1 &&
-      input.value[selectionStart - 1] === "."
-    ) {
-      event.preventDefault();
-      const raw = input.value;
-      const nextRaw = raw.slice(0, selectionStart - 2) + raw.slice(selectionStart);
-      formatTypedValue(nextRaw, selectionStart - 2);
-    }
-  };
-
   return (
-    <input
-      ref={inputRef}
-      type="text"
-      inputMode="numeric"
-      aria-label={ariaLabel}
-      value={displayValue}
-      onChange={handleChange}
-      onKeyDown={handleKeyDown}
+    <MoneyInput
+      rawValue={value}
+      onRawChange={onChange}
+      parseInput={parseReviewedIntakeMoney}
+      onChange={() => {}}
       placeholder={placeholder}
-      autoComplete="off"
+      aria-label={ariaLabel}
+      showShortcuts={false}
     />
   );
 }

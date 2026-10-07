@@ -66,26 +66,20 @@ export function assertTestEnvironment(): void {
 export function assertLocalPostgres(connectionStringOrHost?: string): void {
   if (!connectionStringOrHost) return
 
-  if (connectionStringOrHost.includes('@')) {
+  let hostname = connectionStringOrHost
+  if (connectionStringOrHost.includes('://') || connectionStringOrHost.includes('@')) {
     try {
       const parsed = new URL(connectionStringOrHost)
-      if (!KNOWN_TEST_HOSTS.has(parsed.hostname)) {
-        throw new ProductionSafetyError(
-          `Database connection targets non-local host: "${parsed.hostname}". Tests must only use embedded or local test instances.`
-        )
-      }
+      if (!['postgres:', 'postgresql:'].includes(parsed.protocol)) throw new Error('Invalid database protocol')
+      hostname = parsed.hostname
     } catch {
-      // not a url, check plain string
+      throw new ProductionSafetyError('Malformed database connection cannot be verified for safety.')
     }
   }
 
-  if (
-    connectionStringOrHost.includes('supabase.com') ||
-    connectionStringOrHost.includes('pooler.supabase.com') ||
-    connectionStringOrHost.includes('aws.neon.tech')
-  ) {
+  if (!['127.0.0.1', 'localhost'].includes(hostname)) {
     throw new ProductionSafetyError(
-      `Detected cloud production database provider in connection string. Refusing test execution.`
+      `Database connection targets non-local host: "${hostname}". Tests must only use embedded or local test instances.`
     )
   }
 }

@@ -1,4 +1,5 @@
-import { useDeferredValue, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
+import { useDebouncedValue } from "@/lib/useDebouncedValue";
 import { Link, useSearchParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useForm, useWatch } from "react-hook-form";
@@ -33,6 +34,7 @@ import {
   Pagination,
 } from "@/components/ui";
 import { MoneyInput } from "@/components/ui/MoneyInput";
+import { Highlight } from "@/components/search/Highlight";
 import type { Expense, Paged, Vehicle } from "@/types";
 import { AVAILABLE_VEHICLE_FILTER } from "@/lib/vehicleFilters";
 import {
@@ -81,7 +83,7 @@ export function ExpensesPage({
   });
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState("");
-  const deferredSearch = useDeferredValue(search);
+  const deferredSearch = useDebouncedValue(search, 250);
   const [editing, setEditing] = useState<ExpenseRecord | null>(null);
   const [cancelling, setCancelling] = useState<ExpenseRecord | null>(null);
   const [adding, setAdding] = useState(params.get("new") === "1");
@@ -332,7 +334,7 @@ export function ExpensesPage({
                   <tr key={expense.id}>
                     <td>{dateLabel(expense.expense_date)}</td>
                     <td>
-                      <strong>{expense.description}</strong>
+                      <strong><Highlight text={expense.description} query={deferredSearch} /></strong>
                     </td>
                     {kind === "vehicle" && (
                       <td>
@@ -340,11 +342,9 @@ export function ExpensesPage({
                           className="text-link"
                           to={`/vehicles/${expense.vehicle_id}`}
                         >
-                          {expense.vehicle_code ||
-                            expense.internal_code ||
-                            "Chi tiết xe"}
+                          <Highlight text={expense.vehicle_code || expense.internal_code || "Chi tiết xe"} query={deferredSearch} />
                         </Link>
-                        <small>{expense.vehicle_name}</small>
+                        <small>{expense.vehicle_name ? <Highlight text={expense.vehicle_name} query={deferredSearch} /> : null}</small>
                       </td>
                     )}
                     <td>
@@ -407,7 +407,7 @@ export function ExpensesPage({
             {query.data.items.map((expense) => (
               <div key={expense.id} className="mobile-record">
                 <div className="row between">
-                  <strong>{expense.description}</strong>
+                  <strong><Highlight text={expense.description} query={deferredSearch} /></strong>
                   <Badge status={expense.status} />
                 </div>
                 <span className="muted">
@@ -421,9 +421,7 @@ export function ExpensesPage({
                     className="text-link"
                     to={`/vehicles/${expense.vehicle_id}`}
                   >
-                    {expense.vehicle_code ||
-                      expense.internal_code ||
-                      expense.vehicle_name}
+                    <Highlight text={expense.vehicle_code || expense.internal_code || expense.vehicle_name || ""} query={deferredSearch} />
                   </Link>
                 )}
                 <div className="row between">
@@ -581,7 +579,7 @@ function ExpenseEditor({
     expense?.kind ?? (expense?.vehicle_id ? "vehicle" : kind),
   );
   const [vehicleSearch, setVehicleSearch] = useState("");
-  const deferredSearch = useDeferredValue(vehicleSearch);
+  const deferredSearch = useDebouncedValue(vehicleSearch, 250);
   const [showCancel, setShowCancel] = useState(false);
   const [reason, setReason] = useState("");
 

@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from "react";
+import { Children, cloneElement, isValidElement, useEffect, useId, useRef, useState, type ReactElement, type ReactNode } from "react";
 import {
   ArrowLeft,
   ArrowRight,
@@ -67,23 +67,59 @@ export function Field({
   /** Optional widget rendered inline with the label (e.g. a colour swatch). */
   labelAction?: ReactNode;
 }) {
+  const generatedId = useId();
+  const controlId = `field-${generatedId}`;
+  const errorId = `${controlId}-error`;
+  const wrapperRef = useRef<HTMLDivElement>(null);
+  const labelRef = useRef<HTMLLabelElement>(null);
+  const hadError = useRef(false);
+  let linked = false;
+  const controls = Children.map(children, (child) => {
+    if (linked || !isValidElement(child)) return child;
+    const element = child as ReactElement<Record<string, unknown>>;
+    const native = typeof element.type === "string" && ["input", "select", "textarea"].includes(element.type);
+    const custom = typeof element.type !== "string" && "onChange" in element.props;
+    if (!native && !custom) return child;
+    linked = true;
+    return cloneElement(element, {
+      id: element.props.id ?? controlId,
+      "aria-label": element.props["aria-label"] ?? (custom ? label : undefined),
+      "aria-invalid": error ? true : element.props["aria-invalid"],
+      "aria-describedby": [element.props["aria-describedby"], error ? errorId : undefined].filter(Boolean).join(" ") || undefined,
+    });
+  });
+  useEffect(() => {
+    // Older custom controls do not all forward input ARIA/id props. Link their
+    // real control without nesting labels around calendars, shortcuts or buttons.
+    const control = wrapperRef.current?.querySelector<HTMLElement>('input:not([type="hidden"]):not([aria-hidden="true"]), select:not([aria-hidden="true"]), textarea:not([aria-hidden="true"]), [role="combobox"]:not([aria-hidden="true"])');
+    if (!control) return;
+    if (!control.id) control.id = controlId;
+    if (labelRef.current) labelRef.current.htmlFor = control.id;
+    const descriptions = (control.getAttribute("aria-describedby") ?? "").split(/\s+/).filter((id) => id && id !== errorId);
+    if (error) descriptions.push(errorId);
+    if (descriptions.length) control.setAttribute("aria-describedby", descriptions.join(" "));
+    else control.removeAttribute("aria-describedby");
+    if (error) control.setAttribute("aria-invalid", "true");
+    else if (hadError.current && !control.closest(".money-input-wrap")) control.removeAttribute("aria-invalid");
+    hadError.current = !!error;
+  }, [children, controlId, error, errorId]);
   return (
-    <label className={`field ${className}`.trim()}>
+    <div ref={wrapperRef} className={`field ${className}`.trim()}>
       {labelAction ? (
         <span className="field-label-row">
-          <span className="field-label-text">{label}</span>
+          <label ref={labelRef} htmlFor={controlId} className="field-label-text">{label}</label>
           {labelAction}
         </span>
       ) : (
-        <span>{label}</span>
+        <label ref={labelRef} htmlFor={controlId}>{label}</label>
       )}
-      {children}
+      {controls}
       {error && (
-        <span className="field-error" role="alert">
+        <span id={errorId} className="field-error" role="alert">
           {error}
         </span>
       )}
-    </label>
+    </div>
   );
 }
 export function EmptyState({

@@ -33,6 +33,7 @@ import {
   PageHeader,
   Pagination,
 } from "@/components/ui";
+import { Highlight } from "@/components/search/Highlight";
 import type { ReceivablesSummary, Sale } from "@/types";
 import { PaymentEditor } from "./SaleDetailPage";
 
@@ -354,14 +355,14 @@ export function ReceivablesPage({
                     >
                       <td>
                         <Link className="text-link" to={`/sales/${sale.id}`}>
-                          {sale.sale_code}
+                          <Highlight text={sale.sale_code} query={deferredSearch} />
                         </Link>
                         <small>{dateLabel(sale.sale_date)}</small>
                       </td>
                       <td>
                         <div className="row" style={{ gap: "4px" }}>
                           <User size={15} className="muted" />
-                          <strong>{sale.customer_name}</strong>
+                          <strong><Highlight text={sale.customer_name} query={deferredSearch} /></strong>
                         </div>
                         {sale.customer_phone ? (
                           <a
@@ -369,7 +370,7 @@ export function ReceivablesPage({
                             className="muted small row"
                             style={{ gap: "4px", textDecoration: "none" }}
                           >
-                            <Phone size={13} /> {sale.customer_phone}
+                            <Phone size={13} /> <Highlight text={sale.customer_phone} query={deferredSearch} />
                           </a>
                         ) : (
                           <small className="muted">Chưa có SĐT</small>
@@ -377,11 +378,11 @@ export function ReceivablesPage({
                       </td>
                       <td>
                         <strong>
-                          {sale.brand} {sale.model}
+                          <Highlight text={`${sale.brand} ${sale.model}`} query={deferredSearch} />
                         </strong>
                         <small>
-                          {sale.internal_code} ·{" "}
-                          {sale.license_plate || "Chưa biển"}
+                          <Highlight text={sale.internal_code} query={deferredSearch} /> ·{" "}
+                          {sale.license_plate ? <Highlight text={sale.license_plate} query={deferredSearch} /> : "Chưa biển"}
                         </small>
                       </td>
                       <td className="numeric">{money(sale.sale_price)}</td>
@@ -483,7 +484,7 @@ export function ReceivablesPage({
                 >
                   <div className="row between">
                     <Link to={`/sales/${sale.id}`} className="text-link">
-                      <strong>{sale.sale_code}</strong>
+                      <strong><Highlight text={sale.sale_code} query={deferredSearch} /></strong>
                     </Link>
                     {isOverdue ? (
                       <span className="badge badge-cancelled">
@@ -495,14 +496,14 @@ export function ReceivablesPage({
                   </div>
                   <div className="row between small">
                     <span>
-                      {sale.brand} {sale.model} ({sale.internal_code})
+                      <Highlight text={`${sale.brand} ${sale.model}`} query={deferredSearch} /> (<Highlight text={sale.internal_code} query={deferredSearch} />)
                     </span>
                     <span className="muted">{dateLabel(sale.sale_date)}</span>
                   </div>
                   <div className="row between">
                     <span>
-                      {sale.customer_name}
-                      {sale.customer_phone && ` · ${sale.customer_phone}`}
+                      <Highlight text={sale.customer_name} query={deferredSearch} />
+                      {sale.customer_phone && <> · <Highlight text={sale.customer_phone} query={deferredSearch} /></>}
                     </span>
                   </div>
                   <div className="row between price-row">

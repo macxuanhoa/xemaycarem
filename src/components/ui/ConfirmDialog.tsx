@@ -1,4 +1,4 @@
-import { useSyncExternalStore } from "react";
+import { useId, useSyncExternalStore, type ReactNode } from "react";
 import { TriangleAlert } from "lucide-react";
 import { Button } from "./button";
 import { useDialog } from "@/lib/useDialog";
@@ -6,6 +6,8 @@ import { useDialog } from "@/lib/useDialog";
 export type ConfirmOptions = {
   title: string;
   description?: string;
+  /** Read-only details of the exact values the caller will submit. */
+  summary?: ReactNode;
   /** The specific record being affected, e.g. the vehicle code or account name. */
   entity?: string;
   confirmLabel: string;
@@ -43,6 +45,7 @@ function settle(ok: boolean) {
 }
 
 export function ConfirmDialogHost() {
+  const dialogId = useId();
   const request = useSyncExternalStore(
     subscribe,
     () => current,
@@ -62,21 +65,26 @@ export function ConfirmDialogHost() {
         ref={panelRef}
         role="alertdialog"
         aria-modal="true"
-        aria-labelledby="confirm-dialog-title"
+        aria-labelledby={`${dialogId}-title`}
+        aria-describedby={[
+          request.description ? `${dialogId}-description` : undefined,
+          request.summary ? `${dialogId}-summary` : undefined,
+        ].filter(Boolean).join(" ") || undefined}
         onClick={(e) => e.stopPropagation()}
       >
         <div className="confirm-dialog-icon" data-tone={request.tone ?? "primary"}>
           <TriangleAlert size={22} />
         </div>
-        <h2 id="confirm-dialog-title" className="confirm-dialog-title">
+        <h2 id={`${dialogId}-title`} className="confirm-dialog-title">
           {request.title}
         </h2>
         {request.entity && (
           <p className="confirm-dialog-entity">{request.entity}</p>
         )}
         {request.description && (
-          <p className="confirm-dialog-desc">{request.description}</p>
+          <p id={`${dialogId}-description`} className="confirm-dialog-desc">{request.description}</p>
         )}
+        {request.summary && <div id={`${dialogId}-summary`} className="confirm-dialog-summary">{request.summary}</div>}
         <div className="confirm-dialog-actions">
           <Button variant="secondary" onClick={() => settle(false)}>
             {request.cancelLabel ?? "Hủy"}

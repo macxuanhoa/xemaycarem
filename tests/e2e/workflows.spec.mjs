@@ -289,6 +289,7 @@ test("Owner: login, persistent session, add/edit vehicle, expense, sale, payment
   await page
     .getByRole("button", { name: "Xác nhận bán xe", exact: true })
     .click();
+  await page.getByRole("alertdialog").getByRole("button", { name: "Xác nhận bán xe", exact: true }).click();
   await expect(page).toHaveURL(/\/sales\/[a-f0-9-]{36}$/);
   const saleId = page.url().split("/").at(-1);
   await expect(page.getByText(/8\.800\.000/)).toBeVisible();
@@ -343,9 +344,10 @@ test("Mobile: inventory cards, global search, quick sale, no horizontal overflow
     fullPage: true,
   });
   const plate = `TEST-${ids.OWNER.slice(0, 5)}-0`;
-  await page.getByLabel("Tìm xe toàn hệ thống").fill(plate);
+  await page.getByRole("button", { name: "Tìm xe toàn hệ thống", exact: true }).click();
+  await page.getByRole("searchbox", { name: "Tìm xe toàn hệ thống", exact: true }).fill(plate);
   await expect(page.locator(".palette-result-item").first()).toContainText(plate);
-  await page.getByLabel("Tìm xe toàn hệ thống").press("Enter");
+  await page.getByRole("searchbox", { name: "Tìm xe toàn hệ thống", exact: true }).press("Enter");
   await expect(page).toHaveURL(`/vehicles/${vehicles[0]}`);
   await page.goto("/sell");
   await expect(
@@ -469,6 +471,7 @@ test("Offline: sale mutation is not submitted and shows a clear message", async 
   await page
     .getByRole("button", { name: "Xác nhận bán xe", exact: true })
     .click();
+  await page.getByRole("alertdialog").getByRole("button", { name: "Xác nhận bán xe", exact: true }).click();
   await expect(
     page.getByText(
       "Đang mất kết nối. Giao dịch chưa được gửi. Hãy kết nối mạng để tiếp tục.",

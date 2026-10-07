@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { Search } from "lucide-react";
 import { Button, Card, Field, PageHeader } from "@/components/ui";
 import { resolveVehicleQr } from "@/lib/qrcode";
 import SmartVehicleScan from "./SmartVehicleScan";
@@ -15,8 +16,13 @@ export default function CapturePage() {
   const mounted = useRef(true);
   useEffect(() => {
     mounted.current = true;
+    const handleExternalStop = () => {
+      void stop();
+    };
+    window.addEventListener("xe:qrscanner:stop", handleExternalStop);
     return () => {
       mounted.current = false;
+      window.removeEventListener("xe:qrscanner:stop", handleExternalStop);
       if (scanner.current?.isScanning)
         void scanner.current.stop().catch(() => {});
     };
@@ -38,6 +44,8 @@ export default function CapturePage() {
   };
   const start = async () => {
     if (starting.current || scanner.current?.isScanning) return;
+    // Release SmartVehicleScan camera to avoid device conflict
+    window.dispatchEvent(new CustomEvent("xe:smartcam:stop"));
     starting.current = true;
     setMessage("");
     setRunning(true);
@@ -71,25 +79,25 @@ export default function CapturePage() {
     }
   };
   return (
-    <div className="stack">
+    <div className="capture-page stack">
       <PageHeader
         title="Camera thông minh"
         description="Nhận diện xe bằng ảnh, quét QR mở hồ sơ, hoặc nhập biển số/số khung."
       />
       <SmartVehicleScan />
-      <Card>
-        <h2 className="section-title">Quét QR xe</h2>
-        <div id="vehicle-qr-reader" className="qr-reader" />
-        <Button onClick={() => void (running ? stop() : start())}>
-          {running ? "Dừng camera" : "Mở camera quét QR"}
-        </Button>
-        {message && (
-          <p role="status" className="notice">
-            {message}
-          </p>
-        )}
+      <Card className="capture-fallback-card">
+        <div className="capture-fallback-header">
+          <h2 className="section-title">
+            <Search size={16} aria-hidden="true" />
+            <span>Tra cứu xe thủ công</span>
+          </h2>
+          <span className="capture-fallback-badge">Dự phòng</span>
+        </div>
+        <p className="muted small">
+          Nhập nhanh biển số hoặc số khung khi không tiện quét camera.
+        </p>
         <form
-          className="stack"
+          className="stack capture-fallback-form"
           onSubmit={(event) => {
             event.preventDefault();
             const id = resolveVehicleQr(code, window.location.origin);
@@ -104,14 +112,30 @@ export default function CapturePage() {
             <input
               type="search"
               value={code}
+              placeholder="VD: 59-A1 234.56 hoặc số khung..."
               onChange={(event) => setCode(event.target.value)}
               enterKeyHint="search"
             />
           </Field>
-          <Button type="submit" variant="secondary" disabled={!code.trim()}>
-            Tìm xe
-          </Button>
+          <div className="capture-fallback-actions">
+            <Button type="submit" variant="secondary" disabled={!code.trim()}>
+              Tìm xe
+            </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={() => void (running ? stop() : start())}
+            >
+              {running ? "Dừng camera" : "Mở camera quét QR"}
+            </Button>
+          </div>
         </form>
+        <div id="vehicle-qr-reader" className="qr-reader" />
+        {message && (
+          <p role="status" className="notice">
+            {message}
+          </p>
+        )}
       </Card>
     </div>
   );

@@ -1,10 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
-import {
-  useMutation,
-  useQuery,
-  useQueryClient,
-} from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   ArrowLeft,
   ArrowRight,
@@ -48,6 +44,13 @@ import { VehicleImageUpload } from "./VehicleImageUpload";
 import { VehicleQr } from "./VehicleQr";
 import { IdentityDocumentPanel } from "@/components/IdentityDocumentPanel";
 
+const identifierLabels = new Set([
+  "Biển số",
+  "Số khung",
+  "Số máy",
+  "SĐT nhà cung cấp",
+]);
+
 export function VehicleDetailPage() {
   const { id } = useParams();
   const { profile } = useAuth();
@@ -66,7 +69,9 @@ export function VehicleDetailPage() {
   const acquisitionQuery = useQuery({
     queryKey: ["vehicle-acquisition", id],
     queryFn: () =>
-      api.call<string | null>("get_acquisition_for_vehicle", { p_vehicle_id: id }),
+      api.call<string | null>("get_acquisition_for_vehicle", {
+        p_vehicle_id: id,
+      }),
     enabled: canManage(profile) && !!id,
   });
 
@@ -84,11 +89,11 @@ export function VehicleDetailPage() {
   async function copyValue(label: string, value: string) {
     try {
       await navigator.clipboard.writeText(value);
-      setMessage(`Đã sao chép ${label.toLowerCase()}.`);
+      toast.success(`Đã sao chép ${label.toLowerCase()}.`);
     } catch {
-      setMessage(
-        "Chưa sao chép được. Hãy chọn và sao chép thông tin trên màn hình.",
-      );
+      toast.error("Chưa sao chép được.", {
+        description: "Hãy chọn và sao chép thông tin trên màn hình.",
+      });
     }
   }
 
@@ -110,13 +115,14 @@ export function VehicleDetailPage() {
     canOperate(profile) &&
     vehicle.status !== "SOLD" &&
     (vehicle.status !== "CANCELLED" || canManage(profile));
-  const canSellVehicle = canOperate(profile) && available && !vehicle.cost_pending;
+  const canSellVehicle =
+    canOperate(profile) && available && !vehicle.cost_pending;
   const canRemoveVehicle = canDeleteVehicle(profile) && !hasSales;
   const hasVehicleActions =
     canAddExpense || canEditVehicle || canSellVehicle || canRemoveVehicle;
 
   return (
-    <div className="stack">
+    <div className="stack vehicle-detail-page">
       <Link
         className="back-link"
         to={location.state?.fromInventory || "/vehicles"}
@@ -124,10 +130,20 @@ export function VehicleDetailPage() {
       >
         <ArrowLeft size={16} /> Tồn kho
       </Link>
-      <PageHeader
-        title={`${vehicle.brand} ${vehicle.model}`}
-        description={`Số khung: ${vehicle.frame_number || "—"} · ${vehicle.license_plate || "Chưa có biển số"}`}
-      />
+      <div className="vehicle-identity">
+        <PageHeader
+          title={`${vehicle.brand} ${vehicle.model}`}
+          description={`${vehicle.internal_code || "Chưa có mã xe"} · ${vehicle.license_plate || "Chưa có biển số"}`}
+        />
+        <div className="row vehicle-identity-meta">
+          <Badge status={vehicle.status} />
+          {available && (
+            <span className="muted">
+              {daysInStock(vehicle.purchase_date)} ngày trong kho
+            </span>
+          )}
+        </div>
+      </div>
       {location.state?.acquisitionConfirmed && (
         <div className="notice" role="status">
           Đã thu xe thành công.{" "}
@@ -142,14 +158,6 @@ export function VehicleDetailPage() {
           {message}
         </p>
       )}
-      <div className="row">
-        <Badge status={vehicle.status} />
-        {available && (
-          <span className="muted">
-            {daysInStock(vehicle.purchase_date)} ngày trong kho
-          </span>
-        )}
-      </div>
       {hasVehicleActions && (
         <Card className="vehicle-actions-card">
           <h2 className="section-title">Thao tác</h2>
@@ -177,7 +185,9 @@ export function VehicleDetailPage() {
                 to={`/vehicles/${id}/edit`}
               >
                 <Pencil size={16} />
-                {vehicle.status === "CANCELLED" ? "Khôi phục / Sửa" : "Chỉnh sửa"}
+                {vehicle.status === "CANCELLED"
+                  ? "Khôi phục / Sửa"
+                  : "Chỉnh sửa"}
               </Link>
             )}
             {canRemoveVehicle && (
@@ -276,15 +286,14 @@ export function VehicleDetailPage() {
                 <div key={String(label)}>
                   <dt>{label}</dt>
                   <dd>
-                    {value || "—"}
+                    <span
+                      className={`vehicle-detail-value${identifierLabels.has(String(label)) ? " vehicle-identifier" : ""}`}
+                    >
+                      {value == null || value === "" ? "Chưa cập nhật" : value}
+                    </span>
                     {typeof value === "string" &&
                       value &&
-                      [
-                        "Biển số",
-                        "Số khung",
-                        "Số máy",
-                        "SĐT nhà cung cấp",
-                      ].includes(String(label)) && (
+                      identifierLabels.has(String(label)) && (
                         <button
                           className="icon-button copy-button"
                           type="button"
@@ -364,7 +373,8 @@ export function VehicleDetailPage() {
                         <span className="timeline-dot" />
                         <div>
                           <strong>
-                            {actionLabels[entry.action] ?? "Cập nhật dữ liệu xe"}
+                            {actionLabels[entry.action] ??
+                              "Cập nhật dữ liệu xe"}
                           </strong>
                           <p>
                             {entry.actor_name || "Người dùng hệ thống"} ·{" "}

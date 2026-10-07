@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 import { Sparkles } from "lucide-react";
@@ -8,7 +8,11 @@ import { useAuth } from "@/features/auth/AuthProvider";
 import { isOwner } from "@/lib/permissions";
 import { MarkdownLite } from "@/lib/markdownLite";
 import { detectDraftAction } from "@/lib/shorthand/draftActions";
-import { citationNodes, CitationList } from "./CitationLinks";
+import {
+  citationNodes,
+  CitationList,
+  isCurrentStockCitation,
+} from "./CitationLinks";
 import { DraftActionCard } from "./DraftActionCard";
 import type { CopilotAnswer, CopilotMode } from "@/types";
 
@@ -16,7 +20,9 @@ const MODE_KEY = "carem-copilot-mode";
 
 const readStoredMode = (): CopilotMode => {
   try {
-    return window.localStorage.getItem(MODE_KEY) === "llm" ? "llm" : "deterministic";
+    return window.localStorage.getItem(MODE_KEY) === "llm"
+      ? "llm"
+      : "deterministic";
   } catch {
     return "deterministic";
   }
@@ -38,12 +44,24 @@ export default function CopilotPage() {
   const { profile } = useAuth();
   const [question, setQuestion] = useState("");
   const [mode, setMode] = useState<CopilotMode>(readStoredMode);
-  const [history, setHistory] = useState<{ question: string; answer: CopilotAnswer }[]>([]);
+  const [history, setHistory] = useState<
+    { question: string; answer: CopilotAnswer }[]
+  >([]);
+  const pendingRequest = useRef(false);
   const owner = isOwner(profile);
   const ask = useMutation({
-    mutationFn: (asked: string) => api.copilot(asked, mode),
+    mutationFn: (asked: string) =>
+      api.copilot(asked, owner ? mode : "deterministic"),
     onSuccess: (result, asked) => {
-      setHistory((previous) => [{ question: asked, answer: result }, ...previous.filter((item) => item.question !== asked)].slice(0, 6));
+      setHistory((previous) =>
+        [
+          { question: asked, answer: result },
+          ...previous.filter((item) => item.question !== asked),
+        ].slice(0, 6),
+      );
+    },
+    onSettled: () => {
+      pendingRequest.current = false;
     },
   });
   const answer = ask.data;
@@ -55,51 +73,77 @@ export default function CopilotPage() {
     [answer, ask.variables],
   );
   const suggested = QUESTIONS.filter((item) => owner || !item.ownerOnly);
+  const hasCurrentStock = answer?.citations.some(isCurrentStockCitation);
+
+  const selectQuestion = (next: string) => {
+    if (pendingRequest.current) return;
+    setQuestion(next);
+    ask.reset();
+  };
+  const submitQuestion = (next: string) => {
+    const asked = next.trim();
+    if (pendingRequest.current || asked.length < 2) return;
+    pendingRequest.current = true;
+    ask.mutate(asked);
+  };
+
+  const questionChip = (item: (typeof QUESTIONS)[number]) => (
+    <button
+      type="button"
+      key={item.text}
+      className="copilot-chip"
+      disabled={ask.isPending}
+      onClick={() => selectQuestion(item.text)}
+    >
+      {item.text}
+    </button>
+  );
 
   return (
-    <div className="stack">
+    <div className="stack copilot-page">
       <PageHeader
         title="Trợ lý AI Cà Rem"
-        description="Hỏi về kho, doanh thu, công nợ, chi phí hay tài liệu vận hành. Mỗi kết quả đều kèm nút mở đúng trang chứa bằng chứng."
+        description="Tra cứu kho, bán hàng và công nợ. Mở nguồn để kiểm tra từng kết quả."
       />
 
-      <Card>
+      <Card className="copilot-composer compact-card">
         <form
           className="stack"
+          aria-busy={ask.isPending}
           onSubmit={(event) => {
             event.preventDefault();
-            if (question.trim().length >= 2) ask.mutate(question.trim());
+            submitQuestion(question);
           }}
         >
           <Field label="Bạn muốn hỏi gì về cửa hàng?">
             <textarea
               id="copilot-question"
               className="copilot-input"
-              rows={3}
+              rows={2}
+              disabled={ask.isPending}
               maxLength={2000}
               placeholder="Ví dụ: Tháng 9 bán được bao nhiêu xe, còn nợ bao nhiêu?"
               value={question}
-              onChange={(event) => {
-                setQuestion(event.target.value);
-                ask.reset();
-              }}
+              onChange={(event) => selectQuestion(event.target.value)}
             />
           </Field>
-          <div className="copilot-chips" role="group" aria-label="Câu hỏi gợi ý">
-            {suggested.map((item) => (
-              <button
-                type="button"
-                key={item.text}
-                className="copilot-chip"
-                onClick={() => {
-                  setQuestion(item.text);
-                  ask.reset();
-                }}
-              >
-                {item.text}
-              </button>
-            ))}
+          <div
+            className="copilot-chips"
+            role="group"
+            aria-label="Câu hỏi gợi ý"
+          >
+            {suggested.slice(0, 3).map(questionChip)}
           </div>
+          <details className="copilot-more-questions">
+            <summary>Câu hỏi khác</summary>
+            <div
+              className="copilot-chips"
+              role="group"
+              aria-label="Thêm câu hỏi gợi ý"
+            >
+              {suggested.slice(3).map(questionChip)}
+            </div>
+          </details>
           <div className="copilot-controls">
             {owner ? (
               <label className="row">
@@ -108,7 +152,10 @@ export default function CopilotPage() {
                   checked={mode === "llm"}
                   disabled={ask.isPending}
                   onChange={(event) => {
-                    const next: CopilotMode = event.target.checked ? "llm" : "deterministic";
+                    if (pendingRequest.current) return;
+                    const next: CopilotMode = event.target.checked
+                      ? "llm"
+                      : "deterministic";
                     setMode(next);
                     try {
                       window.localStorage.setItem(MODE_KEY, next);
@@ -121,18 +168,18 @@ export default function CopilotPage() {
                 <span className="copilot-mode-label">
                   <Sparkles size={14} aria-hidden="true" />
                   <span>Bật AI viết câu tóm tắt</span>
-                  <small className="muted">
-                    · vẫn chỉ dùng dữ liệu và tài liệu đã tra, mỗi nhận định có nút bằng chứng
-                  </small>
                 </span>
               </label>
             ) : (
               <p className="muted">
-                Chế độ AI viết tóm tắt chỉ chủ cửa hàng bật được. Câu trả lời hiện tra
-                cứu trực tiếp từ dữ liệu và tài liệu theo quyền của bạn.
+                Chỉ chủ cửa hàng bật được AI viết tóm tắt. Bạn đang tra cứu theo
+                quyền của mình.
               </p>
             )}
-            <Button type="submit" disabled={ask.isPending || question.trim().length < 2}>
+            <Button
+              type="submit"
+              disabled={ask.isPending || question.trim().length < 2}
+            >
               {ask.isPending ? "Đang tra cứu…" : "Hỏi Cà Rem"}
             </Button>
           </div>
@@ -142,38 +189,30 @@ export default function CopilotPage() {
 
       {answer && (
         <>
-          <Card className="copilot-answer-card">
-            <p className="copilot-answer-by">
+          <Card className="copilot-answer-card compact-card">
+            <p className="copilot-answer-by" role="status">
               <span className="copilot-answer-avatar" aria-hidden="true">
                 <Sparkles size={15} />
               </span>
-              {answer.mode === "llm" ? "AI Cà Rem tóm tắt — mỗi nhận định có bằng chứng" : "Cà Rem tra cứu trực tiếp"}
-              {answer.period ? ` · kỳ ${answer.period}` : ""}
+              {answer.mode === "llm"
+                ? "AI Cà Rem tóm tắt"
+                : "Cà Rem tra cứu trực tiếp"}
+              {answer.period ? ` · kỳ báo cáo ${answer.period}` : ""}
             </p>
             <p className="copilot-question-echo">
               Bạn hỏi: “{String(ask.variables ?? question)}”
             </p>
-            <MarkdownLite text={answer.answer_markdown} citations={chips} className="copilot-answer" />
-            {answer.facts.length > 0 && (
-              <ul className="copilot-facts">
-                {answer.facts.map((fact) => {
-                  const citation = answer.citations.find((item) => item.id === fact.citation);
-                  return (
-                    <li key={`${fact.label}-${fact.citation}`}>
-                      <span>{fact.label}</span>
-                      <strong>{fact.display}</strong>
-                      {citation ? (
-                        <Link className="citation-open" to={citation.route}>
-                          Mở bằng chứng {citation.id}
-                        </Link>
-                      ) : (
-                        <span className="muted">không có liên kết</span>
-                      )}
-                    </li>
-                  );
-                })}
-              </ul>
+            {hasCurrentStock && answer.period && (
+              <p className="copilot-stock-note">
+                Tồn kho là số xe hiện tại. Kỳ {answer.period} áp dụng cho số
+                liệu giao dịch, không phải tồn kho trong quá khứ.
+              </p>
             )}
+            <MarkdownLite
+              text={answer.answer_markdown}
+              citations={chips}
+              className="copilot-answer"
+            />
             {answer.warnings.length > 0 && (
               <div className="copilot-warnings">
                 {answer.warnings.map((warning) => (
@@ -183,35 +222,55 @@ export default function CopilotPage() {
                 ))}
               </div>
             )}
-          </Card>
-
-          <Card>
-            <h2 className="section-title">Bằng chứng cho câu trả lời</h2>
-            {answer.citations.length ? (
-              <CitationList citations={answer.citations} />
-            ) : (
-              <p className="muted">
-                Chưa có bằng chứng nào khớp với câu hỏi. Hãy thêm từ khóa như "tồn
-                kho", "doanh thu", "công nợ", "chi phí" hoặc mô tả biển số / số khung.
-              </p>
-            )}
-            {answer.doc_excerpts.length > 0 && (
-              <div className="copilot-excerpts">
-                {answer.doc_excerpts.map((document) => (
-                  <blockquote key={document.id} className="copilot-excerpt">
-                    <MarkdownLite text={document.excerpt} citations={chips} />
-                    <cite>
-                      — {document.title}
-                      {document.section ? ` · ${document.section}` : ""}
-                    </cite>
-                  </blockquote>
-                ))}
+            <details className="copilot-evidence">
+              <summary>
+                Nguồn &amp; số liệu đã tra ({answer.citations.length} nguồn)
+              </summary>
+              <div className="copilot-evidence-body">
+                {answer.facts.length > 0 && (
+                  <ul className="copilot-facts" aria-label="Số liệu đã tra">
+                    {answer.facts.map((fact) => (
+                      <li key={`${fact.label}-${fact.citation}`}>
+                        <span>{fact.label}</span>
+                        <strong>{fact.display}</strong>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+                {answer.citations.length ? (
+                  <CitationList citations={answer.citations} />
+                ) : (
+                  <p className="muted">
+                    Chưa có nguồn khớp. Thử thêm từ khóa hoặc biển số / số
+                    khung.
+                  </p>
+                )}
+                {answer.doc_excerpts.length > 0 && (
+                  <div className="copilot-excerpts">
+                    {answer.doc_excerpts.map((document) => (
+                      <blockquote key={document.id} className="copilot-excerpt">
+                        <MarkdownLite
+                          text={document.excerpt}
+                          citations={chips}
+                        />
+                        <cite>
+                          — {document.title}
+                          {document.section ? ` · ${document.section}` : ""}
+                        </cite>
+                      </blockquote>
+                    ))}
+                  </div>
+                )}
               </div>
-            )}
+            </details>
             {answer.suggestions.length > 0 && (
               <div className="copilot-chips">
                 {answer.suggestions.map((suggestion) => (
-                  <Link key={suggestion.route} className="copilot-chip" to={suggestion.route}>
+                  <Link
+                    key={suggestion.route}
+                    className="copilot-chip"
+                    to={suggestion.route}
+                  >
                     {suggestion.label}
                   </Link>
                 ))}
@@ -224,28 +283,32 @@ export default function CopilotPage() {
       {draftAction && <DraftActionCard action={draftAction} />}
 
       {history.length > 0 && (
-        <Card>
-          <h2 className="section-title">Câu hỏi gần đây</h2>
-          <ul className="copilot-history">
-            {history.map((item) => (
-              <li key={item.question}>
-                <button
-                  type="button"
-                  className="copilot-history-link"
-                  onClick={() => {
-                    setQuestion(item.question);
-                    ask.mutate(item.question);
-                  }}
-                >
-                  {item.question}
-                </button>
-                <small className="muted">
-                  {item.answer.citations.length} bằng chứng
-                  {item.answer.insufficient ? " · chưa đủ dữ liệu" : ""}
-                </small>
-              </li>
-            ))}
-          </ul>
+        <Card className="copilot-history-card compact-card">
+          <details className="copilot-history-details">
+            <summary>Câu hỏi gần đây ({history.length})</summary>
+            <ul className="copilot-history">
+              {history.map((item) => (
+                <li key={item.question}>
+                  <button
+                    type="button"
+                    className="copilot-history-link"
+                    disabled={ask.isPending}
+                    onClick={() => {
+                      if (pendingRequest.current) return;
+                      setQuestion(item.question);
+                      submitQuestion(item.question);
+                    }}
+                  >
+                    {item.question}
+                  </button>
+                  <small className="muted">
+                    {item.answer.citations.length} bằng chứng
+                    {item.answer.insufficient ? " · chưa đủ dữ liệu" : ""}
+                  </small>
+                </li>
+              ))}
+            </ul>
+          </details>
         </Card>
       )}
     </div>

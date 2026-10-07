@@ -289,6 +289,7 @@ test("FLOW A: OWNER full lifecycle (create vehicle -> inventory -> expense -> se
   await page.getByLabel("Tên khách hàng *", { exact: true }).fill("Khách hàng Flow A");
   await page.getByLabel("Thu tiền lần đầu (₫)", { exact: false }).fill("20000000");
   await page.getByRole("button", { name: "Xác nhận bán xe", exact: true }).click();
+  await page.getByRole("alertdialog").getByRole("button", { name: "Xác nhận bán xe", exact: true }).click();
   await expect(page).toHaveURL(/\/sales\/[a-f0-9-]{36}$/);
   await expect(page.getByRole("heading", { name: "Lời cảm ơn khách hàng" })).toBeVisible();
   await expect(page.getByText(/Chưa cấu hình kênh nhắn tin/)).toBeVisible();
@@ -324,6 +325,7 @@ test("FLOW B: Partial payment -> second payment -> fully paid", async ({ page })
   await page.getByLabel("Tên khách hàng *", { exact: true }).fill("Khách trả góp Flow B");
   await page.getByLabel("Thu tiền lần đầu (₫)", { exact: false }).fill("20000000");
   await page.getByRole("button", { name: "Xác nhận bán xe", exact: true }).click();
+  await page.getByRole("alertdialog").getByRole("button", { name: "Xác nhận bán xe", exact: true }).click();
   await expect(page).toHaveURL(/\/sales\/[a-f0-9-]{36}$/);
 
   // Verify remaining balance is 30M
@@ -344,6 +346,7 @@ test("FLOW C: Sell vehicle -> cancel sale -> vehicle returns to inventory", asyn
   await page.goto(`/vehicles/${vehicleId}/sell`);
   await page.getByLabel("Tên khách hàng *", { exact: true }).fill("Khách hủy đơn Flow C");
   await page.getByRole("button", { name: "Xác nhận bán xe", exact: true }).click();
+  await page.getByRole("alertdialog").getByRole("button", { name: "Xác nhận bán xe", exact: true }).click();
   await expect(page).toHaveURL(/\/sales\/[a-f0-9-]{36}$/);
 
   // Cancel sale
@@ -583,6 +586,7 @@ test("Recovery: committed sale with initial payment reconciles from the sold veh
   page.on("request", request => { if (request.url().endsWith("/rest/v1/rpc/sell_vehicle")) requests.push(request.postDataJSON()); });
   failNextOperationResponse = "sell_vehicle";
   await page.getByRole("button", { name: "Xác nhận bán xe", exact: true }).click();
+  await page.getByRole("alertdialog").getByRole("button", { name: "Xác nhận bán xe", exact: true }).click();
   await expect(page.getByText(/Giao dịch chưa được xác nhận/)).toBeVisible();
   await page.reload();
   await page.getByRole("button", { name: "Kiểm tra giao dịch trước", exact: true }).click();
@@ -600,10 +604,12 @@ test("Failure: a 503 before sale commit preserves input and manual retry records
   await page.getByLabel("Tên khách hàng *", { exact: true }).fill("Synthetic outage recovery");
   failBeforeCommit = "sell_vehicle";
   await page.getByRole("button", { name: "Xác nhận bán xe", exact: true }).click();
+  await page.getByRole("alertdialog").getByRole("button", { name: "Xác nhận bán xe", exact: true }).click();
   await expect(page.getByText(/Giao dịch chưa được xác nhận/)).toBeVisible();
   await expect(page.getByLabel("Tên khách hàng *", { exact: true })).toHaveValue("Synthetic outage recovery");
   expect(Number((await db.query("SELECT count(*) AS n FROM public.sales WHERE vehicle_id=$1", [vehicleId])).rows[0].n)).toBe(0);
   await page.getByRole("button", { name: "Xác nhận bán xe", exact: true }).click();
+  await page.getByRole("alertdialog").getByRole("button", { name: "Xác nhận bán xe", exact: true }).click();
   await expect(page).toHaveURL(/\/sales\/[a-f0-9-]{36}$/);
   expect(Number((await db.query("SELECT count(*) AS n FROM public.sales WHERE vehicle_id=$1", [vehicleId])).rows[0].n)).toBe(1);
 });
@@ -619,6 +625,7 @@ test("Failure: slow sale remains pending without false success or duplicate requ
   page.on("request", request => { if (request.url().endsWith("/rest/v1/rpc/sell_vehicle")) requests.push(request.postDataJSON()); });
   try {
     await page.getByRole("button", { name: "Xác nhận bán xe", exact: true }).click();
+  await page.getByRole("alertdialog").getByRole("button", { name: "Xác nhận bán xe", exact: true }).click();
     await expect(page.getByRole("button", { name: /Đang hoàn tất/ })).toBeDisabled();
     await page.waitForTimeout(500);
     expect(requests).toHaveLength(1);
@@ -721,3 +728,4 @@ test("Operational: sale/payment receipts print customer-only allowlist with clea
   await page.emulateMedia({ media: "screen" });
   await page.evaluate(() => { delete document.body.dataset.printTarget; });
 });
+

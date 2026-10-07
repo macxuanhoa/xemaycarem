@@ -18,6 +18,7 @@ import {
   PageHeader,
 } from "@/components/ui";
 import { useAuth } from "@/features/auth/AuthProvider";
+import { Highlight } from "@/components/search/Highlight";
 import { api } from "@/lib/api";
 import { isOwner } from "@/lib/permissions";
 import type { Profile } from "@/types";
@@ -129,11 +130,12 @@ export default function UsersPage() {
             )}
           </div>
 
-          <div className="filter-pills-bar" role="tablist" aria-label="Lọc theo vai trò">
+          <div className="filter-pills-bar" role="group" aria-label="Lọc theo vai trò">
             {rolePills.map((pill) => (
               <button
                 key={pill.key}
                 type="button"
+                aria-pressed={roleFilter === pill.key}
                 className={`filter-pill ${roleFilter === pill.key ? "active" : ""}`}
                 onClick={() => setRoleFilter(pill.key)}
               >
@@ -197,9 +199,9 @@ export default function UsersPage() {
                       {p.full_name.split(" ").at(-1)?.[0]}
                     </span>
                     <div className="user-staff-info">
-                      <h3 className="user-staff-name">{p.full_name}</h3>
+                      <h3 className="user-staff-name"><Highlight text={p.full_name} query={search} /></h3>
                       <span className="user-staff-handle">
-                        @{p.username} {isSelf && "· Tài khoản của bạn"}
+                        @{search ? <Highlight text={p.username} query={search} /> : p.username} {isSelf && "· Tài khoản của bạn"}
                       </span>
                     </div>
                   </div>

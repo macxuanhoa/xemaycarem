@@ -22,7 +22,7 @@ const evidence = {
   warnings: [],
 }
 
-async function setup(page, { role = 'OWNER', result = evidence, status = 200 } = {}) {
+async function setup(page, { role = 'OWNER', result = evidence, status = 200, assistGate } = {}) {
   const calls = { assist: [], writes: [] }
   const user = { id: userId, aud: 'authenticated', role: 'authenticated', email: 'fixture@example.test',
     created_at: new Date().toISOString(), app_metadata: { provider: 'email' }, user_metadata: {} }
@@ -43,7 +43,11 @@ async function setup(page, { role = 'OWNER', result = evidence, status = 200 } =
     if (path === '/auth/v1/user') return reply(user)
     if (path === '/rest/v1/profiles') return reply({ id: userId, full_name: `Fixture ${role}`, username: `fixture_${role.toLowerCase()}`,
       role, active: true, can_view_financials: role === 'OWNER', must_change_password: false, deleted_at: null })
-    if (path === '/functions/v1/ai-assist') { calls.assist.push(body); return reply(result, status) }
+    if (path === '/functions/v1/ai-assist') {
+      calls.assist.push(body)
+      if (assistGate) await assistGate
+      return reply(result, status)
+    }
     const name = path.split('/').at(-1)
     if (request.method() === 'POST' && ['save_vehicle', 'sell_vehicle', 'save_expense', 'acquire_vehicle', 'add_payment'].includes(name)) {
       calls.writes.push({ name, body }); return reply(vehicleId)
@@ -80,14 +84,17 @@ test('AI mode lives in the sidebar and every claim opens its own evidence', asyn
   await page.getByLabel('Bạn muốn hỏi gì về cửa hàng?').fill('Còn bao nhiêu xe trong kho?')
   await page.getByRole('button', { name: 'Hỏi Cà Rem' }).click()
   const fact = page.locator('.copilot-facts li').filter({ hasText: 'Xe đang tồn kho' })
+  await expect(fact).toBeHidden()
+  await expect(page.getByText(/Tồn kho là số xe hiện tại/)).toBeVisible()
+  await page.locator('.copilot-evidence > summary').click()
   await expect(fact).toBeVisible()
   await expect(fact.getByText('7 xe')).toBeVisible()
   expect(calls.assist[0]).toMatchObject({ task: 'copilot', consent: true, mode: 'deterministic', text: 'Còn bao nhiêu xe trong kho?' })
   expect(calls.writes).toHaveLength(0)
 
-  // The inline marker is a real control, not just a footnote.
-  await expect(page.getByRole('button', { name: /^m2/ })).toBeVisible()
-  await page.getByRole('link', { name: 'Mở bằng chứng v3' }).click()
+  // Source names replace opaque IDs without changing destinations.
+  await expect(page.locator('.copilot-answer').getByRole('link', { name: 'Mở nguồn Số liệu: Xe đang tồn kho' })).toBeVisible()
+  await page.locator('.citation-list').getByRole('link', { name: 'Mở nguồn Xe: Honda SH160' }).click()
   await expect(page).toHaveURL(new RegExp(`/vehicles/${vehicleId}$`))
 })
 
@@ -96,7 +103,7 @@ test('the answer keeps its document evidence readable inside the app', async ({ 
   await page.goto('/copilot')
   await page.getByLabel('Bạn muốn hỏi gì về cửa hàng?').fill('Checklist phát hành có gì?')
   await page.getByRole('button', { name: 'Hỏi Cà Rem' }).click()
-  await page.getByRole('link', { name: 'Mở bằng chứng d1' }).click()
+  await page.locator('.copilot-answer').getByRole('link', { name: 'Mở nguồn Tài liệu: Checklist phát hành Cà Rem' }).click()
   await expect(page).toHaveURL(/\/docs\/operations-release-checklist$/)
   await expect(page.getByRole('heading', { name: 'Kiểm thử' })).toBeVisible()
   await expect(page.getByRole('link', { name: 'sổ nợ' })).toHaveAttribute('href', '/receivables')
@@ -105,13 +112,42 @@ test('the answer keeps its document evidence readable inside the app', async ({ 
 })
 
 test('only the owner can switch on AI prose mode', async ({ page }) => {
+  // A shared device can retain the owner's setting; STAFF still requests direct lookup.
+  await page.addInitScript(() => localStorage.setItem('carem-copilot-mode', 'llm'))
   const calls = await setup(page, { role: 'STAFF' })
   await page.goto('/copilot')
   await expect(page.getByRole('checkbox', { name: /Bật AI viết câu tóm tắt/ })).toHaveCount(0)
-  await expect(page.getByText(/chỉ chủ cửa hàng bật được/)).toBeVisible()
+  await expect(page.getByText(/Chỉ chủ cửa hàng bật được/)).toBeVisible()
   await page.getByLabel('Bạn muốn hỏi gì về cửa hàng?').fill('Tồn kho bao nhiêu?')
   await page.getByRole('button', { name: 'Hỏi Cà Rem' }).click()
   expect(calls.assist[0]).toMatchObject({ mode: 'deterministic' })
+})
+
+test('pending lookup locks the composer and a repeated submit sends one read-only request', async ({ page }) => {
+  let release
+  const assistGate = new Promise(resolve => { release = resolve })
+  const calls = await setup(page, { assistGate })
+  await page.goto('/copilot')
+  const editor = page.getByLabel('Bạn muốn hỏi gì về cửa hàng?')
+  const suggestions = page.getByRole('group', { name: 'Câu hỏi gợi ý', exact: true })
+  await expect(suggestions.getByRole('button')).toHaveCount(3)
+  await expect(page.getByRole('button', { name: 'Đơn bán gần đây?' })).toBeHidden()
+  await editor.fill('Còn bao nhiêu xe trong kho?')
+  try {
+    await page.getByRole('button', { name: 'Hỏi Cà Rem' }).click()
+    await expect(editor).toBeDisabled()
+    await expect(suggestions.getByRole('button').first()).toBeDisabled()
+    await expect(page.getByRole('checkbox', { name: /Bật AI viết câu tóm tắt/ })).toBeDisabled()
+    await page.locator('.copilot-composer form').evaluate(form => form.requestSubmit())
+    await expect.poll(() => calls.assist.length).toBe(1)
+    expect(calls.writes).toHaveLength(0)
+  } finally {
+    release()
+  }
+  await expect(page.locator('.copilot-question-echo')).toContainText('Còn bao nhiêu xe trong kho?')
+  await expect(editor).toBeEnabled()
+  await expect(page.locator('.copilot-evidence')).not.toHaveAttribute('open')
+  expect(calls.assist).toHaveLength(1)
 })
 
 test('copilot failures keep the ordinary pages usable and write nothing', async ({ page }) => {

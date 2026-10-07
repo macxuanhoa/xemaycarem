@@ -8,6 +8,7 @@ import { MarkdownLite } from "@/lib/markdownLite";
 import { useAuth } from "@/features/auth/AuthProvider";
 import { isOwner } from "@/lib/permissions";
 import { useDebouncedValue } from "@/lib/useDebouncedValue";
+import { Highlight } from "@/components/search/Highlight";
 import type { KnowledgeAudience, KnowledgeIndexItem } from "@/types";
 
 type DocRow = KnowledgeIndexItem & { excerpt?: string };
@@ -151,6 +152,7 @@ export default function DocsPage() {
     return ma.order - mb.order || ma.label.localeCompare(mb.label, "vi");
   };
   const searching = query.length >= 2;
+  const activeList = searching ? search : index;
   // Search hits bypass the shelves entirely: results render as a flat list of
   // file cards so nothing hides behind a collapsed toggle (and programmatic
   // `<details>` opens never pollute the remembered shelf state).
@@ -172,11 +174,11 @@ export default function DocsPage() {
                 <Link to={`/docs/${entry.slug}`}>
                   <BookOpen size={16} aria-hidden="true" />
                   <span>
-                    <strong>{entry.section ?? entry.title}</strong>
+                    <strong><Highlight text={entry.section ?? entry.title} query={term} /></strong>
                     {/* The copilot cites the document title, so the index must show it too. */}
-                    {entry.section ? <small className="muted">{entry.title}</small> : null}
+                    {entry.section ? <small className="muted"><Highlight text={entry.title} query={term} /></small> : null}
                     {entry.excerpt ? (
-                      <small className="muted">{entry.excerpt}</small>
+                      <small className="muted"><Highlight text={entry.excerpt} query={term} /></small>
                     ) : null}
                   </span>
                   <em className="docs-tier">{audienceLabels[entry.audience]}</em>
@@ -231,8 +233,14 @@ export default function DocsPage() {
               aria-label="Tìm trong tài liệu"
             />
           </label>
-          {query.length >= 2 && search.isFetching && <Loading />}
-          {items.length === 0 ? (
+          {activeList.isFetching && !activeList.isPending && !activeList.isError && (
+            <Loading />
+          )}
+          {activeList.isPending ? (
+            <Loading />
+          ) : activeList.isError ? (
+            <ErrorState error={activeList.error} retry={() => void activeList.refetch()} />
+          ) : items.length === 0 ? (
             <EmptyState
               title="Chưa tìm thấy trang nào"
               description="Thử từ khóa ngắn hơn, hoặc mở danh sách đầy đủ bên dưới."

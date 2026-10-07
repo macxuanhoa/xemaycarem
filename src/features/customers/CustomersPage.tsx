@@ -24,6 +24,7 @@ import {
   PageHeader,
   Pagination,
 } from "@/components/ui";
+import { Highlight } from "@/components/search/Highlight";
 import type { CustomerSummary, Paged, ShowroomLead, ShowroomLeadStatus } from "@/types";
 
 const pageSize = 6;
@@ -175,7 +176,7 @@ export function CustomersPage() {
                     <td>
                       <div className="row" style={{ gap: "6px" }}>
                         <User size={16} className="muted" />
-                        <strong>{c.customer_name}</strong>
+                        <strong><Highlight text={c.customer_name} query={deferredSearch} /></strong>
                       </div>
                     </td>
                     <td>
@@ -185,7 +186,7 @@ export function CustomersPage() {
                           className="muted small row"
                           style={{ gap: "4px" }}
                         >
-                          <Phone size={13} /> {c.customer_phone}
+                          <Phone size={13} /> <Highlight text={c.customer_phone} query={deferredSearch} />
                         </a>
                       ) : (
                         <small className="muted">—</small>
@@ -247,21 +248,16 @@ export function CustomersPage() {
               <div
                 key={c.customer_phone || c.customer_name}
                 className="mobile-record"
-                style={{ cursor: c.customer_phone ? "pointer" : "default" }}
-                onClick={() =>
-                  c.customer_phone &&
-                  handleSelectCustomer(c.customer_phone)
-                }
               >
                 <div className="row between">
-                  <strong>{c.customer_name}</strong>
+                  <strong><Highlight text={c.customer_name} query={deferredSearch} /></strong>
                   <span className="badge badge-completed">
                     {c.purchases_count} xe
                   </span>
                 </div>
                 {c.customer_phone && (
                   <span className="muted small row" style={{ gap: "4px" }}>
-                    <Phone size={13} /> {c.customer_phone}
+                    <Phone size={13} /> <Highlight text={c.customer_phone} query={deferredSearch} />
                   </span>
                 )}
                 <div className="row between price-row">
@@ -290,6 +286,18 @@ export function CustomersPage() {
                     </strong>
                   </div>
                 </div>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  className="full-width"
+                  disabled={!c.customer_phone}
+                  aria-label={`Xem lịch sử mua xe của ${c.customer_name}`}
+                  onClick={() =>
+                    c.customer_phone && handleSelectCustomer(c.customer_phone)
+                  }
+                >
+                  <History size={16} aria-hidden="true" /> Xem lịch sử
+                </Button>
               </div>
             ))}
           </div>
@@ -303,16 +311,38 @@ export function CustomersPage() {
         </Card>
       )}
 
-      {(leadsQuery.data?.items.length ?? 0) > 0 && (
+      {(leadsQuery.isPending ||
+        leadsQuery.isError ||
+        leadStatusMutation.isError ||
+        (leadsQuery.data?.items.length ?? 0) > 0) && (
         <Card>
           <div className="row between" style={{ marginBottom: "10px" }}>
             <h3 style={{ margin: 0 }}>Yêu cầu mới từ Showroom</h3>
-            <small className="muted">
-              {leadsQuery.data?.total ?? 0} lead chờ xử lý
-            </small>
+            {leadsQuery.data && (
+              <small className="muted">
+                {leadsQuery.data.total} yêu cầu chờ xử lý
+              </small>
+            )}
           </div>
+          {leadStatusMutation.isPending && (
+            <p role="status">Đang cập nhật trạng thái yêu cầu…</p>
+          )}
+          {leadStatusMutation.isError && (
+            <ErrorState
+              error={leadStatusMutation.error}
+              retry={() => {
+                if (leadStatusMutation.variables)
+                  leadStatusMutation.mutate(leadStatusMutation.variables);
+              }}
+            />
+          )}
+          {leadsQuery.isPending ? (
+            <Loading />
+          ) : leadsQuery.isError ? (
+            <ErrorState error={leadsQuery.error} retry={() => void leadsQuery.refetch()} />
+          ) : (
           <div className="compact-list">
-            {leadsQuery.data!.items.map((lead) => (
+            {leadsQuery.data?.items.map((lead) => (
               <div key={lead.id} className="card" style={{ padding: "12px" }}>
                 <div className="row between">
                   <strong>
@@ -374,6 +404,7 @@ export function CustomersPage() {
               </div>
             ))}
           </div>
+          )}
         </Card>
       )}
 
@@ -582,7 +613,12 @@ export function CustomersPage() {
                   ))}
                 </div>
                 <h3>Lịch sử liên hệ</h3>
-                {communicationQuery.isPending ? <Loading /> : communicationQuery.data?.length ? (
+                {communicationQuery.isPending ? <Loading /> : communicationQuery.isError ? (
+                  <ErrorState
+                    error={communicationQuery.error}
+                    retry={() => void communicationQuery.refetch()}
+                  />
+                ) : communicationQuery.data?.length ? (
                   <div className="compact-list">
                     {communicationQuery.data.map((item) => (
                       <div key={item.id} className="card" style={{ padding: "12px" }}>

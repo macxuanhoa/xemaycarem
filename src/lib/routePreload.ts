@@ -4,13 +4,13 @@
  */
 const routeLoaders: Record<string, () => Promise<unknown>> = {
   "/": () => import("@/features/dashboard/DashboardPage"),
-  "/acquisitions": () => import("@/features/acquisitions/AcquisitionPages"),
-  "/acquisitions/new": () => import("@/features/acquisitions/AcquisitionPages"),
+  "/acquisitions": () => import("@/features/acquisitions/AcquisitionsPage"),
+  "/acquisitions/new": () => import("@/features/acquisitions/AcquisitionFormPage"),
   "/intake": () => import("@/features/intake/ShorthandIntakePage"),
-  "/vehicles": () => import("@/features/vehicles/VehiclePages"),
-  "/vehicles/new": () => import("@/features/vehicles/VehiclePages"),
-  "/sales": () => import("@/features/sales/SalePages"),
-  "/sell": () => import("@/features/sales/SalePages"),
+  "/vehicles": () => import("@/features/vehicles/InventoryPage"),
+  "/vehicles/new": () => import("@/features/vehicles/VehicleFormPage"),
+  "/sales": () => import("@/features/sales/SalesPage"),
+  "/sell": () => import("@/features/sales/SellVehiclePage"),
   "/receivables": () => import("@/features/sales/ReceivablesPage"),
   "/customers": () => import("@/features/customers/CustomersPage"),
   "/expenses": () => import("@/features/expenses/ExpensePages"),
@@ -27,7 +27,17 @@ const preloadedRoutes = new Set<string>();
 
 export function preloadRoute(path: string): void {
   const cleanPath = path.split("?")[0].split("#")[0];
-  const loader = routeLoaders[cleanPath];
+  let loader = routeLoaders[cleanPath];
+
+  // Dynamic route resolution for detail pages
+  if (!loader) {
+    if (cleanPath.startsWith("/vehicles/") && cleanPath !== "/vehicles/new") {
+      loader = () => import("@/features/vehicles/VehicleDetailPage");
+    } else if (cleanPath.startsWith("/sales/")) {
+      loader = () => import("@/features/sales/SaleDetailPage");
+    }
+  }
+
   if (loader && !preloadedRoutes.has(cleanPath)) {
     preloadedRoutes.add(cleanPath);
     loader().catch(() => {

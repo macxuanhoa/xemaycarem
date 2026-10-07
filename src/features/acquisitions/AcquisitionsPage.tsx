@@ -33,6 +33,7 @@ import {
   Pagination,
 } from "@/components/ui";
 import { RowDeleteAction, RowViewAction } from "@/components/ui/RowActions";
+import { Highlight } from "@/components/search/Highlight";
 import type { Acquisition, Paged } from "@/types";
 
 const pageSize = 6;
@@ -49,7 +50,9 @@ export function AcquisitionsPage() {
     }
     return { from: rawFrom, to: rawTo };
   });
-  const [search, setSearch] = useState(() => params.get("search") || params.get("q") || "");
+  const [search, setSearch] = useState(
+    () => params.get("search") || params.get("q") || "",
+  );
   const debouncedSearch = useDebouncedValue(search, 300);
   const [page, setPage] = useState(1);
   const [deleting, setDeleting] = useState<Acquisition | null>(null);
@@ -91,7 +94,7 @@ export function AcquisitionsPage() {
     <div className="stack">
       <PageHeader
         title="Thu vào"
-        description="Danh sách xe đã thu mua, từ lúc nhận xe đến khi nhập kho."
+        description="Thu xe mới: nhập từng xe. Thu xe tốc ký: dán danh sách từ ghi chú."
         actions={
           canOperate(profile) ? (
             <div className="row" style={{ gap: 8 }}>
@@ -144,9 +147,15 @@ export function AcquisitionsPage() {
       ) : (
         <Card className="table-card">
           {query.isFetching && !query.isPending && (
-            <div className="table-updating-bar" role="progressbar" aria-label="Đang cập nhật danh sách" />
+            <div
+              className="table-updating-bar"
+              role="progressbar"
+              aria-label="Đang cập nhật danh sách"
+            />
           )}
-          <div className={`table-wrap desktop-table ${query.isFetching && !query.isPending ? "is-updating" : ""}`}>
+          <div
+            className={`table-wrap desktop-table ${query.isFetching && !query.isPending ? "is-updating" : ""}`}
+          >
             <table className="data-table">
               <thead>
                 <tr>
@@ -168,25 +177,27 @@ export function AcquisitionsPage() {
                         to={`/vehicles/${acq.vehicle_id}`}
                       >
                         <strong>
-                          {acq.brand} {acq.model}
+                          <Highlight text={`${acq.brand} ${acq.model}`} query={debouncedSearch} />
                         </strong>
                       </Link>
-                      <small className="muted">{acq.internal_code || "—"}</small>
+                      <small className="muted">
+                        {acq.internal_code ? <Highlight text={acq.internal_code} query={debouncedSearch} /> : "—"}
+                      </small>
                     </td>
                     <td>
                       <div className="table-meta-row">
                         <span className="table-sublabel">Khung:</span>
-                        <code>{acq.frame_number}</code>
+                        <code><Highlight text={acq.frame_number} query={debouncedSearch} /></code>
                       </div>
                       <small className="table-meta-row">
                         <span className="table-sublabel">BS:</span>
-                        <span>{acq.license_plate || "Chưa có biển số"}</span>
+                        <span>{acq.license_plate ? <Highlight text={acq.license_plate} query={debouncedSearch} /> : "Chưa có biển số"}</span>
                       </small>
                     </td>
                     <td>{dateLabel(acq.acquisition_date)}</td>
                     <td>
-                      <div>{acq.seller_name || "—"}</div>
-                      <small className="muted">{acq.seller_phone || "—"}</small>
+                      <div>{acq.seller_name ? <Highlight text={acq.seller_name} query={debouncedSearch} /> : "—"}</div>
+                      <small className="muted">{acq.seller_phone ? <Highlight text={acq.seller_phone} query={debouncedSearch} /> : "—"}</small>
                     </td>
                     {canFinance(profile) && (
                       <td className="numeric price">
@@ -228,16 +239,18 @@ export function AcquisitionsPage() {
               >
                 <div className="row between">
                   <strong>
-                    {acq.brand} {acq.model}
+                    <Highlight text={`${acq.brand} ${acq.model}`} query={debouncedSearch} />
                   </strong>
                   <Badge status={acq.status} />
                 </div>
                 <div className="mobile-meta-subline">
                   <span className="table-sublabel">Khung:</span>
-                  <code className="mobile-code">{acq.frame_number}</code>
-                  <span className="bullet-sep" aria-hidden="true">·</span>
+                  <code className="mobile-code"><Highlight text={acq.frame_number} query={debouncedSearch} /></code>
+                  <span className="bullet-sep" aria-hidden="true">
+                    ·
+                  </span>
                   <span className="table-sublabel">BS:</span>
-                  <span>{acq.license_plate || "Chưa có biển số"}</span>
+                  <span>{acq.license_plate ? <Highlight text={acq.license_plate} query={debouncedSearch} /> : "Chưa có biển số"}</span>
                 </div>
                 <div className="row between">
                   <span>{dateLabel(acq.acquisition_date)}</span>
@@ -248,19 +261,21 @@ export function AcquisitionsPage() {
                   )}
                 </div>
                 <small className="muted">
-                  Người bán: {acq.seller_name || "—"}
-                  {acq.seller_phone ? ` (${acq.seller_phone})` : ""} · Nhập bởi:{" "}
+                  Người bán: {acq.seller_name ? <Highlight text={acq.seller_name} query={debouncedSearch} /> : "—"}
+                  {acq.seller_phone ? <>{" ("}<Highlight text={acq.seller_phone} query={debouncedSearch} />{")}"}</> : ""} · Nhập bởi:{" "}
                   {acq.creator_name || "—"}
                 </small>
               </Link>
             ))}
           </div>
-          <Pagination
-            page={page}
-            total={query.data?.total ?? 0}
-            pageSize={pageSize}
-            onChange={setPage}
-          />
+          {(query.data?.total ?? 0) > pageSize && (
+            <Pagination
+              page={page}
+              total={query.data?.total ?? 0}
+              pageSize={pageSize}
+              onChange={setPage}
+            />
+          )}
         </Card>
       )}
       {deleting && (

@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link } from "react-router-dom";
 import {
   Bike,
   BookOpen,
@@ -41,29 +41,45 @@ export const citationTypeLabels: Record<CopilotCitationType, string> = {
   customer: "Khách hàng",
 };
 
-/**
- * The inline `[c1]` marker inside an answer. It navigates to the very screen
- * where the figure is shown, so any claim can be re-checked in one tap.
- */
+const currentStockLabels = new Set([
+  "Xe đang tồn kho",
+  "Xe đang giữ chỗ",
+  "Xe chưa xác nhận giá mua",
+  "Xe tồn trên 60 ngày",
+]);
+
+export const isCurrentStockCitation = (citation: CopilotCitation) =>
+  citation.type === "metric" &&
+  citation.route === "/vehicles" &&
+  currentStockLabels.has(citation.label);
+
+export const citationSourceLabel = (citation: CopilotCitation) =>
+  `${citationTypeLabels[citation.type]}: ${citation.label}`;
+
+const sourceDetail = (citation: CopilotCitation) =>
+  isCurrentStockCitation(citation) ? "Tồn kho hiện tại" : citation.detail;
+
+/** Citation IDs stay internal; people see the source they will open. */
 export function CitationChip({ citation }: { citation: CopilotCitation }) {
-  const navigate = useNavigate();
   const Icon = icons[citation.type];
+  const detail = sourceDetail(citation);
   return (
-    <button
-      type="button"
+    <Link
       className="citation-chip"
-      onClick={() => navigate(citation.route)}
-      title={`${citationTypeLabels[citation.type]}: ${citation.label}${citation.detail ? ` (${citation.detail})` : ""}`}
+      to={citation.route}
+      aria-label={`Mở nguồn ${citationSourceLabel(citation)}`}
+      title={`${citationSourceLabel(citation)}${detail ? ` · ${detail}` : ""}`}
     >
       <Icon size={12} aria-hidden="true" />
-      <span>{citation.id}</span>
-      <span className="sr-only">Mở bằng chứng {citation.id}</span>
-    </button>
+      <span>{citation.label}</span>
+    </Link>
   );
 }
 
 /** Turn citation markers into clickable chips for the Markdown renderer. */
-export function citationNodes(citations: CopilotCitation[]): Record<string, ReactNode> {
+export function citationNodes(
+  citations: CopilotCitation[],
+): Record<string, ReactNode> {
   return Object.fromEntries(
     citations.map((citation) => [
       citation.id,
@@ -88,11 +104,15 @@ export function CitationList({ citations }: { citations: CopilotCitation[] }) {
               <strong>{citation.label}</strong>
               <small>
                 {citationTypeLabels[citation.type]}
-                {citation.detail ? ` · ${citation.detail}` : ""}
+                {sourceDetail(citation) ? ` · ${sourceDetail(citation)}` : ""}
               </small>
             </span>
-            <Link className="citation-open" to={citation.route}>
-              Mở bằng chứng {citation.id}
+            <Link
+              className="citation-open"
+              to={citation.route}
+              aria-label={`Mở nguồn ${citationSourceLabel(citation)}`}
+            >
+              Mở nguồn
             </Link>
           </li>
         );

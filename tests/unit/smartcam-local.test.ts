@@ -19,6 +19,9 @@ describe("plate OCR candidate parsing", () => {
   it("accepts raw, dashed and glued plate renderings with the validator as gate", () => {
     expect(parsePlateCandidates("59-B1 234.56", 90).map((c) => c.value)).toContain("59-B1 234.56");
     expect(parsePlateCandidates("59B123456", 90).map((c) => c.value)).toContain("59-B1 234.56");
+    expect(parsePlateCandidates("59-A1\n234.56", 90).map((c) => c.value)).toContain("59-A1 234.56");
+    expect(parsePlateCandidates("29-B1 \n 1234", 90).map((c) => c.value)).toContain("29-B1 1234");
+    expect(parsePlateCandidates("43-C1\r\n888.88", 90).map((c) => c.value)).toContain("43-C1 888.88");
     expect(parsePlateCandidates("bien so 30-D2 888.88 trong khung", 80).map((c) => c.value)).toContain("30-D2 888.88");
   });
   it("rescues glyph confusions but discounts their confidence", () => {

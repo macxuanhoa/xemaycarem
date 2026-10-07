@@ -86,35 +86,84 @@ async function installMock(page) {
     if (name === "list_active_announcements") return reply([]);
     if (name === "list_showroom_vehicles")
       return reply({
-        items: [{
-          id: vehicleId,
-          brand: "Honda",
-          model: "Vision",
-          variant: "Premium",
-          year: 2024,
-          color: "Đen",
-          license_plate: "43A1-12345",
-          odometer: 12500,
-          asking_price: 35000000,
-          purchase_date: today,
-          created_at: today,
-        }],
+        items: [
+          {
+            id: vehicleId,
+            brand: "Honda",
+            model: "Vision",
+            variant: "Premium",
+            year: 2024,
+            color: "Đen",
+            license_plate: "43A1-12345",
+            odometer: 12500,
+            asking_price: 35000000,
+            purchase_date: today,
+            created_at: today,
+          },
+        ],
         total: 1,
       });
-    if (name === "list_profiles") return reply([
-      { id: ownerId, full_name: "Chủ kiểm thử", username: "owner", role: "OWNER", active: true, can_view_financials: true, must_change_password: false },
-      { id: "00000000-0000-4000-8000-000000000003", full_name: "Nguyễn Nhân Viên", username: "nhanvien", role: "STAFF", active: true, can_view_financials: false, must_change_password: false, allowed_from: "07:00:00", allowed_until: "20:00:00", working_days: [1, 2, 3, 4, 5, 6] },
-    ]);
-    if (name === "dashboard") return reply({
-      in_stock: 18, reserved: 3, sold_today: 2, sold_month: 24, acquired_today: 1, acquired_month: 27,
-      acquisitions_count: 27, acquisition_cost: 540000000, inventory_cost: 320000000, inventory_cost_pending: 2,
-      today_revenue: 96000000, month_revenue: 1050000000, today_profit: 8000000, month_profit: 95000000,
-      revenue: 1050000000, gross_profit: 95000000, sales_count: 24, business_expenses: 12000000,
-      unpaid_sales_count: 3, total_receivables: 84000000, overdue_sales_count: 1, total_overdue_debt: 12000000,
-      old_inventory_count: 4, recent_sales: [], recent_vehicles: [], recent_acquisitions: [], recent_expenses: [],
-      aging: [{ bucket: "0-30 ngày", count: 8 }, { bucket: "31-60 ngày", count: 6 }], longest_stock: [],
-      top_profitable: [], daily_sales: [{ date: "2026-10-01", revenue: 96000000, count: 2 }],
-    });
+    if (name === "list_profiles")
+      return reply([
+        {
+          id: ownerId,
+          full_name: "Chủ kiểm thử",
+          username: "owner",
+          role: "OWNER",
+          active: true,
+          can_view_financials: true,
+          must_change_password: false,
+        },
+        {
+          id: "00000000-0000-4000-8000-000000000003",
+          full_name: "Nguyễn Nhân Viên",
+          username: "nhanvien",
+          role: "STAFF",
+          active: true,
+          can_view_financials: false,
+          must_change_password: false,
+          allowed_from: "07:00:00",
+          allowed_until: "20:00:00",
+          working_days: [1, 2, 3, 4, 5, 6],
+        },
+      ]);
+    if (name === "dashboard")
+      return reply({
+        in_stock: 18,
+        reserved: 3,
+        sold_today: 2,
+        sold_month: 24,
+        acquired_today: 1,
+        acquired_month: 27,
+        acquisitions_count: 27,
+        acquisition_cost: 540000000,
+        inventory_cost: 320000000,
+        inventory_cost_pending: 2,
+        today_revenue: 96000000,
+        month_revenue: 1050000000,
+        today_profit: 8000000,
+        month_profit: 95000000,
+        revenue: 1050000000,
+        gross_profit: 95000000,
+        sales_count: 24,
+        business_expenses: 12000000,
+        unpaid_sales_count: 3,
+        total_receivables: 84000000,
+        overdue_sales_count: 1,
+        total_overdue_debt: 12000000,
+        old_inventory_count: 4,
+        recent_sales: [],
+        recent_vehicles: [],
+        recent_acquisitions: [],
+        recent_expenses: [],
+        aging: [
+          { bucket: "0-30 ngày", count: 8 },
+          { bucket: "31-60 ngày", count: 6 },
+        ],
+        longest_stock: [],
+        top_profitable: [],
+        daily_sales: [{ date: "2026-10-01", revenue: 96000000, count: 2 }],
+      });
     if (name === "get_settings")
       return reply({ store_name: "Cửa hàng kiểm thử" });
     if (name === "list_vehicles") {
@@ -207,7 +256,9 @@ test("Mobile acquisition uses visible save, normalized money and keeps advanced 
     page.getByRole("dialog", { name: "Xác nhận thu xe" }),
   ).toBeVisible();
   await expect(page.getByText("NEW-UX-FRAME")).toBeVisible();
-  await page.getByRole("button", { name: "Xác nhận thu xe", exact: true }).click();
+  await page
+    .getByRole("button", { name: "Xác nhận thu xe", exact: true })
+    .click();
 
   await expect(
     page.getByText("Đã thu xe thành công.", { exact: false }),
@@ -242,9 +293,7 @@ for (const width of [320, 375, 390, 430]) {
     await action.scrollIntoViewIfNeeded();
     await expect(action).toBeVisible();
     const doc = await page.evaluate(() => ({
-      hasFixedBar: Boolean(
-        document.querySelector(".mobile-sticky-actions"),
-      ),
+      hasFixedBar: Boolean(document.querySelector(".mobile-sticky-actions")),
     }));
     expect(doc.hasFixedBar).toBe(false);
   });
@@ -267,9 +316,14 @@ test("Acquisition submit validates on demand and focuses the first error", async
   await action.click();
   // Submission is blocked and the first invalid field reports inline.
   await expect(page.getByText("Nhập dòng xe.")).toBeVisible();
-  const focusedIsModel = await page.evaluate(() =>
-    document.activeElement?.getAttribute("aria-label")?.startsWith("Dòng xe") ??
-      document.activeElement?.getAttribute("placeholder")?.includes("SH 160i") ??
+  const focusedIsModel = await page.evaluate(
+    () =>
+      document.activeElement
+        ?.getAttribute("aria-label")
+        ?.startsWith("Dòng xe") ??
+      document.activeElement
+        ?.getAttribute("placeholder")
+        ?.includes("SH 160i") ??
       false,
   );
   expect(focusedIsModel).toBe(true);
@@ -283,7 +337,9 @@ test("Frame duplicates are reported while typing before the form is submitted", 
   await page
     .getByLabel("Số khung", { exact: true })
     .fill(seedVehicle.frame_number);
-  await expect(page.getByText(/Số khung đã tồn tại trong hệ thống/)).toBeVisible();
+  await expect(
+    page.getByText(/Số khung đã tồn tại trong hệ thống/),
+  ).toBeVisible();
   await expect(
     page.getByRole("button", { name: "Thu xe & tạo phiếu", exact: true }),
   ).toBeDisabled();
@@ -369,9 +425,13 @@ test("Inventory filters, sort, page and scroll survive opening a vehicle and ret
     .toBeGreaterThan(Math.max(0, before - 150));
 });
 
-test("Inventory rows use clear vehicle metadata, status, age and preset wording", async ({ page }) => {
+test("Inventory rows use clear vehicle metadata, status, age and preset wording", async ({
+  page,
+}) => {
   page.on("pageerror", (error) => console.log("PAGEERROR", error.stack));
-  page.on("console", (message) => { if (message.type() === "error") console.log("CONSOLEERROR", message.text()); });
+  page.on("console", (message) => {
+    if (message.type() === "error") console.log("CONSOLEERROR", message.text());
+  });
   await installMock(page);
   await page.goto("/vehicles");
   const firstRow = page.locator(".desktop-table tbody tr").first();
@@ -380,39 +440,81 @@ test("Inventory rows use clear vehicle metadata, status, age and preset wording"
   await expect(vehicleCell.getByText("XE-UX-1", { exact: true })).toBeVisible();
   await expect(plateCell).not.toContainText("XE-UX-1");
   await expect(firstRow.getByText("Hôm nay", { exact: true })).toBeVisible();
-  await expect(firstRow.getByText("Sẵn sàng bán", { exact: true })).toBeVisible();
+  await expect(
+    firstRow.getByText("Sẵn sàng bán", { exact: true }),
+  ).toBeVisible();
   await expect(page.getByText("Chưa bổ sung phiên bản")).toHaveCount(0);
-  await expect(page.getByRole("button", { name: "Xe mới nhập" })).toHaveCount(0);
-  await expect(page.getByRole("button", { name: "Đang giữ chỗ" })).toHaveCount(0);
-  await expect(page.getByRole("button", { name: "Tồn kho lâu > 60 ngày" })).toBeVisible();
-  await expect(page.getByRole("button", { name: "Chờ giá nhập" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Xe mới nhập" })).toHaveCount(
+    0,
+  );
+  await expect(page.getByRole("button", { name: "Đang giữ chỗ" })).toHaveCount(
+    0,
+  );
+  await expect(
+    page.getByRole("button", { name: "Tồn kho lâu > 60 ngày" }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Chờ giá nhập" }),
+  ).toBeVisible();
   await expect(page.getByText("Dữ liệu được phân quyền")).toHaveCount(0);
-  await page.screenshot({ path: "test-results/inventory-audit-desktop.png", fullPage: true });
+  await page.screenshot({
+    path: "test-results/inventory-audit-desktop.png",
+    fullPage: true,
+  });
   await page.setViewportSize({ width: 390, height: 844 });
   await page.reload();
   await expect(page.locator(".mobile-record").first()).toBeVisible();
   const mobileCard = page.locator(".mobile-record").first();
-  await expect(mobileCard.getByText("Mã xe: XE-UX-1", { exact: true })).toBeVisible();
+  await expect(
+    mobileCard.getByText("Mã xe: XE-UX-1", { exact: true }),
+  ).toBeVisible();
   await expect(mobileCard.getByText("Hôm nay", { exact: true })).toBeVisible();
-  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
-  await page.screenshot({ path: "test-results/inventory-audit-mobile.png", fullPage: true });
+  expect(
+    await page.evaluate(() => document.documentElement.scrollWidth),
+  ).toBeLessThanOrEqual(390);
+  await page.screenshot({
+    path: "test-results/inventory-audit-mobile.png",
+    fullPage: true,
+  });
 });
 
-test("Staff settings and create modals stay usable on desktop and mobile", async ({ page }) => {
+test("Staff settings and create modals stay usable on desktop and mobile", async ({
+  page,
+}) => {
   await installMock(page);
   await page.goto("/users");
-  await expect(page.getByRole("heading", { name: "Nhân sự", exact: true })).toBeVisible();
-  await page.screenshot({ path: "test-results/users-audit-desktop.png", fullPage: true });
-  await page.getByRole("button", { name: "Thêm tài khoản", exact: true }).click();
-  const createTrigger = page.getByRole("button", { name: "Thêm tài khoản", exact: true });
-  const createDialog = page.getByRole("dialog", { name: "Tạo tài khoản nhân viên mới" });
+  await expect(
+    page.getByRole("heading", { name: "Nhân sự", exact: true }),
+  ).toBeVisible();
+  await page.screenshot({
+    path: "test-results/users-audit-desktop.png",
+    fullPage: true,
+  });
+  await page
+    .getByRole("button", { name: "Thêm tài khoản", exact: true })
+    .click();
+  const createTrigger = page.getByRole("button", {
+    name: "Thêm tài khoản",
+    exact: true,
+  });
+  const createDialog = page.getByRole("dialog", {
+    name: "Tạo tài khoản nhân viên mới",
+  });
   await expect(createDialog).toBeVisible();
   await page.waitForTimeout(400);
-  await page.screenshot({ path: "test-results/users-create-audit-desktop.png", fullPage: true });
-  const createClose = createDialog.getByRole("button", { name: "Đóng", exact: true });
+  await page.screenshot({
+    path: "test-results/users-create-audit-desktop.png",
+    fullPage: true,
+  });
+  const createClose = createDialog.getByRole("button", {
+    name: "Đóng",
+    exact: true,
+  });
   await expect(createClose).toBeFocused();
   await page.keyboard.press("Shift+Tab");
-  await expect(createDialog.getByRole("button", { name: "Tạo tài khoản", exact: true })).toBeFocused();
+  await expect(
+    createDialog.getByRole("button", { name: "Tạo tài khoản", exact: true }),
+  ).toBeFocused();
   await page.keyboard.press("Tab");
   await expect(createClose).toBeFocused();
   await page.keyboard.press("Escape");
@@ -420,27 +522,48 @@ test("Staff settings and create modals stay usable on desktop and mobile", async
   await expect(createTrigger).toBeFocused();
   await page.setViewportSize({ width: 390, height: 844 });
   await page.reload();
-  await expect(page.getByRole("heading", { name: "Nhân sự", exact: true })).toBeVisible();
-  await page.getByRole("button", { name: "Thêm tài khoản", exact: true }).click();
-  await expect(page.getByRole("dialog", { name: "Tạo tài khoản nhân viên mới" })).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "Nhân sự", exact: true }),
+  ).toBeVisible();
+  await page
+    .getByRole("button", { name: "Thêm tài khoản", exact: true })
+    .click();
+  await expect(
+    page.getByRole("dialog", { name: "Tạo tài khoản nhân viên mới" }),
+  ).toBeVisible();
   await page.waitForTimeout(400);
-  await page.screenshot({ path: "test-results/users-create-audit-mobile.png", fullPage: true });
+  await page.screenshot({
+    path: "test-results/users-create-audit-mobile.png",
+    fullPage: true,
+  });
   await page.keyboard.press("Escape");
-  await expect(page.getByRole("dialog", { name: "Tạo tài khoản nhân viên mới" })).toHaveCount(0);
-  await expect(page.getByRole("button", { name: "Thêm tài khoản", exact: true })).toBeFocused();
+  await expect(
+    page.getByRole("dialog", { name: "Tạo tài khoản nhân viên mới" }),
+  ).toHaveCount(0);
+  await expect(
+    page.getByRole("button", { name: "Thêm tài khoản", exact: true }),
+  ).toBeFocused();
 
   // Regression: opening any staff member's detail modal on mobile must stay
   // inside the viewport as a bottom sheet with no horizontal overflow.
-  const staffOpener = page.getByRole("button", { name: "Thiết lập nhân sự" }).first();
+  const staffOpener = page
+    .getByRole("button", { name: "Thiết lập nhân sự" })
+    .first();
   await staffOpener.click();
   const staffDialog = page.getByRole("dialog", { name: "Nguyễn Nhân Viên" });
   await expect(staffDialog).toBeVisible();
   await expect(staffDialog.getByLabel("Đóng", { exact: true })).toBeFocused();
   const roleTab = staffDialog.getByRole("tab", { name: "Quyền & Vai trò" });
   await expect(roleTab).toBeVisible();
-  await expect(staffDialog.getByRole("tab", { name: "Mật khẩu" })).toBeVisible();
-  await expect(staffDialog.getByRole("tab", { name: "Cấm sử dụng" })).toBeVisible();
-  await expect(staffDialog.getByRole("tab", { name: "Xóa tài khoản" })).toBeVisible();
+  await expect(
+    staffDialog.getByRole("tab", { name: "Mật khẩu" }),
+  ).toBeVisible();
+  await expect(
+    staffDialog.getByRole("tab", { name: "Cấm sử dụng" }),
+  ).toBeVisible();
+  await expect(
+    staffDialog.getByRole("tab", { name: "Xóa tài khoản" }),
+  ).toBeVisible();
   const box = await staffDialog.boundingBox();
   expect(box.x).toBeGreaterThanOrEqual(0);
   expect(box.x + box.width).toBeLessThanOrEqual(390.5);
@@ -450,10 +573,16 @@ test("Staff settings and create modals stay usable on desktop and mobile", async
   // 94dvh — the intent of this check is "no visible overflow", not sub-pixel
   // equality, so a 1.5px tolerance is applied here.
   expect(box.y + box.height).toBeLessThanOrEqual(845.5);
-  await page.screenshot({ path: "test-results/users-staff-settings-mobile.png" });
+  await page.screenshot({
+    path: "test-results/users-staff-settings-mobile.png",
+  });
   await staffDialog.getByRole("tab", { name: "Mật khẩu" }).click();
-  await expect(staffDialog.getByText("Đặt lại mật khẩu tạm thời")).toBeVisible();
-  await page.screenshot({ path: "test-results/users-staff-security-mobile.png" });
+  await expect(
+    staffDialog.getByText("Đặt lại mật khẩu tạm thời"),
+  ).toBeVisible();
+  await page.screenshot({
+    path: "test-results/users-staff-security-mobile.png",
+  });
   await staffDialog.getByRole("tab", { name: "Cấm sử dụng" }).click();
   await expect(staffDialog.getByText("Cấm sử dụng tạm thời")).toBeVisible();
   await expect(staffDialog.getByText("Hết hôm nay")).toBeVisible();
@@ -467,29 +596,45 @@ test("Staff settings and create modals stay usable on desktop and mobile", async
   await expect(staffOpener).toBeFocused();
 });
 
-test("Showroom dialogs have accessible names and contain keyboard focus", async ({ page }) => {
+test("Showroom dialogs have accessible names and contain keyboard focus", async ({
+  page,
+}) => {
   await installMock(page);
   await page.goto("/showroom");
 
-  const bikeOpener = page.getByRole("button", { name: "Chi tiết", exact: true });
+  const bikeOpener = page.getByRole("button", {
+    name: "Chi tiết",
+    exact: true,
+  });
   await bikeOpener.click();
   const bikeDialog = page.getByRole("dialog", { name: "Honda Vision Premium" });
   await expect(bikeDialog).toBeVisible();
-  const bikeClose = bikeDialog.getByRole("button", { name: "Đóng chi tiết xe" });
+  const bikeClose = bikeDialog.getByRole("button", {
+    name: "Đóng chi tiết xe",
+  });
   await expect(bikeClose).toBeFocused();
   await page.keyboard.press("Shift+Tab");
-  await expect(bikeDialog.getByRole("link", { name: /Gọi 0914/ })).toBeFocused();
+  await expect(
+    bikeDialog.getByRole("link", { name: /Gọi 0914/ }),
+  ).toBeFocused();
   await page.keyboard.press("Tab");
   await expect(bikeClose).toBeFocused();
   await page.keyboard.press("Escape");
   await expect(bikeDialog).toHaveCount(0);
   await expect(bikeOpener).toBeFocused();
 
-  const sellOpener = page.getByRole("button", { name: "Định giá bán xe", exact: true });
+  const sellOpener = page.getByRole("button", {
+    name: "Định giá bán xe",
+    exact: true,
+  });
   await sellOpener.click();
-  const sellDialog = page.getByRole("dialog", { name: "Gửi Thông Tin Xe Cần Bán" });
+  const sellDialog = page.getByRole("dialog", {
+    name: "Gửi Thông Tin Xe Cần Bán",
+  });
   await expect(sellDialog).toBeVisible();
-  await expect(sellDialog.getByRole("button", { name: "Đóng biểu mẫu định giá" })).toBeFocused();
+  await expect(
+    sellDialog.getByRole("button", { name: "Đóng biểu mẫu định giá" }),
+  ).toBeFocused();
   for (const label of [
     "Họ tên của bạn *",
     "Tên dòng xe cần bán *",
@@ -518,29 +663,52 @@ test("Create-account footer stays pinned inside short mobile viewports", async (
   ]) {
     await page.setViewportSize(viewport);
     await page.goto("/users");
-    await page.getByRole("button", { name: "Thêm tài khoản", exact: true }).click();
-    const dialog = page.getByRole("dialog", { name: "Tạo tài khoản nhân viên mới" });
+    await page
+      .getByRole("button", { name: "Thêm tài khoản", exact: true })
+      .click();
+    const dialog = page.getByRole("dialog", {
+      name: "Tạo tài khoản nhân viên mới",
+    });
     await expect(dialog).toBeVisible();
     await page.waitForTimeout(400);
-    const submit = dialog.getByRole("button", { name: "Tạo tài khoản", exact: true });
+    const submit = dialog.getByRole("button", {
+      name: "Tạo tài khoản",
+      exact: true,
+    });
     await expect(submit).toBeInViewport();
-    await expect(dialog.getByRole("button", { name: "Hủy", exact: true })).toBeInViewport();
+    await expect(
+      dialog.getByRole("button", { name: "Hủy", exact: true }),
+    ).toBeInViewport();
     // Scrolling the body must not move the footer out of view.
-    await dialog.locator(".user-settings-body").evaluate((node) => node.scrollTo(0, node.scrollHeight));
+    await dialog
+      .locator(".user-settings-body")
+      .evaluate((node) => node.scrollTo(0, node.scrollHeight));
     await expect(submit).toBeInViewport();
   }
 });
 
-test("Temporary visual audit for dashboard icon and spacing", async ({ page }) => {
+test("Temporary visual audit for dashboard icon and spacing", async ({
+  page,
+}) => {
   await installMock(page);
   await page.goto("/");
   await expect(page.getByRole("heading", { name: /Xin chào/ })).toBeVisible();
-  await expect(page.getByText("Tồn kho hiện tại", { exact: true })).toBeVisible();
-  await page.screenshot({ path: "test-results/dashboard-audit-desktop.png", fullPage: true });
+  await expect(
+    page.getByText("Tồn kho hiện tại", { exact: true }),
+  ).toBeVisible();
+  await page.screenshot({
+    path: "test-results/dashboard-audit-desktop.png",
+    fullPage: true,
+  });
   await page.setViewportSize({ width: 390, height: 844 });
   await page.reload();
-  await expect(page.getByText("Tồn kho hiện tại", { exact: true })).toBeVisible();
-  await page.screenshot({ path: "test-results/dashboard-audit-mobile.png", fullPage: true });
+  await expect(
+    page.getByText("Tồn kho hiện tại", { exact: true }),
+  ).toBeVisible();
+  await page.screenshot({
+    path: "test-results/dashboard-audit-mobile.png",
+    fullPage: true,
+  });
 });
 
 test("Desktop search responds while typing with one debounced request and keyboard-accessible recent vehicles", async ({
@@ -581,7 +749,7 @@ test("Desktop search responds while typing with one debounced request and keyboa
   await expect(page.locator(".search-palette-popover")).toHaveCount(0);
 });
 
-test("Mobile search box keeps a 16px font so iOS does not auto-zoom on tap", async ({
+test("Mobile search dialog keeps a 16px input font and restores its opener", async ({
   page,
 }) => {
   // Regression: a later @media rule had dropped the search input to 13px,
@@ -589,10 +757,151 @@ test("Mobile search box keeps a 16px font so iOS does not auto-zoom on tap", asy
   await installMock(page);
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("/");
-  const input = page.getByLabel("Tìm xe toàn hệ thống", { exact: true });
+  const opener = page.getByRole("button", {
+    name: "Tìm xe toàn hệ thống",
+    exact: true,
+  });
+  await opener.click();
+  const dialog = page.getByRole("dialog", { name: "Tìm kiếm", exact: true });
+  const input = dialog.getByRole("searchbox", {
+    name: "Tìm xe toàn hệ thống",
+    exact: true,
+  });
   await expect(input).toBeVisible();
+  await expect(input).toBeFocused();
+  await expect(input).not.toHaveAttribute("placeholder", /Ctrl|⌘/);
   const size = await input.evaluate((node) =>
     parseFloat(getComputedStyle(node).fontSize),
   );
   expect(size).toBeGreaterThanOrEqual(16);
+  await dialog.getByRole("button", { name: "Đóng tìm kiếm" }).click();
+  await expect(dialog).toHaveCount(0);
+  await expect(opener).toBeFocused();
+});
+
+test("Mobile search contains focus, preserves scroll and fits a reduced visible viewport", async ({
+  page,
+}) => {
+  const calls = await installMock(page);
+  await page.setViewportSize({ width: 360, height: 844 });
+  await page.goto(`/vehicles/${vehicleId}`);
+  await expect(
+    page.getByRole("heading", { name: "Honda Vision", exact: true }),
+  ).toBeVisible();
+  await page.evaluate(() => window.scrollTo(0, 260));
+  const scrollBefore = await page.evaluate(() => window.scrollY);
+  await expect.poll(async () => Math.abs((await page.locator(".topbar").boundingBox()).y)).toBeLessThan(1);
+  const opener = page.getByRole("button", {
+    name: "Tìm xe toàn hệ thống",
+    exact: true,
+  });
+  await opener.click();
+  const dialog = page.getByRole("dialog", { name: "Tìm kiếm", exact: true });
+  const input = dialog.getByRole("searchbox");
+  await expect(input).toBeFocused();
+  expect(
+    await page.evaluate(() => getComputedStyle(document.body).position),
+  ).toBe("fixed");
+  expect(await page.evaluate(() => Math.abs(parseFloat(document.body.style.top) || 0))).toBe(scrollBefore);
+  expect(await page.locator(".app-shell").evaluate(node => Boolean(node.closest("[inert]")))).toBe(true);
+  await input.press("Shift+Tab");
+  expect(
+    await dialog.evaluate((node) => node.contains(document.activeElement)),
+  ).toBe(true);
+  await page.keyboard.press("Tab");
+  expect(
+    await dialog.evaluate((node) => node.contains(document.activeElement)),
+  ).toBe(true);
+  // This is a browser viewport regression, not physical iOS keyboard certification.
+  await page.setViewportSize({ width: 360, height: 420 });
+  await expect
+    .poll(async () => {
+      const box = await dialog.boundingBox();
+      return box.y + box.height;
+    })
+    .toBeLessThanOrEqual(421);
+  await page.keyboard.press("Escape");
+  await expect(dialog).toHaveCount(0);
+  await expect(opener).toBeFocused();
+  expect(await page.evaluate(() => window.scrollY)).toBe(scrollBefore);
+  expect(
+    calls.some((call) =>
+      ["acquire_vehicle", "sell_vehicle", "import_vehicles"].includes(
+        call.name,
+      ),
+    ),
+  ).toBe(false);
+});
+
+test("Matching vehicle results precede quick commands without changing search writes", async ({
+  page,
+}) => {
+  const calls = await installMock(page);
+  await page.goto("/");
+  const input = page.getByRole("searchbox", {
+    name: "Tìm xe toàn hệ thống",
+    exact: true,
+  });
+  await input.fill("xe");
+  const results = page.getByRole("region", {
+    name: "Kết quả tìm kiếm",
+    exact: true,
+  });
+  await expect(results.locator(".palette-result-item")).toHaveCount(1);
+  await expect(results.locator("button").first()).toContainText("Honda Vision");
+  await expect(results.locator(".palette-cmd-btn").first()).toBeVisible();
+  expect(calls.filter((call) => call.name === "global_search")).toHaveLength(1);
+  expect(
+    calls.some((call) =>
+      ["acquire_vehicle", "sell_vehicle", "import_vehicles"].includes(
+        call.name,
+      ),
+    ),
+  ).toBe(false);
+});
+
+test("Acquisition validates the existing plate rule on first blur", async ({
+  page,
+}) => {
+  const calls = await installMock(page);
+  await page.goto("/acquisitions/new");
+  const plate = page.getByLabel("Biển số (nếu có)", { exact: true });
+  await plate.fill("not-a-plate");
+  await page.getByLabel("Số máy", { exact: true }).focus();
+  const field = page.locator(".field").filter({ has: plate });
+  await expect(field.locator(".field-error")).toBeVisible();
+  await plate.fill("43A1-99999");
+  await page.getByLabel("Số máy", { exact: true }).focus();
+  await expect(field.locator(".field-error")).toHaveCount(0);
+  expect(calls.some((call) => call.name === "acquire_vehicle")).toBe(false);
+});
+
+test("A failed chassis lookup never claims the identifier is available", async ({
+  page,
+}) => {
+  const calls = await installMock(page);
+  await page.route(
+    "https://xe-test.supabase.co/rest/v1/rpc/list_vehicles",
+    async (route) => {
+      const body = route.request().postDataJSON();
+      if (body?.p_filters?.search !== "LOOKUP-FAIL") return route.fallback();
+      return route.fulfill({
+        status: 500,
+        contentType: "application/json",
+        body: JSON.stringify({ message: "Fixture lookup unavailable" }),
+      });
+    },
+  );
+  await page.goto("/acquisitions/new");
+  await page.getByLabel("Số khung", { exact: true }).fill("LOOKUP-FAIL");
+  await expect(
+    page.getByText("Chưa kiểm tra được số khung.", { exact: false }),
+  ).toBeVisible();
+  await expect(
+    page.getByText("Số khung chưa có trong hệ thống", { exact: false }),
+  ).toHaveCount(0);
+  await expect(
+    page.getByRole("button", { name: "Thử lại", exact: true }),
+  ).toBeVisible();
+  expect(calls.some((call) => call.name === "acquire_vehicle")).toBe(false);
 });

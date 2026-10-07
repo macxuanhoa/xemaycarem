@@ -12,6 +12,8 @@ import {
 } from "@/components/ui";
 import { api } from "@/lib/api";
 import { dateLabel, monthRange } from "@/lib/format";
+import { Highlight } from "@/components/search/Highlight";
+import { useDebouncedValue } from "@/lib/useDebouncedValue";
 import type { Activity } from "@/types";
 import {
   actionChip,
@@ -27,7 +29,7 @@ import {
  * fields changed (old → new) in plain Vietnamese. The raw before/after JSON is
  * kept behind a collapsed panel so nothing is lost for forensic review.
  */
-function AuditRecordBody({ a }: { a: Activity }) {
+function AuditRecordBody({ a, search }: { a: Activity; search?: string }) {
   const oldData = (a.old_data ?? null) as Record<string, unknown> | null;
   const newData = (a.new_data ?? null) as Record<string, unknown> | null;
   const actor = a.actor_name ?? a.full_name ?? "Hệ thống";
@@ -43,8 +45,8 @@ function AuditRecordBody({ a }: { a: Activity }) {
   return (
     <div className="audit-record-body">
       <p className="audit-lead">
-        {sentence}
-        {subject ? <span className="audit-lead-subject">: “{subject}”</span> : null}
+        <Highlight text={sentence} query={search} />
+        {subject ? <span className="audit-lead-subject">: “<Highlight text={subject} query={search} />”</span> : null}
       </p>
 
       {diffs.length > 0 && (
@@ -108,12 +110,13 @@ export default function AuditPage() {
   const [range, setRange] = useState(monthRange);
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState("");
+  const debouncedSearch = useDebouncedValue(search, 250);
   const [actionCategory, setActionCategory] = useState("ALL");
 
   const q = useQuery({
-    queryKey: ["audit", range, search],
+    queryKey: ["audit", range, debouncedSearch],
     placeholderData: keepPreviousData,
-    queryFn: () => api.callAll<Activity>("list_audit", { ...range, search }),
+    queryFn: () => api.callAll<Activity>("list_audit", { ...range, search: debouncedSearch }),
   });
 
   const rawItems = q.data?.items ?? [];
@@ -184,11 +187,12 @@ export default function AuditPage() {
       {/* FILTER CONTROLS */}
       <Card>
         <div className="stack" style={{ gap: "14px" }}>
-          <div className="filter-pills-bar" role="tablist" aria-label="Lọc theo nghiệp vụ">
+          <div className="filter-pills-bar" role="group" aria-label="Lọc theo nghiệp vụ">
             {entityPills.map((pill) => (
               <button
                 key={pill.key}
                 type="button"
+                aria-pressed={actionCategory === pill.key}
                 className={`filter-pill ${actionCategory === pill.key ? "active" : ""}`}
                 onClick={() => {
                   setActionCategory(pill.key);
@@ -251,17 +255,17 @@ export default function AuditPage() {
                   <details key={a.id} className="audit-record">
                     <summary>
                       <span className={getActionChipClass(a.action)}>
-                        {actionChip(a.action)}
+                        <Highlight text={actionChip(a.action)} query={debouncedSearch} />
                       </span>
                       <div className="audit-record-main">
                         <div className="audit-record-actor">
                           <User size={13} className="muted" />
                           <strong>
-                            {a.actor_name ?? a.full_name ?? a.user_id}
+                            <Highlight text={a.actor_name ?? a.full_name ?? a.user_id} query={debouncedSearch} />
                           </strong>
                           <span className="muted small">·</span>
                           <span className="muted small">
-                            {entityLabel(a.entity_type)}
+                            <Highlight text={entityLabel(a.entity_type)} query={debouncedSearch} />
                           </span>
                         </div>
                       </div>
@@ -276,7 +280,7 @@ export default function AuditPage() {
                       </time>
                     </summary>
 
-                    <AuditRecordBody a={a} />
+                    <AuditRecordBody a={a} search={debouncedSearch} />
                   </details>
                 ))}
               </div>

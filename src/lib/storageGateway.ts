@@ -68,16 +68,32 @@ export async function uploadImage(
   return path;
 }
 
+// In-memory cache to prevent redundant createSignedUrl RPC calls during the TTL window
+const signedUrlCache = new Map<string, { url: string; expiresAt: number }>();
+
 /** Sinh signed URL hạn ngắn cho một đường dẫn tương đối đã lưu trong DB. */
 export async function signedImageUrl(
   bucket: string,
   path: string,
   ttlSeconds: number,
 ): Promise<string> {
+  const cacheKey = `${bucket}:${path}`;
+  const now = Date.now();
+  const cached = signedUrlCache.get(cacheKey);
+  // Re-use cached signed URL as long as it has at least 30 seconds of TTL remaining
+  if (cached && cached.expiresAt > now + 30_000) {
+    return cached.url;
+  }
+
   const client = requireClient();
   const { data, error } = await client.storage
     .from(bucket)
     .createSignedUrl(path, ttlSeconds);
   if (error) throw error;
+
+  signedUrlCache.set(cacheKey, {
+    url: data.signedUrl,
+    expiresAt: now + ttlSeconds * 1000,
+  });
   return data.signedUrl;
 }

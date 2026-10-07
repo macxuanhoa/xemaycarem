@@ -40,6 +40,7 @@ import {
   VEHICLE_STATUS_OPTIONS,
 } from "@/lib/vehicleFilters";
 import { useDebouncedValue } from "@/lib/useDebouncedValue";
+import { Highlight } from "@/components/search/Highlight";
 import { QuickExpenseModal } from "@/features/expenses/QuickExpenseModal";
 import { VehicleActionsSheet } from "./VehicleActionsSheet";
 
@@ -59,7 +60,10 @@ export function InventoryPage() {
   const location = useLocation();
   const navigationType = useNavigationType();
   const [params, setParams] = useSearchParams();
-  const search = params.get("q") ?? "";
+  const urlQ = params.get("q") ?? "";
+  const [search, setSearch] = useState(urlQ);
+  const deferredSearch = useDebouncedValue(search, 250);
+
   function updateParams(changes: Record<string, string>, resetPage = true) {
     setParams(
       (old) => {
@@ -74,10 +78,27 @@ export function InventoryPage() {
       { replace: true },
     );
   }
-  function setSearch(value: string) {
-    updateParams({ q: value });
-  }
-  const deferredSearch = useDebouncedValue(search);
+
+  // Keep search input synced when URL query param changes externally (e.g. back button)
+  useEffect(() => {
+    setSearch((prev) => (prev !== urlQ ? urlQ : prev));
+  }, [urlQ]);
+
+  // Sync debounced search to URL query param smoothly without blocking typing
+  useEffect(() => {
+    setParams(
+      (old) => {
+        const currentParam = old.get("q") ?? "";
+        if (deferredSearch === currentParam) return old;
+        const next = new URLSearchParams(old);
+        if (deferredSearch) next.set("q", deferredSearch);
+        else next.delete("q");
+        next.delete("page");
+        return next;
+      },
+      { replace: true },
+    );
+  }, [deferredSearch, setParams]);
   const status = (params.get("status") ?? "") as VehicleStatusFilter | "";
   const setStatus = (value: VehicleStatusFilter | "") =>
     updateParams({ status: value });
@@ -89,18 +110,27 @@ export function InventoryPage() {
   function setPage(nextPage: number) {
     updateParams({ page: nextPage > 1 ? String(nextPage) : "" }, false);
   }
+  const brand = params.get("brand") ?? "";
+  const year = params.get("year") ?? "";
+  const min_price = params.get("min_price") ?? "";
+  const max_price = params.get("max_price") ?? "";
+  const date_from = params.get("date_from") ?? "";
+  const date_to = params.get("date_to") ?? "";
+  const cost_pending = params.get("cost_pending") ?? "";
+  const min_days = params.get("min_days") ?? "";
+
   const filters = useMemo(
     () => ({
-      brand: params.get("brand") ?? "",
-      year: params.get("year") ?? "",
-      min_price: params.get("min_price") ?? "",
-      max_price: params.get("max_price") ?? "",
-      date_from: params.get("date_from") ?? "",
-      date_to: params.get("date_to") ?? "",
-      cost_pending: params.get("cost_pending") ?? "",
-      min_days: params.get("min_days") ?? "",
+      brand,
+      year,
+      min_price,
+      max_price,
+      date_from,
+      date_to,
+      cost_pending,
+      min_days,
     }),
-    [params],
+    [brand, year, min_price, max_price, date_from, date_to, cost_pending, min_days],
   );
   const [expanded, setExpanded] = useState(() =>
     Object.values(filters).some(Boolean),
@@ -468,7 +498,7 @@ export function InventoryPage() {
                           </span>
                           <span>
                             <strong>
-                              {vehicle.brand} {vehicle.model}
+                              <Highlight text={`${vehicle.brand} ${vehicle.model}`} query={deferredSearch} />
                             </strong>
                             {[vehicle.year, vehicle.color, vehicle.variant]
                               .filter(Boolean)
@@ -479,17 +509,17 @@ export function InventoryPage() {
                                   .join(" · ")}
                               </small>
                             )}
-                            <small className="vehicle-code">{vehicle.internal_code}</small>
+                            <small className="vehicle-code"><Highlight text={vehicle.internal_code} query={deferredSearch} /></small>
                           </span>
                         </Link>
                       </td>
                       <td>
                         <strong className="frame-number">
-                          {vehicle.frame_number || "—"}
+                          {vehicle.frame_number ? <Highlight text={vehicle.frame_number} query={deferredSearch} /> : "—"}
                         </strong>
                       </td>
                       <td>
-                        {vehicle.license_plate || "—"}
+                        {vehicle.license_plate ? <Highlight text={vehicle.license_plate} query={deferredSearch} /> : "—"}
                       </td>
                       <td>
                         <Badge status={vehicle.status} />
@@ -541,7 +571,7 @@ export function InventoryPage() {
                   >
                     <div className="row between">
                       <strong>
-                        {vehicle.brand} {vehicle.model}
+                        <Highlight text={`${vehicle.brand} ${vehicle.model}`} query={deferredSearch} />
                       </strong>
                       <Badge status={vehicle.status} />
                     </div>
@@ -553,9 +583,9 @@ export function InventoryPage() {
                       </span>
                     )}
                     <div className="record-details muted">
-                      <span>Mã xe: {vehicle.internal_code}</span>
-                      <span>Số khung: {vehicle.frame_number || "—"}</span>
-                      <span>Biển số: {vehicle.license_plate || "—"}</span>
+                      <span>Mã xe: <Highlight text={vehicle.internal_code} query={deferredSearch} /></span>
+                      <span>Số khung: {vehicle.frame_number ? <Highlight text={vehicle.frame_number} query={deferredSearch} /> : "—"}</span>
+                      <span>Biển số: {vehicle.license_plate ? <Highlight text={vehicle.license_plate} query={deferredSearch} /> : "—"}</span>
                     </div>
                     <div className="row between">
                       <span className="record-date">

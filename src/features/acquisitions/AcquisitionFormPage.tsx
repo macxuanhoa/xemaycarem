@@ -147,9 +147,7 @@ function AcquisitionEditor() {
         throw new AppError("Vui lòng nhập giá thu xe.");
       }
       if (duplicate) {
-        throw new AppError(
-          "Số khung đã tồn tại. Hãy mở xe đã có để tiếp tục.",
-        );
+        throw new AppError("Số khung đã tồn tại. Hãy mở xe đã có để tiếp tục.");
       }
       const data: Record<string, unknown> = {
         ...values,
@@ -158,9 +156,16 @@ function AcquisitionEditor() {
         asking_price: values.asking_price ?? 0,
       };
       if (!financial) delete data.purchase_price;
-      if (!profile) throw new AppError("Vui lòng đăng nhập lại trước khi thu xe.");
-      return executeOperation<string>(profile.id, "acquire_vehicle", "new", requestId =>
-        api.call<string>("acquire_vehicle", { p_data: { ...data, request_id: requestId } }),
+      if (!profile)
+        throw new AppError("Vui lòng đăng nhập lại trước khi thu xe.");
+      return executeOperation<string>(
+        profile.id,
+        "acquire_vehicle",
+        "new",
+        (requestId) =>
+          api.call<string>("acquire_vehicle", {
+            p_data: { ...data, request_id: requestId },
+          }),
       );
     },
     onSuccess: async (vehicleId, values) => {
@@ -213,7 +218,9 @@ function AcquisitionEditor() {
   const focusFirstError = () => {
     // The first invalid field is the first .field wrapper that rendered a
     // .field-error message, following the document order of the form.
-    const field = document.querySelector<HTMLElement>(".field:has(.field-error)");
+    const field = document.querySelector<HTMLElement>(
+      ".field:has(.field-error)",
+    );
     if (!field) return;
     const control = field.querySelector<HTMLElement>(
       "input, select, textarea, [role='combobox']",
@@ -236,11 +243,15 @@ function AcquisitionEditor() {
         description="Nhập thông tin xe và giá thu để tạo xe cùng phiếu thu."
       />
       <OperationRecoveryNotice<string>
-        userId={profile?.id} operation="acquire_vehicle" scope="new"
-        onConfirmed={async vehicleId => {
+        userId={profile?.id}
+        operation="acquire_vehicle"
+        scope="new"
+        onConfirmed={async (vehicleId) => {
           draft.complete();
           await client.invalidateQueries();
-          navigate(`/vehicles/${vehicleId}`, { state: { acquisitionConfirmed: true } });
+          navigate(`/vehicles/${vehicleId}`, {
+            state: { acquisitionConfirmed: true },
+          });
         }}
       />
       {location.state?.aiDraft && (
@@ -291,9 +302,10 @@ function AcquisitionEditor() {
           if (year != null && year !== form.getValues("year")) {
             form.setValue("year", year, { shouldDirty: true });
           }
-          void form.handleSubmit(handleValidSubmit, handleValidationErrors)(
-            event,
-          );
+          void form.handleSubmit(
+            handleValidSubmit,
+            handleValidationErrors,
+          )(event);
         }}
       >
         <fieldset
@@ -312,16 +324,16 @@ function AcquisitionEditor() {
                   {...form.register("frame_number")}
                   onBlur={() => {
                     const val = form.getValues("frame_number");
-                    if (!val) return;
-                    form.setValue(
-                      "frame_number",
-                      val.trim().toUpperCase(),
-                      { shouldValidate: true },
-                    );
+                    form.setValue("frame_number", val.trim().toUpperCase(), {
+                      shouldValidate: true,
+                      shouldTouch: true,
+                    });
                   }}
                   placeholder="Nhập số khung (nếu có)"
                 />
                 {checkedFrame.length >= 3 &&
+                  checkedFrame === frame &&
+                  duplicateQuery.isSuccess &&
                   !duplicateQuery.isFetching &&
                   !duplicate && (
                     <span className="inline-check-feedback positive">
@@ -332,6 +344,18 @@ function AcquisitionEditor() {
                   <span className="inline-check-feedback muted">
                     <LoaderCircle size={13} className="spin" /> Đang kiểm tra số
                     khung…
+                  </span>
+                )}
+                {checkedFrame === frame && duplicateQuery.isError && (
+                  <span className="inline-check-feedback" role="status">
+                    Chưa kiểm tra được số khung.
+                    <button
+                      type="button"
+                      className="text-link"
+                      onClick={() => void duplicateQuery.refetch()}
+                    >
+                      Thử lại
+                    </button>
                   </span>
                 )}
                 {duplicate && (
@@ -377,13 +401,10 @@ function AcquisitionEditor() {
                   {...form.register("engine_number")}
                   onBlur={() => {
                     const val = form.getValues("engine_number");
-                    if (val) {
-                      form.setValue(
-                        "engine_number",
-                        val.trim().toUpperCase(),
-                        { shouldValidate: !!error("engine_number") },
-                      );
-                    }
+                    form.setValue("engine_number", val.trim().toUpperCase(), {
+                      shouldValidate: true,
+                      shouldTouch: true,
+                    });
                   }}
                   placeholder="Nhập số máy (nếu có)"
                 />
@@ -396,13 +417,10 @@ function AcquisitionEditor() {
                   {...form.register("license_plate")}
                   onBlur={() => {
                     const val = form.getValues("license_plate");
-                    if (val.trim()) {
-                      form.setValue(
-                        "license_plate",
-                        canonicalizePlate(val),
-                        { shouldValidate: !!error("license_plate") },
-                      );
-                    }
+                    form.setValue("license_plate", canonicalizePlate(val), {
+                      shouldValidate: true,
+                      shouldTouch: true,
+                    });
                   }}
                   placeholder={PLATE_EXAMPLE}
                 />
@@ -414,7 +432,7 @@ function AcquisitionEditor() {
                   value={brand}
                   onChange={(value) => setText("brand", value)}
                   onBlur={() => {
-                    if (brand.trim()) void form.trigger("brand");
+                    void form.trigger("brand");
                   }}
                   suggestions={suggestions("brand")}
                   placeholder="Ví dụ: Honda"
@@ -428,8 +446,7 @@ function AcquisitionEditor() {
                   value={form.watch("model")}
                   onChange={(value) => setText("model", value)}
                   onBlur={() => {
-                    if (form.getValues("model").trim())
-                      void form.trigger("model");
+                    void form.trigger("model");
                   }}
                   suggestions={suggestions("model")}
                   placeholder="Ví dụ: SH 160i, Vision…"
@@ -442,6 +459,7 @@ function AcquisitionEditor() {
                   aria-label="Phiên bản"
                   value={form.watch("variant")}
                   onChange={(value) => setText("variant", value)}
+                  onBlur={() => void form.trigger("variant")}
                   suggestions={suggestions("variant")}
                   placeholder="ABS, Cao cấp, Đặc biệt…"
                 />
@@ -483,6 +501,7 @@ function AcquisitionEditor() {
                   aria-label="Màu sắc"
                   value={form.watch("color")}
                   onChange={(value) => setText("color", value)}
+                  onBlur={() => void form.trigger("color")}
                   suggestions={suggestions("color")}
                   placeholder="Ví dụ: Đỏ đen, Trắng…"
                 />
@@ -494,18 +513,19 @@ function AcquisitionEditor() {
                   value={form.watch("odometer")}
                   onBlur={() => void form.trigger("odometer")}
                   onChange={(digits) =>
-                    form.setValue("odometer", digits ? Number(digits) : undefined, {
-                      shouldDirty: true,
-                      shouldValidate: !!error("odometer"),
-                    })
+                    form.setValue(
+                      "odometer",
+                      digits ? Number(digits) : undefined,
+                      {
+                        shouldDirty: true,
+                        shouldValidate: !!error("odometer"),
+                      },
+                    )
                   }
                 />
               </Field>
 
-              <Field
-                label="Giá bán dự kiến (₫)"
-                error={error("asking_price")}
-              >
+              <Field label="Giá bán dự kiến (₫)" error={error("asking_price")}>
                 <MoneyInput
                   aria-label="Giá bán dự kiến (₫)"
                   placeholder="Ví dụ: 95tr hoặc 95.000.000"
@@ -591,11 +611,10 @@ function AcquisitionEditor() {
                   {...form.register("seller_name")}
                   onBlur={() => {
                     const val = form.getValues("seller_name");
-                    if (val) {
-                      form.setValue("seller_name", val.trim(), {
-                        shouldValidate: !!error("seller_name"),
-                      });
-                    }
+                    form.setValue("seller_name", val.trim(), {
+                      shouldValidate: true,
+                      shouldTouch: true,
+                    });
                   }}
                   placeholder="Họ và tên người bán"
                 />
@@ -610,11 +629,10 @@ function AcquisitionEditor() {
                   {...form.register("seller_phone")}
                   onBlur={() => {
                     const val = form.getValues("seller_phone");
-                    if (val) {
-                      form.setValue("seller_phone", val.trim(), {
-                        shouldValidate: !!error("seller_phone"),
-                      });
-                    }
+                    form.setValue("seller_phone", val.trim(), {
+                      shouldValidate: true,
+                      shouldTouch: true,
+                    });
                   }}
                   placeholder="09xx xxx xxx"
                 />
@@ -760,14 +778,8 @@ function AcquisitionEditor() {
                       {money(pendingConfirmation.purchase_price)}
                     </strong>
                     <span className="price-words">
-                      {formatVndApproxText(
-                        pendingConfirmation.purchase_price,
-                      )}{" "}
-                      (
-                      {formatVndWords(
-                        pendingConfirmation.purchase_price,
-                      )}
-                      )
+                      {formatVndApproxText(pendingConfirmation.purchase_price)}{" "}
+                      ({formatVndWords(pendingConfirmation.purchase_price)})
                     </span>
                   </div>
                 </div>

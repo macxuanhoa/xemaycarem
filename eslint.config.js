@@ -37,7 +37,13 @@ export default tseslint.config(
     languageOptions: { globals: globals.node },
   },
   {
-    files: ["tests/e2e/**/*.mjs", "scripts/check-pwa.mjs"],
+    files: [
+      "tests/e2e/**/*.mjs",
+      "tests/helpers/uiux-fixtures.mjs",
+      "scripts/check-pwa.mjs",
+      "scripts/capture-uiux.mjs",
+      "scripts/preview-capture.mjs",
+    ],
     languageOptions: { globals: { ...globals.node, ...globals.browser } },
   },
 );

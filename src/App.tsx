@@ -11,41 +11,41 @@ import { Toaster } from "@/components/ui/Toaster";
 import { ConfirmDialogHost } from "@/components/ui/ConfirmDialog";
 const DashboardPage = lazy(() => import("@/features/dashboard/DashboardPage"));
 const AcquisitionsPage = lazy(() =>
-  import("@/features/acquisitions/AcquisitionPages").then((m) => ({
+  import("@/features/acquisitions/AcquisitionsPage").then((m) => ({
     default: m.AcquisitionsPage,
   })),
 );
 const AcquisitionFormPage = lazy(() =>
-  import("@/features/acquisitions/AcquisitionPages").then((m) => ({
+  import("@/features/acquisitions/AcquisitionFormPage").then((m) => ({
     default: m.AcquisitionFormPage,
   })),
 );
 const ShorthandIntakePage = lazy(() => import("@/features/intake/ShorthandIntakePage"));
 const InventoryPage = lazy(() =>
-  import("@/features/vehicles/VehiclePages").then((m) => ({
+  import("@/features/vehicles/InventoryPage").then((m) => ({
     default: m.InventoryPage,
   })),
 );
 const VehicleFormPage = lazy(() =>
-  import("@/features/vehicles/VehiclePages").then((m) => ({
+  import("@/features/vehicles/VehicleFormPage").then((m) => ({
     default: m.VehicleFormPage,
   })),
 );
 const VehicleDetailPage = lazy(() =>
-  import("@/features/vehicles/VehiclePages").then((m) => ({
+  import("@/features/vehicles/VehicleDetailPage").then((m) => ({
     default: m.VehicleDetailPage,
   })),
 );
 const SalesPage = lazy(() =>
-  import("@/features/sales/SalePages").then((m) => ({ default: m.SalesPage })),
+  import("@/features/sales/SalesPage").then((m) => ({ default: m.SalesPage })),
 );
 const SaleDetailPage = lazy(() =>
-  import("@/features/sales/SalePages").then((m) => ({
+  import("@/features/sales/SaleDetailPage").then((m) => ({
     default: m.SaleDetailPage,
   })),
 );
 const SellVehiclePage = lazy(() =>
-  import("@/features/sales/SalePages").then((m) => ({
+  import("@/features/sales/SellVehiclePage").then((m) => ({
     default: m.SellVehiclePage,
   })),
 );

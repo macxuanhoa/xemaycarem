@@ -109,11 +109,12 @@ export default function SettingsPage() {
       {/* CATEGORY TAB BAR */}
       <div
         className="settings-tabs-nav"
-        role="tablist"
+        role="group"
         aria-label="Danh mục cài đặt"
       >
         <button
           type="button"
+          aria-pressed={activeTab === "PROFILE"}
           className={`settings-nav-item ${activeTab === "PROFILE" ? "active" : ""}`}
           onClick={() => setActiveTab("PROFILE")}
         >
@@ -122,6 +123,7 @@ export default function SettingsPage() {
         {isOwner(profile) && (
           <button
             type="button"
+            aria-pressed={activeTab === "STORE"}
             className={`settings-nav-item ${activeTab === "STORE" ? "active" : ""}`}
             onClick={() => setActiveTab("STORE")}
           >
@@ -131,6 +133,7 @@ export default function SettingsPage() {
         {isOwner(profile) && (
           <button
             type="button"
+            aria-pressed={activeTab === "SCHEDULE"}
             className={`settings-nav-item ${activeTab === "SCHEDULE" ? "active" : ""}`}
             onClick={() => setActiveTab("SCHEDULE")}
           >
@@ -140,6 +143,7 @@ export default function SettingsPage() {
         {isOwner(profile) && (
           <button
             type="button"
+            aria-pressed={activeTab === "MESSAGES"}
             className={`settings-nav-item ${activeTab === "MESSAGES" ? "active" : ""}`}
             onClick={() => setActiveTab("MESSAGES")}
           >
@@ -149,6 +153,7 @@ export default function SettingsPage() {
         {isOwner(profile) && (
           <button
             type="button"
+            aria-pressed={activeTab === "QUICKPICK"}
             className={`settings-nav-item ${activeTab === "QUICKPICK" ? "active" : ""}`}
             onClick={() => setActiveTab("QUICKPICK")}
           >
@@ -157,6 +162,7 @@ export default function SettingsPage() {
         )}
         <button
           type="button"
+          aria-pressed={activeTab === "DEVICE"}
           className={`settings-nav-item ${activeTab === "DEVICE" ? "active" : ""}`}
           onClick={() => setActiveTab("DEVICE")}
         >

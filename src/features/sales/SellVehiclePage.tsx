@@ -1,7 +1,8 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useDebouncedValue } from "@/lib/useDebouncedValue";
 import { useFormDraft } from "@/lib/useFormDraft";
 import { MoneyInput } from "@/components/ui/MoneyInput";
+import { confirmAction } from "@/components/ui/ConfirmDialog";
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
@@ -12,7 +13,7 @@ import { AppError } from "@/lib/errors";
 import { executeOperation } from "@/lib/operationRecovery";
 import { OperationRecoveryNotice } from "@/components/OperationRecoveryNotice";
 import { canFinance, canOperate } from "@/lib/permissions";
-import { money, today } from "@/lib/format";
+import { dateLabel, money, today } from "@/lib/format";
 import { useAuth } from "@/features/auth/AuthProvider";
 import {
   Badge,
@@ -26,6 +27,7 @@ import {
   PageHeader,
   Pagination,
 } from "@/components/ui";
+import { Highlight } from "@/components/search/Highlight";
 import type { Paged, Vehicle } from "@/types";
 import { AVAILABLE_VEHICLE_FILTER } from "@/lib/vehicleFilters";
 import { paymentLabels } from "@/features/vehicles/vehicleSchema";
@@ -118,11 +120,11 @@ export function SellVehiclePage() {
                   </span>
                   <div>
                     <strong>
-                      {item.brand} {item.model}
+                      <Highlight text={`${item.brand} ${item.model}`} query={deferredSearch} />
                     </strong>
                     <small>
-                      {item.internal_code} ·{" "}
-                      {item.license_plate || "Chưa có biển số"}
+                      <Highlight text={item.internal_code} query={deferredSearch} /> ·{" "}
+                      {item.license_plate ? <Highlight text={item.license_plate} query={deferredSearch} /> : "Chưa có biển số"}
                     </small>
                   </div>
                 </div>
@@ -228,6 +230,12 @@ function SaleEditor({ vehicle }: { vehicle: Vehicle }) {
   const draft = draftState.draft;
   const price = form.watch("sale_price");
   const paid = form.watch("initial_payment");
+  const paymentValid = Number.isFinite(price) && Number.isFinite(paid) && paid <= price;
+  const remaining = paymentValid ? price - paid : undefined;
+  const priceField = form.register("sale_price");
+  const paidField = form.register("initial_payment");
+  const reviewPending = useRef(false);
+  const [reviewing, setReviewing] = useState(false);
 
   const mutation = useMutation({
     mutationFn: (values: SaleFormValues) => {
@@ -251,6 +259,41 @@ function SaleEditor({ vehicle }: { vehicle: Vehicle }) {
 
   const error = (key: keyof SaleFormValues) =>
     form.formState.errors[key]?.message;
+
+  const reviewSale = async (values: SaleFormValues) => {
+    if (reviewPending.current || mutation.isPending) return;
+    reviewPending.current = true;
+    setReviewing(true);
+    // Review and send the same validated values, even if form state later changes.
+    const snapshot = Object.freeze({ ...values });
+    try {
+      const confirmed = await confirmAction({
+        title: "Kiểm tra giao dịch bán xe",
+        description: "Đối chiếu khách hàng và số tiền thực tế trước khi ghi nhận.",
+        confirmLabel: "Xác nhận bán xe",
+        cancelLabel: "Quay lại chỉnh sửa",
+        summary: (
+          <dl className="summary-list sale-review-summary">
+            <div><dt>Xe</dt><dd>{[vehicle.brand, vehicle.model].filter(Boolean).join(" ") || "Chưa có tên xe"}</dd></div>
+            <div><dt>Biển số / mã xe</dt><dd>{vehicle.license_plate || "Chưa có biển số"} · {vehicle.internal_code}</dd></div>
+            <div><dt>Khách hàng</dt><dd>{snapshot.customer_name}</dd></div>
+            <div><dt>Số điện thoại</dt><dd>{snapshot.customer_phone || "Chưa cung cấp"}</dd></div>
+            <div><dt>Ngày bán</dt><dd>{dateLabel(snapshot.sale_date)}</dd></div>
+            <div><dt>Hình thức thu</dt><dd>{paymentLabels[snapshot.payment_method]}</dd></div>
+            <div><dt>Giá bán</dt><dd>{money(snapshot.sale_price)}</dd></div>
+            <div><dt>Thu lần đầu</dt><dd>{money(snapshot.initial_payment)}</dd></div>
+            <div className="summary-total"><dt>Còn phải thu</dt><dd>{money(snapshot.sale_price - snapshot.initial_payment)}</dd></div>
+            <div><dt>Hạn thanh toán</dt><dd>{snapshot.due_date ? dateLabel(snapshot.due_date) : "Chưa hẹn ngày"}</dd></div>
+            {snapshot.notes && <div><dt>Ghi chú</dt><dd>{snapshot.notes}</dd></div>}
+          </dl>
+        ),
+      });
+      if (confirmed) mutation.mutate(snapshot);
+    } finally {
+      reviewPending.current = false;
+      setReviewing(false);
+    }
+  };
 
   return (
     <div className="stack">
@@ -290,16 +333,16 @@ function SaleEditor({ vehicle }: { vehicle: Vehicle }) {
         </div>
       )}
       <form
-        onSubmit={form.handleSubmit((values) => mutation.mutate(values))}
-        className="detail-grid"
+        onSubmit={form.handleSubmit(reviewSale)}
+        className="detail-grid sale-form"
+        aria-busy={mutation.isPending || reviewing}
       >
-        <div className="stack">
+        <div className="stack sale-editor-fields">
           <Card>
             <h2 className="section-title">Khách hàng</h2>
             <div className="form-grid">
               <Field label="Tên khách hàng *" error={error("customer_name")}>
                 <input
-                  autoFocus
                   autoComplete="name"
                   {...form.register("customer_name")}
                   placeholder="Họ và tên khách hàng"
@@ -320,7 +363,12 @@ function SaleEditor({ vehicle }: { vehicle: Vehicle }) {
               <Field label="Giá bán thực tế (₫) *" error={error("sale_price")}>
                 <MoneyInput
                   aria-label="Giá bán thực tế (₫) *"
+                  name={priceField.name}
+                  ref={priceField.ref}
                   value={price}
+                  min={0}
+                  required
+                  onBlur={() => void form.trigger("sale_price")}
                   onChange={(value) =>
                     form.setValue("sale_price", value ?? Number.NaN, {
                       shouldValidate: true,
@@ -350,7 +398,11 @@ function SaleEditor({ vehicle }: { vehicle: Vehicle }) {
               >
                 <MoneyInput
                   aria-label="Thu tiền lần đầu (₫)"
+                  name={paidField.name}
+                  ref={paidField.ref}
                   value={paid}
+                  min={0}
+                  onBlur={() => void form.trigger("initial_payment")}
                   onChange={(value) =>
                     form.setValue("initial_payment", value ?? Number.NaN, {
                       shouldValidate: true,
@@ -397,9 +449,16 @@ function SaleEditor({ vehicle }: { vehicle: Vehicle }) {
                   )}
               </Field>
             </div>
+            <dl className="summary-list sale-payment-summary" data-state={paymentValid ? "valid" : "invalid"} aria-label="Tóm tắt thanh toán">
+              <div><dt>Giá bán</dt><dd>{Number.isFinite(price) ? money(price) : "Chưa hợp lệ"}</dd></div>
+              <div><dt>Thu lần đầu</dt><dd>{Number.isFinite(paid) ? money(paid) : "Chưa hợp lệ"}</dd></div>
+              <div className="summary-total"><dt>Còn phải thu</dt><dd>{paymentValid ? money(remaining) : "Kiểm tra số tiền"}</dd></div>
+            </dl>
+            <div className="sale-payment-shortcuts">
             <Button
               type="button"
-              variant="ghost"
+              variant="secondary"
+              disabled={!Number.isFinite(price) || mutation.isPending || reviewing}
               onClick={() => {
                 form.setValue(
                   "initial_payment",
@@ -411,6 +470,7 @@ function SaleEditor({ vehicle }: { vehicle: Vehicle }) {
             >
               Đã thu đủ tiền
             </Button>
+            </div>
             <Field label="Ghi chú" error={error("notes")}>
               <textarea
                 rows={3}
@@ -456,20 +516,16 @@ function SaleEditor({ vehicle }: { vehicle: Vehicle }) {
               )}
               <div>
                 <dt>Giá bán</dt>
-                <dd>{money(Number.isFinite(price) ? price : 0)}</dd>
+                <dd>{Number.isFinite(price) ? money(price) : "Chưa hợp lệ"}</dd>
               </div>
               <div>
                 <dt>Thu lần đầu</dt>
-                <dd>{money(Number.isFinite(paid) ? paid : 0)}</dd>
+                <dd>{Number.isFinite(paid) ? money(paid) : "Chưa hợp lệ"}</dd>
               </div>
               <div className="summary-total">
                 <dt>Còn phải thu</dt>
                 <dd>
-                  {money(
-                    Number.isFinite(price - paid)
-                      ? Math.max(0, price - paid)
-                      : 0,
-                  )}
+                  {paymentValid ? money(remaining) : "Kiểm tra số tiền"}
                 </dd>
               </div>
             </dl>
@@ -481,7 +537,7 @@ function SaleEditor({ vehicle }: { vehicle: Vehicle }) {
               <Button
                 type="submit"
                 className="full-width"
-                disabled={mutation.isPending}
+                disabled={mutation.isPending || reviewing}
               >
                 <ShoppingBag size={17} />
                 {mutation.isPending ? "Đang hoàn tất…" : "Xác nhận bán xe"}

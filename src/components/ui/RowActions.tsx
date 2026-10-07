@@ -1,6 +1,7 @@
 import type { MouseEvent } from "react";
 import { Link, type To } from "react-router-dom";
 import { Eye, Trash2 } from "lucide-react";
+import { preloadRoute } from "@/lib/routePreload";
 
 /**
  * The two row affordances shared by the "Thu vào" (acquisitions) and "Tồn kho"
@@ -28,14 +29,23 @@ export function RowViewAction({
   onMouseEnter,
   onFocus,
 }: ViewActionProps) {
+  const handleMouseEnter = () => {
+    if (typeof to === "string") preloadRoute(to);
+    onMouseEnter?.();
+  };
+  const handleFocus = () => {
+    if (typeof to === "string") preloadRoute(to);
+    onFocus?.();
+  };
+
   return (
     <Link
       className="row-action row-view"
       to={to}
       state={state}
       onClick={onClick}
-      onMouseEnter={onMouseEnter}
-      onFocus={onFocus}
+      onMouseEnter={handleMouseEnter}
+      onFocus={handleFocus}
       aria-label={`Xem chi tiết ${label}`}
       title={`Xem chi tiết ${label}`}
     >

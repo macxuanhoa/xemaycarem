@@ -28,6 +28,7 @@ import {
 import { useAuth } from "@/features/auth/AuthProvider";
 import { api } from "@/lib/api";
 import { useDialog } from "@/lib/useDialog";
+import { Highlight } from "@/components/search/Highlight";
 import type { Paged, ShowroomVehicle } from "@/types";
 import {
   buybackLeadSchema,
@@ -118,10 +119,13 @@ export default function ShowroomPage() {
       const matchBrand =
         selectedBrand === "ALL" ||
         bike.vehicle.brand.toLowerCase() === selectedBrand.toLowerCase();
-      const matchTab = selectedTab === "ALL" || (selectedTab === "NEW" && bike.isNew);
-      const haystack = `${bike.name} ${bike.plate ?? ""} ${bike.vehicle.color}`.toLowerCase();
+      const matchTab =
+        selectedTab === "ALL" || (selectedTab === "NEW" && bike.isNew);
+      const haystack =
+        `${bike.name} ${bike.plate ?? ""} ${bike.vehicle.color}`.toLowerCase();
       const matchSearch =
-        !searchQuery.trim() || haystack.includes(searchQuery.trim().toLowerCase());
+        !searchQuery.trim() ||
+        haystack.includes(searchQuery.trim().toLowerCase());
       return matchBrand && matchTab && matchSearch;
     });
   }, [bikes, selectedBrand, selectedTab, searchQuery]);
@@ -159,10 +163,7 @@ export default function ShowroomPage() {
     setSellErrors({});
     sellMutation.reset();
   };
-  const bikeDialogRef = useDialog(
-    !!selectedBike,
-    () => setSelectedBike(null),
-  );
+  const bikeDialogRef = useDialog(!!selectedBike, () => setSelectedBike(null));
   const sellDialogRef = useDialog(
     sellModalOpen,
     closeSellModal,
@@ -251,9 +252,7 @@ export default function ShowroomPage() {
               <span className="brand-title">
                 CÀ REM <span className="brand-accent">MOTORCYCLES</span>
               </span>
-              <span className="brand-slogan">
-                XE MÁY CŨ UY TÍN TẠI HỘI AN
-              </span>
+              <span className="brand-slogan">XE MÁY CŨ UY TÍN TẠI HỘI AN</span>
             </div>
           </Link>
 
@@ -262,7 +261,11 @@ export default function ShowroomPage() {
             <a href="#xe-dang-ban" className="nav-item">
               Xe đang bán
             </a>
-            <a href="#xe-dang-ban" className="nav-item" onClick={() => setSelectedTab("NEW")}>
+            <a
+              href="#xe-dang-ban"
+              className="nav-item"
+              onClick={() => setSelectedTab("NEW")}
+            >
               Xe mới về
             </a>
             <a href="#quy-trinh" className="nav-item">
@@ -318,14 +321,20 @@ export default function ShowroomPage() {
             <a
               href="#xe-dang-ban"
               className="mobile-link"
-              onClick={() => { setSelectedTab("ALL"); setMobileMenuOpen(false); }}
+              onClick={() => {
+                setSelectedTab("ALL");
+                setMobileMenuOpen(false);
+              }}
             >
               Xe đang bán
             </a>
             <a
               href="#xe-dang-ban"
               className="mobile-link"
-              onClick={() => { setSelectedTab("NEW"); setMobileMenuOpen(false); }}
+              onClick={() => {
+                setSelectedTab("NEW");
+                setMobileMenuOpen(false);
+              }}
             >
               Xe mới về
             </a>
@@ -369,7 +378,10 @@ export default function ShowroomPage() {
             <button
               type="button"
               className="mobile-hotline-btn"
-              onClick={() => { setSellModalOpen(true); setMobileMenuOpen(false); }}
+              onClick={() => {
+                setSellModalOpen(true);
+                setMobileMenuOpen(false);
+              }}
             >
               <Tag size={16} /> Định giá xe cần bán
             </button>
@@ -399,9 +411,7 @@ export default function ShowroomPage() {
             CÀ REM <span className="title-highlight">MOTORCYCLES</span>
           </h1>
 
-          <p className="hero-slogan">
-            Xe đẹp. Giá rõ ràng. Mua bán nhanh gọn.
-          </p>
+          <p className="hero-slogan">Xe đẹp. Giá rõ ràng. Mua bán nhanh gọn.</p>
 
           <p className="hero-description">
             Tuyển chọn khắt khe từng chiếc xe máy cũ chất lượng cao tại Hội An.
@@ -459,26 +469,36 @@ export default function ShowroomPage() {
       <section className="showroom-quick-actions-section">
         <div className="showroom-container">
           <div className="quick-action-neon-grid">
-            <a href="#xe-dang-ban" className="neon-card" onClick={() => setSelectedTab("ALL")}>
+            <a
+              href="#xe-dang-ban"
+              className="neon-card"
+              onClick={() => setSelectedTab("ALL")}
+            >
               <div className="neon-card-icon">
                 <Bike size={32} />
               </div>
               <h3 className="neon-card-title">Xe đang bán</h3>
               <p className="neon-card-desc">
-                Kho xe tuyển chọn phong phú các dòng Honda, Yamaha, Vespa sẵn sàng tại cửa hàng.
+                Kho xe tuyển chọn phong phú các dòng Honda, Yamaha, Vespa sẵn
+                sàng tại cửa hàng.
               </p>
               <span className="neon-card-link">
                 Xem kho xe <ChevronRight size={15} />
               </span>
             </a>
 
-            <a href="#xe-dang-ban" className="neon-card" onClick={() => setSelectedTab("NEW")}>
+            <a
+              href="#xe-dang-ban"
+              className="neon-card"
+              onClick={() => setSelectedTab("NEW")}
+            >
               <div className="neon-card-icon">
                 <Sparkles size={32} />
               </div>
               <h3 className="neon-card-title">Xe mới về</h3>
               <p className="neon-card-desc">
-                Cập nhật liên tục các đời xe SH, NVX, Vision lướt vừa cập bến Hội An hôm nay.
+                Cập nhật liên tục các đời xe SH, NVX, Vision lướt vừa cập bến
+                Hội An hôm nay.
               </p>
               <span className="neon-card-link">
                 Xem xe mới về <ChevronRight size={15} />
@@ -491,20 +511,25 @@ export default function ShowroomPage() {
               </div>
               <h3 className="neon-card-title">Hỗ trợ trả góp</h3>
               <p className="neon-card-desc">
-                Liên kết các ngân hàng uy tín. Chỉ cần CCCD, không chứng minh thu nhập, nhận xe ngay.
+                Liên kết các ngân hàng uy tín. Chỉ cần CCCD, không chứng minh
+                thu nhập, nhận xe ngay.
               </p>
               <span className="neon-card-link">
                 Tư vấn trả góp <ChevronRight size={15} />
               </span>
             </a>
 
-            <div className="neon-card highlight" onClick={() => setSellModalOpen(true)}>
+            <div
+              className="neon-card highlight"
+              onClick={() => setSellModalOpen(true)}
+            >
               <div className="neon-card-icon">
                 <Handshake size={32} />
               </div>
               <h3 className="neon-card-title">Thu mua xe cũ</h3>
               <p className="neon-card-desc">
-                Định giá công tâm, tiền mặt liền tay trong 10 phút. Hỗ trợ đến tận nơi tại Hội An.
+                Định giá công tâm, tiền mặt liền tay trong 10 phút. Hỗ trợ đến
+                tận nơi tại Hội An.
               </p>
               <span className="neon-card-link">
                 Bán xe ngay <ChevronRight size={15} />
@@ -523,8 +548,8 @@ export default function ShowroomPage() {
               Xe đang có tại <span className="text-red">Cà Rem</span>
             </h2>
             <p className="section-subtitle">
-              Tất cả xe đều được kỹ thuật viên kiểm định 28 hạng mục, vệ sinh bảo
-              dưỡng kỹ càng trước khi bàn giao chìa khóa.
+              Tất cả xe đều được kỹ thuật viên kiểm định 28 hạng mục, vệ sinh
+              bảo dưỡng kỹ càng trước khi bàn giao chìa khóa.
             </p>
           </div>
 
@@ -544,7 +569,8 @@ export default function ShowroomPage() {
                 className={`inv-tab ${selectedTab === "NEW" ? "active" : ""}`}
                 onClick={() => setSelectedTab("NEW")}
               >
-                <Sparkles size={13} /> Xe mới về ({bikes.filter((b) => b.isNew).length})
+                <Sparkles size={13} /> Xe mới về (
+                {bikes.filter((b) => b.isNew).length})
               </button>
             </div>
 
@@ -567,7 +593,8 @@ export default function ShowroomPage() {
               <Search size={16} className="search-icon" />
               <input
                 type="text"
-                placeholder="Tìm xe: SH, NVX, Vision, Exciter..."
+                placeholder="Tìm xe: SH, NVX, Vision, Exciter…"
+                aria-label="Tìm xe tại Showroom"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
               />
@@ -613,110 +640,113 @@ export default function ShowroomPage() {
             </div>
           ) : (
             <>
-          {/* Bike Cards Grid */}
-          <div className="showroom-bike-grid">
-            {filteredBikes.map((bike) => (
-              <div key={bike.vehicle.id} className="bike-card-neon">
-                {/* Ảnh thật của xe ở storage riêng tư — dùng placeholder có chủ đích */}
-                <div
-                  className="bike-card-image-wrap"
-                  onClick={() => setSelectedBike(bike)}
-                >
-                  <div className="bike-card-image-placeholder">
-                    <Bike size={52} />
-                    <span>{bike.name}</span>
-                  </div>
-                  <div className="bike-badges-floating">
-                    {bike.isNew && (
-                      <span className="badge-pill badge-new">MỚI VỀ</span>
-                    )}
-                  </div>
-                  {bike.plate && <span className="badge-plate">{bike.plate}</span>}
-                  <div className="bike-image-hover-overlay">
-                    <span>Xem chi tiết thông số →</span>
-                  </div>
-                </div>
-
-                {/* Content — 100% số liệu từ hồ sơ xe thật */}
-                <div className="bike-card-body">
-                  <div className="bike-brand-year">
-                    <span className="bike-brand">{bike.vehicle.brand}</span>
-                    {bike.yearLabel && (
-                      <span className="bike-year">{bike.yearLabel}</span>
-                    )}
-                    {bike.odoLabel && (
-                      <span className="bike-odo">• {bike.odoLabel}</span>
-                    )}
-                  </div>
-
-                  <h3
-                    className="bike-card-title"
-                    onClick={() => setSelectedBike(bike)}
-                  >
-                    {bike.name}
-                  </h3>
-
-                  <p className="bike-condition-tag">
-                    <CheckCircle2 size={13} />
-                    {bike.vehicle.color
-                      ? `Màu ${bike.vehicle.color}`
-                      : "Xe tuyển chọn tại Cà Rem"}
-                  </p>
-
-                  <div className="bike-price-row">
-                    <div className="price-block">
-                      <span className="price-label">Giá niêm yết:</span>
-                      <strong className="price-amount">
-                        {bike.vehicle.asking_price.toLocaleString("vi-VN")} đ
-                      </strong>
-                    </div>
-                  </div>
-
-                  {/* Action Buttons */}
-                  <div className="bike-actions-row">
-                    <button
-                      type="button"
-                      className="btn-card-detail"
+              {/* Bike Cards Grid */}
+              <div className="showroom-bike-grid">
+                {filteredBikes.map((bike) => (
+                  <div key={bike.vehicle.id} className="bike-card-neon">
+                    {/* Ảnh thật của xe ở storage riêng tư — dùng placeholder có chủ đích */}
+                    <div
+                      className="bike-card-image-wrap"
                       onClick={() => setSelectedBike(bike)}
                     >
-                      Chi tiết
-                    </button>
-                    <button
-                      type="button"
-                      className="btn-card-zalo"
-                      onClick={() => openZaloConsult(bike)}
-                      title="Nhắn Zalo tư vấn xe này"
-                    >
-                      <MessageCircle size={15} />
-                      <span>Hỏi Zalo</span>
-                    </button>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
+                      <div className="bike-card-image-placeholder">
+                        <Bike size={52} />
+                        <span>{bike.name}</span>
+                      </div>
+                      <div className="bike-badges-floating">
+                        {bike.isNew && (
+                          <span className="badge-pill badge-new">MỚI VỀ</span>
+                        )}
+                      </div>
+                      {bike.plate && (
+                        <span className="badge-plate"><Highlight text={bike.plate} query={searchQuery} /></span>
+                      )}
+                      <div className="bike-image-hover-overlay">
+                        <span>Xem chi tiết thông số →</span>
+                      </div>
+                    </div>
 
-          {filteredBikes.length === 0 && (
-            <div className="showroom-empty-state">
-              <Bike size={48} className="empty-icon" />
-              <h3>Không tìm thấy chiếc xe phù hợp</h3>
-              <p>
-                Cửa hàng liên tục cập nhật xe mới hàng ngày. Bạn hãy nhắn tin
-                Zalo để Cà Rem tìm xe đúng yêu cầu cho bạn nhé!
-              </p>
-              <button
-                type="button"
-                className="btn-hero-primary"
-                onClick={() => {
-                  setSelectedBrand("ALL");
-                  setSelectedTab("ALL");
-                  setSearchQuery("");
-                }}
-              >
-                Xem tất cả xe
-              </button>
-            </div>
-          )}
+                    {/* Content — 100% số liệu từ hồ sơ xe thật */}
+                    <div className="bike-card-body">
+                      <div className="bike-brand-year">
+                        <span className="bike-brand"><Highlight text={bike.vehicle.brand} query={searchQuery} /></span>
+                        {bike.yearLabel && (
+                          <span className="bike-year">{bike.yearLabel}</span>
+                        )}
+                        {bike.odoLabel && (
+                          <span className="bike-odo">• {bike.odoLabel}</span>
+                        )}
+                      </div>
+
+                      <h3
+                        className="bike-card-title"
+                        onClick={() => setSelectedBike(bike)}
+                      >
+                        <Highlight text={bike.name} query={searchQuery} />
+                      </h3>
+
+                      <p className="bike-condition-tag">
+                        <CheckCircle2 size={13} />
+                        {bike.vehicle.color
+                          ? `Màu ${bike.vehicle.color}`
+                          : "Xe tuyển chọn tại Cà Rem"}
+                      </p>
+
+                      <div className="bike-price-row">
+                        <div className="price-block">
+                          <span className="price-label">Giá niêm yết:</span>
+                          <strong className="price-amount">
+                            {bike.vehicle.asking_price.toLocaleString("vi-VN")}{" "}
+                            đ
+                          </strong>
+                        </div>
+                      </div>
+
+                      {/* Action Buttons */}
+                      <div className="bike-actions-row">
+                        <button
+                          type="button"
+                          className="btn-card-detail"
+                          onClick={() => setSelectedBike(bike)}
+                        >
+                          Chi tiết
+                        </button>
+                        <button
+                          type="button"
+                          className="btn-card-zalo"
+                          onClick={() => openZaloConsult(bike)}
+                          title="Nhắn Zalo tư vấn xe này"
+                        >
+                          <MessageCircle size={15} />
+                          <span>Hỏi Zalo</span>
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {filteredBikes.length === 0 && (
+                <div className="showroom-empty-state">
+                  <Bike size={48} className="empty-icon" />
+                  <h3>Không tìm thấy chiếc xe phù hợp</h3>
+                  <p>
+                    Cửa hàng liên tục cập nhật xe mới hàng ngày. Bạn hãy nhắn
+                    tin Zalo để Cà Rem tìm xe đúng yêu cầu cho bạn nhé!
+                  </p>
+                  <button
+                    type="button"
+                    className="btn-hero-primary"
+                    onClick={() => {
+                      setSelectedBrand("ALL");
+                      setSelectedTab("ALL");
+                      setSearchQuery("");
+                    }}
+                  >
+                    Xem tất cả xe
+                  </button>
+                </div>
+              )}
             </>
           )}
         </div>
@@ -739,7 +769,9 @@ export default function ShowroomPage() {
               </div>
               <div className="owner-contact-pill">
                 <strong>Hậu · Cà Rem Hội An</strong>
-                <a href="tel:0914929292"><PhoneCall size={13} /> 0914.92.92.92</a>
+                <a href="tel:0914929292">
+                  <PhoneCall size={13} /> 0914.92.92.92
+                </a>
               </div>
             </div>
 
@@ -785,8 +817,8 @@ export default function ShowroomPage() {
                   <div>
                     <strong>Bảo hành chu đáo</strong>
                     <p>
-                      Bảo hành động cơ từ 6 đến 12 tháng. Miễn phí bảo dưỡng, thay
-                      nhớt trước khi giao xe.
+                      Bảo hành động cơ từ 6 đến 12 tháng. Miễn phí bảo dưỡng,
+                      thay nhớt trước khi giao xe.
                     </p>
                   </div>
                 </div>
@@ -796,8 +828,8 @@ export default function ShowroomPage() {
                   <div>
                     <strong>Bao quay đầu linh hoạt</strong>
                     <p>
-                      Hỗ trợ đổi xe, lên đời hoặc thu mua lại với mức khấu hao cực
-                      kỳ ưu đãi cho khách cũ.
+                      Hỗ trợ đổi xe, lên đời hoặc thu mua lại với mức khấu hao
+                      cực kỳ ưu đãi cho khách cũ.
                     </p>
                   </div>
                 </div>
@@ -813,7 +845,8 @@ export default function ShowroomPage() {
           <div className="process-header">
             <span className="eyebrow-red">ĐỊNH GIÁ NHANH TRONG 5 PHÚT</span>
             <h2 className="section-title-large">
-              Bạn Muốn Bán Xe? <span className="text-red">Cà Rem Thu Mua Giá Cao</span>
+              Bạn Muốn Bán Xe?{" "}
+              <span className="text-red">Cà Rem Thu Mua Giá Cao</span>
             </h2>
             <p className="section-subtitle">
               Chuyên thu mua và ký gửi các dòng xe máy: SH, Vespa, Air Blade,
@@ -825,28 +858,40 @@ export default function ShowroomPage() {
             <div className="process-step-item">
               <span className="step-number">01</span>
               <h4>Gửi thông tin xe</h4>
-              <p>Chụp ảnh xe và gửi đăng ký xe qua Zalo 0914.92.92.92 hoặc form web.</p>
+              <p>
+                Chụp ảnh xe và gửi đăng ký xe qua Zalo 0914.92.92.92 hoặc form
+                web.
+              </p>
             </div>
             <div className="step-arrow">→</div>
 
             <div className="process-step-item">
               <span className="step-number">02</span>
               <h4>Kiểm tra & Định giá</h4>
-              <p>Cà Rem kiểm tra tình trạng máy móc, báo giá công khai đúng giá trị thực.</p>
+              <p>
+                Cà Rem kiểm tra tình trạng máy móc, báo giá công khai đúng giá
+                trị thực.
+              </p>
             </div>
             <div className="step-arrow">→</div>
 
             <div className="process-step-item">
               <span className="step-number">03</span>
               <h4>Báo giá chuẩn xác</h4>
-              <p>Cam kết giá thu mua cạnh tranh, không ép giá, hỗ trợ đến tận nhà xem xe.</p>
+              <p>
+                Cam kết giá thu mua cạnh tranh, không ép giá, hỗ trợ đến tận nhà
+                xem xe.
+              </p>
             </div>
             <div className="step-arrow">→</div>
 
             <div className="process-step-item highlight-step">
               <span className="step-number">04</span>
               <h4>Hoàn tất giao dịch</h4>
-              <p>Làm thủ tục công chứng nhanh gọn và thanh toán tiền mặt hoặc chuyển khoản ngay.</p>
+              <p>
+                Làm thủ tục công chứng nhanh gọn và thanh toán tiền mặt hoặc
+                chuyển khoản ngay.
+              </p>
             </div>
           </div>
 
@@ -938,7 +983,10 @@ export default function ShowroomPage() {
                   </div>
                   <div>
                     <strong>Địa chỉ cửa hàng:</strong>
-                    <p>107 Nguyễn Tất Thành, Phường Cẩm Phô, TP. Hội An, Quảng Nam</p>
+                    <p>
+                      107 Nguyễn Tất Thành, Phường Cẩm Phô, TP. Hội An, Quảng
+                      Nam
+                    </p>
                   </div>
                 </li>
 
@@ -1046,27 +1094,45 @@ export default function ShowroomPage() {
                 <span>CÀ REM MOTORCYCLES</span>
               </div>
               <p className="footer-motto">
-                Chuyên mua bán, ký gửi xe máy tuyển chọn uy tín tại Hội An.
-                Định giá chuẩn xác, mua bán nhanh gọn, đồng hành bền lâu.
+                Chuyên mua bán, ký gửi xe máy tuyển chọn uy tín tại Hội An. Định
+                giá chuẩn xác, mua bán nhanh gọn, đồng hành bền lâu.
               </p>
             </div>
 
             <div className="footer-links-col">
               <h4>Dịch vụ</h4>
               <ul>
-                <li><a href="#xe-dang-ban">Xe đang bán</a></li>
-                <li><a href="#xe-dang-ban" onClick={() => setSelectedTab("NEW")}>Xe mới về</a></li>
-                <li><button type="button" onClick={() => setSellModalOpen(true)}>Định giá xe</button></li>
-                <li><a href="#quy-trinh">Hỗ trợ trả góp</a></li>
+                <li>
+                  <a href="#xe-dang-ban">Xe đang bán</a>
+                </li>
+                <li>
+                  <a href="#xe-dang-ban" onClick={() => setSelectedTab("NEW")}>
+                    Xe mới về
+                  </a>
+                </li>
+                <li>
+                  <button type="button" onClick={() => setSellModalOpen(true)}>
+                    Định giá xe
+                  </button>
+                </li>
+                <li>
+                  <a href="#quy-trinh">Hỗ trợ trả góp</a>
+                </li>
               </ul>
             </div>
 
             <div className="footer-links-col">
               <h4>Liên kết nhanh</h4>
               <ul>
-                <li><a href="#ve-ca-rem">Về Cà Rem</a></li>
-                <li><a href="#lien-he">Bản đồ cửa hàng</a></li>
-                <li><a href="https://zalo.me/0914929292">Zalo tư vấn</a></li>
+                <li>
+                  <a href="#ve-ca-rem">Về Cà Rem</a>
+                </li>
+                <li>
+                  <a href="#lien-he">Bản đồ cửa hàng</a>
+                </li>
+                <li>
+                  <a href="https://zalo.me/0914929292">Zalo tư vấn</a>
+                </li>
                 <li>
                   <Link to={user ? "/" : "/login"} className="text-red">
                     Đăng nhập Quản trị CRM
@@ -1077,7 +1143,10 @@ export default function ShowroomPage() {
           </div>
 
           <div className="footer-bottom-bar">
-            <span>© 2026 Cửa Hàng Xe Máy Cà Rem · 107 Nguyễn Tất Thành, Hội An. All rights reserved.</span>
+            <span>
+              © 2026 Cửa Hàng Xe Máy Cà Rem · 107 Nguyễn Tất Thành, Hội An. All
+              rights reserved.
+            </span>
             <span className="power-by">Hệ thống vận hành Cà Rem</span>
           </div>
         </div>
@@ -1120,7 +1189,9 @@ export default function ShowroomPage() {
                   ) : (
                     <span className="badge-plate">Chưa cập nhật biển số</span>
                   )}
-                  <span className="badge-condition">Xe đang có tại cửa hàng</span>
+                  <span className="badge-condition">
+                    Xe đang có tại cửa hàng
+                  </span>
                 </div>
               </div>
 
@@ -1130,18 +1201,24 @@ export default function ShowroomPage() {
                     {selectedBike.vehicle.brand}
                   </span>
                   {selectedBike.yearLabel && (
-                    <span className="modal-year-tag">{selectedBike.yearLabel}</span>
+                    <span className="modal-year-tag">
+                      {selectedBike.yearLabel}
+                    </span>
                   )}
                 </div>
 
-                <h2 id="showroom-bike-dialog-title" className="modal-bike-title">
+                <h2
+                  id="showroom-bike-dialog-title"
+                  className="modal-bike-title"
+                >
                   {selectedBike.name}
                 </h2>
 
                 <div className="modal-price-box">
                   <span className="label">Giá bán công khai:</span>
                   <strong className="val">
-                    {selectedBike.vehicle.asking_price.toLocaleString("vi-VN")} đ
+                    {selectedBike.vehicle.asking_price.toLocaleString("vi-VN")}{" "}
+                    đ
                   </strong>
                 </div>
 
@@ -1157,15 +1234,21 @@ export default function ShowroomPage() {
                   </div>
                   <div className="spec-row">
                     <span className="k">Màu sơn:</span>
-                    <span className="v">{selectedBike.vehicle.color || "—"}</span>
+                    <span className="v">
+                      {selectedBike.vehicle.color || "—"}
+                    </span>
                   </div>
                   <div className="spec-row">
                     <span className="k">Đã lăn bánh:</span>
-                    <span className="v">{selectedBike.odoLabel || "Chưa cập nhật"}</span>
+                    <span className="v">
+                      {selectedBike.odoLabel || "Chưa cập nhật"}
+                    </span>
                   </div>
                   <div className="spec-row">
                     <span className="k">Phiên bản:</span>
-                    <span className="v">{selectedBike.vehicle.variant || "—"}</span>
+                    <span className="v">
+                      {selectedBike.vehicle.variant || "—"}
+                    </span>
                   </div>
                 </div>
 
@@ -1178,10 +1261,7 @@ export default function ShowroomPage() {
                     <MessageCircle size={18} />
                     <span>Nhắn Zalo hỏi giá tốt xe này</span>
                   </button>
-                  <a
-                    href="tel:0914929292"
-                    className="btn-modal-call"
-                  >
+                  <a href="tel:0914929292" className="btn-modal-call">
                     <PhoneCall size={18} />
                     <span>Gọi 0914 929 292</span>
                   </a>
@@ -1219,9 +1299,7 @@ export default function ShowroomPage() {
 
             <div className="sell-modal-content">
               <span className="eyebrow-red">ĐỊNH GIÁ XE TẬN TÂM</span>
-              <h2 id="showroom-sell-dialog-title">
-                Gửi Thông Tin Xe Cần Bán
-              </h2>
+              <h2 id="showroom-sell-dialog-title">Gửi Thông Tin Xe Cần Bán</h2>
               <p className="sub">
                 Cà Rem cam kết báo giá nhanh trong 5 phút, mua giá cao nhất thị
                 trường Hội An, thanh toán tiền mặt liền tay.
@@ -1232,13 +1310,15 @@ export default function ShowroomPage() {
                   <CheckCircle2 size={42} className="success-icon" />
                   <h3>Đã gửi yêu cầu định giá thành công!</h3>
                   <p>
-                    Cà Rem đã lưu thông tin xe của bạn và sẽ liên hệ qua số
-                    điện thoại đã gửi trong thời gian sớm nhất. Nếu Zalo vừa
-                    mở, bạn có thể gửi thêm ảnh xe và ảnh đăng ký để nhận định
-                    giá nhanh hơn.
+                    Cà Rem đã lưu thông tin xe của bạn và sẽ liên hệ qua số điện
+                    thoại đã gửi trong thời gian sớm nhất. Nếu Zalo vừa mở, bạn
+                    có thể gửi thêm ảnh xe và ảnh đăng ký để nhận định giá nhanh
+                    hơn.
                   </p>
                   <a
-                    href={zaloConsultLink("Em gửi Cà Rem thông tin xe cần bán, nhờ anh Hậu định giá giúp em ạ!")}
+                    href={zaloConsultLink(
+                      "Em gửi Cà Rem thông tin xe cần bán, nhờ anh Hậu định giá giúp em ạ!",
+                    )}
                     target="_blank"
                     rel="noreferrer"
                     className="btn-hero-primary"
@@ -1247,9 +1327,15 @@ export default function ShowroomPage() {
                   </a>
                 </div>
               ) : (
-                <form onSubmit={handleSellSubmit} className="sell-form-stack" noValidate>
+                <form
+                  onSubmit={handleSellSubmit}
+                  className="sell-form-stack"
+                  noValidate
+                >
                   <div className="form-group">
-                    <label htmlFor="showroom-customer-name">Họ tên của bạn *</label>
+                    <label htmlFor="showroom-customer-name">
+                      Họ tên của bạn *
+                    </label>
                     <input
                       id="showroom-customer-name"
                       type="text"
@@ -1257,7 +1343,10 @@ export default function ShowroomPage() {
                       placeholder="Ví dụ: Nguyễn Văn Hậu"
                       value={sellForm.customerName}
                       onChange={(e) =>
-                        setSellForm({ ...sellForm, customerName: e.target.value })
+                        setSellForm({
+                          ...sellForm,
+                          customerName: e.target.value,
+                        })
                       }
                     />
                     {sellErrors.customer_name && (
@@ -1268,7 +1357,9 @@ export default function ShowroomPage() {
                   </div>
 
                   <div className="form-group">
-                    <label htmlFor="showroom-bike-name">Tên dòng xe cần bán *</label>
+                    <label htmlFor="showroom-bike-name">
+                      Tên dòng xe cần bán *
+                    </label>
                     <input
                       id="showroom-bike-name"
                       type="text"
@@ -1288,7 +1379,9 @@ export default function ShowroomPage() {
 
                   <div className="form-row-2">
                     <div className="form-group">
-                      <label htmlFor="showroom-vehicle-year">Đời xe / Năm đăng ký</label>
+                      <label htmlFor="showroom-vehicle-year">
+                        Đời xe / Năm đăng ký
+                      </label>
                       <input
                         id="showroom-vehicle-year"
                         type="text"
@@ -1306,7 +1399,9 @@ export default function ShowroomPage() {
                       )}
                     </div>
                     <div className="form-group">
-                      <label htmlFor="showroom-phone">Số điện thoại / Zalo của bạn *</label>
+                      <label htmlFor="showroom-phone">
+                        Số điện thoại / Zalo của bạn *
+                      </label>
                       <input
                         id="showroom-phone"
                         type="tel"
@@ -1326,7 +1421,9 @@ export default function ShowroomPage() {
                   </div>
 
                   <div className="form-group">
-                    <label htmlFor="showroom-expected-price">Giá bạn mong muốn (VNĐ)</label>
+                    <label htmlFor="showroom-expected-price">
+                      Giá bạn mong muốn (VNĐ)
+                    </label>
                     <input
                       id="showroom-expected-price"
                       type="text"
@@ -1348,7 +1445,9 @@ export default function ShowroomPage() {
                   </div>
 
                   <div className="form-group">
-                    <label htmlFor="showroom-note">Tình trạng xe / Ghi chú thêm</label>
+                    <label htmlFor="showroom-note">
+                      Tình trạng xe / Ghi chú thêm
+                    </label>
                     <textarea
                       id="showroom-note"
                       rows={2}
@@ -1368,9 +1467,9 @@ export default function ShowroomPage() {
                   {/* A2: chỉ báo thành công khi lead đã lưu thật; lỗi hiện tại chỗ */}
                   {sellMutation.isError && (
                     <p className="sell-form-error" role="alert">
-                      Không gửi được yêu cầu (máy chủ từ chối hoặc mất kết
-                      nối). Bạn thử lại, hoặc gọi hotline 0914 929 292 / nhắn
-                      Zalo để Cà Rem hỗ trợ ngay.
+                      Không gửi được yêu cầu (máy chủ từ chối hoặc mất kết nối).
+                      Bạn thử lại, hoặc gọi hotline 0914 929 292 / nhắn Zalo để
+                      Cà Rem hỗ trợ ngay.
                     </p>
                   )}
 
@@ -1388,8 +1487,8 @@ export default function ShowroomPage() {
                   </button>
 
                   <p className="privacy-note">
-                    <Lock size={12} /> Thông tin của bạn được bảo mật tuyệt đối, chỉ dùng để Cà
-                    Rem liên hệ báo giá.
+                    <Lock size={12} /> Thông tin của bạn được bảo mật tuyệt đối,
+                    chỉ dùng để Cà Rem liên hệ báo giá.
                   </p>
                 </form>
               )}

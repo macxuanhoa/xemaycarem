@@ -104,6 +104,23 @@ describe("DatePicker Vietnamese component rendering", () => {
 });
 
 describe("MoneyInput Vietnamese component rendering", () => {
+  it.each(["18500000", "18tr5"])("groups valid intake raw input %s without replacing its established parser", async (rawValue) => {
+    const { MoneyInput } = await import("@/components/ui/MoneyInput");
+    const { parseShorthandMoney } = await import("@/lib/shorthand/parseIntakeNotes");
+    const html = renderToStaticMarkup(<MoneyInput rawValue={rawValue} parseInput={(text) => parseShorthandMoney(text) ?? undefined} onChange={() => {}} />);
+    expect(html).toContain('value="18.500.000"');
+    expect(html).toContain("Mười tám triệu năm trăm nghìn đồng");
+  });
+
+  it.each(["-82.000.000", "82000000.5", "1e6"])("preserves malformed raw input %s with an accessible error", async (rawValue) => {
+    const { MoneyInput } = await import("@/components/ui/MoneyInput");
+    const html = renderToStaticMarkup(<MoneyInput rawValue={rawValue} onChange={() => {}} />);
+    expect(html).toContain(`value="${rawValue}"`);
+    expect(html).toContain('aria-invalid="true"');
+    expect(html).toContain('role="alert"');
+    expect(html).not.toContain("words-val");
+  });
+
   it("renders 82000000 as 82.000.000, shows single words helper, and never renders redundant badge or approx text simultaneously", async () => {
     const { MoneyInput } = await import("@/components/ui/MoneyInput");
     const html = renderToStaticMarkup(

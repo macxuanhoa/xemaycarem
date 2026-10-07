@@ -68,7 +68,25 @@ describe('Production Safety Safeguards', () => {
   it('assertLocalPostgres accepts local or embedded test database connections', () => {
     expect(() => assertLocalPostgres('postgresql://postgres:secret@127.0.0.1:5432/test_db')).not.toThrow()
     expect(() => assertLocalPostgres('postgresql://postgres:secret@localhost:5432/test_db')).not.toThrow()
+    expect(() => assertLocalPostgres('postgresql://localhost:5432/test_db')).not.toThrow()
     expect(() => assertLocalPostgres(undefined)).not.toThrow()
+  })
+
+  it('rejects arbitrary external database URLs and plain hosts without swallowing the safety error', () => {
+    for (const connection of [
+      'postgresql://user:pass@database.example.com:5432/crm',
+      'postgresql://user:pass@192.168.1.100:5432/crm',
+      'database.example.com',
+      '192.168.1.100',
+      'xe-test.supabase.co',
+      'not-a-url@host',
+      'https://localhost/test_db',
+      'postgresql://database.example.com:5432/crm',
+    ]) {
+      expect(() => assertLocalPostgres(connection)).toThrow(ProductionSafetyError)
+    }
+    expect(() => assertLocalPostgres('localhost')).not.toThrow()
+    expect(() => assertLocalPostgres('127.0.0.1')).not.toThrow()
   })
 
   it('assertTestEnvironment detects and forbids running tests in NODE_ENV=production', () => {

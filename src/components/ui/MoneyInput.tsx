@@ -2,9 +2,12 @@ import {
   useState,
   useEffect,
   useRef,
+  useId,
   type ChangeEvent,
   type FocusEvent,
   type KeyboardEvent,
+  type Ref,
+  type AriaAttributes,
 } from "react";
 import {
   parseMoneyInput,
@@ -16,15 +19,22 @@ import {
 interface MoneyInputProps {
   value?: number;
   onChange: (value: number | undefined) => void;
+  /** Intake retains reviewed text using its established shorthand parser. */
+  rawValue?: string;
+  onRawChange?: (text: string) => void;
+  parseInput?: (text: string) => number | undefined;
   placeholder?: string;
   id?: string;
   name?: string;
+  ref?: Ref<HTMLInputElement>;
   disabled?: boolean;
   required?: boolean;
   min?: number;
   max?: number;
   showShortcuts?: boolean;
   "aria-label"?: string;
+  "aria-describedby"?: string;
+  "aria-invalid"?: AriaAttributes["aria-invalid"];
   className?: string;
   autoFocus?: boolean;
   onBlur?: () => void;
@@ -33,212 +43,204 @@ interface MoneyInputProps {
 export function MoneyInput({
   value,
   onChange,
+  rawValue,
+  onRawChange,
+  parseInput = parseMoneyInput,
   placeholder = "Ví dụ: 82.000.000",
   id,
   name,
+  ref,
   disabled,
   required,
   min,
   max,
   showShortcuts = true,
   "aria-label": ariaLabel,
+  "aria-describedby": describedBy,
+  "aria-invalid": externalInvalid,
   className = "",
   autoFocus,
   onBlur,
 }: MoneyInputProps) {
   const inputRef = useRef<HTMLInputElement>(null);
-
-  // Text currently displayed in the input (always formatted with dots: e.g. 82.000.000)
-  const [text, setText] = useState<string>(() =>
-    value != null ? formatVndNumber(value) : "",
+  const generatedId = useId();
+  const inputId = id ?? `money-${generatedId}`;
+  const helperId = `${inputId}-helper`;
+  const errorId = `${inputId}-money-error`;
+  const [text, setText] = useState(() => {
+    if (rawValue === undefined)
+      return value != null ? formatVndNumber(value) : "";
+    const parsed = parseInput(rawValue);
+    return parsed == null ? rawValue : formatVndNumber(parsed);
+  });
+  const notified = useRef<{ value: number | undefined; text: string } | null>(
+    null,
   );
-  const [isFocused, setIsFocused] = useState<boolean>(false);
 
-  // Sync internal text when external value changes and input is not focused
   useEffect(() => {
-    if (!isFocused) {
+    if (rawValue !== undefined) {
+      if (notified.current?.text === rawValue) return;
+      notified.current = null;
+      const parsed = parseInput(rawValue);
+      setText(parsed == null ? rawValue : formatVndNumber(parsed));
+    } else if (
+      notified.current &&
+      (Object.is(notified.current.value, value) ||
+        (notified.current.value === undefined &&
+          (value == null || Number.isNaN(value) || value === 0)))
+    ) {
+      // Parent validation must not erase the invalid text being corrected.
+      notified.current = null;
+    } else {
       setText(value != null ? formatVndNumber(value) : "");
     }
-  }, [value, isFocused]);
+  }, [value, rawValue, parseInput]);
 
-  const parsedNum = parseMoneyInput(text);
+  const parsedNum = parseInput(text);
+  const invalid =
+    !!text.trim() &&
+    (parsedNum == null ||
+      (min != null && parsedNum < min) ||
+      (max != null && parsedNum > max));
+  const validationMessage =
+    parsedNum != null && min != null && parsedNum < min
+      ? `Số tiền phải từ ${formatVndNumber(min)} ₫.`
+      : parsedNum != null && max != null && parsedNum > max
+        ? `Số tiền không được vượt quá ${formatVndNumber(max)} ₫.`
+        : "Nhập số tiền nguyên đồng không âm, tối đa 1.000.000.000.000 ₫. Ví dụ: 82.000.000 hoặc 82tr.";
+  useEffect(() => {
+    // Optional form fields must also reject malformed, nonempty input.
+    inputRef.current?.setCustomValidity(invalid ? validationMessage : "");
+  }, [invalid, validationMessage]);
+  const helperWords =
+    parsedNum != null && !invalid
+      ? formatVndWords(parsedNum) || formatVndApproxText(parsedNum)
+      : "";
+  const notify = (nextText: string, number: number | undefined) => {
+    notified.current = { value: number, text: nextText };
+    setText(nextText);
+    onRawChange?.(nextText);
+    onChange(number);
+  };
 
   const processInput = (
     raw: string,
     cursorBefore: number,
-    inputEl: HTMLInputElement | null,
+    input: HTMLInputElement,
+    editingDigits = false,
   ) => {
-    // 1. If blank or whitespace:
-    if (!raw || !raw.trim()) {
-      setText("");
-      onChange(undefined);
+    if (!raw.trim()) {
+      notify("", undefined);
       return;
     }
-
-    // 2. Reject negative numbers
-    if (raw.includes("-")) {
-      raw = raw.replace(/-/g, "");
-    }
-
-    // 3. Check for shorthand notation (e.g. "82tr", "82m", "150k", "1.2ty")
-    if (/(?:tr|m|k|ty|tỷ|b)/i.test(raw)) {
-      const parsedShorthand = parseMoneyInput(raw);
-      if (parsedShorthand != null) {
-        const formatted = formatVndNumber(parsedShorthand);
-        setText(formatted);
-        onChange(parsedShorthand);
-        requestAnimationFrame(() => {
-          if (inputEl) {
-            inputEl.setSelectionRange(formatted.length, formatted.length);
-          }
-        });
-        return;
-      }
-      // If user is currently typing shorthand (e.g. "82t"), preserve raw until complete
-      setText(raw);
+    // Only actual digit edits to our own grouping may remove group separators.
+    // Pasted/synthetic malformed input goes through the strict parser intact.
+    const parsed = parseInput(editingDigits ? raw.replace(/\./g, "") : raw);
+    if (parsed == null) {
+      notify(raw, undefined);
       return;
     }
-
-    // 4. Count digits before cursor to compute new cursor position
-    const digitsBeforeCursor = raw
-      .slice(0, cursorBefore)
-      .replace(/\D/g, "").length;
-
-    // 5. Extract all digits
-    const rawDigits = raw.replace(/\D/g, "");
-    if (!rawDigits) {
-      setText("");
-      onChange(undefined);
-      return;
-    }
-
-    // 6. Clean leading zeros: e.g. "05" -> "5", but keep single "0"
-    const cleanDigits = rawDigits.replace(/^0+(?=\d)/, "");
-
-    // 7. Max 13 digits (up to 1,000,000,000,000 VND / 1 trillion)
-    const boundedDigits = cleanDigits.slice(0, 13);
-    const num = Number(boundedDigits);
-
-    if (!Number.isSafeInteger(num) || num > 1_000_000_000_000) {
-      return;
-    }
-
-    // 8. Format with dots (Vietnamese thousand separator)
-    const formatted = formatVndNumber(num);
-
-    // 9. Compute new cursor position based on digits before cursor
-    let newCursor = 0;
-    let digitCount = 0;
-    for (let i = 0; i < formatted.length; i++) {
-      if (/\d/.test(formatted[i])) {
-        digitCount++;
-      }
-      if (digitCount === digitsBeforeCursor) {
-        newCursor = i + 1;
-        break;
-      }
-    }
-    if (digitCount < digitsBeforeCursor || newCursor === 0) {
-      newCursor = formatted.length;
-    }
-
-    setText(formatted);
-    onChange(num);
-
-    requestAnimationFrame(() => {
-      if (inputEl) {
-        inputEl.setSelectionRange(newCursor, newCursor);
-      }
-    });
-  };
-
-  const handleChange = (e: ChangeEvent<HTMLInputElement>) => {
-    const input = e.target;
-    const raw = input.value;
-    const cursor = input.selectionStart ?? raw.length;
-    processInput(raw, cursor, input);
-  };
-
-  const handleKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === "Backspace") {
-      const input = e.currentTarget;
-      const { selectionStart, selectionEnd } = input;
-      if (
-        selectionStart != null &&
-        selectionStart === selectionEnd &&
-        selectionStart > 1 &&
-        input.value[selectionStart - 1] === "."
-      ) {
-        e.preventDefault();
-        const raw = input.value;
-        const before = raw.slice(0, selectionStart - 2);
-        const after = raw.slice(selectionStart);
-        const nextRaw = before + after;
-        processInput(nextRaw, selectionStart - 2, input);
-      }
-    }
-  };
-
-  const handleFocus = () => {
-    setIsFocused(true);
-  };
-
-  const handleBlur = (e: FocusEvent<HTMLInputElement>) => {
-    setIsFocused(false);
-    const raw = e.target.value.trim();
-    if (!raw) {
-      setText("");
-      onChange(undefined);
-    } else {
-      const num = parseMoneyInput(raw);
-      if (num != null) {
-        setText(formatVndNumber(num));
-        onChange(num);
-      } else {
-        const digits = raw.replace(/\D/g, "");
-        if (digits) {
-          const parsed = Number(digits);
-          if (Number.isSafeInteger(parsed) && parsed <= 1_000_000_000_000) {
-            setText(formatVndNumber(parsed));
-            onChange(parsed);
-          } else {
-            setText("");
-            onChange(undefined);
-          }
-        } else {
-          setText("");
-          onChange(undefined);
+    const formatted = formatVndNumber(parsed);
+    const digitsBefore = raw.slice(0, cursorBefore).replace(/\D/g, "").length;
+    let cursor = formatted.length;
+    if (cursorBefore === 0) cursor = 0;
+    else if (!/[a-z₫đỷ]/i.test(raw)) {
+      let digits = 0;
+      for (let index = 0; index < formatted.length; index++) {
+        if (/\d/.test(formatted[index])) digits++;
+        if (digits === digitsBefore) {
+          cursor = index + 1;
+          break;
         }
       }
     }
+    // Keep a completed unit editable so intake can append its valid suffix,
+    // e.g. 18tr → 18tr5. Blur commits the canonical grouped display.
+    notify(/[a-zỷ]/i.test(raw) ? raw : formatted, parsed);
+    requestAnimationFrame(() => {
+      if (document.activeElement === input)
+        input.setSelectionRange(cursor, cursor);
+    });
+  };
+
+  const handleChange = (event: ChangeEvent<HTMLInputElement>) => {
+    const input = event.currentTarget;
+    const native = event.nativeEvent as InputEvent;
+    const isDigitEdit =
+      native.inputType?.startsWith("delete") ||
+      (native.inputType === "insertText" && /^\d+$/.test(native.data ?? ""));
+    const editingGrouping =
+      !!isDigitEdit &&
+      parsedNum != null &&
+      text === formatVndNumber(parsedNum) &&
+      /^[\d.]+$/.test(input.value);
+    processInput(
+      input.value,
+      input.selectionStart ?? input.value.length,
+      input,
+      editingGrouping,
+    );
+  };
+
+  const handleKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
+    if (
+      event.key !== "Backspace" ||
+      parsedNum == null ||
+      text !== formatVndNumber(parsedNum)
+    )
+      return;
+    const input = event.currentTarget;
+    const { selectionStart, selectionEnd } = input;
+    if (
+      selectionStart != null &&
+      selectionStart === selectionEnd &&
+      selectionStart > 1 &&
+      input.value[selectionStart - 1] === "."
+    ) {
+      event.preventDefault();
+      processInput(
+        input.value.slice(0, selectionStart - 2) +
+          input.value.slice(selectionStart),
+        selectionStart - 2,
+        input,
+        true,
+      );
+    }
+  };
+
+  const handleBlur = (event: FocusEvent<HTMLInputElement>) => {
+    const raw = event.currentTarget.value;
+    const parsed = parseInput(raw);
+    notify(parsed == null ? raw : formatVndNumber(parsed), parsed);
     onBlur?.();
   };
-
   const addShortcut = (amount: number) => {
-    const current =
-      value != null && Number.isFinite(value)
-        ? value
-        : (parseMoneyInput(text) || 0);
-    const next = current + amount;
-    const formatted = formatVndNumber(next);
-    setText(formatted);
-    onChange(next);
+    if (invalid) return;
+    const next = (parsedNum ?? 0) + amount;
+    if (parseMoneyInput(next) == null || (max != null && next > max)) return;
+    notify(formatVndNumber(next), next);
   };
-
-  // Only ONE helper text below: preferred natural Vietnamese words
-  const helperWords =
-    parsedNum != null && parsedNum > 0
-      ? formatVndWords(parsedNum) || formatVndApproxText(parsedNum)
-      : "";
+  const descriptionIds =
+    [
+      describedBy,
+      helperWords ? helperId : undefined,
+      invalid ? errorId : undefined,
+    ]
+      .filter(Boolean)
+      .join(" ") || undefined;
 
   return (
     <div className={`money-input-wrap ${className}`}>
       <div className="money-input-field">
         <input
-          ref={inputRef}
+          ref={(input) => {
+            inputRef.current = input;
+            if (typeof ref === "function") ref(input);
+            else if (ref) ref.current = input;
+          }}
           type="text"
           inputMode="numeric"
-          id={id}
+          id={inputId}
           name={name}
           disabled={disabled}
           required={required}
@@ -246,70 +248,55 @@ export function MoneyInput({
           min={min}
           max={max}
           aria-label={ariaLabel}
+          aria-describedby={descriptionIds}
+          aria-invalid={invalid || externalInvalid || false}
           placeholder={placeholder}
           value={text}
-          aria-invalid={
-            (!!text && parsedNum == null) ||
-            (parsedNum != null &&
-              ((min != null && parsedNum < min) ||
-                (max != null && parsedNum > max)))
-          }
           onChange={handleChange}
           onKeyDown={handleKeyDown}
-          onFocus={handleFocus}
           onBlur={handleBlur}
           className="money-input"
           autoComplete="off"
         />
-        <span className="money-currency-tag" title="Đơn vị: Việt Nam Đồng">
+        <span className="money-currency-tag" aria-hidden="true">
           ₫
         </span>
       </div>
-
-      {helperWords && (
-        <div className="money-helper-text" aria-live="polite">
+      {invalid ? (
+        <p id={errorId} className="money-input-error field-error" role="alert">
+          {validationMessage}
+        </p>
+      ) : helperWords ? (
+        <div id={helperId} className="money-helper-text">
           <span className="words-val">{helperWords}</span>
         </div>
-      )}
-
+      ) : null}
       {showShortcuts && !disabled && (
-        <div className="money-shortcuts" aria-label="Gợi ý số tiền nhanh">
-          <button
-            type="button"
-            className="chip-btn"
-            onClick={() => addShortcut(1_000_000)}
-          >
-            +1 triệu
-          </button>
-          <button
-            type="button"
-            className="chip-btn"
-            onClick={() => addShortcut(5_000_000)}
-          >
-            +5 triệu
-          </button>
-          <button
-            type="button"
-            className="chip-btn"
-            onClick={() => addShortcut(10_000_000)}
-          >
-            +10 triệu
-          </button>
-          <button
-            type="button"
-            className="chip-btn"
-            onClick={() => addShortcut(50_000_000)}
-          >
-            +50 triệu
-          </button>
-          {parsedNum != null && parsedNum > 0 && (
+        <div
+          className="money-shortcuts"
+          role="group"
+          aria-label="Thêm nhanh vào số tiền"
+        >
+          {[1, 5, 10, 50].map((millions) => (
+            <button
+              key={millions}
+              type="button"
+              className="chip-btn"
+              disabled={
+                invalid ||
+                (parsedNum ?? 0) + millions * 1_000_000 >
+                  (max ?? 1_000_000_000_000)
+              }
+              onClick={() => addShortcut(millions * 1_000_000)}
+            >
+              +{millions} triệu
+            </button>
+          ))}
+          {text && (
             <button
               type="button"
               className="chip-btn chip-clear"
-              onClick={() => {
-                setText("");
-                onChange(undefined);
-              }}
+              onClick={() => notify("", undefined)}
             >
               Xóa
             </button>
@@ -319,4 +306,3 @@ export function MoneyInput({
     </div>
   );
 }
-

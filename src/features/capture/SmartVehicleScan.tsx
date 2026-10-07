@@ -22,9 +22,13 @@ import {
   CircleAlert,
   Cpu,
   Images,
+  RefreshCw,
   ScanLine,
+  SlidersHorizontal,
   Sparkles,
   Trash2,
+  Zap,
+  ZapOff,
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { friendlyError } from "@/lib/errors";
@@ -53,7 +57,7 @@ import {
   type CapturedFrame,
 } from "@/lib/smartcam/capture";
 import { lookupScan } from "@/lib/smartcam/lookup";
-import { localReadFrame, onOcrStageChange, ocrStage, releaseOcrWorker, type OcrStage } from "@/lib/smartcam/local/ocr";
+import { ensureOcrWorker, localReadFrame, onOcrStageChange, ocrStage, releaseOcrWorker, type OcrStage } from "@/lib/smartcam/local/ocr";
 import { detectCodes } from "@/lib/smartcam/local/barcodes";
 import { motionScore, sceneSignature, sourceCanvas, toGray } from "@/lib/smartcam/local/frames";
 import { nextTickMs, pushVote, type VoteState } from "@/lib/smartcam/local/voting";
@@ -146,20 +150,49 @@ export default function SmartVehicleScan() {
   const [liveHint, setLiveHint] = useState("");
   const [metrics, setMetrics] = useState<ScanMetrics | null>(null);
   const [cloudUsage, setCloudUsage] = useState(() => summarize(ledgerRef.current, Date.now()));
+  const [torchSupported, setTorchSupported] = useState(false);
+  const [torchOn, setTorchOn] = useState(false);
+  const [cameras, setCameras] = useState<MediaDeviceInfo[]>([]);
+  const [activeCameraId, setActiveCameraId] = useState<string>("");
+  const [idlePaused, setIdlePaused] = useState(false);
+  const lastActiveRef = useRef<number>(Date.now());
   const operate = canOperate(profile);
+
+  const stopCamera = useCallback(async () => {
+    if (streamRef.current) {
+      try {
+        const track = streamRef.current.getVideoTracks()[0];
+        if (track && torchOn) {
+          await track.applyConstraints({ advanced: [{ torch: false } as MediaTrackConstraintSet] });
+        }
+      } catch {
+        /* browser may not support torch constraint */
+      }
+    }
+    setTorchOn(false);
+    setTorchSupported(false);
+    streamRef.current?.getTracks().forEach((track) => track.stop());
+    streamRef.current = null;
+    if (mounted.current) setRunning(false);
+  }, [torchOn]);
 
   useEffect(() => {
     mounted.current = true;
     const unsubscribe = onOcrStageChange(setEngine);
+    const handleExternalStop = () => {
+      void stopCamera();
+    };
+    window.addEventListener("xe:smartcam:stop", handleExternalStop);
     return () => {
       mounted.current = false;
       unsubscribe();
+      window.removeEventListener("xe:smartcam:stop", handleExternalStop);
       streamRef.current?.getTracks().forEach((track) => track.stop());
       streamRef.current = null;
       // Free the ~50 MB WASM heap when the camera screen goes away for good.
       releaseOcrWorker();
     };
-  }, []);
+  }, [stopCamera]);
 
   const commitResult = useCallback((recognition: Recognition | null) => {
     resultRef.current = recognition;
@@ -180,20 +213,19 @@ export default function SmartVehicleScan() {
     setCloudUsage(summarize(ledgerRef.current, Date.now()));
   };
 
-  const stopCamera = useCallback(async () => {
-    streamRef.current?.getTracks().forEach((track) => track.stop());
-    streamRef.current = null;
-    if (mounted.current) setRunning(false);
-  }, []);
-
-  const startCamera = useCallback(async () => {
+  const startCamera = useCallback(async (preferredDeviceId?: string) => {
     if (streamRef.current || busyRef.current) return;
     setMessage("");
+    // Notify external QR reader or other camera consumers to release device
+    window.dispatchEvent(new CustomEvent("xe:qrscanner:stop"));
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: { ideal: "environment" } },
+      const constraints: MediaStreamConstraints = {
+        video: preferredDeviceId
+          ? { deviceId: { exact: preferredDeviceId } }
+          : { facingMode: { ideal: "environment" } },
         audio: false,
-      });
+      };
+      const stream = await navigator.mediaDevices.getUserMedia(constraints);
       if (!mounted.current) {
         stream.getTracks().forEach((track) => track.stop());
         return;
@@ -204,8 +236,35 @@ export default function SmartVehicleScan() {
         await videoRef.current.play().catch(() => undefined);
       }
       setRunning(true);
+      setIdlePaused(false);
+      lastActiveRef.current = Date.now();
+
+      // Check torch capabilities on the active video track
+      const track = stream.getVideoTracks()[0];
+      if (track) {
+        try {
+          const caps = (track.getCapabilities?.() || {}) as { torch?: boolean };
+          setTorchSupported(Boolean(caps.torch));
+        } catch {
+          setTorchSupported(false);
+        }
+      }
+
+      // Enumerate available cameras
+      try {
+        const devices = await navigator.mediaDevices.enumerateDevices();
+        const videoInputs = devices.filter((d) => d.kind === "videoinput");
+        setCameras(videoInputs);
+        if (track && !preferredDeviceId) {
+          const trackSettings = track.getSettings();
+          if (trackSettings.deviceId) setActiveCameraId(trackSettings.deviceId);
+        }
+      } catch {
+        /* device enumeration not permitted */
+      }
+
       // Warm the local OCR worker while the camera spins up (free, cached).
-      void (settings.localOcr ? import("@/lib/smartcam/local/ocr").then((m) => void m.ensureOcrWorker()) : null);
+      if (settings.localOcr) void ensureOcrWorker();
     } catch {
       if (mounted.current)
         setMessage(
@@ -213,6 +272,38 @@ export default function SmartVehicleScan() {
         );
     }
   }, [settings.localOcr]);
+
+  const toggleTorch = useCallback(async () => {
+    const track = streamRef.current?.getVideoTracks()[0];
+    if (!track) return;
+    try {
+      const next = !torchOn;
+      await track.applyConstraints({
+        advanced: [{ torch: next } as MediaTrackConstraintSet],
+      });
+      setTorchOn(next);
+    } catch {
+      /* torch application failed */
+    }
+  }, [torchOn]);
+
+  const switchCamera = useCallback(async () => {
+    if (cameras.length <= 1) return;
+    const currentIndex = cameras.findIndex((c) => c.deviceId === activeCameraId);
+    const nextCamera = cameras[(currentIndex + 1) % cameras.length];
+    if (!nextCamera) return;
+    setActiveCameraId(nextCamera.deviceId);
+    await stopCamera();
+    await startCamera(nextCamera.deviceId);
+  }, [cameras, activeCameraId, stopCamera, startCamera]);
+
+  const wakeScanning = useCallback(() => {
+    lastActiveRef.current = Date.now();
+    if (idlePaused) {
+      setIdlePaused(false);
+      setLiveHint("");
+    }
+  }, [idlePaused]);
 
   /** Shared tail: normalized fields → CRM lookup → provenance + sound + card. */
   const finishWithFields = useCallback(
@@ -385,20 +476,25 @@ export default function SmartVehicleScan() {
     }
   }, [cloudRead, finishWithFields, navigate, settings.cloudMode, settings.localOcr, settings.sound, stopCamera]);
 
-  // Adaptive sequential loop — one pass in flight at a time, never a fixed
-  // interval pile-up, so the UI thread stays free for the camera preview.
   useEffect(() => {
     if (!running || !settings.autoCapture || result) return;
     let cancelled = false;
     let timer = 0;
     const step = async () => {
       if (cancelled) return;
+      if (idlePaused) return;
+      // Idle pause check: after 45 seconds of continuous scanning without result
+      if (Date.now() - lastActiveRef.current > 45_000) {
+        setIdlePaused(true);
+        setLiveHint("Đã tạm dừng quét để tiết kiệm pin. Chạm màn hình hoặc bấm Chụp để tiếp tục.");
+        return;
+      }
       try {
         await scanTick();
       } catch {
         /* A bad frame is not worth breaking the loop over. */
       }
-      if (!cancelled && !resultRef.current)
+      if (!cancelled && !resultRef.current && !idlePaused)
         timer = window.setTimeout(() => void step(), nextTickMs({ busy: busyRef.current, missStreak: missRef.current, sharp: sharpRef.current }));
     };
     timer = window.setTimeout(() => void step(), 0);
@@ -406,10 +502,12 @@ export default function SmartVehicleScan() {
       cancelled = true;
       window.clearTimeout(timer);
     };
-  }, [running, settings.autoCapture, result, scanTick]);
+  }, [running, settings.autoCapture, result, scanTick, idlePaused]);
 
   /** Manual "Chụp & nhận diện": one decisive local read, cloud per setting. */
   const shootNow = useCallback(async () => {
+    lastActiveRef.current = Date.now();
+    setIdlePaused(false);
     const video = videoRef.current;
     if (!video || busyRef.current) return;
     const frame = await captureVideoFrame(video);
@@ -486,6 +584,8 @@ export default function SmartVehicleScan() {
     voteRef.current = null;
     missRef.current = 0;
     setMetrics(null);
+    lastActiveRef.current = Date.now();
+    setIdlePaused(false);
     void startCamera();
   };
 
@@ -511,16 +611,24 @@ export default function SmartVehicleScan() {
   const heap = (performance as unknown as { memory?: { usedJSHeapSize: number } }).memory;
 
   return (
-    <Card>
-      <h2 className="section-title">
-        <Sparkles size={16} aria-hidden="true" />
-        <span>Nhận diện xe</span>
-      </h2>
-      <p className="muted small">
-        Chĩa camera vào xe hoặc biển số — đọc ngay trên máy, đối chiếu kho và mở
-        đúng hồ sơ, hoặc transfer thông tin sang Thu xe tốc ký.
-      </p>
-      <div className="smartcam-stage">
+    <Card className="smartcam-card">
+      <div className="smartcam-card-header">
+        <div className="smartcam-title-wrap">
+          <h2 className="section-title">
+            <Sparkles size={16} aria-hidden="true" />
+            <span>Nhận diện xe</span>
+          </h2>
+          <span className={`smartcam-status-pill ${running ? "active" : ""}`}>
+            <span className="smartcam-status-dot" aria-hidden="true" />
+            {running ? "Đang quét" : "Chờ mở"}
+          </span>
+        </div>
+        <p className="muted small">
+          Chĩa camera vào biển số xe hoặc mã QR để nhận diện tự động.
+        </p>
+      </div>
+
+      <div className="smartcam-stage" onClick={wakeScanning}>
         <video
           ref={videoRef}
           className={`smartcam-video${running ? "" : " hidden"}`}
@@ -528,93 +636,164 @@ export default function SmartVehicleScan() {
           muted
           aria-label="Hình camera trực tiếp"
         />
+
+        {!running && (
+          <div
+            className="smartcam-standby"
+            onClick={() => void startCamera()}
+            role="button"
+            tabIndex={0}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" || e.key === " ") void startCamera();
+            }}
+            aria-label="Bật camera nhận diện"
+          >
+            <div className="smartcam-standby-reticle" aria-hidden="true">
+              <span className="smartcam-reticle-corner top-left" />
+              <span className="smartcam-reticle-corner top-right" />
+              <span className="smartcam-reticle-corner bottom-left" />
+              <span className="smartcam-reticle-corner bottom-right" />
+              <div className="smartcam-standby-icon-wrap">
+                <Camera size={32} />
+              </div>
+            </div>
+            <p className="smartcam-standby-title">Chạm để mở camera</p>
+            <span className="smartcam-standby-sub">Tự động nhận diện biển số & mã QR</span>
+          </div>
+        )}
+
+        {running && (
+          <div className="smartcam-overlay-tools">
+            {torchSupported && (
+              <button
+                type="button"
+                className={`smartcam-tool-btn${torchOn ? " active" : ""}`}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  void toggleTorch();
+                }}
+                aria-label={torchOn ? "Tắt đèn flash" : "Bật đèn flash"}
+                title={torchOn ? "Tắt đèn flash" : "Bật đèn flash"}
+              >
+                {torchOn ? <ZapOff size={15} /> : <Zap size={15} />}
+                <span>{torchOn ? "Tắt đèn" : "Đèn pin"}</span>
+              </button>
+            )}
+            {cameras.length > 1 && (
+              <button
+                type="button"
+                className="smartcam-tool-btn"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  void switchCamera();
+                }}
+                aria-label="Đổi ống kính camera"
+                title="Đổi ống kính camera"
+              >
+                <RefreshCw size={15} />
+                <span>Đổi camera</span>
+              </button>
+            )}
+          </div>
+        )}
+
         {running && liveHint && (
           <div className="smartcam-hint" role="status">
             {liveHint}
           </div>
         )}
-        {running && <div className="smartcam-guide" aria-hidden="true" />}
-      </div>
-      <p className="smartcam-engine muted small">
-        <Cpu size={13} aria-hidden="true" /> {settings.localOcr ? OCR_STAGE_LABELS[engine] : "OCR trên máy: tắt"}
-        {settings.cloudMode !== "off" && ` · AI: ${cloudUsage.callsToday} lượt hôm nay (giới hạn ${cloudUsage.perHour}/giờ)`}
-      </p>
-      <div className="row smartcam-controls">
-        <Button type="button" onClick={() => void (running ? stopCamera() : startCamera())}>
-          <Camera size={16} /> {running ? "Tắt camera" : "Mở camera"}
-        </Button>
-        <Button type="button" disabled={!running || busy} onClick={() => void shootNow()}>
-          <ScanLine size={16} /> Chụp & nhận diện
-        </Button>
-        {settings.cloudMode === "manual" && (
-          <Button type="button" variant="secondary" disabled={!running || busy} onClick={() => void aiReadNow()}>
-            <Sparkles size={16} /> AI đọc ảnh
-          </Button>
+
+        {running && (
+          <div className="smartcam-guide" aria-hidden="true">
+            <div className="smartcam-scan-beam" />
+            <span className="smartcam-guide-label">Căn biển số hoặc mã QR vào khung</span>
+          </div>
         )}
-        <label className="button secondary upload-button">
-          <Images size={16} /> Ảnh thư viện
-          <input
-            aria-label="Chọn ảnh xe từ thư viện"
-            type="file"
-            accept="image/jpeg,image/png,image/webp"
-            onChange={(event) => void pickFromLibrary(event)}
-          />
-        </label>
-      </div>
-      <div className="smartcam-settings">
-        <label className="row">
-          <input
-            type="checkbox"
-            checked={settings.autoCapture}
-            onChange={(event) => updateSettings({ autoCapture: event.target.checked })}
-          />
-          Quét liên tục khi mở camera
-        </label>
-        <label className="row">
-          <input
-            type="checkbox"
-            checked={settings.localOcr}
-            onChange={(event) => updateSettings({ localOcr: event.target.checked })}
-          />
-          Đọc biển số/số khung trên máy (miễn phí, không gửi ảnh)
-        </label>
-        <label className="row">
-          <input
-            type="checkbox"
-            checked={settings.sound}
-            onChange={(event) => updateSettings({ sound: event.target.checked })}
-          />
-          Kêu "tít" khi xác khớp duy nhất một xe
-        </label>
-        <label className="row">
-          <input
-            type="checkbox"
-            checked={settings.autoOpen}
-            onChange={(event) => updateSettings({ autoOpen: event.target.checked })}
-          />
-          Tự mở hồ sơ khi khớp duy nhất
-        </label>
-        <Field label="Khi máy không đọc được, dùng AI trên mây">
-          <select
-            value={settings.cloudMode}
-            onChange={(event) => updateSettings({ cloudMode: event.target.value as CameraSettings["cloudMode"] })}
+
+        {running && idlePaused && (
+          <div
+            className="smartcam-idle-overlay"
+            onClick={wakeScanning}
+            role="button"
+            tabIndex={0}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" || e.key === " ") wakeScanning();
+            }}
           >
-            <option value="auto">Tự động thử 1 lần (có giới hạn lượt)</option>
-            <option value="manual">Chỉ khi bấm "AI đọc ảnh"</option>
-            <option value="off">Không dùng AI (0 chi phí)</option>
-          </select>
-        </Field>
+            <p className="smartcam-idle-title">Đã tạm dừng tiết kiệm pin</p>
+            <Button type="button" onClick={wakeScanning}>
+              Chạm để tiếp tục quét
+            </Button>
+          </div>
+        )}
       </div>
-      <label className="row smartcam-consent">
-        <input
-          type="checkbox"
-          checked={consent}
-          disabled={busy}
-          onChange={(event) => setConsent(event.target.checked)}
-        />
-        Cho phép gửi ảnh đang chụp tới dịch vụ AI khi cần. OCR trên máy không
-        cần quyền này vì ảnh không rời khỏi thiết bị.
-      </label>
+
+      <div className="smartcam-controls">
+        {running ? (
+          <>
+            <Button
+              type="button"
+              className="smartcam-btn-shutter"
+              disabled={!running || busy}
+              onClick={() => void shootNow()}
+            >
+              <ScanLine size={16} /> <span>Chụp & nhận diện</span>
+            </Button>
+            <div className="smartcam-sub-actions">
+              <Button
+                type="button"
+                variant="secondary"
+                className="smartcam-btn-sub"
+                onClick={() => void stopCamera()}
+              >
+                <Camera size={16} /> <span>Tắt camera</span>
+              </Button>
+              {settings.cloudMode === "manual" && (
+                <Button
+                  type="button"
+                  variant="secondary"
+                  className="smartcam-btn-sub"
+                  disabled={!running || busy}
+                  onClick={() => void aiReadNow()}
+                >
+                  <Sparkles size={16} /> <span>AI đọc ảnh</span>
+                </Button>
+              )}
+              <label className="button button-secondary smartcam-btn-upload smartcam-btn-sub">
+                <Images size={16} />
+                <span>Ảnh thư viện</span>
+                <input
+                  aria-label="Chọn ảnh xe từ thư viện"
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp"
+                  onChange={(event) => void pickFromLibrary(event)}
+                />
+              </label>
+            </div>
+          </>
+        ) : (
+          <div className="smartcam-idle-actions">
+            <Button
+              type="button"
+              className="smartcam-btn-primary"
+              onClick={() => void startCamera()}
+            >
+              <Camera size={16} /> Mở camera
+            </Button>
+            <label className="button button-secondary smartcam-btn-upload">
+              <Images size={16} />
+              <span>Ảnh thư viện</span>
+              <input
+                aria-label="Chọn ảnh xe từ thư viện"
+                type="file"
+                accept="image/jpeg,image/png,image/webp"
+                onChange={(event) => void pickFromLibrary(event)}
+              />
+            </label>
+          </div>
+        )}
+      </div>
+
       {busy && (
         <p role="status" className="notice">
           Đang nhận diện…
@@ -630,6 +809,7 @@ export default function SmartVehicleScan() {
           Bật đồng ý gửi ảnh ở trên để Cà Rem được phép đọc ảnh xe bằng AI.
         </p>
       )}
+
       {shown && match && (
         <div className="smartcam-result">
           {match.state === "unique" && (
@@ -734,6 +914,80 @@ export default function SmartVehicleScan() {
           )}
         </div>
       )}
+
+      <div className="smartcam-footer">
+        <div className="smartcam-consent-row">
+          <label className="smartcam-consent">
+            <input
+              type="checkbox"
+              checked={consent}
+              disabled={busy}
+              onChange={(event) => setConsent(event.target.checked)}
+            />
+            <span>Cho phép gửi ảnh đang chụp tới dịch vụ AI khi cần (đọc trên máy không cần mạng)</span>
+          </label>
+        </div>
+
+        <p className="smartcam-engine muted small">
+          <Cpu size={14} aria-hidden="true" />
+          <span>
+            {settings.localOcr ? OCR_STAGE_LABELS[engine] : "OCR trên máy: tắt"}
+            {settings.cloudMode !== "off" &&
+              ` · AI: ${cloudUsage.callsToday} lượt hôm nay (giới hạn ${cloudUsage.perHour}/giờ)`}
+          </span>
+        </p>
+
+        <details className="smartcam-advanced-details">
+          <summary className="smartcam-advanced-summary">
+            <SlidersHorizontal size={14} aria-hidden="true" />
+            <span>Tùy chọn nhận diện nâng cao</span>
+          </summary>
+          <div className="smartcam-settings">
+            <label className="row">
+              <input
+                type="checkbox"
+                checked={settings.autoCapture}
+                onChange={(event) => updateSettings({ autoCapture: event.target.checked })}
+              />
+              Quét liên tục khi mở camera
+            </label>
+            <label className="row">
+              <input
+                type="checkbox"
+                checked={settings.localOcr}
+                onChange={(event) => updateSettings({ localOcr: event.target.checked })}
+              />
+              Đọc biển số/số khung trên máy (miễn phí, không gửi ảnh)
+            </label>
+            <label className="row">
+              <input
+                type="checkbox"
+                checked={settings.sound}
+                onChange={(event) => updateSettings({ sound: event.target.checked })}
+              />
+              Kêu "tít" khi xác khớp duy nhất một xe
+            </label>
+            <label className="row">
+              <input
+                type="checkbox"
+                checked={settings.autoOpen}
+                onChange={(event) => updateSettings({ autoOpen: event.target.checked })}
+              />
+              Tự mở hồ sơ khi khớp duy nhất
+            </label>
+            <Field label="Khi máy không đọc được, dùng AI trên mây">
+              <select
+                value={settings.cloudMode}
+                onChange={(event) => updateSettings({ cloudMode: event.target.value as CameraSettings["cloudMode"] })}
+              >
+                <option value="auto">Tự động thử 1 lần (có giới hạn lượt)</option>
+                <option value="manual">Chỉ khi bấm "AI đọc ảnh"</option>
+                <option value="off">Không dùng AI (0 chi phí)</option>
+              </select>
+            </Field>
+          </div>
+        </details>
+      </div>
     </Card>
   );
 }

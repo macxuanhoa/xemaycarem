@@ -46,6 +46,13 @@
   --radius: 12px;
   --radius-lg: 16px;
   --radius-xl: 20px;
+  --space-xs: 4px;
+  --space-sm: 8px;
+  --space-md: 12px;
+  --space-lg: 16px;
+  --space-xl: 24px;
+  --touch-target: 44px;
+  --readable-muted: #526176;
 }
 * {
   box-sizing: border-box;
@@ -2091,11 +2098,12 @@ pre {
   top: 0;
   left: 0;
   right: 0;
-  height: 2.5px;
+  height: 2px;
   background: linear-gradient(90deg, #4f46e5 0%, #10b981 50%, #4f46e5 100%);
   background-size: 200% 100%;
   animation: tableBarProgress 1.1s ease-in-out infinite;
   z-index: 10;
+  opacity: 0.8;
 }
 @keyframes tableBarProgress {
   0% {
@@ -2118,8 +2126,7 @@ pre {
   transition: opacity 0.15s ease;
 }
 .table-wrap.is-updating {
-  opacity: 0.6;
-  pointer-events: none;
+  opacity: 0.95;
 }
 .data-table {
   border-collapse: collapse;
@@ -2309,7 +2316,7 @@ pre {
 }
 .details-list dt {
   font-size: 12px;
-  color: #8b997f;
+  color: var(--readable-muted);
   margin-bottom: 0;
   flex: 0 0 auto;
 }
@@ -2516,7 +2523,7 @@ pre {
 .value-item span {
   display: block;
   font-size: 12px;
-  color: #7d8e71;
+  color: var(--readable-muted);
   margin-bottom: 3px;
 }
 .value-item strong {
@@ -3162,7 +3169,7 @@ pre {
   .workspace {
     margin-left: 0;
     min-width: 0;
-    overflow-x: hidden;
+    overflow-x: clip;
   }
   .topbar {
     height: 66px;
@@ -3231,11 +3238,11 @@ pre {
     display: none;
   }
   .main-content {
-    padding: 24px 17px calc(100px + env(safe-area-inset-bottom));
+    padding: 20px 16px calc(76px + env(safe-area-inset-bottom));
     min-height: calc(100vh - 155px);
   }
   .workspace-footer {
-    padding: 0 17px calc(100px + env(safe-area-inset-bottom));
+    padding: 0 16px 20px;
     font-size: 11px;
     color: #64748b;
     gap: 15px;
@@ -3264,36 +3271,6 @@ pre {
     border: 0;
     border-top: 1px solid rgba(226, 232, 240, 0.9);
     box-shadow: 0 -8px 24px -16px rgba(15, 23, 42, 0.22);
-  }
-  /* Sliding capsule — one soft pill travels between the four tabs instead of
-     each tab getting its own background. Reads as a considered, tactile
-     indicator rather than a static highlight. */
-  .bottom-nav::before {
-    content: "";
-    position: absolute;
-    top: 6px;
-    bottom: calc(6px + env(safe-area-inset-bottom));
-    left: 8px;
-    width: calc((100% - 16px) / 4);
-    border-radius: 16px;
-    background: linear-gradient(
-      180deg,
-      rgba(99, 102, 241, 0.18),
-      rgba(79, 70, 229, 0.12)
-    );
-    box-shadow: inset 0 0 0 1px rgba(99, 102, 241, 0.18);
-    transform: translateX(0);
-    transition: transform 260ms cubic-bezier(0.22, 0.85, 0.36, 1);
-    pointer-events: none;
-  }
-  .bottom-nav:has(a:nth-child(2).active)::before {
-    transform: translateX(100%);
-  }
-  .bottom-nav:has(a:nth-child(3).active)::before {
-    transform: translateX(200%);
-  }
-  .bottom-nav:has(a:nth-child(4).active)::before {
-    transform: translateX(300%);
   }
   .bottom-nav a {
     position: relative;
@@ -3329,6 +3306,8 @@ pre {
     line-height: 1.1;
   }
   .bottom-nav a.active {
+    background: rgba(79, 70, 229, 0.1);
+    border-radius: var(--radius);
     color: var(--primary);
     font-weight: 700;
   }
@@ -4024,15 +4003,18 @@ pre {
    obvious without shouting. Uses currentColor so it inherits the field's own
    weight/colour; only the background and a hairline underline change. */
 mark.search-hit {
-  background: rgba(124, 182, 148, 0.28);
+  background: rgba(250, 204, 21, 0.36);
   color: inherit;
+  font-weight: 600;
   border-radius: 3px;
-  padding: 0 1px;
-  box-shadow: inset 0 -1px 0 rgba(63, 122, 89, 0.32);
+  padding: 0 2px;
+  box-shadow: inset 0 -1px 0 rgba(217, 119, 6, 0.45);
 }
 [data-theme="dark"] mark.search-hit {
-  background: rgba(122, 199, 152, 0.24);
-  box-shadow: inset 0 -1px 0 rgba(143, 214, 173, 0.42);
+  background: rgba(250, 204, 21, 0.28);
+  color: #fef08a;
+  font-weight: 600;
+  box-shadow: inset 0 -1px 0 rgba(234, 179, 8, 0.5);
 }
 .search-palette-badge {
   display: flex;
@@ -4333,96 +4315,521 @@ mark.search-hit {
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
-/* --- Smart Camera (Capture) — mobile-first, no hover motion ------------- */
-/* Live preview wrapper: guide frame + transient OCR hint overlay. */
+/* --- Smart Camera (Capture Page) — mobile & desktop polished ------------- */
+@media (max-width: 640px) {
+  .capture-page {
+    padding-bottom: 96px; /* Avoid mobile bottom navigation overlay */
+  }
+}
+
+.capture-fallback-card {
+  border-radius: var(--radius-lg, 16px);
+}
+.capture-fallback-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 4px;
+}
+.capture-fallback-badge {
+  font-size: 11px;
+  font-weight: 500;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--muted-bg, rgba(148, 163, 184, 0.15));
+  color: var(--muted, #64748b);
+}
+.capture-fallback-form {
+  gap: 12px;
+  margin-top: 10px;
+}
+.capture-fallback-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+@media (max-width: 640px) {
+  .capture-fallback-actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+  }
+  .capture-fallback-actions .button {
+    width: 100%;
+    justify-content: center;
+  }
+}
+
+/* Smart Camera Card & Header */
+.smartcam-card {
+  border-radius: var(--radius-lg, 16px);
+  position: relative;
+  overflow: hidden;
+}
+.smartcam-card-header {
+  margin-bottom: 12px;
+}
+.smartcam-title-wrap {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+.smartcam-status-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11.5px;
+  font-weight: 600;
+  padding: 2px 9px;
+  border-radius: 999px;
+  background: var(--muted-bg, rgba(148, 163, 184, 0.14));
+  color: var(--muted, #64748b);
+  border: 1px solid var(--line, #e2e8f0);
+}
+.smartcam-status-pill.active {
+  background: rgba(34, 197, 94, 0.12);
+  color: #16a34a;
+  border-color: rgba(34, 197, 94, 0.3);
+}
+.smartcam-status-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: currentColor;
+}
+.smartcam-status-pill.active .smartcam-status-dot {
+  animation: smartcam-pulse 1.8s ease-in-out infinite;
+}
+@keyframes smartcam-pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.4; transform: scale(0.85); }
+}
+
+/* Camera Stage Viewport */
 .smartcam-stage {
   position: relative;
+  border-radius: 14px;
+  overflow: hidden;
+  background: #090d16;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.25);
+  aspect-ratio: 16 / 10;
+  min-height: 240px;
+  max-height: 480px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
-.smartcam-guide {
+@media (max-width: 640px) {
+  .smartcam-stage {
+    aspect-ratio: 4 / 3;
+    min-height: 220px;
+  }
+}
+
+/* Standby State */
+.smartcam-standby {
+  width: 100%;
+  height: 100%;
+  min-height: inherit;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  background: radial-gradient(circle at center, #1e293b 0%, #0a0e1a 100%);
+  user-select: none;
+  padding: 24px 16px;
+  text-align: center;
+  transition: background-color 150ms ease;
+}
+.smartcam-standby:hover {
+  background: radial-gradient(circle at center, #243247 0%, #0a0e1a 100%);
+}
+.smartcam-standby-reticle {
+  position: relative;
+  width: 110px;
+  height: 90px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 14px;
+}
+.smartcam-reticle-corner {
   position: absolute;
-  inset: 40% 8% 18%;
-  border: 1.5px dashed rgba(255, 255, 255, 0.75);
-  border-radius: 10px;
+  width: 18px;
+  height: 18px;
+  border-color: #22c55e;
   pointer-events: none;
 }
+.smartcam-reticle-corner.top-left {
+  top: 0;
+  left: 0;
+  border-top: 3px solid #22c55e;
+  border-left: 3px solid #22c55e;
+  border-top-left-radius: 6px;
+}
+.smartcam-reticle-corner.top-right {
+  top: 0;
+  right: 0;
+  border-top: 3px solid #22c55e;
+  border-right: 3px solid #22c55e;
+  border-top-right-radius: 6px;
+}
+.smartcam-reticle-corner.bottom-left {
+  bottom: 0;
+  left: 0;
+  border-bottom: 3px solid #22c55e;
+  border-left: 3px solid #22c55e;
+  border-bottom-left-radius: 6px;
+}
+.smartcam-reticle-corner.bottom-right {
+  bottom: 0;
+  right: 0;
+  border-bottom: 3px solid #22c55e;
+  border-right: 3px solid #22c55e;
+  border-bottom-right-radius: 6px;
+}
+.smartcam-standby-icon-wrap {
+  width: 58px;
+  height: 58px;
+  border-radius: 50%;
+  background: rgba(34, 197, 94, 0.14);
+  border: 1px solid rgba(34, 197, 94, 0.35);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #22c55e;
+  box-shadow: 0 0 16px rgba(34, 197, 94, 0.25);
+}
+.smartcam-standby-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: #f8fafc;
+  margin: 0 0 4px;
+}
+.smartcam-standby-sub {
+  font-size: 12.5px;
+  color: #94a3b8;
+}
+
+/* Active Video */
+.smartcam-video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.smartcam-video.hidden {
+  display: none !important;
+}
+
+/* Overlay Tools */
+.smartcam-overlay-tools {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  display: flex;
+  gap: 8px;
+  z-index: 3;
+}
+.smartcam-tool-btn {
+  background: rgba(15, 23, 42, 0.72);
+  color: #f8fafc;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 20px;
+  padding: 6px 12px;
+  font-size: 12.5px;
+  font-weight: 500;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  backdrop-filter: blur(8px);
+  transition: background-color 150ms ease, border-color 150ms ease;
+}
+.smartcam-tool-btn:hover {
+  background: rgba(15, 23, 42, 0.9);
+  border-color: rgba(255, 255, 255, 0.4);
+}
+.smartcam-tool-btn.active {
+  background: #16a34a;
+  border-color: #22c55e;
+  color: #fff;
+}
+
+/* Live Viewfinder Guide Reticle */
+.smartcam-guide {
+  position: absolute;
+  inset: 22% 10% 20%;
+  border: 1.5px dashed rgba(255, 255, 255, 0.35);
+  border-radius: 12px;
+  pointer-events: none;
+  box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.3);
+  overflow: hidden;
+}
+.smartcam-guide-label {
+  position: absolute;
+  top: -26px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(15, 23, 42, 0.85);
+  color: #f1f5f9;
+  font-size: 11px;
+  font-weight: 500;
+  padding: 3px 12px;
+  border-radius: 6px;
+  white-space: nowrap;
+  pointer-events: none;
+  backdrop-filter: blur(4px);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+}
+.smartcam-guide::before,
+.smartcam-guide::after {
+  content: "";
+  position: absolute;
+  width: 22px;
+  height: 22px;
+  border-color: #22c55e;
+  pointer-events: none;
+}
+.smartcam-guide::before {
+  top: -2px;
+  left: -2px;
+  border-top: 3.5px solid #22c55e;
+  border-left: 3.5px solid #22c55e;
+  border-top-left-radius: 10px;
+}
+.smartcam-guide::after {
+  bottom: -2px;
+  right: -2px;
+  border-bottom: 3.5px solid #22c55e;
+  border-right: 3.5px solid #22c55e;
+  border-bottom-right-radius: 10px;
+}
+.smartcam-scan-beam {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, #22c55e, #86efac, #22c55e, transparent);
+  box-shadow: 0 0 8px #22c55e;
+  animation: smartcam-beam 2.2s ease-in-out infinite;
+}
+@keyframes smartcam-beam {
+  0% { top: 4%; opacity: 0.2; }
+  50% { opacity: 0.9; }
+  100% { top: 96%; opacity: 0.2; }
+}
+
+/* Live OCR hint */
 .smartcam-hint {
   position: absolute;
   left: 8%;
   right: 8%;
-  bottom: 6%;
-  padding: 6px 10px;
+  bottom: 8%;
+  padding: 8px 14px;
   border-radius: 8px;
-  background: rgba(0, 0, 0, 0.65);
+  background: rgba(15, 23, 42, 0.88);
   color: #fff;
   font-size: 0.85rem;
+  font-weight: 500;
   text-align: center;
   pointer-events: none;
+  z-index: 2;
+  backdrop-filter: blur(6px);
+  border: 1px solid rgba(255, 255, 255, 0.15);
 }
-.smartcam-engine {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-.smartcam-video {
-  width: 100%;
-  max-height: 55vh;
-  object-fit: cover;
-  border-radius: 12px;
-  border: 1px solid var(--border, #d9d9d9);
-  background: #000;
-}
-.smartcam-controls {
-  gap: 8px;
-  flex-wrap: wrap;
-  margin-top: 12px;
-}
-.smartcam-settings {
+
+/* Idle Paused Overlay */
+.smartcam-idle-overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.85);
+  backdrop-filter: blur(6px);
   display: flex;
   flex-direction: column;
-  gap: 4px;
-  margin-top: 10px;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  z-index: 4;
+  cursor: pointer;
 }
-.smartcam-settings label.row,
-.smartcam-consent {
+.smartcam-idle-title {
+  color: #f8fafc;
   font-size: 14px;
-  gap: 8px;
+  font-weight: 500;
+  margin: 0;
 }
-.smartcam-result {
+
+/* Camera Action Controls (Fixed Desktop & Mobile Alignment) */
+.smartcam-controls {
   margin-top: 14px;
   display: flex;
-  flex-direction: column;
+  align-items: center;
   gap: 10px;
+  flex-wrap: wrap;
+}
+
+.smartcam-idle-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+}
+
+.smartcam-sub-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.smartcam-btn-primary,
+.smartcam-btn-shutter {
+  background: linear-gradient(135deg, #16a34a, #15803d) !important;
+  color: #fff !important;
+  border-color: #15803d !important;
+  font-weight: 600;
+  height: 44px;
+  min-height: 44px;
+  padding: 0 20px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(22, 163, 74, 0.28);
+}
+.smartcam-btn-primary:hover,
+.smartcam-btn-shutter:hover {
+  background: linear-gradient(135deg, #15803d, #166534) !important;
+}
+
+.smartcam-controls .button,
+.smartcam-controls .smartcam-btn-upload {
+  height: 44px;
+  min-height: 44px;
+  padding: 0 16px;
+  box-sizing: border-box;
+}
+
+.smartcam-btn-upload {
+  margin: 0 !important;
+  cursor: pointer;
+  position: relative;
+  white-space: nowrap;
+}
+.smartcam-btn-upload input[type="file"] {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  cursor: pointer;
+  pointer-events: none;
+}
+.smartcam-btn-upload svg,
+.smartcam-controls svg {
+  width: 16px;
+  height: 16px;
+  min-width: 16px;
+  min-height: 16px;
+  flex-shrink: 0;
+}
+
+/* Mobile Controls Layout */
+@media (max-width: 640px) {
+  .smartcam-controls {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
+  }
+  .smartcam-btn-shutter {
+    width: 100%;
+    height: 46px;
+    min-height: 46px;
+    font-size: 14px;
+  }
+  .smartcam-sub-actions {
+    display: flex;
+    align-items: stretch;
+    gap: 6px;
+    width: 100%;
+  }
+  .smartcam-sub-actions .button,
+  .smartcam-sub-actions .smartcam-btn-upload {
+    flex: 1 1 0;
+    min-width: 0;
+    padding: 0 4px !important;
+    gap: 4px !important;
+    height: 42px;
+    min-height: 42px;
+    font-size: 11.5px;
+    justify-content: center;
+    text-align: center;
+  }
+  .smartcam-sub-actions .button span,
+  .smartcam-sub-actions .smartcam-btn-upload span {
+    white-space: nowrap;
+  }
+  .smartcam-idle-actions {
+    display: flex;
+    align-items: stretch;
+    gap: 8px;
+    width: 100%;
+  }
+  .smartcam-idle-actions > * {
+    flex: 1 1 0;
+    min-width: 0;
+    padding: 0 12px;
+    height: 44px;
+    min-height: 44px;
+    justify-content: center;
+  }
+}
+
+/* Results & Verdict */
+.smartcam-result {
+  margin-top: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
 }
 .smartcam-verdict {
   display: flex;
   align-items: flex-start;
-  gap: 8px;
+  gap: 10px;
   margin: 0;
-  padding: 10px 12px;
+  padding: 12px 14px;
   border-radius: 10px;
-  background: rgba(128, 128, 128, 0.12);
+  background: rgba(148, 163, 184, 0.12);
+  font-size: 14px;
+  font-weight: 500;
 }
 .smartcam-verdict.ok {
   background: rgba(22, 163, 74, 0.12);
   color: var(--success, #15803d);
+  border: 1px solid rgba(22, 163, 74, 0.25);
 }
 .smartcam-verdict.warn {
   background: rgba(217, 119, 6, 0.14);
   color: var(--warning, #b45309);
+  border: 1px solid rgba(217, 119, 6, 0.25);
 }
 .smartcam-chips {
   display: flex;
   flex-wrap: wrap;
-  gap: 6px;
+  gap: 8px;
 }
 .smartcam-chip {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  padding: 4px 10px;
+  padding: 5px 12px;
   border-radius: 999px;
   font-size: 13px;
-  border: 1px solid var(--border, #d9d9d9);
+  border: 1px solid var(--line, #e2e8f0);
   background: var(--card, #fff);
 }
 .smartcam-chip small {
@@ -4431,14 +4838,17 @@ mark.search-hit {
 .smartcam-chip.status-verified {
   border-color: rgba(22, 163, 74, 0.5);
   color: var(--success, #15803d);
+  background: rgba(22, 163, 74, 0.05);
 }
 .smartcam-chip.status-suggested {
   border-color: rgba(217, 119, 6, 0.55);
   color: var(--warning, #b45309);
+  background: rgba(217, 119, 6, 0.05);
 }
 .smartcam-chip.status-conflict {
   border-color: rgba(220, 38, 38, 0.55);
   color: var(--danger, #b91c1c);
+  background: rgba(220, 38, 38, 0.05);
 }
 .smartcam-candidates {
   display: flex;
@@ -4451,14 +4861,19 @@ mark.search-hit {
   justify-content: space-between;
   gap: 10px;
   text-align: left;
-  padding: 10px 12px;
+  padding: 12px 14px;
   border-radius: 10px;
-  border: 1px solid var(--border, #d9d9d9);
+  border: 1px solid var(--line, #e2e8f0);
   background: var(--card, #fff);
   cursor: pointer;
+  transition: background-color 150ms ease, border-color 150ms ease;
+}
+.smartcam-candidate:hover {
+  background: var(--muted-bg, rgba(148, 163, 184, 0.08));
+  border-color: #22c55e;
 }
 .smartcam-actions {
-  gap: 8px;
+  gap: 10px;
   flex-wrap: wrap;
 }
 .smartcam-photos {
@@ -4475,7 +4890,7 @@ mark.search-hit {
   height: 84px;
   object-fit: cover;
   border-radius: 10px;
-  border: 1px solid var(--border, #d9d9d9);
+  border: 1px solid var(--line, #e2e8f0);
 }
 .smartcam-photo button {
   position: absolute;
@@ -4490,6 +4905,124 @@ mark.search-hit {
   background: rgba(0, 0, 0, 0.62);
   color: #fff;
   cursor: pointer;
+}
+
+/* Footer Details & Settings */
+.smartcam-footer {
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1px dashed var(--line, #e2e8f0);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.smartcam-consent-row {
+  margin: 0;
+  padding: 10px 14px;
+  background: var(--muted-bg, rgba(148, 163, 184, 0.08));
+  border: 1px solid var(--line, #e2e8f0);
+  border-radius: 8px;
+}
+.smartcam-consent {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--muted, #64748b);
+  cursor: pointer;
+  user-select: none;
+}
+.smartcam-consent input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  min-width: 16px;
+  min-height: 16px;
+  margin-top: 2px;
+  accent-color: #16a34a;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+.smartcam-engine {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--muted, #64748b);
+}
+.smartcam-engine svg {
+  width: 14px;
+  height: 14px;
+  min-width: 14px;
+  min-height: 14px;
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+.smartcam-engine span {
+  flex: 1;
+  word-break: break-word;
+}
+[data-theme="dark"] .smartcam-consent-row {
+  background: rgba(255, 255, 255, 0.03);
+  border-color: #232531;
+}
+[data-theme="dark"] .smartcam-consent {
+  color: #94a3b8;
+}
+[data-theme="dark"] .smartcam-engine {
+  color: #8f96a8;
+}
+.smartcam-advanced-details {
+  margin-top: 2px;
+  border-top: 1px dashed var(--line, #e2e8f0);
+  padding-top: 10px;
+}
+.smartcam-advanced-summary {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--muted, #64748b);
+  cursor: pointer;
+  user-select: none;
+  font-weight: 500;
+  padding: 4px 0;
+  transition: color 150ms ease;
+}
+.smartcam-advanced-summary:hover {
+  color: var(--foreground, #1e293b);
+}
+.smartcam-advanced-summary svg {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+}
+.smartcam-settings {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 10px;
+  padding: 12px 14px;
+  background: var(--muted-bg, rgba(148, 163, 184, 0.06));
+  border: 1px solid var(--line, #e2e8f0);
+  border-radius: 8px;
+}
+.smartcam-settings label.row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  cursor: pointer;
+}
+.smartcam-settings input[type="checkbox"] {
+  width: 15px;
+  height: 15px;
+  accent-color: #16a34a;
+  cursor: pointer;
+  flex-shrink: 0;
 }
 /* Intake review badges for camera provenance (spec §3 field statuses). */
 .fs-badge {
@@ -5142,12 +5675,12 @@ mark.search-hit {
   }
   .app-shell {
     max-width: 100vw;
-    overflow-x: hidden;
+    overflow-x: clip;
   }
   .workspace {
     max-width: 100vw;
     min-width: 0;
-    overflow-x: hidden;
+    overflow-x: clip;
   }
   .main-content {
     max-width: 100vw;
@@ -5727,10 +6260,9 @@ mark.search-hit {
   margin-top: 6px;
   font-size: 12.5px;
   color: #3730a3;
-  background: #eef2ff;
-  border: 1px solid #c7d2fe;
-  padding: 5px 12px;
-  border-radius: 7px;
+  background: transparent;
+  border: 0;
+  padding: 0;
   display: inline-flex;
   align-items: center;
   line-height: 1.4;
@@ -7878,7 +8410,10 @@ mark.search-hit {
   font-size: 13px;
   text-decoration: none;
   cursor: pointer;
-  transition: all 0.15s ease;
+  transition:
+    background 150ms ease,
+    border-color 150ms ease,
+    color 150ms ease;
 }
 .copilot-chip:hover {
   border-color: var(--primary);
@@ -8374,6 +8909,7 @@ html[data-theme] {
   --line: #232531;
   --line-subtle: #1a1c25;
   --muted: #8f96a8;
+  --readable-muted: #b1b8ca;
   --chart-grid: #232531;
   --chart-point-ring: #14161e;
 }
@@ -8618,14 +9154,7 @@ html[data-theme] {
   border-top-color: rgba(45, 48, 62, 0.85);
   box-shadow: 0 -8px 24px -16px rgba(0, 0, 0, 0.6);
 }
-[data-theme="dark"] .bottom-nav::before {
-  background: linear-gradient(
-    180deg,
-    rgba(99, 102, 241, 0.22),
-    rgba(99, 102, 241, 0.14)
-  );
-  box-shadow: inset 0 0 0 1px rgba(99, 102, 241, 0.28);
-}
+
 [data-theme="dark"] .bottom-nav a {
   color: #6b7280;
 }
@@ -9541,15 +10070,6 @@ html[data-theme="dark"] .header-theme-toggle {
 .intake-hint:hover {
   box-shadow: 0 2px 8px -2px rgba(67, 56, 198, 0.3);
 }
-.intake-money-hint {
-  display: block;
-  font-size: 12px;
-  color: #0f766e;
-  margin-top: 4px;
-}
-.intake-money-hint.danger {
-  color: #be123c;
-}
 .intake-lesson-form {
   margin: 14px 0;
   padding: 14px;
@@ -9744,12 +10264,6 @@ html[data-theme="dark"] .header-theme-toggle {
   color: #8a93a6;
 }
 [data-theme="dark"] .intake-remove:hover {
-  color: #fda4af;
-}
-[data-theme="dark"] .intake-money-hint {
-  color: #5eead4;
-}
-[data-theme="dark"] .intake-money-hint.danger {
   color: #fda4af;
 }
 
@@ -11382,4 +11896,323 @@ html[data-theme="dark"] .header-theme-toggle {
 }
 [data-theme="dark"] .ac-device-phone .ac-device-screen {
   background: #171821;
+}
+
+/* Controlled UI audit refinements: existing surfaces, shared compact rhythm. */
+.compact-card {
+  padding: var(--space-lg);
+}
+.field > label,
+.field-label-text {
+  font-weight: 600;
+  color: var(--readable-muted);
+}
+.field-error,
+.money-input-error {
+  margin: var(--space-xs) 0 0;
+}
+.vehicle-identity {
+  display: grid;
+  gap: var(--space-sm);
+  min-width: 0;
+}
+.vehicle-identity-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-sm) var(--space-md);
+  color: var(--readable-muted);
+}
+.vehicle-identity h1,
+.vehicle-detail-value,
+.vehicle-identifier {
+  overflow-wrap: anywhere;
+  min-width: 0;
+}
+.vehicle-detail-page .details-list dt {
+  font-size: 13px;
+}
+.vehicle-detail-page .details-list > div {
+  padding-block: 10px;
+}
+.copilot-composer > form {
+  gap: var(--space-md);
+}
+.copilot-more-questions,
+.copilot-evidence,
+.copilot-history-details {
+  min-width: 0;
+}
+.copilot-more-questions > summary,
+.copilot-evidence > summary,
+.copilot-history-details > summary {
+  min-height: var(--touch-target);
+  display: list-item;
+  cursor: pointer;
+  padding-block: 10px;
+  font-weight: 600;
+  color: var(--primary);
+}
+.copilot-more-questions[open] > summary,
+.copilot-evidence[open] > summary {
+  margin-bottom: var(--space-sm);
+}
+.copilot-evidence {
+  margin-top: var(--space-md);
+  border-top: 1px solid var(--line);
+}
+.copilot-evidence-body {
+  display: grid;
+  gap: var(--space-md);
+}
+.copilot-stock-note {
+  color: var(--readable-muted);
+  font-size: 13px;
+  line-height: 1.6;
+}
+.copilot-history-link {
+  min-height: var(--touch-target);
+  padding-block: 8px;
+  overflow-wrap: anywhere;
+}
+.citation-text {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.citation-chip {
+  vertical-align: baseline;
+  max-width: 100%;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  font-size: 12px;
+  padding: 5px 8px;
+}
+.citation-list li {
+  border: 0;
+  border-bottom: 1px solid var(--line);
+  border-radius: 0;
+  padding: 8px 0;
+}
+.citation-open {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: var(--touch-target);
+  padding-inline: 8px;
+}
+.sale-payment-summary {
+  margin: var(--space-md) 0;
+  padding: var(--space-md);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+}
+.sale-payment-summary[data-state="invalid"] {
+  border-color: #b91c1c;
+}
+.sale-payment-summary[data-state="invalid"] dd {
+  color: #b91c1c;
+}
+.sale-payment-shortcuts {
+  margin-bottom: var(--space-lg);
+}
+.sale-review-summary > div {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-md);
+  padding-block: 6px;
+}
+.sale-review-summary dt {
+  color: var(--readable-muted);
+}
+.sale-review-summary dd {
+  margin: 0;
+  font-weight: 600;
+  text-align: right;
+  overflow-wrap: anywhere;
+  min-width: 0;
+}
+.confirm-dialog-summary {
+  margin-block: var(--space-md);
+  max-height: min(44dvh, 360px);
+  overflow: auto;
+  overscroll-behavior: contain;
+}
+.search-mobile-trigger {
+  display: none;
+}
+.search-mobile-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 90;
+  background: rgba(15, 23, 42, 0.42);
+}
+.search-mobile-dialog {
+  position: fixed;
+  z-index: 91;
+  top: var(--search-viewport-top, 0px);
+  left: 0;
+  right: 0;
+  height: var(--search-viewport-height, 100dvh);
+  max-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  padding: max(12px, env(safe-area-inset-top))
+    max(12px, env(safe-area-inset-right)) max(12px, env(safe-area-inset-bottom))
+    max(12px, env(safe-area-inset-left));
+  background: #fff;
+  color: #1c1917;
+  overflow: hidden;
+  overscroll-behavior: contain;
+}
+.search-mobile-header {
+  display: flex;
+  gap: var(--space-sm);
+  align-items: center;
+  flex-shrink: 0;
+}
+.search-mobile-form {
+  flex: 0 0 auto;
+  width: 100%;
+  min-width: 0;
+  min-height: var(--touch-target);
+}
+.search-mobile-close {
+  min-width: var(--touch-target);
+  min-height: var(--touch-target);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: transparent;
+  color: inherit;
+}
+.search-mobile-results.search-palette-popover {
+  position: static;
+  flex: 1;
+  width: 100%;
+  min-width: 0;
+  max-width: none;
+  min-height: 0;
+  max-height: none;
+  overflow-y: auto;
+  box-shadow: none;
+  border: 0;
+  margin-top: var(--space-sm);
+  overscroll-behavior: contain;
+}
+[data-theme="dark"] .search-mobile-dialog {
+  background: #14161e;
+  color: #dcdfe9;
+}
+[data-theme="dark"] .sale-payment-summary[data-state="invalid"] dd {
+  color: #fda4af;
+}
+@media (max-width: 768px) {
+  .search-mobile-trigger {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    min-height: var(--touch-target);
+    padding: 8px 10px;
+    font-size: 13px;
+    text-align: left;
+    color: var(--muted);
+  }
+  .search-mobile-trigger span {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .search-mobile-trigger + .global-search,
+  .global-search-container > .global-search:not(.search-mobile-trigger) {
+    display: none;
+  }
+  .global-search-container {
+    min-width: 0;
+  }
+  .search-mobile-form.global-search {
+    display: flex;
+    width: 100%;
+  }
+  .search-mobile-form input {
+    font-size: 16px;
+  }
+  .copilot-page .card,
+  .vehicle-detail-page .card,
+  .sale-form .card,
+  .intake-page .card {
+    padding: var(--space-lg);
+  }
+  .copilot-controls {
+    gap: var(--space-sm);
+  }
+  .copilot-controls > .button {
+    width: 100%;
+  }
+  .copilot-chips {
+    gap: 6px;
+  }
+  .copilot-chip,
+  .citation-chip {
+    min-height: var(--touch-target);
+    display: inline-flex;
+    align-items: center;
+  }
+  .copilot-facts li {
+    border: 0;
+    border-bottom: 1px solid var(--line);
+    border-radius: 0;
+    padding: 8px 0;
+    background: transparent;
+  }
+  .toast {
+    padding: 10px 12px;
+    box-shadow: 0 4px 16px rgba(15, 23, 42, 0.1);
+  }
+  .toast-close,
+  .mobile-menu-close,
+  .header-theme-toggle,
+  .mobile-menu,
+  .intake-rule-chip button {
+    min-width: var(--touch-target);
+    min-height: var(--touch-target);
+  }
+  .intake-camera-photo button {
+    min-width: var(--touch-target);
+    min-height: var(--touch-target);
+  }
+  .money-shortcuts {
+    gap: 6px;
+  }
+  .money-shortcuts .chip-btn {
+    min-height: var(--touch-target);
+  }
+  .sale-payment-summary dd {
+    font-variant-numeric: tabular-nums;
+  }
+  .intake-notes {
+    min-height: 96px;
+  }
+  .intake-entry {
+    gap: var(--space-md);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .bottom-nav a,
+  .citation-chip,
+  .copilot-chip {
+    transition: none;
+  }
+}
+
+.toast:focus-within .toast-progress {
+  animation-play-state: paused;
+}
+
+@media (max-width: 768px) {
+  .bottom-nav .bottom-nav-label {
+    font-size: 12px;
+  }
+  .sale-form aside .summary-list {
+    display: none;
+  }
 }

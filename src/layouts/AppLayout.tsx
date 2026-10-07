@@ -43,7 +43,11 @@ import { currentTheme, toggleTheme, type Theme } from "@/lib/theme";
 
 function RouteLoadingFallback() {
   return (
-    <div className="route-loading-fallback" role="status" aria-label="Đang tải trang">
+    <div
+      className="route-loading-fallback"
+      role="status"
+      aria-label="Đang tải trang"
+    >
       <Loading />
     </div>
   );
@@ -74,9 +78,27 @@ export function AppLayout() {
     () => pathname.startsWith("/copilot") || pathname.startsWith("/docs"),
   );
   const navigationType = useNavigationType();
+  const saleRoute =
+    pathname === "/sell" ||
+    pathname.startsWith("/sales") ||
+    pathname.startsWith("/receivables") ||
+    /^\/vehicles\/[^/]+\/sell\/?$/.test(pathname);
+  const intakeRoute =
+    pathname.startsWith("/acquisitions") || pathname.startsWith("/intake");
+  const navRouteActive = (to: string) =>
+    to === "/"
+      ? pathname === "/"
+      : to === "/sales"
+        ? saleRoute
+        : to === "/acquisitions"
+          ? intakeRoute
+          : to === "/vehicles"
+            ? pathname.startsWith("/vehicles") && !saleRoute
+            : pathname === to || pathname.startsWith(`${to}/`);
 
   useEffect(() => {
-    if (pathname.startsWith("/copilot") || pathname.startsWith("/docs")) setAiSectionOpen(true);
+    if (pathname.startsWith("/copilot") || pathname.startsWith("/docs"))
+      setAiSectionOpen(true);
   }, [pathname]);
 
   useEffect(() => {
@@ -98,12 +120,12 @@ export function AppLayout() {
     };
   }, []);
   const visibleNav = mainNav.filter(
-    (n) =>
-      n.to !== "/expenses" || canManage(profile),
+    (n) => n.to !== "/expenses" || canManage(profile),
   );
 
   const currentPageTitle = useMemo(() => {
     if (pathname === "/") return "Tổng quan";
+    if (/^\/vehicles\/[^/]+\/sell\/?$/.test(pathname)) return "Bán xe";
     const item = mainNav.find((n) => pathname.startsWith(n.to) && n.to !== "/");
     if (item) return item.label;
     if (pathname.startsWith("/receivables")) return "Bán hàng & Thu nợ";
@@ -159,17 +181,24 @@ export function AppLayout() {
         <p className="nav-caption">KHÔNG GIAN LÀM VIỆC</p>
         <nav aria-label="Chính">
           {visibleNav.map(({ to, label, icon: Icon }) => (
-            <NavLink
+            <Link
               key={to}
               to={to}
-              end={to === "/"}
+              className={navRouteActive(to) ? "active" : ""}
+              aria-current={
+                navRouteActive(to)
+                  ? pathname === to
+                    ? "page"
+                    : "location"
+                  : undefined
+              }
               onClick={drawer.close}
               onMouseEnter={() => preloadRoute(to)}
               onFocus={() => preloadRoute(to)}
             >
               <Icon size={20} />
               <span>{label}</span>
-            </NavLink>
+            </Link>
           ))}
         </nav>
         {/* AI mode: grounded Q&A plus the documentation the answers cite. */}
@@ -348,14 +377,20 @@ export function AppLayout() {
             <NotificationBell />
             <button
               className="icon-button header-theme-toggle"
-              aria-label={theme === "dark" ? "Chuyển sang nền sáng" : "Chuyển sang nền tối"}
+              aria-label={
+                theme === "dark"
+                  ? "Chuyển sang nền sáng"
+                  : "Chuyển sang nền tối"
+              }
               title={theme === "dark" ? "Nền sáng" : "Nền tối"}
               onClick={() => setTheme(toggleTheme())}
             >
               {/* key remounts the icon so the pop/spin animation replays on every switch */}
-              {theme === "dark"
-                ? <Sun key="sun" size={18} />
-                : <Moon key="moon" size={18} />}
+              {theme === "dark" ? (
+                <Sun key="sun" size={18} />
+              ) : (
+                <Moon key="moon" size={18} />
+              )}
             </button>
             <button
               className="icon-button header-logout"
@@ -379,7 +414,9 @@ export function AppLayout() {
             <Outlet />
           </Suspense>
         </main>
-        {!["/acquisitions", "/acquisitions/new", "/vehicles"].includes(pathname) && (
+        {!["/acquisitions", "/acquisitions/new", "/vehicles"].includes(
+          pathname,
+        ) && (
           <footer className="workspace-footer">
             <span>Cà Rem · Vận hành cửa hàng xe máy chuyên nghiệp.</span>
             <span>
@@ -393,41 +430,68 @@ export function AppLayout() {
         aria-label="Điều hướng nhanh"
         inert={drawer.active}
       >
-        <NavLink
+        <Link
           to="/"
-          end
+          className={pathname === "/" ? "active" : ""}
+          data-active={pathname === "/" ? "true" : undefined}
+          aria-current={pathname === "/" ? "page" : undefined}
           onMouseEnter={() => preloadRoute("/")}
           onTouchStart={() => preloadRoute("/")}
         >
-          <span className="bottom-nav-icon"><House size={22} /></span>
+          <span className="bottom-nav-icon">
+            <House size={22} />
+          </span>
           <span className="bottom-nav-label">Tổng quan</span>
-        </NavLink>
+        </Link>
         {canOperate(profile) && (
-          <NavLink
+          <Link
             to="/acquisitions/new"
+            className={intakeRoute ? "active" : ""}
+            data-active={intakeRoute ? "true" : undefined}
+            aria-current={intakeRoute ? "location" : undefined}
             onMouseEnter={() => preloadRoute("/acquisitions/new")}
             onTouchStart={() => preloadRoute("/acquisitions/new")}
           >
-            <span className="bottom-nav-icon"><Plus size={22} /></span>
+            <span className="bottom-nav-icon">
+              <Plus size={22} />
+            </span>
             <span className="bottom-nav-label">Thu xe</span>
-          </NavLink>
+          </Link>
         )}
-        <NavLink
+        <Link
           to="/vehicles"
+          className={navRouteActive("/vehicles") ? "active" : ""}
+          data-active={
+            pathname.startsWith("/vehicles") && !saleRoute ? "true" : undefined
+          }
+          aria-current={
+            navRouteActive("/vehicles")
+              ? pathname === "/vehicles"
+                ? "page"
+                : "location"
+              : undefined
+          }
           onMouseEnter={() => preloadRoute("/vehicles")}
           onTouchStart={() => preloadRoute("/vehicles")}
         >
-          <span className="bottom-nav-icon"><Bike size={22} /></span>
+          <span className="bottom-nav-icon">
+            <Bike size={22} />
+          </span>
           <span className="bottom-nav-label">Tồn kho</span>
-        </NavLink>
-        <NavLink
+        </Link>
+        <Link
           to="/sales"
+          className={saleRoute ? "active" : ""}
+          data-active={saleRoute ? "true" : undefined}
+          aria-current={saleRoute ? "location" : undefined}
           onMouseEnter={() => preloadRoute("/sales")}
           onTouchStart={() => preloadRoute("/sales")}
         >
-          <span className="bottom-nav-icon"><Receipt size={22} /></span>
+          <span className="bottom-nav-icon">
+            <Receipt size={22} />
+          </span>
           <span className="bottom-nav-label">Bán ra</span>
-        </NavLink>
+        </Link>
       </nav>
     </div>
   );

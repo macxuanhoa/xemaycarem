@@ -12,6 +12,7 @@ import {
   ArrowDownLeft,
   BookOpen,
   Bot,
+  Camera,
   ChevronDown,
   ExternalLink,
   House,
@@ -85,6 +86,7 @@ export function AppLayout() {
     /^\/vehicles\/[^/]+\/sell\/?$/.test(pathname);
   const intakeRoute =
     pathname.startsWith("/acquisitions") || pathname.startsWith("/intake");
+  const captureRoute = pathname.startsWith("/capture");
   const navRouteActive = (to: string) =>
     to === "/"
       ? pathname === "/"
@@ -456,6 +458,22 @@ export function AppLayout() {
               <Plus size={22} />
             </span>
             <span className="bottom-nav-label">Thu xe</span>
+          </Link>
+        )}
+        {canOperate(profile) && (
+          /* Camera thông minh — viên kính nổi giữa thanh, vị trí số 3/5. */
+          <Link
+            to="/capture"
+            className={`bottom-nav-camera${captureRoute ? " active" : ""}`}
+            data-active={captureRoute ? "true" : undefined}
+            aria-current={captureRoute ? "page" : undefined}
+            onMouseEnter={() => preloadRoute("/capture")}
+            onTouchStart={() => preloadRoute("/capture")}
+          >
+            <span className="bottom-nav-fab">
+              <Camera size={21} />
+            </span>
+            <span className="bottom-nav-label">Camera</span>
           </Link>
         )}
         <Link

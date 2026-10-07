@@ -184,8 +184,10 @@ export function IdentityDocumentPanel({
                   onChange={onPick}
                 />
               </label>
+              {/* Nhãn gọn, cân bằng hai trạng thái (Chụp ảnh/Chọn ảnh ↔ Chụp lại/Ảnh
+                  khác) để bố cục hàng nút không đổi khi chuyển giữa mặt trước/sau. */}
               <label className="button secondary upload-button">
-                <Images size={16} /> {targetFilled ? "Ảnh khác" : "Thư viện ảnh"}
+                <Images size={16} /> {targetFilled ? "Ảnh khác" : "Chọn ảnh"}
                 <input
                   type="file"
                   accept="image/*"

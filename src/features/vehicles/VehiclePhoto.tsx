@@ -1,6 +1,13 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useMutation, useQueries, useQueryClient } from "@tanstack/react-query";
-import { Camera, ChevronLeft, ChevronRight, X } from "lucide-react";
+import { Link } from "react-router-dom";
+import {
+  Camera,
+  ChevronLeft,
+  ChevronRight,
+  Plus,
+  X,
+} from "lucide-react";
 import { api } from "@/lib/api";
 import { toast } from "@/lib/toast";
 import { Button, ErrorState } from "@/components/ui";
@@ -8,17 +15,20 @@ import type { VehicleImage } from "@/types";
 
 /**
  * Ảnh xe hiển thị dạng bộ sưu tập có ảnh lớn: một ảnh chính chiếm chỗ cố định,
- * dải thu nhỏ nằm ngang bên dưới và ảnh xem lớn toàn màn hình. Số ảnh nhiều
- * đến đâu trang chi tiết cũng không dài thêm theo chiều dọc.
+ * dải thu nhỏ nằm ngang bên dưới (vuốt trái/phải để xem tiếp trên điện thoại,
+ * cuối dải luôn là ô "+ ảnh" để thêm không giới hạn) và ảnh xem lớn toàn màn
+ * hình. Số ảnh nhiều đến đâu trang chi tiết cũng không dài thêm theo chiều dọc.
  */
 export function VehiclePhotoDisplay({
   photos,
   vehicleName,
   removable,
+  addPhotoHref,
 }: {
   photos: VehicleImage[];
   vehicleName: string;
   removable: boolean;
+  addPhotoHref?: string;
 }) {
   const client = useQueryClient();
   const [selected, setSelected] = useState(0);
@@ -48,6 +58,44 @@ export function VehiclePhotoDisplay({
     setConfirm(false);
     setSelected((current + delta + count) % count);
   };
+  // Vuốt ngang trên ảnh lớn (kể cả ảnh xem lớn) để lật ảnh, mô phỏng cách
+  // người dùng vẫn lướt thư viện trên điện thoại. Cú vuốt "ăn" click cuối
+  // cùng để vuốt không bị hiểu nhầm là chạm mở/zoom.
+  const touchFrom = useRef<{ x: number; y: number } | null>(null);
+  const swiped = useRef(false);
+  const onTouchStart = (event: React.TouchEvent) => {
+    const t = event.touches[0];
+    touchFrom.current = t ? { x: t.clientX, y: t.clientY } : null;
+    swiped.current = false;
+  };
+  const onTouchEnd = (event: React.TouchEvent) => {
+    const from = touchFrom.current;
+    touchFrom.current = null;
+    if (!from || count < 2) return;
+    const t = event.changedTouches[0];
+    if (!t) return;
+    const dx = t.clientX - from.x;
+    const dy = t.clientY - from.y;
+    // Ngang thắng dọc và đủ xa mới lật; ngược lại nhường cho trang cuộn dọc.
+    if (Math.abs(dx) < 44 || Math.abs(dx) < Math.abs(dy) * 1.4) return;
+    swiped.current = true;
+    step(dx < 0 ? 1 : -1);
+  };
+  const consumeSwipe = () => {
+    const was = swiped.current;
+    swiped.current = false;
+    return was;
+  };
+  // Ảnh đang xem (kể cả khi lật bằng vuốt/phím) luôn được kéo vào giữa dải
+  // thu nhỏ — dải dài bao nhiêu cũng không lạc vị trí.
+  const stripRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const strip = stripRef.current;
+    if (!strip) return;
+    strip
+      .querySelector<HTMLElement>(".vehicle-display-thumb.is-active")
+      ?.scrollIntoView({ block: "nearest", inline: "center" });
+  }, [current]);
   // Điều hướng bằng phím chỉ bật khi ảnh xem lớn đang mở, tránh xung đột
   // với phím tắt toàn trang (palette tìm kiếm, Escape đóng drawer...).
   useEffect(() => {
@@ -63,12 +111,19 @@ export function VehiclePhotoDisplay({
   }, [zoom, current, count]);
   if (!count) return null;
   const stage = (
-    <div className="vehicle-display-stage">
+    <div
+      className="vehicle-display-stage"
+      onTouchStart={onTouchStart}
+      onTouchEnd={onTouchEnd}
+    >
       {query?.data ? (
         <button
           type="button"
           className="vehicle-display-main"
-          onClick={() => setZoom(true)}
+          onClick={() => {
+            if (consumeSwipe()) return; // vuốt ăn click: đừng mở xem lớn
+            setZoom(true);
+          }}
           aria-label={`Xem lớn ảnh ${current + 1}/${count}`}
           title="Xem lớn"
         >
@@ -88,7 +143,10 @@ export function VehiclePhotoDisplay({
             type="button"
             className="vehicle-display-nav vehicle-display-nav-prev"
             aria-label="Ảnh trước"
-            onClick={() => step(-1)}
+            onClick={() => {
+              if (consumeSwipe()) return;
+              step(-1);
+            }}
           >
             <ChevronLeft size={20} />
           </button>
@@ -96,7 +154,10 @@ export function VehiclePhotoDisplay({
             type="button"
             className="vehicle-display-nav vehicle-display-nav-next"
             aria-label="Ảnh tiếp theo"
-            onClick={() => step(1)}
+            onClick={() => {
+              if (consumeSwipe()) return;
+              step(1);
+            }}
           >
             <ChevronRight size={20} />
           </button>
@@ -110,8 +171,12 @@ export function VehiclePhotoDisplay({
   return (
     <div className="vehicle-display">
       {stage}
-      {count > 1 && (
-        <div className="vehicle-display-thumbs" aria-label="Dải ảnh thu nhỏ">
+      {(count > 1 || addPhotoHref) && (
+        <div
+          className="vehicle-display-thumbs"
+          ref={stripRef}
+          aria-label="Dải ảnh thu nhỏ"
+        >
           {photos.map((item, index) => {
             const thumbUrl = urls[index]?.data;
             return thumbUrl ? (
@@ -136,6 +201,18 @@ export function VehiclePhotoDisplay({
               />
             );
           })}
+          {addPhotoHref && (
+            /* Ô "+ ảnh" cuối dải: thêm bao nhiêu ảnh cũng không tràn UI —
+               dải cuộn ngang thay vì chất đống làm dài trang. */
+            <Link
+              to={addPhotoHref}
+              className="vehicle-display-thumb vehicle-display-add"
+              aria-label="Thêm ảnh cho xe"
+              title="Thêm ảnh"
+            >
+              <Plus size={18} />
+            </Link>
+          )}
         </div>
       )}
       {removable && (
@@ -149,12 +226,14 @@ export function VehiclePhotoDisplay({
               >
                 Gỡ ảnh
               </Button>
-              <Button variant="ghost" onClick={() => setConfirm(false)}>
+              {/* secondary (viền rõ) thay ghost: người dùng nhìn thấy lối
+                  "Giữ lại" ngay, không phải dò hover mới thấy nút. */}
+              <Button variant="secondary" onClick={() => setConfirm(false)}>
                 Giữ lại
               </Button>
             </>
           ) : (
-            <Button variant="ghost" onClick={() => setConfirm(true)}>
+            <Button variant="secondary" onClick={() => setConfirm(true)}>
               Gỡ ảnh này
             </Button>
           )}
@@ -167,7 +246,12 @@ export function VehiclePhotoDisplay({
           role="button"
           tabIndex={0}
           aria-label="Đóng ảnh xem lớn"
-          onClick={() => setZoom(false)}
+          onTouchStart={onTouchStart}
+          onTouchEnd={onTouchEnd}
+          onClick={() => {
+            if (consumeSwipe()) return; // vuốt lật ảnh, không phải lệnh đóng
+            setZoom(false);
+          }}
         >
           <img
             src={query.data}
@@ -182,6 +266,7 @@ export function VehiclePhotoDisplay({
                 aria-label="Ảnh trước"
                 onClick={(event) => {
                   event.stopPropagation();
+                  if (consumeSwipe()) return;
                   step(-1);
                 }}
               >
@@ -193,6 +278,7 @@ export function VehiclePhotoDisplay({
                 aria-label="Ảnh tiếp theo"
                 onClick={(event) => {
                   event.stopPropagation();
+                  if (consumeSwipe()) return;
                   step(1);
                 }}
               >

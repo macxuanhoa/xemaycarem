@@ -2390,6 +2390,8 @@ pre {
   background: #f2f4ee;
   border-radius: 12px;
   overflow: hidden;
+  /* Vuốt ngang lật ảnh do app bắt; dọc vẫn trả lại cho trang cuộn. */
+  touch-action: pan-y;
 }
 .vehicle-display-main {
   display: block;
@@ -2452,6 +2454,10 @@ pre {
   overflow-x: auto;
   padding: 2px;
   scrollbar-width: thin;
+  /* Dải dài vuốt mượt trên điện thoại và không "kéo" theo cả trang. */
+  scroll-snap-type: x proximity;
+  overscroll-behavior-x: contain;
+  -webkit-overflow-scrolling: touch;
 }
 .vehicle-display-thumb {
   flex-shrink: 0;
@@ -2463,6 +2469,7 @@ pre {
   overflow: hidden;
   background: #f2f4ee;
   cursor: pointer;
+  scroll-snap-align: center;
 }
 .vehicle-display-thumb img {
   display: block;
@@ -2477,6 +2484,30 @@ pre {
   cursor: default;
   opacity: 0.55;
 }
+/* Ô "+ ảnh" cuối dải thu nhỏ: thêm ảnh không giới hạn mà trang không dài
+   thêm — dải cuộn ngang thay vì chất ảnh tràn ô. */
+.vehicle-display-add {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 2px dashed #cbd5e1;
+  border-radius: 8px;
+  background: transparent;
+  color: #64748b;
+  text-decoration: none;
+  transition:
+    border-color 150ms ease,
+    background-color 150ms ease,
+    color 150ms ease;
+}
+.vehicle-display-add:hover {
+  border-color: var(--accent, #6b835a);
+  background: rgba(107, 131, 90, 0.08);
+  color: var(--accent, #6b835a);
+}
+.vehicle-display-add:active {
+  transform: scale(0.94);
+}
 .vehicle-display-lightbox {
   position: fixed;
   inset: 0;
@@ -2486,6 +2517,7 @@ pre {
   justify-content: center;
   background: rgba(2, 6, 23, 0.8);
   cursor: zoom-out;
+  touch-action: pan-y;
 }
 .vehicle-display-lightbox img {
   max-width: 92vw;
@@ -3349,7 +3381,9 @@ pre {
     gap: 15px;
   }
   .detail-grid {
-    grid-template-columns: 1fr;
+    /* minmax(0,1fr): cột không bị dải ảnh ngang nong to hơn màn hình
+       (1fr trần = minmax(auto,1fr) → nội dung overflow kéo card tràn trang). */
+    grid-template-columns: minmax(0, 1fr);
   }
   .login-story-content h1 {
     font-size: 34px;
@@ -3384,12 +3418,24 @@ pre {
     font-size: 14px;
   }
   /* iOS Safari auto-zooms the viewport when a focused control computes
-     font-size < 16px. Floor every text entry at 16px on mobile so tapping
-     search/fields anywhere never zooms the screen. */
+     font-size < 16px. Floor EVERY text entry at 16px on mobile. The `!important`
+     is deliberate: scattered class-qualified overrides (e.g. `.search-field
+     input { font-size: 12.5px }`) outrank this bare element selector on
+     specificity, so a plain rule left search bars and filters still zooming.
+     No input is intentionally styled above 16px, so pinning is safe; scoping to
+     this media query keeps the compact desktop sizes untouched. */
   input,
   select,
-  textarea {
-    font-size: 16px;
+  textarea,
+  [type="search"],
+  [type="text"],
+  [type="email"],
+  [type="tel"],
+  [type="number"],
+  [type="password"],
+  [type="date"],
+  [type="time"] {
+    font-size: 16px !important;
   }
   .sidebar {
     transform: translateX(-100%);
@@ -3507,7 +3553,7 @@ pre {
     display: none;
   }
   .main-content {
-    padding: 20px 16px calc(76px + env(safe-area-inset-bottom));
+    padding: 20px 16px calc(92px + env(safe-area-inset-bottom));
     min-height: calc(100vh - 155px);
   }
   .workspace-footer {
@@ -3522,7 +3568,9 @@ pre {
   /* Standard bottom navigation — a full-width bar glued flush to the bottom
      edge, the conventional mobile nav structure (no floating gap or rounded
      sides). Safe-area padding keeps the tabs clear of the home indicator while
-     the bar still spans edge-to-edge and stays pinned to the very bottom. */
+     the bar still spans edge-to-edge and stays pinned to the very bottom.
+     Five slots; "Camera" is the centre raised lens button (a FAB cut into the
+     bar edge), the other four are quiet icon tabs with a soft accent pill. */
   .bottom-nav {
     display: flex;
     position: fixed;
@@ -3532,14 +3580,14 @@ pre {
     right: 0;
     align-items: stretch;
     gap: 0;
-    padding: 6px 8px calc(6px + env(safe-area-inset-bottom));
+    padding: 6px 10px calc(6px + env(safe-area-inset-bottom));
     border-radius: 0;
-    background: rgba(255, 255, 255, 0.94);
-    backdrop-filter: blur(22px) saturate(1.7);
-    -webkit-backdrop-filter: blur(22px) saturate(1.7);
+    background: rgba(255, 255, 255, 0.92);
+    backdrop-filter: blur(24px) saturate(1.8);
+    -webkit-backdrop-filter: blur(24px) saturate(1.8);
     border: 0;
-    border-top: 1px solid rgba(226, 232, 240, 0.9);
-    box-shadow: 0 -8px 24px -16px rgba(15, 23, 42, 0.22);
+    border-top: 1px solid rgba(15, 23, 42, 0.08);
+    box-shadow: 0 -10px 30px -20px rgba(15, 23, 42, 0.25);
   }
   .bottom-nav a {
     position: relative;
@@ -3567,21 +3615,59 @@ pre {
   .bottom-nav .bottom-nav-icon {
     display: grid;
     place-items: center;
-    width: 26px;
+    width: 42px;
     height: 26px;
-    transition: transform 0.22s cubic-bezier(0.34, 1.56, 0.64, 1);
+    border-radius: 999px;
+    transition:
+      transform 0.24s cubic-bezier(0.34, 1.45, 0.64, 1),
+      background-color 0.2s ease;
   }
   .bottom-nav .bottom-nav-label {
     line-height: 1.1;
   }
+  /* Active tab: no blocky background across the whole slot — just accent
+     ink plus a soft pill hugging the icon, the modern nav language. */
   .bottom-nav a.active {
-    background: rgba(79, 70, 229, 0.1);
-    border-radius: var(--radius);
     color: var(--primary);
     font-weight: 700;
   }
   .bottom-nav a.active .bottom-nav-icon {
-    transform: translateY(-1px) scale(1.05);
+    background: rgba(79, 70, 229, 0.1);
+    background: color-mix(in srgb, var(--primary) 11%, transparent);
+    transform: translateY(-1px);
+  }
+  /* Centre camera: a raised gradient lens disc cut out of the bar edge.
+     Keeps the `.bottom-nav a` specificity so the alignment padding wins. */
+  .bottom-nav a.bottom-nav-camera {
+    padding: 33px 2px 4px;
+    justify-content: flex-start;
+  }
+  .bottom-nav .bottom-nav-fab {
+    position: absolute;
+    top: -18px;
+    left: 50%;
+    margin-left: -24px;
+    display: grid;
+    place-items: center;
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    color: #fff;
+    background: linear-gradient(135deg, #6366f1, #4f46e5 55%, #4338ca);
+    box-shadow:
+      0 0 0 4px #fff,
+      0 10px 20px -10px rgba(79, 70, 229, 0.65);
+    transition:
+      transform 0.24s cubic-bezier(0.34, 1.5, 0.64, 1),
+      box-shadow 0.2s ease,
+      filter 0.2s ease;
+  }
+  .bottom-nav-camera.active .bottom-nav-fab {
+    transform: translateY(-2px);
+    filter: saturate(1.15) brightness(1.05);
+    box-shadow:
+      0 0 0 4px #fff,
+      0 14px 26px -10px rgba(79, 70, 229, 0.8);
   }
   /* Phone header rule: title and primary CTA stay on ONE horizontal row; the
      description spans the full width underneath, so it can never push the
@@ -4033,10 +4119,13 @@ pre {
   .bottom-nav a:active .bottom-nav-icon {
     transform: scale(0.9);
   }
+  .bottom-nav a:active .bottom-nav-fab {
+    transform: scale(0.9);
+  }
   @media (prefers-reduced-motion: reduce) {
-    .bottom-nav::before,
     .bottom-nav a,
-    .bottom-nav .bottom-nav-icon {
+    .bottom-nav .bottom-nav-icon,
+    .bottom-nav .bottom-nav-fab {
       transition: none;
     }
   }
@@ -7855,15 +7944,19 @@ mark.search-hit {
 
 /* Responsive: mobile toasts + announcement */
 @media (max-width: 640px) {
-  /* Float ABOVE the fixed bottom-nav (~74px tall) instead of covering it,
-     and cap the width so a centered pill never stretches edge-to-edge. */
+  /* Toasts keep the desktop language on mobile: anchored to the RIGHT edge
+     (not centered — mixed pill widths looked lopsided), floating ABOVE the
+     fixed bottom-nav and the raised centre camera disc (~100px clearance).
+     Uniform width so every toast lines up flush at the corner. */
   .toast-viewport {
-    bottom: calc(84px + env(safe-area-inset-bottom, 0px));
-    left: 50%;
-    right: auto;
-    transform: translateX(-50%);
-    align-items: center;
+    bottom: calc(100px + env(safe-area-inset-bottom, 0px));
+    right: calc(12px + env(safe-area-inset-right, 0px));
+    left: auto;
+    align-items: flex-end;
     width: min(360px, calc(100vw - 24px));
+  }
+  .toast-viewport .toast {
+    width: 100%;
   }
   .toast {
     padding: 10px 12px;
@@ -9830,7 +9923,7 @@ html[data-theme] {
 [data-theme="dark"] .bottom-nav {
   background: rgba(15, 16, 21, 0.92);
   border-top-color: rgba(45, 48, 62, 0.85);
-  box-shadow: 0 -8px 24px -16px rgba(0, 0, 0, 0.6);
+  box-shadow: 0 -10px 30px -20px rgba(0, 0, 0, 0.65);
 }
 
 [data-theme="dark"] .bottom-nav a {
@@ -9838,6 +9931,20 @@ html[data-theme] {
 }
 [data-theme="dark"] .bottom-nav a.active {
   color: var(--primary-light);
+}
+[data-theme="dark"] .bottom-nav a.active .bottom-nav-icon {
+  background: rgba(129, 140, 248, 0.14);
+}
+/* The cut-out ring around the centre lens matches the dark bar chrome. */
+[data-theme="dark"] .bottom-nav .bottom-nav-fab {
+  box-shadow:
+    0 0 0 4px #0f1015,
+    0 10px 20px -10px rgba(99, 102, 241, 0.55);
+}
+[data-theme="dark"] .bottom-nav-camera.active .bottom-nav-fab {
+  box-shadow:
+    0 0 0 4px #0f1015,
+    0 14px 26px -10px rgba(99, 102, 241, 0.75);
 }
 [data-theme="dark"] .workspace-footer {
   color: #7c8496;
@@ -13015,6 +13122,16 @@ html[data-theme="dark"] .header-theme-toggle {
 [data-theme="dark"] .vehicle-display-stage,
 [data-theme="dark"] .vehicle-display-thumb {
   background: #101117;
+}
+[data-theme="dark"] .vehicle-display-add {
+  background: transparent;
+  border-color: #3a3f52;
+  color: #9aa3b5;
+}
+[data-theme="dark"] .vehicle-display-add:hover {
+  border-color: #8fae7f;
+  background: rgba(143, 174, 127, 0.12);
+  color: #a9c799;
 }
 [data-theme="dark"] .vehicle-display-nav {
   background: rgba(22, 24, 32, 0.82);

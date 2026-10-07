@@ -283,6 +283,9 @@ export function VehicleDetailPage() {
                   photos={vehicle.images}
                   vehicleName={`${vehicle.brand} ${vehicle.model}`}
                   removable={canOperate(profile)}
+                  addPhotoHref={
+                    canOperate(profile) ? `/capture?vehicle=${id}` : undefined
+                  }
                 />
               ) : (
                 <div className="vehicle-empty-photo">

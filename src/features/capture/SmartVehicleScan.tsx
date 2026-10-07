@@ -347,7 +347,25 @@ export default function SmartVehicleScan() {
       audio: false,
     };
     try {
-      const stream = await navigator.mediaDevices.getUserMedia(constraints);
+      let stream: MediaStream;
+      try {
+        stream = await navigator.mediaDevices.getUserMedia(constraints);
+      } catch (err) {
+        // deviceId exact fail (stale id, device seized elsewhere): open by
+        // lens direction instead — losing the stream would DEAD-LOCK the
+        // flip button ("bấm camera trước không quay lại, video cứ chạy").
+        if (
+          !planDeviceId ||
+          !(err instanceof DOMException) ||
+          err.name === "NotAllowedError"
+        ) {
+          throw err;
+        }
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: { ideal: facing } },
+          audio: false,
+        });
+      }
       if (!mounted.current) {
         stream.getTracks().forEach((track) => track.stop());
         return;
@@ -360,7 +378,6 @@ export default function SmartVehicleScan() {
       setRunning(true);
       setIdlePaused(false);
       setFrozenPreview(null);
-      setActiveFacing(facing);
       lastActiveRef.current = Date.now();
 
       // Torch: trust the CAPABILITY shape (boolean vs numeric on Android) and
@@ -369,6 +386,18 @@ export default function SmartVehicleScan() {
       // constraintchange instead of lying about being on.
       const track = stream.getVideoTracks()[0];
       if (track) {
+        // ĐỒNG BỘ lens THỰC từ SETTINGS của track, MỌI đường mở camera (kể cả
+        // theo deviceId). Trước đây bản ghi theo deviceId bỏ qua bước này →
+        // activeCameraId/activeFacing stale → lần lật sau suy ra đúng lens cũ,
+        // facingMode ideal trả về cùng lens: "bấm camera trước không quay lại
+        // mà video cứ chạy".
+        const initial = track.getSettings();
+        if (initial.deviceId) setActiveCameraId(initial.deviceId);
+        setActiveFacing(
+          initial.facingMode === "user" || initial.facingMode === "environment"
+            ? initial.facingMode
+            : facing, // browser không trả facingMode → tạm suy từ plan/nhãn
+        );
         const mode = torchMode(track.getCapabilities?.());
         setTorchModeState(mode);
         setTorchSupported(mode !== "none");
@@ -387,10 +416,6 @@ export default function SmartVehicleScan() {
         const devices = await navigator.mediaDevices.enumerateDevices();
         const videoInputs = devices.filter((d) => d.kind === "videoinput");
         setCameras(videoInputs);
-        if (track && !planDeviceId) {
-          const trackSettings = track.getSettings();
-          if (trackSettings.deviceId) setActiveCameraId(trackSettings.deviceId);
-        }
       } catch {
         /* device enumeration not permitted */
       }

@@ -119,6 +119,18 @@ test("Malformed money stays invalid and cannot become a different amount", async
     await expect(input).toHaveValue(value);
     await expect(input).toHaveAttribute("aria-invalid", "false");
   }
+  // Shorthand keeps its raw text while typing, but the exact amount is stated
+  // on its own line before the field is committed.
+  await input.fill("82tr5");
+  await expect(input).toHaveValue("82tr5");
+  await expect(input).toHaveAccessibleDescription(/82\.500\.000 ₫/);
+  await input.blur();
+  await expect(input).toHaveValue("82.500.000");
+  await expect(input).toHaveAccessibleDescription(
+    /Tám mươi hai triệu năm trăm nghìn đồng/,
+  );
+  // No quick-add amount chips remain anywhere in the money input.
+  await expect(page.locator(".money-shortcuts")).toHaveCount(0);
 });
 
 test("Sale review uses intended values and cancellation preserves form without write", async ({
@@ -185,6 +197,60 @@ test("Full-payment control is accessible and overpayment is not presented as zer
     "data-state",
     "valid",
   );
+});
+
+test("Sell summary card keeps the vehicle identity inside its frame and the confirm action separated", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await installUiuxMock(page);
+  await page.goto(`/vehicles/${vehicleId}/sell`);
+  await expect(
+    page.locator(".sale-vehicle-head .vehicle-icon.large"),
+  ).toBeVisible();
+  await expect(page.locator(".sale-action-footer button")).toBeVisible();
+  const geometry = await page.evaluate(() => {
+    const icon = document.querySelector(
+      ".sale-vehicle-head .vehicle-icon.large",
+    );
+    const glyph = icon?.querySelector("svg");
+    const title = document.querySelector(".sale-vehicle-head-text h2");
+    const head = document.querySelector(".sale-vehicle-head");
+    const footer = document.querySelector(".sale-action-footer");
+    const box = (node) => node?.getBoundingClientRect();
+    const iconBox = box(icon);
+    const glyphBox = box(glyph);
+    const style = footer ? getComputedStyle(footer) : null;
+    return {
+      icon: iconBox && { w: iconBox.width, h: iconBox.height },
+      glyphInsideFrame:
+        !!iconBox &&
+        !!glyphBox &&
+        glyphBox.left >= iconBox.left &&
+        glyphBox.right <= iconBox.right &&
+        glyphBox.top >= iconBox.top &&
+        glyphBox.bottom <= iconBox.bottom,
+      titleBesideIcon:
+        !!box(title) &&
+        !!iconBox &&
+        title.getBoundingClientRect().left >= iconBox.right,
+      footerBelowIdentity:
+        !!box(head) &&
+        !!box(footer) &&
+        footer.getBoundingClientRect().top >=
+          head.getBoundingClientRect().bottom,
+      footerGap: style ? parseFloat(style.marginTop) : -1,
+      footerDivides: style ? parseFloat(style.borderTopWidth) : -1,
+    };
+  });
+  expect(geometry.icon).toEqual({ w: 56, h: 56 });
+  expect(geometry.glyphInsideFrame).toBe(true);
+  expect(geometry.titleBesideIcon).toBe(true);
+  expect(geometry.footerBelowIdentity).toBe(true);
+  expect(geometry.footerGap).toBeGreaterThanOrEqual(16);
+  expect(geometry.footerDivides).toBeGreaterThanOrEqual(1);
+  // Only the necessary copy remains: no explanatory paragraph about cost locking.
+  await expect(page.getByText(/Giá vốn được chốt/i)).toHaveCount(0);
 });
 
 test("Intake retains shorthand parsing, invalid raw money and edited rows on cancelled reparse", async ({

@@ -116,6 +116,7 @@ for (const width of [1440, 390]) {
     await page.setViewportSize({ width, height: 900 });
     await page.goto(`/vehicles/${vehicleId}`);
 
+    await page.getByRole("button", { name: "Thao tác trên xe" }).click();
     const deleteButton = page.getByRole("button", { name: "Xóa xe khỏi kho" });
     await expect(deleteButton).toBeVisible();
 
@@ -164,6 +165,8 @@ test("delete button is hidden once the vehicle has sale history", async ({
   });
   await page.goto(`/vehicles/${vehicleId}`);
   await expect(page.getByRole("heading", { name: /Yamaha Janus/ })).toBeVisible();
+  const trigger = page.getByRole("button", { name: "Thao tác trên xe" });
+  if (await trigger.count()) await trigger.click();
   await expect(
     page.getByRole("button", { name: "Xóa xe khỏi kho" }),
   ).toHaveCount(0);
@@ -172,6 +175,8 @@ test("delete button is hidden once the vehicle has sale history", async ({
 test("STAFF never sees the hard-delete control", async ({ page }) => {
   await installMock(page, { role: "STAFF" });
   await page.goto(`/vehicles/${vehicleId}`);
+  const trigger = page.getByRole("button", { name: "Thao tác trên xe" });
+  if (await trigger.count()) await trigger.click();
   await expect(
     page.getByRole("button", { name: "Xóa xe khỏi kho" }),
   ).toHaveCount(0);

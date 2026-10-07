@@ -462,7 +462,6 @@ function VehicleEditor({ vehicle }: { vehicle?: Vehicle }) {
                     onBlur={() => void form.trigger("purchase_price")}
                     min={0}
                     required
-                    showShortcuts={false}
                   />
                 </Field>
               )}
@@ -479,7 +478,6 @@ function VehicleEditor({ vehicle }: { vehicle?: Vehicle }) {
                   onBlur={() => void form.trigger("asking_price")}
                   min={0}
                   required
-                  showShortcuts={false}
                 />
                 {financial &&
                   typeof form.watch("purchase_price") === "number" &&

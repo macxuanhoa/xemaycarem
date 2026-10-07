@@ -477,9 +477,8 @@ export function StaffSettingsModal({
                 <form
                   onSubmit={handleResetPassword}
                   className="row user-pass-reset-form"
-                  style={{ gap: "10px", alignItems: "flex-end" }}
                 >
-                  <div style={{ flex: 1 }}>
+                  <div className="user-pass-field">
                     <Field label="Mật khẩu mới (tối thiểu 6 ký tự)">
                       <input
                         type="password"

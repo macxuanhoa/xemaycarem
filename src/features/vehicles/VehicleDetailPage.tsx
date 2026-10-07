@@ -6,6 +6,7 @@ import {
   ArrowRight,
   Bike,
   CirclePlus,
+  MoreHorizontal,
   Pencil,
   ShoppingBag,
   Copy,
@@ -58,6 +59,7 @@ export function VehicleDetailPage() {
   const navigate = useNavigate();
   const [expenseOpen, setExpenseOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
+  const [actionsOpen, setActionsOpen] = useState(false);
   const [message, setMessage] = useState("");
 
   const query = useQuery({
@@ -86,6 +88,14 @@ export function VehicleDetailPage() {
       return () => cancelAnimationFrame(frame);
     }
   }, [query.data, location.hash]);
+  useEffect(() => {
+    if (!actionsOpen) return;
+    const onKey = (event: globalThis.KeyboardEvent) => {
+      if (event.key === "Escape") setActionsOpen(false);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [actionsOpen]);
   async function copyValue(label: string, value: string) {
     try {
       await navigator.clipboard.writeText(value);
@@ -134,6 +144,78 @@ export function VehicleDetailPage() {
         <PageHeader
           title={`${vehicle.brand} ${vehicle.model}`}
           description={`${vehicle.internal_code || "Chưa có mã xe"} · ${vehicle.license_plate || "Chưa có biển số"}`}
+          actions={
+            hasVehicleActions ? (
+              <div className="vehicle-actions-menu-wrap">
+                <button
+                  type="button"
+                  className="icon-button vehicle-actions-trigger"
+                  aria-label="Thao tác trên xe"
+                  aria-haspopup="true"
+                  aria-expanded={actionsOpen}
+                  onClick={() => setActionsOpen((v) => !v)}
+                >
+                  <MoreHorizontal size={22} />
+                </button>
+                {actionsOpen && (
+                  <>
+                    <div
+                      className="vehicle-actions-scrim"
+                      role="presentation"
+                      onClick={() => setActionsOpen(false)}
+                    />
+                    <div className="vehicle-actions-menu">
+                      {canSellVehicle && (
+                        <Link
+                          className="vehicle-actions-menu-item vehicle-actions-menu-primary"
+                          to={`/vehicles/${id}/sell`}
+                          onClick={() => setActionsOpen(false)}
+                        >
+                          <ShoppingBag size={17} /> Bán xe này
+                        </Link>
+                      )}
+                      {canAddExpense && (
+                        <button
+                          type="button"
+                          className="vehicle-actions-menu-item"
+                          onClick={() => {
+                            setActionsOpen(false);
+                            setExpenseOpen(true);
+                          }}
+                        >
+                          <CirclePlus size={16} /> Thêm chi phí
+                        </button>
+                      )}
+                      {canEditVehicle && (
+                        <Link
+                          className="vehicle-actions-menu-item"
+                          to={`/vehicles/${id}/edit`}
+                          onClick={() => setActionsOpen(false)}
+                        >
+                          <Pencil size={16} />
+                          {vehicle.status === "CANCELLED"
+                            ? "Khôi phục / Sửa"
+                            : "Chỉnh sửa"}
+                        </Link>
+                      )}
+                      {canRemoveVehicle && (
+                        <button
+                          type="button"
+                          className="vehicle-actions-menu-item vehicle-actions-menu-danger"
+                          onClick={() => {
+                            setActionsOpen(false);
+                            setDeleteOpen(true);
+                          }}
+                        >
+                          <Trash2 size={16} /> Xóa xe khỏi kho
+                        </button>
+                      )}
+                    </div>
+                  </>
+                )}
+              </div>
+            ) : undefined
+          }
         />
         <div className="row vehicle-identity-meta">
           <Badge status={vehicle.status} />
@@ -157,52 +239,6 @@ export function VehicleDetailPage() {
         <p className="notice" role="status">
           {message}
         </p>
-      )}
-      {hasVehicleActions && (
-        <Card className="vehicle-actions-card">
-          <h2 className="section-title">Thao tác</h2>
-          <div className="vehicle-actions-grid">
-            {canSellVehicle && (
-              <Link
-                className="button primary vehicle-action-button vehicle-action-sell"
-                to={`/vehicles/${id}/sell`}
-              >
-                <ShoppingBag size={17} /> Bán xe này
-              </Link>
-            )}
-            {canAddExpense && (
-              <Button
-                className="vehicle-action-button"
-                variant="secondary"
-                onClick={() => setExpenseOpen(true)}
-              >
-                <CirclePlus size={16} /> Thêm chi phí
-              </Button>
-            )}
-            {canEditVehicle && (
-              <Link
-                className="button secondary vehicle-action-button"
-                to={`/vehicles/${id}/edit`}
-              >
-                <Pencil size={16} />
-                {vehicle.status === "CANCELLED"
-                  ? "Khôi phục / Sửa"
-                  : "Chỉnh sửa"}
-              </Link>
-            )}
-            {canRemoveVehicle && (
-              <div className="vehicle-action-danger">
-                <Button
-                  className="vehicle-action-button vehicle-action-delete"
-                  variant="danger"
-                  onClick={() => setDeleteOpen(true)}
-                >
-                  <Trash2 size={16} /> Xóa xe khỏi kho
-                </Button>
-              </div>
-            )}
-          </div>
-        </Card>
       )}
       {/* Vehicle value leads the page: one horizontal strip so the money
           figures are the first thing owners scan, on every screen size. */}

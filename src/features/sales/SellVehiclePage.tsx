@@ -113,7 +113,7 @@ export function SellVehiclePage() {
               <div className="table-updating-bar" role="progressbar" aria-label="Đang cập nhật danh sách" />
             )}
             {inventory.data.items.map((item) => (
-              <div key={item.id} className="compact-row">
+              <div key={item.id} className="compact-row sell-pick-row">
                 <div className="vehicle-cell">
                   <span className="vehicle-icon">
                     <Bike size={25} />
@@ -492,17 +492,21 @@ function SaleEditor({ vehicle }: { vehicle: Vehicle }) {
         </div>
         <aside className="stack">
           <Card>
-            <div className="vehicle-icon large">
-              <Bike size={48} />
+            <div className="sale-vehicle-head">
+              <div className="vehicle-icon large">
+                <Bike size={30} />
+              </div>
+              <div className="sale-vehicle-head-text">
+                <h2 className="section-title">
+                  {vehicle.brand} {vehicle.model}
+                </h2>
+                <p className="muted small">
+                  {vehicle.internal_code} ·{" "}
+                  {vehicle.license_plate || "Chưa có biển số"}
+                </p>
+                <Badge status={vehicle.status} />
+              </div>
             </div>
-            <h2 className="section-title">
-              {vehicle.brand} {vehicle.model}
-            </h2>
-            <p className="muted">
-              {vehicle.internal_code} ·{" "}
-              {vehicle.license_plate || "Chưa có biển số"}
-            </p>
-            <Badge status={vehicle.status} />
             <dl className="summary-list">
               <div>
                 <dt>Giá niêm yết</dt>
@@ -514,14 +518,6 @@ function SaleEditor({ vehicle }: { vehicle: Vehicle }) {
                   <dd>{money(vehicle.total_cost)}</dd>
                 </div>
               )}
-              <div>
-                <dt>Giá bán</dt>
-                <dd>{Number.isFinite(price) ? money(price) : "Chưa hợp lệ"}</dd>
-              </div>
-              <div>
-                <dt>Thu lần đầu</dt>
-                <dd>{Number.isFinite(paid) ? money(paid) : "Chưa hợp lệ"}</dd>
-              </div>
               <div className="summary-total">
                 <dt>Còn phải thu</dt>
                 <dd>
@@ -529,11 +525,7 @@ function SaleEditor({ vehicle }: { vehicle: Vehicle }) {
                 </dd>
               </div>
             </dl>
-            <p className="muted">
-              Giá vốn được chốt tại thời điểm bán. Bạn có thể ghi nhận các lần
-              thanh toán tiếp theo trong chi tiết giao dịch.
-            </p>
-            <div className="form-footer-actions">
+            <div className="sale-action-footer">
               <Button
                 type="submit"
                 className="full-width"

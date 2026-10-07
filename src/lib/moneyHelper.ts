@@ -14,7 +14,10 @@ export function parseMoneyInput(
     .trim();
   if (!text || text.length > 40) return undefined;
 
-  const shorthand = text.match(/^(\d+)(?:[.,](\d{1,6}))?\s*(tr|m|k|ty|tỷ|b)$/u);
+  // A trailing digit tail is the decimal of the unit itself: 82tr5 = 82.500.000.
+  const shorthand = text.match(
+    /^(\d+)(?:[.,](\d{1,6}))?\s*(tr|m|k|ty|tỷ|b)(\d{1,2})?$/u,
+  );
   if (shorthand) {
     const multiplier =
       shorthand[3] === "k"
@@ -23,9 +26,12 @@ export function parseMoneyInput(
           ? 1_000_000n
           : 1_000_000_000n;
     const fraction = shorthand[2] ?? "";
-    const denominator = 10n ** BigInt(fraction.length);
+    const tail = shorthand[4] ?? "";
+    const denominator = 10n ** BigInt(fraction.length + tail.length);
     const numerator =
-      BigInt(shorthand[1]) * denominator + BigInt(fraction || "0");
+      BigInt(shorthand[1]) * denominator +
+      BigInt(fraction || "0") * 10n ** BigInt(tail.length) +
+      BigInt(tail || "0") * 10n ** BigInt(fraction.length);
     const result = (numerator * multiplier + denominator / 2n) / denominator;
     const number = Number(result);
     return Number.isSafeInteger(number) && number <= 1_000_000_000_000

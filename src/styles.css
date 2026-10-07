@@ -419,8 +419,9 @@ pre {
   color: #b7c7bd;
 }
 /* Colour swatch button sits flush with the field label. Uses a 22×22 circle
-   with a subtle ring, matching the toast icon chip language. Native click
-   opens the browser colour picker via a hidden <input type="color">. */
+   with a subtle ring, matching the toast icon chip language. A transparent
+   <input type="color"> overlays it so a real tap (mobile + desktop) opens the
+   browser colour picker. */
 .color-swatch-action {
   position: relative;
   display: inline-flex;
@@ -441,14 +442,10 @@ pre {
   align-items: center;
   justify-content: center;
 }
-.color-swatch-btn:hover {
+.color-swatch-action:hover .color-swatch-btn {
   box-shadow:
     0 2px 6px rgba(15, 32, 24, 0.18),
     inset 0 0 0 1px rgba(255, 255, 255, 0.5);
-}
-.color-swatch-btn:focus-visible {
-  outline: 2px solid var(--brand-primary, #2f6f4f);
-  outline-offset: 2px;
 }
 .color-swatch-dot {
   width: 4px;
@@ -463,20 +460,27 @@ pre {
     0 1px 2px rgba(0, 0, 0, 0.4),
     inset 0 0 0 1px rgba(255, 255, 255, 0.18);
 }
-/* The real <input type="color"> is kept in the DOM so browsers render the
-   native picker when we programmatically click it, but never shown. */
+/* The real <input type="color"> overlays the swatch as a transparent hit
+   target. Mobile browsers ignore programmatic .click() on hidden inputs, so
+   the tap must land on the native input itself for the picker to open. */
 .color-swatch-native {
   position: absolute;
-  width: 0;
-  height: 0;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  min-width: 22px;
   padding: 0;
   border: 0;
   opacity: 0;
-  pointer-events: none;
+  cursor: pointer;
   /* Match the 16px iOS anti-zoom floor used everywhere else in intake forms,
      so audits that scan every `input` on the page see a compliant value even
-     on this hidden proxy. */
+     on this proxy. */
   font-size: 16px;
+}
+.color-swatch-native:focus-visible {
+  outline: 2px solid var(--brand-primary, #2f6f4f);
+  outline-offset: 2px;
 }
 @media (max-width: 640px) {
   .color-swatch-btn {
@@ -2489,30 +2493,131 @@ pre {
   grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
   gap: 12px;
 }
-.vehicle-actions-card .section-title {
-  margin-bottom: 12px;
+/* Vehicle detail actions: a compact ••• in the header that reveals a dropdown
+   menu (replaces the old always-visible "Thao tác" card). */
+.vehicle-actions-menu-wrap {
+  position: relative;
 }
-.vehicle-actions-grid {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 10px;
+.vehicle-actions-trigger {
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  background: #f1f5f9;
+  color: #475569;
+  transition:
+    background 0.16s ease,
+    color 0.16s ease;
 }
-.vehicle-action-button {
-  width: 100%;
-  min-width: 0;
-  min-height: 46px;
-  justify-content: center;
-  padding: 10px 12px;
-  line-height: 1.3;
-  text-align: center;
-  white-space: normal;
+.vehicle-actions-trigger:hover,
+.vehicle-actions-trigger[aria-expanded="true"] {
+  background: #e2e8f0;
+  color: #1e293b;
 }
-.vehicle-action-button svg {
-  flex: 0 0 auto;
+.vehicle-actions-scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 45;
+  background: transparent;
 }
-.vehicle-action-danger {
+.vehicle-actions-menu {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  z-index: 46;
   display: flex;
-  min-width: 0;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 208px;
+  max-width: 78vw;
+  padding: 6px;
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  box-shadow:
+    0 12px 30px -12px rgba(15, 23, 42, 0.28),
+    0 2px 6px -2px rgba(15, 23, 42, 0.12);
+}
+.vehicle-actions-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 10px 12px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: #1e293b;
+  font-size: 13px;
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.14s ease;
+}
+.vehicle-actions-menu-item svg {
+  flex: 0 0 auto;
+  color: #64748b;
+}
+.vehicle-actions-menu-item:hover,
+.vehicle-actions-menu-item:focus-visible {
+  background: #f1f5f9;
+}
+.vehicle-actions-menu-primary {
+  color: var(--primary, #4f46e5);
+}
+.vehicle-actions-menu-primary svg {
+  color: var(--primary, #4f46e5);
+}
+.vehicle-actions-menu-primary:hover,
+.vehicle-actions-menu-primary:focus-visible {
+  background: #eef2ff;
+}
+.vehicle-actions-menu-danger,
+.vehicle-actions-menu-danger svg {
+  color: #dc2626;
+}
+.vehicle-actions-menu-danger:hover,
+.vehicle-actions-menu-danger:focus-visible {
+  background: #fef2f2;
+}
+[data-theme="dark"] .vehicle-actions-trigger {
+  background: #23252f;
+  color: #cbd0dd;
+}
+[data-theme="dark"] .vehicle-actions-trigger:hover,
+[data-theme="dark"] .vehicle-actions-trigger[aria-expanded="true"] {
+  background: #2c2f3b;
+  color: #e6e9f2;
+}
+[data-theme="dark"] .vehicle-actions-menu {
+  background: #17181f;
+  border-color: #262833;
+  box-shadow: 0 16px 34px -14px rgba(0, 0, 0, 0.66);
+}
+[data-theme="dark"] .vehicle-actions-menu-item {
+  color: #dcdfe9;
+}
+[data-theme="dark"] .vehicle-actions-menu-item svg {
+  color: #8f96a8;
+}
+[data-theme="dark"] .vehicle-actions-menu-item:hover,
+[data-theme="dark"] .vehicle-actions-menu-item:focus-visible {
+  background: #20222c;
+}
+[data-theme="dark"] .vehicle-actions-menu-primary,
+[data-theme="dark"] .vehicle-actions-menu-primary svg {
+  color: #a5b4fc;
+}
+[data-theme="dark"] .vehicle-actions-menu-primary:hover,
+[data-theme="dark"] .vehicle-actions-menu-primary:focus-visible {
+  background: rgba(99, 102, 241, 0.14);
+}
+[data-theme="dark"] .vehicle-actions-menu-danger,
+[data-theme="dark"] .vehicle-actions-menu-danger svg {
+  color: #fda4af;
+}
+[data-theme="dark"] .vehicle-actions-menu-danger:hover,
+[data-theme="dark"] .vehicle-actions-menu-danger:focus-visible {
+  background: rgba(244, 63, 94, 0.12);
 }
 .value-item {
   background: #f8faf4;
@@ -2563,21 +2668,13 @@ pre {
   color: #a7c4b0;
 }
 @media (max-width: 768px) {
-  .vehicle-actions-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 9px;
+  /* Give the header actions menu comfortable width on phones. */
+  .vehicle-actions-menu {
+    min-width: 200px;
   }
-  .vehicle-action-sell,
-  .vehicle-action-danger {
-    grid-column: 1 / -1;
-  }
-  .vehicle-action-danger {
-    margin-top: 4px;
-    padding-top: 12px;
-    border-top: 1px solid var(--line, #e2e8f0);
-  }
-  [data-theme="dark"] .vehicle-action-danger {
-    border-color: #303442;
+  .vehicle-actions-menu-item {
+    padding: 12px;
+    font-size: 14px;
   }
 }
 [data-theme="dark"] .details-list dt {
@@ -2843,7 +2940,8 @@ pre {
   border-radius: 11px;
   min-height: 49px;
   padding: 0 16px;
-  font-size: 14px;
+  /* 16px keeps iOS Safari from auto-zooming when focusing the login fields. */
+  font-size: 16px;
   color: #0f172a;
   transition: all 0.18s ease;
 }
@@ -3123,6 +3221,14 @@ pre {
   :root {
     font-size: 14px;
   }
+  /* iOS Safari auto-zooms the viewport when a focused control computes
+     font-size < 16px. Floor every text entry at 16px on mobile so tapping
+     search/fields anywhere never zooms the screen. */
+  input,
+  select,
+  textarea {
+    font-size: 16px;
+  }
   .sidebar {
     transform: translateX(-100%);
     transition: transform 0.2s;
@@ -3204,7 +3310,8 @@ pre {
     padding: 6px 10px;
   }
   .global-search input {
-    font-size: 11px;
+    /* 16px anti-zoom floor (see input/select/textarea rule above). */
+    font-size: 16px;
     width: 100%;
   }
   .global-search button {
@@ -3385,7 +3492,7 @@ pre {
     flex: 1;
     min-width: 120px;
     min-height: 42px;
-    font-size: 13px;
+    font-size: 16px;
   }
   .date-inputs-pill {
     width: 100%;
@@ -3395,7 +3502,7 @@ pre {
   .date-inputs-pill .datepicker-input {
     flex: 1;
     min-height: 38px;
-    font-size: 13px;
+    font-size: 16px;
   }
   .date-range > span {
     display: none;
@@ -3513,15 +3620,47 @@ pre {
   .record-cost {
     margin-top: -2px;
   }
-  /* Action zone stays anchored to its own card. */
-  .record-actions {
-    margin-top: 2px;
-    padding-top: 12px;
-    border-top: 1px dashed #e2e9d6;
+  /* Actions live as a compact ••• pinned to the card's top-right corner
+     (the usual convention), not a full-width bar anchored to the bottom. */
+  .inventory-record {
+    position: relative;
   }
-  .record-actions .button {
-    width: 100%;
-    justify-content: center;
+  .record-actions {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    z-index: 2;
+  }
+  .record-more-btn {
+    display: grid;
+    place-items: center;
+    width: 34px;
+    height: 34px;
+    border: 0;
+    border-radius: 50%;
+    background: transparent;
+    color: #879776;
+    transition:
+      background 0.16s ease,
+      color 0.16s ease;
+  }
+  .record-more-btn:active {
+    background: #eef3e6;
+    color: #435b4e;
+  }
+  /* Reserve the corner so the status badge never hides under the •••. */
+  .inventory-record > .vehicle-record-link > .row:first-child {
+    padding-right: 40px;
+  }
+  [data-theme="dark"] .record-more-btn {
+    color: #8f96a8;
+  }
+  [data-theme="dark"] .record-more-btn:active {
+    background: #23252f;
+    color: #cbd0dd;
   }
   .inventory-toolbar {
     padding: 16px 15px 0;
@@ -3536,7 +3675,7 @@ pre {
   .filter-row > select {
     flex: 1;
     min-width: 0;
-    font-size: 11px;
+    font-size: 16px;
   }
   .filter-row > .button {
     font-size: 11px;
@@ -3560,7 +3699,7 @@ pre {
     font-size: 11px;
   }
   .filter-grid input {
-    font-size: 12px;
+    font-size: 16px;
     padding: 9px;
   }
   .form-actions {
@@ -3966,12 +4105,38 @@ pre {
 .palette-cmd-btn {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 9px;
   min-height: 44px;
   padding: 8px 12px;
   border: 1px solid #e2e8f0;
-  border-radius: 8px;
+  border-radius: 10px;
   background: #f8fafc;
+  color: inherit;
+  text-align: left;
+  transition:
+    background 0.16s ease,
+    border-color 0.16s ease;
+}
+.palette-cmd-icon {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  flex-shrink: 0;
+  border-radius: 8px;
+  background: #eaf3ec;
+  color: var(--primary, #4f46e5);
+}
+.palette-cmd-label {
+  flex: 1;
+  min-width: 0;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.3;
+}
+.palette-cmd-arrow {
+  flex-shrink: 0;
+  color: #94a3b8;
 }
 .palette-result-item {
   display: flex;
@@ -5223,6 +5388,35 @@ mark.search-hit {
   .compact-row .vehicle-cell {
     min-width: 0;
   }
+  /* Sell-page vehicle picker rows: keep one tidy line on mobile — info on the
+     left (name truncates), price + "Chọn xe" grouped on the right — instead of
+     the generic wrap that strands the price far left of a full-width button. */
+  .compact-row.sell-pick-row {
+    flex-wrap: nowrap;
+    align-items: center;
+    gap: 12px;
+  }
+  .compact-row.sell-pick-row .vehicle-cell {
+    flex: 1;
+    min-width: 0;
+  }
+  .compact-row.sell-pick-row .vehicle-cell > div {
+    min-width: 0;
+  }
+  .compact-row.sell-pick-row .vehicle-cell strong {
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .compact-row.sell-pick-row > .row {
+    width: auto;
+    flex: 0 0 auto;
+    flex-direction: column;
+    align-items: flex-end;
+    justify-content: center;
+    gap: 8px;
+  }
   .row.between {
     flex-wrap: wrap;
   }
@@ -5996,6 +6190,14 @@ mark.search-hit {
 }
 
 /* Temporary password reset form: input + button share one row on desktop */
+.user-pass-reset-form {
+  gap: 10px;
+  align-items: flex-end;
+}
+.user-pass-field {
+  flex: 1;
+  min-width: 0;
+}
 .user-pass-reset-form > button {
   flex: 0 0 auto;
 }
@@ -6263,9 +6465,17 @@ mark.search-hit {
   background: transparent;
   border: 0;
   padding: 0;
-  display: inline-flex;
-  align-items: center;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
   line-height: 1.4;
+}
+
+.money-helper-text .digits-val {
+  color: #3730a3;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
 }
 
 .money-helper-text .words-val {
@@ -9221,6 +9431,13 @@ html[data-theme="dark"] .header-theme-toggle {
   background: #171821;
   border-color: #262833;
 }
+[data-theme="dark"] .palette-cmd-icon {
+  background: rgba(79, 70, 229, 0.16);
+  color: #a5b4fc;
+}
+[data-theme="dark"] .palette-cmd-arrow {
+  color: #6b7280;
+}
 [data-theme="dark"] .search-field {
   background: #14161e;
   border-color: #262833;
@@ -9557,6 +9774,9 @@ html[data-theme="dark"] .header-theme-toggle {
   background: rgba(99, 102, 241, 0.16);
   border-color: rgba(99, 102, 241, 0.34);
   color: #a5b4fc;
+}
+[data-theme="dark"] .money-helper-text .digits-val {
+  color: #c7d2fe;
 }
 [data-theme="dark"] .money-helper-text .words-val {
   color: #c7d2fe;
@@ -12014,6 +12234,40 @@ html[data-theme="dark"] .header-theme-toggle {
 .sale-payment-shortcuts {
   margin-bottom: var(--space-lg);
 }
+/* Sell summary card identity: the 30px glyph needs a frame that actually fits
+   it, and the name/code/badge sit beside the icon so long names never wrap
+   under the frame. */
+.vehicle-icon.large {
+  width: 56px;
+  height: 56px;
+  border-radius: 14px;
+}
+.sale-vehicle-head {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-lg);
+  margin-bottom: var(--space-md);
+}
+.sale-vehicle-head-text {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-xs);
+  min-width: 0;
+}
+.sale-vehicle-head-text .section-title {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+/* The confirm block keeps a visible gap from the figures above it. */
+.sale-action-footer {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+  margin-top: var(--space-xl);
+  padding-top: var(--space-lg);
+  border-top: 1px solid var(--line);
+}
 .sale-review-summary > div {
   display: flex;
   justify-content: space-between;
@@ -12043,7 +12297,9 @@ html[data-theme="dark"] .header-theme-toggle {
   position: fixed;
   inset: 0;
   z-index: 90;
-  background: rgba(15, 23, 42, 0.42);
+  background: rgba(15, 23, 42, 0.5);
+  -webkit-backdrop-filter: blur(2px);
+  backdrop-filter: blur(2px);
 }
 .search-mobile-dialog {
   position: fixed;
@@ -12051,37 +12307,71 @@ html[data-theme="dark"] .header-theme-toggle {
   top: var(--search-viewport-top, 0px);
   left: 0;
   right: 0;
-  height: var(--search-viewport-height, 100dvh);
-  max-height: 100dvh;
+  /* Sheet, not full-screen: grow to content but cap at the visible viewport so
+     the dimmed page stays peeking below and tapping there dismisses the popup. */
+  max-height: var(--search-viewport-height, 100dvh);
   display: flex;
   flex-direction: column;
-  padding: max(12px, env(safe-area-inset-top))
-    max(12px, env(safe-area-inset-right)) max(12px, env(safe-area-inset-bottom))
-    max(12px, env(safe-area-inset-left));
+  padding: max(14px, env(safe-area-inset-top))
+    max(14px, env(safe-area-inset-right)) max(16px, env(safe-area-inset-bottom))
+    max(14px, env(safe-area-inset-left));
   background: #fff;
   color: #1c1917;
+  border-radius: 0 0 20px 20px;
+  box-shadow: 0 22px 46px -22px rgba(15, 23, 42, 0.45);
   overflow: hidden;
   overscroll-behavior: contain;
+  animation: search-sheet-in 0.18s ease-out;
+}
+@keyframes search-sheet-in {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 .search-mobile-header {
   display: flex;
   gap: var(--space-sm);
   align-items: center;
+  justify-content: space-between;
   flex-shrink: 0;
+}
+.search-mobile-header h2 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 700;
+  letter-spacing: -0.3px;
 }
 .search-mobile-form {
   flex: 0 0 auto;
   width: 100%;
   min-width: 0;
   min-height: var(--touch-target);
+  margin-top: var(--space-sm);
 }
 .search-mobile-close {
-  min-width: var(--touch-target);
-  min-height: var(--touch-target);
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  min-width: 34px;
+  min-height: 34px;
+  border: 0;
+  border-radius: 50%;
   background: transparent;
-  color: inherit;
+  color: #94a3b8;
+  transition:
+    background 0.16s ease,
+    color 0.16s ease;
+}
+.search-mobile-close:hover,
+.search-mobile-close:active {
+  background: #f1f5f9;
+  color: #475569;
 }
 .search-mobile-results.search-palette-popover {
   position: static;
@@ -12097,9 +12387,43 @@ html[data-theme="dark"] .header-theme-toggle {
   margin-top: var(--space-sm);
   overscroll-behavior: contain;
 }
+/* Quick commands read as a tidy grid of tappable tiles on the sheet, so the
+   priority row (Thu xe · Bán xe · Tồn kho · Thu xe tốc ký) lines up evenly. */
+.search-mobile-dialog .palette-commands {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+.search-mobile-dialog .palette-cmd-btn {
+  min-height: 48px;
+  padding: 9px 11px;
+  background: #fff;
+  border: 1px solid #e6ebf2;
+  border-radius: 12px;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+}
+.search-mobile-dialog .palette-cmd-btn:active {
+  background: #f1f5f9;
+}
+.search-mobile-dialog .palette-cmd-label {
+  font-size: 14px;
+}
 [data-theme="dark"] .search-mobile-dialog {
   background: #14161e;
   color: #dcdfe9;
+}
+[data-theme="dark"] .search-mobile-close:hover,
+[data-theme="dark"] .search-mobile-close:active {
+  background: #23252f;
+  color: #cbd0dd;
+}
+[data-theme="dark"] .search-mobile-dialog .palette-cmd-btn {
+  background: #171821;
+  border-color: #262833;
+  box-shadow: none;
+}
+[data-theme="dark"] .search-mobile-dialog .palette-cmd-btn:active {
+  background: #20222c;
 }
 [data-theme="dark"] .sale-payment-summary[data-state="invalid"] dd {
   color: #fda4af;
@@ -12180,12 +12504,6 @@ html[data-theme="dark"] .header-theme-toggle {
     min-width: var(--touch-target);
     min-height: var(--touch-target);
   }
-  .money-shortcuts {
-    gap: 6px;
-  }
-  .money-shortcuts .chip-btn {
-    min-height: var(--touch-target);
-  }
   .sale-payment-summary dd {
     font-variant-numeric: tabular-nums;
   }
@@ -12215,4 +12533,117 @@ html[data-theme="dark"] .header-theme-toggle {
   .sale-form aside .summary-list {
     display: none;
   }
+}
+
+/* ==========================================================================
+   DARK THEME — phần 4: vá triệt để các bề mặt màu sáng hardcode còn sót lại
+   khi bật nền tối (rà soát tự động toàn file bằng script đối chiếu selector).
+   Lỗi "muôn thuở": thẻ bản ghi trên mobile (Thu vào / Tồn kho / Khách hàng)
+   giữ nguyên nền trắng khiến chữ sáng gần như vô hình. Quy tắc dùng lại:
+   thẻ nổi #14161e, nền chìm #101117, hover #171821, viền #232531/#262833,
+   chữ #dcdfe9, muted #8f96a8; các tint trạng thái dùng rgba mờ trên nền tối.
+   ========================================================================== */
+/* Thẻ bản ghi mobile — nền trắng lộ liễu khi đổi sang tối. */
+[data-theme="dark"] .mobile-record {
+  background: #14161e;
+  border-color: #262833;
+  color: #dcdfe9;
+  box-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.4),
+    0 3px 10px -4px rgba(0, 0, 0, 0.5);
+}
+[data-theme="dark"] .mobile-record small {
+  color: #8f96a8;
+}
+[data-theme="dark"] .mobile-meta-subline {
+  color: #9aa3b5;
+}
+[data-theme="dark"] .record-details {
+  background: #101117;
+  color: #c4cad8;
+}
+/* Trạng thái lỗi & banner hệ thống */
+[data-theme="dark"] .error-state {
+  background: rgba(225, 29, 72, 0.1);
+  border-color: rgba(225, 29, 72, 0.28);
+  color: #f0a3a3;
+}
+[data-theme="dark"] .offline-banner {
+  background: rgba(245, 158, 11, 0.12);
+  color: #fcd34d;
+}
+[data-theme="dark"] .update-banner {
+  background: rgba(16, 185, 129, 0.12);
+  color: #9fd4b4;
+}
+/* Ảnh & biểu tượng xe */
+[data-theme="dark"] .vehicle-icon {
+  background: #171821;
+  color: #9fb088;
+}
+[data-theme="dark"] .vehicle-photo {
+  background: #101117;
+}
+[data-theme="dark"] .vehicle-empty-photo {
+  background: #101117;
+  border-color: #2c2f3d;
+  color: #7f8b76;
+}
+/* Form lồng, khối cài đặt & ghi chú */
+[data-theme="dark"] .inset-form {
+  background: #101117;
+  border-color: #232531;
+}
+[data-theme="dark"] .install-icon {
+  background: #171821;
+  color: #a9c47f;
+}
+[data-theme="dark"] .login-note {
+  background: #14161e;
+  border-color: #232531;
+  color: #9aa3b5;
+}
+[data-theme="dark"] .setup-notice {
+  background: #14161e;
+  border-color: #232531;
+  color: #b1b8ca;
+}
+[data-theme="dark"] .setup-notice h3 {
+  color: #eef1f8;
+}
+/* Cảnh báo khóa tài khoản */
+[data-theme="dark"] .user-lock-active-banner {
+  background: rgba(220, 38, 38, 0.12);
+  border-color: rgba(220, 38, 38, 0.3);
+}
+[data-theme="dark"] .user-lock-active-banner strong {
+  color: #fca5a5;
+}
+/* Pill trạng thái nháp */
+[data-theme="dark"] .draft-status-pill {
+  background: rgba(16, 185, 129, 0.12);
+  border-color: rgba(16, 185, 129, 0.3);
+  color: #6ee7b7;
+}
+/* Nhãn tình trạng công nợ */
+[data-theme="dark"] .due-badge.overdue {
+  background: rgba(239, 68, 68, 0.16);
+  color: #fca5a5;
+}
+[data-theme="dark"] .due-badge.approaching {
+  background: rgba(245, 158, 11, 0.16);
+  color: #fcd34d;
+}
+[data-theme="dark"] .due-badge.safe {
+  background: rgba(16, 185, 129, 0.14);
+  color: #6ee7b7;
+}
+/* Chênh lệch trong lịch sử thao tác */
+[data-theme="dark"] .audit-diff-old {
+  background: rgba(239, 68, 68, 0.14);
+  color: #fca5a5;
+}
+[data-theme="dark"] .audit-diff-new {
+  background: rgba(22, 163, 74, 0.16);
+  color: #6ee7b7;
 }

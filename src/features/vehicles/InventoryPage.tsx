@@ -561,7 +561,7 @@ export function InventoryPage() {
             </div>
             <div className="mobile-cards">
               {vehicles.map((vehicle) => (
-                <article className="mobile-record" key={vehicle.id}>
+                <article className="mobile-record inventory-record" key={vehicle.id}>
                   <Link
                     className="vehicle-record-link"
                     to={`/vehicles/${vehicle.id}`}
@@ -614,14 +614,14 @@ export function InventoryPage() {
                   <div className="record-actions">
                     <button
                       type="button"
-                      className="button secondary"
+                      className="record-more-btn"
                       aria-label={`Thao tác với ${vehicle.brand} ${vehicle.model}`}
                       onClick={() => {
                         rememberPosition();
                         setActionVehicle(vehicle);
                       }}
                     >
-                      <MoreHorizontal size={18} /> Thao tác
+                      <MoreHorizontal size={20} />
                     </button>
                   </div>
                 </article>

@@ -858,7 +858,6 @@ function ExpenseEditor({
                 onBlur={() => void form.trigger("amount")}
                 min={0}
                 required
-                showShortcuts={false}
               />
             </Field>
             <Field

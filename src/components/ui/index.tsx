@@ -91,7 +91,7 @@ export function Field({
   useEffect(() => {
     // Older custom controls do not all forward input ARIA/id props. Link their
     // real control without nesting labels around calendars, shortcuts or buttons.
-    const control = wrapperRef.current?.querySelector<HTMLElement>('input:not([type="hidden"]):not([aria-hidden="true"]), select:not([aria-hidden="true"]), textarea:not([aria-hidden="true"]), [role="combobox"]:not([aria-hidden="true"])');
+    const control = wrapperRef.current?.querySelector<HTMLElement>('input:not([type="hidden"]):not([aria-hidden="true"]):not(.color-swatch-native), select:not([aria-hidden="true"]), textarea:not([aria-hidden="true"]), [role="combobox"]:not([aria-hidden="true"])');
     if (!control) return;
     if (!control.id) control.id = controlId;
     if (labelRef.current) labelRef.current.htmlFor = control.id;

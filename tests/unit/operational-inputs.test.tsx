@@ -142,6 +142,17 @@ describe("MoneyInput Vietnamese component rendering", () => {
     expect(html).not.toContain("≈ 82 triệu đồng");
   });
 
+  it("renders no quick-add amount chips; the typed value and its words are the only feedback", async () => {
+    const { MoneyInput } = await import("@/components/ui/MoneyInput");
+    const html = renderToStaticMarkup(
+      <MoneyInput value={82500000} onChange={() => {}} required min={0} aria-label="Giá bán thực tế (₫) *" />,
+    );
+    expect(html).not.toContain("money-shortcuts");
+    expect(html).not.toContain("chip-btn");
+    expect(html).not.toContain("<button");
+    expect(html).toContain("Tám mươi hai triệu năm trăm nghìn đồng");
+  });
+
   it("renders empty field when value is undefined, never silently turning blank into 0", async () => {
     const { MoneyInput } = await import("@/components/ui/MoneyInput");
     const html = renderToStaticMarkup(

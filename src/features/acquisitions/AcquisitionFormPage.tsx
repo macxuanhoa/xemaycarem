@@ -537,7 +537,6 @@ function AcquisitionEditor() {
                     })
                   }
                   onBlur={() => void form.trigger("asking_price")}
-                  showShortcuts={false}
                 />
               </Field>
 
@@ -555,7 +554,6 @@ function AcquisitionEditor() {
                     onBlur={() => void form.trigger("purchase_price")}
                     required
                     min={0}
-                    showShortcuts={false}
                   />
                 </Field>
               )}

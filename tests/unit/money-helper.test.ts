@@ -29,6 +29,16 @@ describe("parseMoneyInput", () => {
     expect(parseMoneyInput("200k")).toBe(200000);
   });
 
+  it("parses shorthand whose trailing digit is the unit decimal", () => {
+    expect(parseMoneyInput("82tr5")).toBe(82500000);
+    expect(parseMoneyInput("82m5")).toBe(82500000);
+    expect(parseMoneyInput("82tr55")).toBe(82550000);
+    expect(parseMoneyInput("1ty2")).toBe(1200000000);
+    expect(parseMoneyInput("18tr5đ")).toBe(18500000);
+    expect(parseMoneyInput("82tr555")).toBeUndefined();
+    expect(parseMoneyInput("999999999999tr5")).toBeUndefined();
+  });
+
   it("parses numbers directly", () => {
     expect(parseMoneyInput(82000000)).toBe(82000000);
     expect(parseMoneyInput(0)).toBe(0);

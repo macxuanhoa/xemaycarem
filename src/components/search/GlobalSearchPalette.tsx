@@ -8,7 +8,23 @@ import {
 import { createPortal } from "react-dom";
 import { useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import { ArrowRight, Bike, Clock3, Command, Search, X } from "lucide-react";
+import {
+  ArrowRight,
+  Bike,
+  Camera,
+  Clock3,
+  Command,
+  Plus,
+  Receipt,
+  Search,
+  Sparkles,
+  Tag,
+  Users,
+  Wallet,
+  Warehouse,
+  X,
+  type LucideIcon,
+} from "lucide-react";
 import { api } from "@/lib/api";
 import { Badge, ErrorState } from "@/components/ui";
 import { useAuth } from "@/features/auth/AuthProvider";
@@ -72,20 +88,37 @@ export function GlobalSearchPalette() {
       window.removeEventListener("resize", update);
     };
   }, [mobile, isOpen, dialogRef]);
-  const commands = [
-    ...(canOperate(profile)
-      ? [
-          { label: "Thu xe", to: "/acquisitions/new" },
-          { label: "Thu xe tốc ký (dán ghi chú)", to: "/intake" },
-          { label: "Bán xe", to: "/sell" },
-        ]
-      : []),
-    ...(canManage(profile) ? [{ label: "Chi phí", to: "/expenses" }] : []),
-    { label: "Công nợ", to: "/receivables" },
-    { label: "Khách hàng", to: "/customers" },
-    { label: "Tồn kho", to: "/vehicles" },
-    { label: "Camera thông minh", to: "/capture" },
+  // Priority-ordered quick commands. `access` preserves the old role gating
+  // (operate-only / everyone / manage-only) while letting us rank the most
+  // used actions first: Thu xe · Bán xe · Tồn kho · Thu xe tốc ký.
+  const commandCatalog: {
+    label: string;
+    short?: string;
+    to: string;
+    icon: LucideIcon;
+    access: "all" | "operate" | "manage";
+  }[] = [
+    { label: "Thu xe", to: "/acquisitions/new", icon: Plus, access: "operate" },
+    { label: "Bán xe", to: "/sell", icon: Tag, access: "operate" },
+    { label: "Tồn kho", to: "/vehicles", icon: Warehouse, access: "all" },
+    {
+      label: "Thu xe tốc ký (dán ghi chú)",
+      short: "Thu xe tốc ký",
+      to: "/intake",
+      icon: Sparkles,
+      access: "operate",
+    },
+    { label: "Camera thông minh", to: "/capture", icon: Camera, access: "all" },
+    { label: "Khách hàng", to: "/customers", icon: Users, access: "all" },
+    { label: "Công nợ", to: "/receivables", icon: Receipt, access: "all" },
+    { label: "Chi phí", to: "/expenses", icon: Wallet, access: "manage" },
   ];
+  const commands = commandCatalog.filter(
+    (command) =>
+      command.access === "all" ||
+      (command.access === "operate" && canOperate(profile)) ||
+      (command.access === "manage" && canManage(profile)),
+  );
   const recentVehicles = isOpen ? getRecentVehicles(profile?.id) : [];
   useEffect(() => {
     const keydown = (event: globalThis.KeyboardEvent) => {
@@ -213,17 +246,25 @@ export function GlobalSearchPalette() {
     <div className="search-palette-section">
       <div className="search-palette-heading">LỆNH NHANH</div>
       <div className="palette-commands">
-        {matchingCommands.map((command) => (
-          <button
-            type="button"
-            className="palette-cmd-btn"
-            key={command.to}
-            onClick={() => open(command.to)}
-          >
-            <Highlight text={command.label} query={term} />
-            <ArrowRight size={16} />
-          </button>
-        ))}
+        {matchingCommands.map((command) => {
+          const Icon = command.icon;
+          return (
+            <button
+              type="button"
+              className="palette-cmd-btn"
+              key={command.to}
+              onClick={() => open(command.to)}
+            >
+              <span className="palette-cmd-icon" aria-hidden="true">
+                <Icon size={16} />
+              </span>
+              <span className="palette-cmd-label">
+                <Highlight text={command.short ?? command.label} query={term} />
+              </span>
+              <ArrowRight size={16} className="palette-cmd-arrow" aria-hidden="true" />
+            </button>
+          );
+        })}
       </div>
     </div>
   );

@@ -355,6 +355,7 @@ test("Quick expense keeps vehicle context, maps category to the existing enum an
   const calls = await installMock(page);
   await page.goto(`/vehicles/${vehicleId}`);
   const started = Date.now();
+  await page.getByRole("button", { name: "Thao tác trên xe" }).click();
   await page.getByRole("button", { name: "Thêm chi phí", exact: true }).click();
   const dialog = page.getByRole("dialog", {
     name: "+ Thêm chi phí xe",
@@ -376,6 +377,7 @@ test("Quick expense keeps vehicle context, maps category to the existing enum an
     description: "Thay lốp xe",
     expense_date: today,
   });
+  await page.getByRole("button", { name: "Thao tác trên xe" }).click();
   await page.getByRole("button", { name: "Thêm chi phí", exact: true }).click();
   await dialog.getByRole("button", { name: /Dùng lại/ }).click();
   await expect(

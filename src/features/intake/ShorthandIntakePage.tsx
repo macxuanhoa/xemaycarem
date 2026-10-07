@@ -1033,7 +1033,6 @@ function IntakeMoneyInput({
       onChange={() => {}}
       placeholder={placeholder}
       aria-label={ariaLabel}
-      showShortcuts={false}
     />
   );
 }

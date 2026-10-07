@@ -171,23 +171,24 @@ for (const width of [320, 375, 390, 430]) {
     await expect(card.getByText("Biển số: 43A1-99999", { exact: true })).toBeVisible();
     await expect(card.locator(".record-cost")).toContainText("Giá vốn:");
 
-    // D. Action section belongs to its own card and is visually detached.
+    // D. Actions are a compact ••• pinned to the card's top-right corner.
     const actions = card.locator(".record-actions");
-    await expect(actions.getByRole("button", { name: "Thao tác với Honda Vision" })).toBeVisible();
-    const actionGeometry = await actions.evaluate((node) => {
+    await expect(
+      actions.getByRole("button", { name: "Thao tác với Honda Vision" }),
+    ).toBeVisible();
+    const corner = await actions.evaluate((node) => {
       const parent = node.closest(".mobile-record");
-      const s = getComputedStyle(node);
+      const a = node.getBoundingClientRect();
+      const p = parent.getBoundingClientRect();
       return {
         insideCard: Boolean(parent),
-        paddingTop: parseFloat(s.paddingTop),
-        borderTop: parseFloat(s.borderTopWidth),
-        cardPaddingBottom: parseFloat(getComputedStyle(parent).paddingBottom),
+        position: getComputedStyle(node).position,
+        nearTopRight: a.top - p.top < 24 && p.right - a.right < 24,
       };
     });
-    expect(actionGeometry.insideCard).toBe(true);
-    expect(actionGeometry.paddingTop).toBeGreaterThanOrEqual(10);
-    expect(actionGeometry.borderTop).toBeGreaterThanOrEqual(1);
-    expect(actionGeometry.cardPaddingBottom).toBeGreaterThanOrEqual(14);
+    expect(corner.insideCard).toBe(true);
+    expect(corner.position).toBe("absolute");
+    expect(corner.nearTopRight).toBe(true);
 
     // Date/age must not collide ("01/09/202631 ngày").
     await expect(card.locator(".record-age")).toHaveText("31 ngày");

@@ -31,7 +31,6 @@ interface MoneyInputProps {
   required?: boolean;
   min?: number;
   max?: number;
-  showShortcuts?: boolean;
   "aria-label"?: string;
   "aria-describedby"?: string;
   "aria-invalid"?: AriaAttributes["aria-invalid"];
@@ -46,7 +45,7 @@ export function MoneyInput({
   rawValue,
   onRawChange,
   parseInput = parseMoneyInput,
-  placeholder = "Ví dụ: 82.000.000",
+  placeholder = "Ví dụ: 82.000.000 hoặc 82tr5",
   id,
   name,
   ref,
@@ -54,7 +53,6 @@ export function MoneyInput({
   required,
   min,
   max,
-  showShortcuts = true,
   "aria-label": ariaLabel,
   "aria-describedby": describedBy,
   "aria-invalid": externalInvalid,
@@ -107,7 +105,7 @@ export function MoneyInput({
       ? `Số tiền phải từ ${formatVndNumber(min)} ₫.`
       : parsedNum != null && max != null && parsedNum > max
         ? `Số tiền không được vượt quá ${formatVndNumber(max)} ₫.`
-        : "Nhập số tiền nguyên đồng không âm, tối đa 1.000.000.000.000 ₫. Ví dụ: 82.000.000 hoặc 82tr.";
+        : "Nhập số tiền nguyên đồng không âm, tối đa 1.000.000.000.000 ₫. Ví dụ: 82.000.000 hoặc 82tr5.";
   useEffect(() => {
     // Optional form fields must also reject malformed, nonempty input.
     inputRef.current?.setCustomValidity(invalid ? validationMessage : "");
@@ -115,6 +113,13 @@ export function MoneyInput({
   const helperWords =
     parsedNum != null && !invalid
       ? formatVndWords(parsedNum) || formatVndApproxText(parsedNum)
+      : "";
+  // Shorthand such as 82tr5 stays editable while typing, so spell out the
+  // exact grouped amount it already means before the field is committed.
+  const canonicalText = parsedNum != null ? formatVndNumber(parsedNum) : "";
+  const helperDigits =
+    parsedNum != null && !invalid && text.trim() !== canonicalText
+      ? `${canonicalText} ₫`
       : "";
   const notify = (nextText: string, number: number | undefined) => {
     notified.current = { value: number, text: nextText };
@@ -214,12 +219,6 @@ export function MoneyInput({
     notify(parsed == null ? raw : formatVndNumber(parsed), parsed);
     onBlur?.();
   };
-  const addShortcut = (amount: number) => {
-    if (invalid) return;
-    const next = (parsedNum ?? 0) + amount;
-    if (parseMoneyInput(next) == null || (max != null && next > max)) return;
-    notify(formatVndNumber(next), next);
-  };
   const descriptionIds =
     [
       describedBy,
@@ -266,43 +265,16 @@ export function MoneyInput({
         <p id={errorId} className="money-input-error field-error" role="alert">
           {validationMessage}
         </p>
-      ) : helperWords ? (
+      ) : helperWords || helperDigits ? (
         <div id={helperId} className="money-helper-text">
-          <span className="words-val">{helperWords}</span>
+          {helperDigits ? (
+            <span className="digits-val">{helperDigits}</span>
+          ) : null}
+          {helperWords ? (
+            <span className="words-val">{helperWords}</span>
+          ) : null}
         </div>
       ) : null}
-      {showShortcuts && !disabled && (
-        <div
-          className="money-shortcuts"
-          role="group"
-          aria-label="Thêm nhanh vào số tiền"
-        >
-          {[1, 5, 10, 50].map((millions) => (
-            <button
-              key={millions}
-              type="button"
-              className="chip-btn"
-              disabled={
-                invalid ||
-                (parsedNum ?? 0) + millions * 1_000_000 >
-                  (max ?? 1_000_000_000_000)
-              }
-              onClick={() => addShortcut(millions * 1_000_000)}
-            >
-              +{millions} triệu
-            </button>
-          ))}
-          {text && (
-            <button
-              type="button"
-              className="chip-btn chip-clear"
-              onClick={() => notify("", undefined)}
-            >
-              Xóa
-            </button>
-          )}
-        </div>
-      )}
     </div>
   );
 }

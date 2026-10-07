@@ -235,7 +235,6 @@ function QuickExpenseEditor({
                   placeholder="Ví dụ: 150k hoặc 1.200.000"
                   min={1}
                   required
-                  showShortcuts={false}
                 />
               </Field>
               <Field

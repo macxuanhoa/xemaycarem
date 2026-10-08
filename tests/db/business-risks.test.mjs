@@ -62,14 +62,11 @@ export async function runBusinessRisksTests(externalDb, { engine = 'postgres' } 
   // 1. VEHICLE INVENTORY: Unique internal_code constraint
   const v1Id = await call('owner', 'save_vehicle', {
     request_id: randomUUID(),
-    brand: 'Honda',
-    model: 'SH 160i Risk Test',
+    vehicle_type: 'Xe tay ga',
     license_plate: '29-TEST-01',
     frame_number: 'FRAME-001',
-    engine_number: 'ENGINE-001',
     purchase_date: day,
     purchase_price: 80_000_000,
-    asking_price: 90_000_000,
   })
   const v1 = await run('owner', (c) => rpc(c, 'get_vehicle', '$1::uuid', [v1Id]))
   assert.ok(v1.internal_code, 'internal_code must be assigned')
@@ -78,7 +75,7 @@ export async function runBusinessRisksTests(externalDb, { engine = 'postgres' } 
   await deny(
     () =>
       db.query(
-        "INSERT INTO public.vehicles(internal_code,brand,model,purchase_date,asking_price,created_by) VALUES($1,'Duplicate','Code',$2,10000000,$3)",
+        "INSERT INTO public.vehicles(internal_code,vehicle_type_id,purchase_date,created_by) VALUES($1,(SELECT id FROM public.vehicle_types WHERE lower(btrim(name))='chưa phân loại'),$2,$3)",
         [v1.internal_code, day, users.owner]
       ),
     /duplicate key value violates unique constraint/i

@@ -31,7 +31,6 @@ import {
   Card,
   ColorSwatchAction,
   Field,
-  GroupedIntegerInput,
   PageHeader,
 } from "@/components/ui";
 import { AutocompleteInput } from "@/components/ui/AutocompleteInput";
@@ -57,8 +56,10 @@ import {
   entryToAcquisitionDraft,
   entryToImportRow,
   validateIntakeEntry,
+  vehicleTypeIdFor,
 } from "@/lib/shorthand/intakeRows";
 import { vehicleSuggestions } from "@/lib/vehicleSuggestions";
+import { useVehicleTypes } from "@/lib/useVehicleTypes";
 import {
   parseRecognition,
   readRecognitionDraft,
@@ -89,10 +90,9 @@ function parseReviewedIntakeMoney(text: string): number | undefined {
 
 /** Fields worth memorizing when the user types a better value than the token. */
 const TEACHABLE_FIELDS = new Set<IntakeFieldKey>([
-  "brand",
-  "model",
-  "variant",
+  "vehicle_type",
   "color",
+  "year",
 ]);
 
 // Defer Storage getter access until the dictionary helper's guarded read/write.
@@ -199,16 +199,15 @@ export default function ShorthandIntakePage() {
     staleTime: 5 * 60 * 1000,
   });
 
-  const suggestionsFor = (
-    field: "brand" | "model" | "variant" | "color",
-    entry: IntakeEntry,
-  ) =>
-    vehicleSuggestions(
-      catalog.data?.items ?? [],
-      field,
-      profile?.id,
-      field === "model" ? (entry.fields.brand ?? "") : "",
-    );
+  const suggestions = (field: "color") =>
+    vehicleSuggestions(catalog.data?.items ?? [], field, profile?.id);
+
+  // Danh mục loại xe là nguồn duy nhất cho bộ chọn "Loại xe" của từng thẻ:
+  // nhân viên chỉ CHỌN, không gõ tên tự do (kể cả khi dạy một từ viết tắt).
+  const vehicleTypes = useVehicleTypes();
+  const typeItems = vehicleTypes.items;
+  const typeNames = useMemo(() => typeItems.map((item) => item.name), [typeItems]);
+  const typeIdOf = (name?: string) => vehicleTypeIdFor(name ?? "", typeItems);
 
   const handleParse = async () => {
     if (
@@ -226,7 +225,7 @@ export default function ShorthandIntakePage() {
     }
     entriesEdited.current = false;
     const currentDate = today();
-    const parsed = parseIntakeNotes(text, dict).map((entry) => ({
+    const parsed = parseIntakeNotes(text, dict, typeNames).map((entry) => ({
       ...entry,
       fields: {
         ...entry.fields,
@@ -238,7 +237,7 @@ export default function ShorthandIntakePage() {
     setDictionaryChanged(false);
     if (!parsed.length)
       toast.info(
-        'Chưa tách được dòng nào. Mỗi dòng là một xe, ví dụ: "sh đen 18tr5".',
+        'Chưa tách được dòng nào. Mỗi dòng là một xe, ví dụ: "tay ga den 18tr5".',
       );
   };
 
@@ -248,7 +247,7 @@ export default function ShorthandIntakePage() {
     didAutoParse.current = true;
     const currentDate = today();
     setEntries(
-      parseIntakeNotes(seedText, dict).map((entry) => ({
+      parseIntakeNotes(seedText, dict, typeNames).map((entry) => ({
         ...entry,
         fields: {
           ...entry.fields,
@@ -256,7 +255,7 @@ export default function ShorthandIntakePage() {
         },
       })),
     );
-  }, [seedText, dict]);
+  }, [seedText, dict, typeNames]);
 
   const handlePasteClipboard = async () => {
     try {
@@ -349,7 +348,9 @@ export default function ShorthandIntakePage() {
           photos: recovered,
         };
       }
-      const rows = entries.map((entry) => entryToImportRow(entry, financial));
+      const rows = entries.map((entry) =>
+        entryToImportRow(entry, financial, typeItems),
+      );
       const check = await api.call<ImportCheck>("validate_import_vehicles", {
         p_vehicles: rows,
       });
@@ -403,8 +404,8 @@ export default function ShorthandIntakePage() {
   });
 
   const clientErrorsByEntry = useMemo(
-    () => entries.map((entry) => validateIntakeEntry(entry, financial)),
-    [entries, financial],
+    () => entries.map((entry) => validateIntakeEntry(entry, financial, typeItems)),
+    [entries, financial, typeItems],
   );
   // Smart Camera provenance badges: only camera entries carry fieldStatus,
   // so parsed notes render exactly as before.
@@ -483,7 +484,7 @@ export default function ShorthandIntakePage() {
           rows={4}
           value={text}
           onChange={(event) => setText(event.target.value)}
-          placeholder="sh den 29b1 123.45 21 gia 18tr5"
+          placeholder="tay ga den 29b1 123.45 21 gia 18tr5"
           aria-label="Ghi chú tốc ký danh sách xe cần thu"
         />
         <div className="row intake-notes-actions">
@@ -590,28 +591,31 @@ export default function ShorthandIntakePage() {
             )}
             <div className="form-grid intake-entry-grid">
               <Field
-                label="Hãng xe"
-                className={cameraClass(entry, "brand", "intake-span2")}
+                label="Loại xe *"
+                className={cameraClass(entry, "vehicle_type", "intake-span2")}
               >
-                <AutocompleteInput
-                  value={entry.fields.brand ?? ""}
-                  suggestions={suggestionsFor("brand", entry)}
-                  onChange={(value) => updateField(entry.id, "brand", value)}
-                  placeholder="Honda"
-                />
-                {cameraNote(entry, "brand")}
-              </Field>
-              <Field
-                label="Dòng xe"
-                className={cameraClass(entry, "model", "intake-span2")}
-              >
-                <AutocompleteInput
-                  value={entry.fields.model ?? ""}
-                  suggestions={suggestionsFor("model", entry)}
-                  onChange={(value) => updateField(entry.id, "model", value)}
-                  placeholder="SH 160i"
-                />
-                {cameraNote(entry, "model")}
+                <select
+                  aria-label="Loại xe *"
+                  value={typeIdOf(entry.fields.vehicle_type)}
+                  onChange={(event) =>
+                    updateField(
+                      entry.id,
+                      "vehicle_type",
+                      vehicleTypes.nameOf(event.target.value),
+                    )
+                  }
+                >
+                  <option value="">
+                    {vehicleTypes.isLoading
+                      ? "Đang tải danh mục…"
+                      : "— Chọn loại xe —"}
+                  </option>
+                  {typeItems.map((type) => (
+                    <option key={type.id} value={type.id}>
+                      {type.name}
+                    </option>
+                  ))}
+                </select>
               </Field>
               <Field
                 label="Số khung"
@@ -630,24 +634,6 @@ export default function ShorthandIntakePage() {
                   placeholder="RLH160…"
                 />
                 {cameraNote(entry, "frame_number")}
-              </Field>
-              <Field
-                label="Số máy"
-                className={cameraClass(entry, "engine_number")}
-              >
-                <input
-                  value={entry.fields.engine_number ?? ""}
-                  onChange={(event) =>
-                    updateField(
-                      entry.id,
-                      "engine_number",
-                      event.target.value.toUpperCase(),
-                    )
-                  }
-                  autoCapitalize="characters"
-                  placeholder="KF160…"
-                />
-                {cameraNote(entry, "engine_number")}
               </Field>
               <Field
                 label="Biển số"
@@ -689,23 +675,11 @@ export default function ShorthandIntakePage() {
                 <AutocompleteInput
                   aria-label="Màu sắc"
                   value={entry.fields.color ?? ""}
-                  suggestions={suggestionsFor("color", entry)}
+                  suggestions={suggestions("color")}
                   onChange={(value) => updateField(entry.id, "color", value)}
                   placeholder="Đen"
                 />
                 {cameraNote(entry, "color")}
-              </Field>
-              <Field
-                label="Phiên bản"
-                className={cameraClass(entry, "variant")}
-              >
-                <AutocompleteInput
-                  value={entry.fields.variant ?? ""}
-                  suggestions={suggestionsFor("variant", entry)}
-                  onChange={(value) => updateField(entry.id, "variant", value)}
-                  placeholder="ABS"
-                />
-                {cameraNote(entry, "variant")}
               </Field>
               <Field
                 label="Năm sản xuất"
@@ -728,20 +702,6 @@ export default function ShorthandIntakePage() {
                   placeholder="2022"
                 />
                 {cameraNote(entry, "year")}
-              </Field>
-              <Field
-                label="Số km đã đi"
-                className={cameraClass(entry, "odometer")}
-              >
-                <GroupedIntegerInput
-                  aria-label="Số km đã đi"
-                  value={entry.fields.odometer ?? ""}
-                  onChange={(digits) =>
-                    updateField(entry.id, "odometer", digits)
-                  }
-                  placeholder="12.500"
-                />
-                {cameraNote(entry, "odometer")}
               </Field>
               <Field label="Ngày thu">
                 <input
@@ -772,16 +732,6 @@ export default function ShorthandIntakePage() {
                   />
                 </Field>
               )}
-              <Field label="Giá bán dự kiến">
-                <IntakeMoneyInput
-                  ariaLabel="Giá bán dự kiến"
-                  value={entry.fields.asking_price ?? ""}
-                  onChange={(value) =>
-                    updateField(entry.id, "asking_price", value)
-                  }
-                  placeholder="22tr"
-                />
-              </Field>
               <Field label="Tên người bán">
                 <input
                   value={entry.fields.supplier_name ?? ""}
@@ -828,7 +778,11 @@ export default function ShorthandIntakePage() {
                       type="button"
                       className="teach"
                       onClick={() =>
-                        openLesson({ key: token, field: "model", value: "" })
+                        openLesson({
+                          key: token,
+                          field: "vehicle_type",
+                          value: "",
+                        })
                       }
                     >
                       <GraduationCap size={13} /> Học
@@ -861,12 +815,13 @@ export default function ShorthandIntakePage() {
                 variant="secondary"
                 disabled={
                   !entry.fields.frame_number ||
-                  !entry.fields.brand ||
-                  !entry.fields.model
+                  !typeIdOf(entry.fields.vehicle_type)
                 }
                 onClick={() =>
                   navigate("/acquisitions/new", {
-                    state: { aiDraft: entryToAcquisitionDraft(entry) },
+                    state: {
+                      aiDraft: entryToAcquisitionDraft(entry, typeItems),
+                    },
                   })
                 }
               >
@@ -941,12 +896,20 @@ export default function ShorthandIntakePage() {
               <Field label="Trường điền">
                 <select
                   value={lesson.field}
-                  onChange={(event) =>
+                  onChange={(event) => {
+                    const field = event.target.value as IntakeFieldKey;
                     setLesson({
                       ...lesson,
-                      field: event.target.value as IntakeFieldKey,
-                    })
-                  }
+                      field,
+                      // Loại xe bắt buộc là một tên có trong danh mục, nên
+                      // không được giữ lại giá trị gõ tay của trường khác.
+                      value:
+                        field === "vehicle_type" &&
+                        !typeNames.includes(lesson.value)
+                          ? ""
+                          : lesson.value,
+                    });
+                  }}
                 >
                   {INTAKE_FIELDS.filter((field) =>
                     LOCAL_LEARNING_FIELDS.has(field.key),
@@ -958,13 +921,33 @@ export default function ShorthandIntakePage() {
                 </select>
               </Field>
               <Field label="Thành">
-                <input
-                  value={lesson.value}
-                  onChange={(event) =>
-                    setLesson({ ...lesson, value: event.target.value })
-                  }
-                  placeholder="Ví dụ: Wave RSX"
-                />
+                {lesson.field === "vehicle_type" ? (
+                  <select
+                    value={lesson.value}
+                    onChange={(event) =>
+                      setLesson({ ...lesson, value: event.target.value })
+                    }
+                  >
+                    <option value="">
+                      {vehicleTypes.isLoading
+                        ? "Đang tải danh mục…"
+                        : "— Chọn loại xe —"}
+                    </option>
+                    {typeItems.map((type) => (
+                      <option key={type.id} value={type.name}>
+                        {type.name}
+                      </option>
+                    ))}
+                  </select>
+                ) : (
+                  <input
+                    value={lesson.value}
+                    onChange={(event) =>
+                      setLesson({ ...lesson, value: event.target.value })
+                    }
+                    placeholder="Ví dụ: Đen"
+                  />
+                )}
               </Field>
               <div className="row" style={{ gap: "8px" }}>
                 <Button

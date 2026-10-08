@@ -49,22 +49,21 @@ export async function runShowroomTests(externalDb, { engine = 'postgres' } = {})
     const seedVehicle = async (overrides = {}) => {
       const id = await call('owner', 'save_vehicle', {
         request_id: randomUUID(),
-        brand: 'Yamaha',
-        model: 'Grande',
+        vehicle_type: 'Xe tay ga',
         license_plate: `SR-${randomUUID().slice(0, 6).toUpperCase()}`,
+        color: 'Đỏ',
         purchase_date: day,
         purchase_price: 30_000_000,
-        asking_price: 38_000_000,
         ...overrides,
       })
       return id
     }
 
     // 1. REAL INVENTORY: only IN_STOCK vehicles reach the public showroom.
-    const inStockId = await seedVehicle({ color: 'Đỏ', odometer: 12_500 })
-    const reservedId = await seedVehicle({ brand: 'Honda', model: 'Vision' })
+    const inStockId = await seedVehicle({ color: 'Đỏ', year: 2023 })
+    const reservedId = await seedVehicle({ vehicle_type: 'Xe số' })
     await db.query("UPDATE public.vehicles SET status='RESERVED' WHERE id=$1", [reservedId])
-    const soldId = await seedVehicle({ brand: 'Piaggio', model: 'Liberty' })
+    const soldId = await seedVehicle({ vehicle_type: 'Xe điện' })
     await db.query("UPDATE public.vehicles SET status='SOLD' WHERE id=$1", [soldId])
 
     const listing = await anonCall('list_showroom_vehicles', '$1::jsonb', ['{}'])
@@ -75,19 +74,21 @@ export async function runShowroomTests(externalDb, { engine = 'postgres' } = {})
     assert.equal(listing.total, ids.length)
     pass('list_showroom_vehicles exposes only IN_STOCK vehicles to anonymous visitors')
 
-    // 2. SAFE PROJECTION: no internal codes, chassis/engine numbers or costs.
+    // 2. SAFE PROJECTION: no internal costs, prices, mileage or retired spec fields.
+    //    After the field purge the public identity is biển · số khung, so the plate
+    //    and frame are intentionally shown; every money/spec column stays hidden.
     const listed = listing.items.find((item) => item.id === inStockId)
-    for (const leaked of ['internal_code', 'purchase_price', 'frame_number', 'engine_number', 'supplier_name', 'supplier_phone', 'notes', 'total_cost']) {
+    for (const leaked of ['purchase_price', 'total_cost', 'asking_price', 'sale_price', 'expected_price', 'odometer', 'brand', 'model', 'variant', 'engine_number', 'supplier_name', 'supplier_phone', 'notes']) {
       assert.equal(Object.hasOwn(listed, leaked), false, `${leaked} must never reach the public payload`)
     }
-    assert.equal(listed.asking_price, 38_000_000)
-    assert.equal(listed.odometer, 12_500)
+    assert.ok(listed.vehicle_title.startsWith(listed.license_plate), 'public title leads with the real plate')
+    assert.equal(listed.vehicle_type, 'Xe tay ga')
     assert.ok(listed.license_plate, 'real license plate is preserved, not invented')
-    await seedVehicle({ brand: 'Suzuki', model: 'Pro', odometer: 0 })
-    const filtered = await anonCall('list_showroom_vehicles', '$1::jsonb', [JSON.stringify({ search: 'Suzuki Pro' })])
-    assert.equal(filtered.items.length, 1)
-    assert.equal(filtered.items[0].odometer, null, 'odometer 0 is nulled out, never rendered as fake mileage')
-    pass('Public projection keeps real display fields and strips internal/financial data')
+    await seedVehicle({ vehicle_type: 'Xe điện', color: 'Xanh' })
+    const filtered = await anonCall('list_showroom_vehicles', '$1::jsonb', [JSON.stringify({ vehicle_type: 'Xe điện' })])
+    assert.ok(filtered.items.length >= 1, 'type filter returns stock of that type')
+    assert.equal(filtered.items.every((item) => item.vehicle_type === 'Xe điện'), true, 'only the requested type is returned')
+    pass('Public projection keeps the new identity fields and strips all price/spec/internal data')
 
     // 3. anon is denied the privileged inventory RPC.
     await deny(() => anonCall('list_vehicles', '$1::jsonb', ['{}']), /permission denied/)
@@ -205,11 +206,11 @@ export async function runShowroomTests(externalDb, { engine = 'postgres' } = {})
       () => run('staff', (client) => rpc(client, 'update_showroom_lead_status', '$1::uuid,$2::text', [randomUUID(), 'SPAM'])),
       /LEAD_NOT_FOUND/
     )
-    const branded = await anonCall('list_showroom_vehicles', '$1::jsonb', [JSON.stringify({ brand: 'Yamaha' })])
-    assert.equal(branded.total, 1, 'only the remaining IN_STOCK Yamaha is listed')
-    assert.equal(branded.items[0].id, inStockId)
-    assert.equal(Object.hasOwn(branded.items[0], 'status'), false, 'internal status enum is not part of the public projection')
-    pass('Brand filters match real stock and the final listing count is deterministic')
+    const typed = await anonCall('list_showroom_vehicles', '$1::jsonb', [JSON.stringify({ vehicle_type: 'Xe tay ga' })])
+    assert.equal(typed.total, 1, 'only the remaining IN_STOCK scooter of that type is listed')
+    assert.equal(typed.items[0].id, inStockId)
+    assert.equal(Object.hasOwn(typed.items[0], 'status'), false, 'internal status enum is not part of the public projection')
+    pass('Vehicle-type filters match real stock and the final listing count is deterministic')
 
     console.log(`--- All ${passed} Showroom database tests passed! ---\n`)
   } finally {

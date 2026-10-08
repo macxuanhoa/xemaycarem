@@ -11,8 +11,8 @@ describe('Vehicle Inventory Lifecycle & Financial Data Separation (Integration)'
   interface VehicleState {
     id: string
     internal_code: string
-    brand: string
-    model: string
+    vehicle_type_id: string
+    vehicle_type: string
     status: 'IN_STOCK' | 'RESERVED' | 'SOLD' | 'CANCELLED'
     purchase_price?: number | null
     cost_pending: boolean
@@ -20,16 +20,16 @@ describe('Vehicle Inventory Lifecycle & Financial Data Separation (Integration)'
   }
 
   function createVehicle(data: {
-    brand: string
-    model: string
+    vehicle_type_id: string
+    vehicle_type: string
     purchase_price?: number
   }): VehicleState {
     const cost_pending = data.purchase_price === undefined || data.purchase_price === null
     return {
       id: 'mock-veh-' + Math.random().toString(36).slice(2, 8),
       internal_code: 'XE-2026-000001',
-      brand: data.brand,
-      model: data.model,
+      vehicle_type_id: data.vehicle_type_id,
+      vehicle_type: data.vehicle_type,
       status: 'IN_STOCK',
       purchase_price: cost_pending ? null : data.purchase_price,
       cost_pending,
@@ -62,8 +62,8 @@ describe('Vehicle Inventory Lifecycle & Financial Data Separation (Integration)'
 
   it('marks cost_pending=true when created by operational staff without purchase price', () => {
     const vehicle = createVehicle({
-      brand: FICTIONAL_VEHICLES.PENDING_COST.brand,
-      model: FICTIONAL_VEHICLES.PENDING_COST.model,
+      vehicle_type_id: FICTIONAL_VEHICLES.PENDING_COST.vehicle_type_id,
+      vehicle_type: FICTIONAL_VEHICLES.PENDING_COST.vehicle_type,
     })
 
     expect(vehicle.cost_pending).toBe(true)
@@ -73,8 +73,8 @@ describe('Vehicle Inventory Lifecycle & Financial Data Separation (Integration)'
 
   it('calculates total cost when purchase price is set and expenses are added', () => {
     const vehicle = createVehicle({
-      brand: FICTIONAL_VEHICLES.SH160.brand,
-      model: FICTIONAL_VEHICLES.SH160.model,
+      vehicle_type_id: FICTIONAL_VEHICLES.PREMIUM_SCOOTER.vehicle_type_id,
+      vehicle_type: FICTIONAL_VEHICLES.PREMIUM_SCOOTER.vehicle_type,
       purchase_price: 85_000_000,
     })
 
@@ -93,8 +93,8 @@ describe('Vehicle Inventory Lifecycle & Financial Data Separation (Integration)'
 
   it('strictly forbids adding expenses once a vehicle is marked SOLD', () => {
     const vehicle = createVehicle({
-      brand: 'Honda',
-      model: 'Wave Alpha',
+      vehicle_type_id: FICTIONAL_VEHICLES.ECONOMY_CUB.vehicle_type_id,
+      vehicle_type: FICTIONAL_VEHICLES.ECONOMY_CUB.vehicle_type,
       purchase_price: 15_000_000,
     })
 
@@ -106,8 +106,8 @@ describe('Vehicle Inventory Lifecycle & Financial Data Separation (Integration)'
 
   it('allows reservation status transition: IN_STOCK <-> RESERVED', () => {
     const vehicle = createVehicle({
-      brand: 'Honda',
-      model: 'SH',
+      vehicle_type_id: FICTIONAL_VEHICLES.PREMIUM_SCOOTER.vehicle_type_id,
+      vehicle_type: FICTIONAL_VEHICLES.PREMIUM_SCOOTER.vehicle_type,
       purchase_price: 80_000_000,
     })
 
@@ -122,5 +122,19 @@ describe('Vehicle Inventory Lifecycle & Financial Data Separation (Integration)'
     // Unreserve back to IN_STOCK
     vehicle.status = 'IN_STOCK'
     expect(vehicle.status).toBe('IN_STOCK')
+  })
+
+  it('keeps the whole lifecycle free of the six purged vehicle fields', () => {
+    const vehicle = createVehicle({
+      vehicle_type_id: FICTIONAL_VEHICLES.UNDERCROSS_BIKE.vehicle_type_id,
+      vehicle_type: FICTIONAL_VEHICLES.UNDERCROSS_BIKE.vehicle_type,
+      purchase_price: 36_000_000,
+    })
+    // Không được còn sót key nào: có là không còn cột tương ứng trong database.
+    for (const purged of ['brand', 'model', 'variant', 'engine_number', 'odometer', 'asking_price'])
+      expect(vehicle).not.toHaveProperty(purged)
+    // Giá vốn chỉ là giá thu + chi phí đang hoạt động; không có giá dự kiến.
+    expect(addExpenseToVehicle(vehicle, 1_000_000).success).toBe(true)
+    expect(getVehicleTotalCost(vehicle)).toBe(37_000_000)
   })
 })

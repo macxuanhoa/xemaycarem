@@ -75,8 +75,9 @@ async function installMock(page) {
             vehicle_id: vehicleId,
             frame_number: "RLH123456",
             license_plate: "43A1-99999",
-            brand: "Honda",
-            model: "Vision",
+            vehicle_type: "Xe tay ga",
+            vehicle_title: "43A1-99999 · RLH123456",
+            vehicle_subtitle: "Xe tay ga · 2023 · Đen",
             internal_code: "XE-UX-001",
             acquisition_date: today,
             purchase_price: 32000000,
@@ -113,7 +114,7 @@ test("Thu vào list page preserves UX, simplifies date presets, enhances table r
   await expect(searchInput).toBeVisible();
   await expect(searchInput).toHaveAttribute(
     "placeholder",
-    "Tìm số khung, biển số, hãng, dòng xe, người bán…",
+    "Tìm số khung, biển số, loại xe, người bán…",
   );
 
   // 3. Date presets: 4 quick chips + 1 custom button, NO duplicate select dropdown
@@ -144,13 +145,19 @@ test("Thu vào list page preserves UX, simplifies date presets, enhances table r
   // - Distinct semantic labels: Khung: and BS:
   await expect(page.locator(".data-table")).toBeVisible();
   await expect(page.locator(".data-table").getByText("Khung:")).toBeVisible();
-  await expect(page.locator(".data-table").getByText("RLH123456")).toBeVisible();
+  await expect(
+    page.locator(".data-table").getByText("RLH123456", { exact: true }),
+  ).toBeVisible();
   await expect(page.locator(".data-table").getByText("BS:")).toBeVisible();
-  await expect(page.locator(".data-table").getByText("43A1-99999")).toBeVisible();
+  await expect(
+    page.locator(".data-table").getByText("43A1-99999", { exact: true }),
+  ).toBeVisible();
 
-  // - Primary vehicle name + muted internal code
-  await expect(page.locator(".data-table").getByText("Honda Vision")).toBeVisible();
-  await expect(page.locator(".data-table").getByText("XE-UX-001")).toBeVisible();
+  // - Primary vehicle identity (biển số · số khung) + muted internal code
+  await expect(
+    page.locator(".data-table").getByText("43A1-99999 · RLH123456").first(),
+  ).toBeVisible();
+  await expect(page.locator(".data-table").getByText("XE-UX-001").first()).toBeVisible();
 
   // - Seller name + phone as secondary
   await expect(page.locator(".data-table").getByText("Nguyễn Văn Thanh")).toBeVisible();
@@ -164,7 +171,7 @@ test("Thu vào list page preserves UX, simplifies date presets, enhances table r
 
   // - Detail action arrow with accessible title & label
   const detailLink = page.getByRole("link", {
-    name: "Xem chi tiết xe Honda Vision",
+    name: "Xem chi tiết xe 43A1-99999 · RLH123456",
   });
   await expect(detailLink).toBeVisible();
   await expect(detailLink).toHaveAttribute("href", `/vehicles/${vehicleId}`);
@@ -187,11 +194,13 @@ test("Thu vào list mobile responsive view has accessible cards, distinct chassi
   const card = page.locator(".mobile-cards .mobile-record").first();
   await expect(card).toBeVisible();
 
-  // Distinct chassis & plate subline
+  // Distinct chassis & plate subline (title already shows biển · khung)
   await expect(card.getByText("Khung:")).toBeVisible();
-  await expect(card.getByText("RLH123456")).toBeVisible();
+  await expect(card.locator(".mobile-code")).toHaveText("RLH123456");
   await expect(card.getByText("BS:")).toBeVisible();
-  await expect(card.getByText("43A1-99999")).toBeVisible();
+  await expect(
+    card.locator(".mobile-meta-subline").getByText("43A1-99999", { exact: true }),
+  ).toBeVisible();
 
   // Primary action Thu xe mới visible
   await expect(

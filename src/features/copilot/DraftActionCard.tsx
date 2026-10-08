@@ -15,11 +15,11 @@ import { money } from "@/lib/format";
 import { vehicleExpenseLabels } from "@/features/expenses/expenseSchema";
 import type { Paged, Vehicle } from "@/types";
 import type { DraftAction } from "@/lib/shorthand/draftActions";
+import { vehicleSubtitle, vehicleTitle } from "@/lib/vehicleDisplay";
 
 const summaryLabels: Record<string, string> = {
   license_plate: "Biển số",
   amount: "Số tiền",
-  sale_price: "Giá bán đề xuất",
   description: "Nội dung",
   expense_type: "Loại chi phí",
   date: "Ngày",
@@ -78,8 +78,7 @@ export function DraftActionCard({ action }: { action: DraftAction }) {
           <div key={key}>
             <dt>{summaryLabels[key]}</dt>
             <dd>
-              {(key === "amount" || key === "sale_price") &&
-              typeof value === "number"
+              {key === "amount" && typeof value === "number"
                 ? money(value)
                 : key === "expense_type"
                   ? vehicleExpenseLabels[String(value)] || String(value)
@@ -93,13 +92,14 @@ export function DraftActionCard({ action }: { action: DraftAction }) {
           {lookup.isFetching
             ? "Đang tìm xe theo biển số…"
             : vehicle
-              ? `Khớp xe: ${vehicle.brand} ${vehicle.model} · ${vehicle.license_plate}`
+              ? `Khớp xe: ${vehicleTitle(vehicle)} · ${vehicleSubtitle(vehicle) || "chưa phân loại"}`
               : `Chưa khớp được xe với biển số ${plate}. Mở biểu mẫu và chọn xe thủ công.`}
         </p>
       )}
       <p className="notice">
         Bản nháp chỉ gợi ý. Kiểm tra từng trường trong biểu mẫu rồi lưu — hệ thống
-        chỉ ghi nhận khi bạn xác nhận.
+        chỉ ghi nhận khi bạn xác nhận. Giá bán luôn do nhân viên tự nhập trong
+        phiếu Bán xe, không lấy từ câu lệnh.
       </p>
       {action.kind === "ADD_VEHICLE_EXPENSE" && (
         <Button
@@ -120,7 +120,6 @@ export function DraftActionCard({ action }: { action: DraftAction }) {
                     aiDraft: {
                       customer_name: action.customer_name,
                       customer_phone: action.customer_phone,
-                      sale_price: action.sale_price,
                     },
                   },
                 })
@@ -143,7 +142,7 @@ export function DraftActionCard({ action }: { action: DraftAction }) {
         (
           <QuickExpenseModal
             vehicleId={vehicle.id}
-            vehicleName={`${vehicle.brand} ${vehicle.model}`}
+            vehicleName={vehicleTitle(vehicle)}
             vehicleCode={vehicle.license_plate || vehicle.frame_number}
             isOpen
             initialDraft={{

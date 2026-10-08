@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { canDeleteVehicle, canFinance, canManage, canOperate, isOwner, roleLabels } from '@/lib/permissions'
+import { canDeleteVehicle, canFinance, canManage, canManageVehicleExpenses, canOperate, canRequestVehicleDelete, isOwner, roleLabels } from '@/lib/permissions'
 import { FICTIONAL_PROFILES } from '../fixtures/fictional-data'
 import type { Profile, Role } from '@/types'
 
@@ -105,6 +105,38 @@ describe('Role and Permission Security (Unit: UI and Permission Helpers)', () =>
       expect(canDeleteVehicle(makeProfile('OWNER', true, false))).toBe(false)
       expect(canDeleteVehicle(makeProfile('MANAGER', true, false))).toBe(false)
       expect(canDeleteVehicle(null)).toBe(false)
+    })
+  })
+
+  describe('canManageVehicleExpenses (STAFF vehicle-expense parity)', () => {
+    it('opens vehicle expenses to every active operator (STAFF parity with MANAGER)', () => {
+      expect(canManageVehicleExpenses(makeProfile('OWNER', true))).toBe(true)
+      expect(canManageVehicleExpenses(makeProfile('MANAGER', false))).toBe(true)
+      expect(canManageVehicleExpenses(makeProfile('STAFF', false))).toBe(true)
+    })
+
+    it('denies inactive accounts and unauthenticated users', () => {
+      expect(canManageVehicleExpenses(makeProfile('STAFF', false, false))).toBe(false)
+      expect(canManageVehicleExpenses(null)).toBe(false)
+    })
+  })
+
+  describe('canRequestVehicleDelete (STAFF delete-request gate)', () => {
+    it('is exclusive to active STAFF (MANAGER/OWNER keep the direct delete instead)', () => {
+      expect(canRequestVehicleDelete(makeProfile('STAFF', false))).toBe(true)
+      expect(canRequestVehicleDelete(makeProfile('MANAGER', true))).toBe(false)
+      expect(canRequestVehicleDelete(makeProfile('OWNER', true))).toBe(false)
+    })
+
+    it('denies inactive STAFF and unauthenticated users', () => {
+      expect(canRequestVehicleDelete(makeProfile('STAFF', false, false))).toBe(false)
+      expect(canRequestVehicleDelete(null)).toBe(false)
+    })
+
+    it('request-based delete never grants the direct purge to STAFF', () => {
+      const staff = makeProfile('STAFF', false)
+      expect(canRequestVehicleDelete(staff)).toBe(true)
+      expect(canDeleteVehicle(staff)).toBe(false)
     })
   })
 

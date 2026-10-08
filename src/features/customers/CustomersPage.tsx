@@ -25,6 +25,7 @@ import {
   Pagination,
 } from "@/components/ui";
 import { Highlight } from "@/components/search/Highlight";
+import { vehicleSubtitle, vehicleTitle } from "@/lib/vehicleDisplay";
 import type { CustomerSummary, Paged, ShowroomLead, ShowroomLeadStatus } from "@/types";
 
 const pageSize = 6;
@@ -524,11 +525,11 @@ export function CustomersPage() {
                         >
                           <Bike size={18} className="muted" />
                           <span>
-                            <strong>{s.vehicle_name || "Xe"}</strong>{" "}
+                            <strong>{vehicleTitle(s)}</strong>{" "}
                             {s.internal_code ? `(${s.internal_code})` : ""}
                           </span>
-                          {s.license_plate && (
-                            <small className="muted">· {s.license_plate}</small>
+                          {vehicleSubtitle(s) && (
+                            <small className="muted">· {vehicleSubtitle(s)}</small>
                           )}
                         </div>
                         <div className="align-right">

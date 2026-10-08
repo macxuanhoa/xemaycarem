@@ -54,18 +54,13 @@ describe('Calendar and dateValue validation', () => {
 
 describe('Vehicle form input validation (vehicleSchema)', () => {
   const baseVehicle = {
-    brand: 'Honda',
-    model: 'SH 160i',
-    variant: 'ABS',
+    vehicle_type_id: '8f07a3c1-4c0e-4f57-8f0f-4f7bd0d3ab12',
     license_plate: '29B1-123.45',
     year: 2024,
     color: 'Trắng',
     frame_number: 'RLH160-001',
-    engine_number: 'KF160-001',
-    odometer: 1500,
     purchase_date: '2026-09-30',
     purchase_price: 80_000_000,
-    asking_price: 90_000_000,
     supplier_name: 'Nguyễn Văn A',
     supplier_phone: '0901234567',
     status: 'IN_STOCK' as const,
@@ -74,8 +69,7 @@ describe('Vehicle form input validation (vehicleSchema)', () => {
 
   it('validates a complete, valid vehicle object', () => {
     const parsed = vehicleSchema.parse(baseVehicle)
-    expect(parsed.brand).toBe('Honda')
-    expect(parsed.model).toBe('SH 160i')
+    expect(parsed.vehicle_type_id).toBe(baseVehicle.vehicle_type_id)
     expect(parsed.purchase_price).toBe(80_000_000)
     expect(parsed.status).toBe('IN_STOCK')
   })
@@ -83,15 +77,15 @@ describe('Vehicle form input validation (vehicleSchema)', () => {
   it('trims whitespace on string fields automatically', () => {
     const input = {
       ...baseVehicle,
-      brand: '   Yamaha   ',
-      model: '   Exciter 155   ',
+      color: '   Đen   ',
       license_plate: '  29B1-999.99  ',
+      frame_number: '  RLH160-002  ',
       notes: '  Ghi chú có khoảng trắng  ',
     }
     const parsed = vehicleSchema.parse(input)
-    expect(parsed.brand).toBe('Yamaha')
-    expect(parsed.model).toBe('Exciter 155')
+    expect(parsed.color).toBe('Đen')
     expect(parsed.license_plate).toBe('29B1-999.99')
+    expect(parsed.frame_number).toBe('RLH160-002')
     expect(parsed.notes).toBe('Ghi chú có khoảng trắng')
   })
 
@@ -101,13 +95,32 @@ describe('Vehicle form input validation (vehicleSchema)', () => {
     expect(parsed.purchase_price).toBeUndefined()
   })
 
-  it('rejects empty or whitespace-only model but tolerates blank brand', () => {
-    // Brand became optional in migration 20261005000000 — staff often don't
-    // recognise the badge at intake time. Model is still mandatory.
-    expect(vehicleSchema.safeParse({ ...baseVehicle, brand: '' }).success).toBe(true)
-    expect(vehicleSchema.safeParse({ ...baseVehicle, brand: '   ' }).success).toBe(true)
-    expect(vehicleSchema.safeParse({ ...baseVehicle, model: '' }).success).toBe(false)
-    expect(vehicleSchema.safeParse({ ...baseVehicle, model: '   ' }).success).toBe(false)
+  it('requires a vehicle type from the catalogue and rejects a blank one', () => {
+    // Danh mục loại xe là bảng DB: hồ sơ xe không còn dòng nào để gõ tay,
+    // nên thiếu/chọn rỗng là chặn ngay ở client (server trả VEHICLE_TYPE_REQUIRED).
+    const withoutType: Partial<typeof baseVehicle> = { ...baseVehicle }
+    delete withoutType.vehicle_type_id
+    expect(vehicleSchema.safeParse(withoutType).success).toBe(false)
+    expect(vehicleSchema.safeParse({ ...baseVehicle, vehicle_type_id: '' }).success).toBe(false)
+    expect(vehicleSchema.safeParse({ ...baseVehicle, vehicle_type_id: '   ' }).success).toBe(false)
+    expect(vehicleSchema.safeParse(baseVehicle).success).toBe(true)
+  })
+
+  it('strips the purged legacy keys instead of forwarding them', () => {
+    // Columns dropped by migration 20261008000300. An old PWA bundle or an old
+    // saved draft may still send them; they must never reach the RPC payload.
+    const parsed = vehicleSchema.parse({
+      ...baseVehicle,
+      brand: 'Honda',
+      model: 'SH 160i',
+      variant: 'ABS',
+      engine_number: 'KF160-001',
+      odometer: 1500,
+      asking_price: 90_000_000,
+    })
+    for (const purged of ['brand', 'model', 'variant', 'engine_number', 'odometer', 'asking_price']) {
+      expect(parsed).not.toHaveProperty(purged)
+    }
   })
 
   it('forbids assigning status=SOLD directly on creation', () => {
@@ -123,28 +136,21 @@ describe('Vehicle form input validation (vehicleSchema)', () => {
     expect(vehicleSchema.safeParse({ ...baseVehicle, year: 2024 }).success).toBe(true)
   })
 
-  it('rejects negative odometer or odometer exceeding 10,000,000 km', () => {
-    expect(vehicleSchema.safeParse({ ...baseVehicle, odometer: -1 }).success).toBe(false)
-    expect(vehicleSchema.safeParse({ ...baseVehicle, odometer: 10_000_001 }).success).toBe(false)
-    expect(vehicleSchema.safeParse({ ...baseVehicle, odometer: 0 }).success).toBe(true)
-    expect(vehicleSchema.safeParse({ ...baseVehicle, odometer: 99_999 }).success).toBe(true)
+  it('rejects a malformed plate but tolerates a blank one', () => {
+    expect(vehicleSchema.safeParse({ ...baseVehicle, license_plate: 'abc' }).success).toBe(false)
+    expect(vehicleSchema.safeParse({ ...baseVehicle, license_plate: '' }).success).toBe(true)
   })
 })
 
 describe('Acquisition form input validation (acquisitionSchema)', () => {
   const baseAcquisition = {
     frame_number: 'RLH160-001',
-    engine_number: 'KF160-001',
     license_plate: '29B1-123.45',
-    brand: 'Honda',
-    model: 'SH 160i',
-    variant: 'ABS',
+    vehicle_type_id: '8f07a3c1-4c0e-4f57-8f0f-4f7bd0d3ab12',
     year: 2024,
     color: 'Trắng',
-    odometer: 1500,
     acquisition_date: '2026-09-30',
     purchase_price: 80_000_000,
-    asking_price: 90_000_000,
     seller_name: 'Nguyễn Văn A',
     seller_phone: '0901234567',
     notes: 'Xe mới 99%',
@@ -153,53 +159,49 @@ describe('Acquisition form input validation (acquisitionSchema)', () => {
   it('validates a complete acquisition record', () => {
     const parsed = acquisitionSchema.parse(baseAcquisition)
     expect(parsed.frame_number).toBe('RLH160-001')
-    expect(parsed.brand).toBe('Honda')
-    expect(parsed.odometer).toBe(1500)
-    expect(parsed.asking_price).toBe(90_000_000)
+    expect(parsed.vehicle_type_id).toBe(baseAcquisition.vehicle_type_id)
+    expect(parsed.purchase_price).toBe(80_000_000)
   })
 
-  it('allows optional engine_number and license_plate to be empty', () => {
-    const minimal = {
+  it('allows blank license_plate and blank frame_number', () => {
+    // Giấy tờ có thể chưa có lúc thu xe; số khung rỗng được server sinh mã tạm.
+    const parsed = acquisitionSchema.parse({
       ...baseAcquisition,
-      engine_number: '',
+      frame_number: '',
       license_plate: '',
-    }
-    const parsed = acquisitionSchema.parse(minimal)
-    expect(parsed.engine_number).toBe('')
+    })
+    expect(parsed.frame_number).toBe('')
     expect(parsed.license_plate).toBe('')
   })
 
-  it('allows blank/undefined odometer and does not force it to 0', () => {
-    const withoutOdo = { ...baseAcquisition, odometer: undefined }
-    const parsed = acquisitionSchema.parse(withoutOdo)
-    expect(parsed.odometer).toBeUndefined()
-  })
+  it('requires a vehicle type and strips purged legacy keys', () => {
+    const withoutType: Partial<typeof baseAcquisition> = { ...baseAcquisition }
+    delete withoutType.vehicle_type_id
+    expect(acquisitionSchema.safeParse(withoutType).success).toBe(false)
+    expect(acquisitionSchema.safeParse({ ...baseAcquisition, vehicle_type_id: '' }).success).toBe(false)
 
-  it('rejects negative odometer or odometer exceeding limit', () => {
-    expect(acquisitionSchema.safeParse({ ...baseAcquisition, odometer: -1 }).success).toBe(false)
-    expect(acquisitionSchema.safeParse({ ...baseAcquisition, odometer: 10_000_001 }).success).toBe(false)
-    expect(acquisitionSchema.safeParse({ ...baseAcquisition, odometer: 0 }).success).toBe(true)
-  })
-
-  it('allows optional asking_price and purchase_price', () => {
-    const noPrices = {
+    const parsed = acquisitionSchema.parse({
       ...baseAcquisition,
-      purchase_price: undefined,
-      asking_price: undefined,
+      brand: 'Honda',
+      model: 'SH 160i',
+      variant: 'ABS',
+      engine_number: 'KF160-001',
+      odometer: 1500,
+      asking_price: 90_000_000,
+    })
+    for (const purged of ['brand', 'model', 'variant', 'engine_number', 'odometer', 'asking_price']) {
+      expect(parsed).not.toHaveProperty(purged)
     }
-    const parsed = acquisitionSchema.parse(noPrices)
-    expect(parsed.purchase_price).toBeUndefined()
-    expect(parsed.asking_price).toBeUndefined()
   })
 
-  it('still rejects model and acquisition_date, but tolerates blank frame_number and brand', () => {
-    // Migration 20261005000000 made số khung + hãng optional because intake
-    // often happens before the seller can produce papers. Model and the
-    // acquisition date remain required.
-    expect(acquisitionSchema.safeParse({ ...baseAcquisition, frame_number: '' }).success).toBe(true)
-    expect(acquisitionSchema.safeParse({ ...baseAcquisition, brand: '' }).success).toBe(true)
-    expect(acquisitionSchema.safeParse({ ...baseAcquisition, model: '' }).success).toBe(false)
+  it('allows optional purchase_price', () => {
+    const parsed = acquisitionSchema.parse({ ...baseAcquisition, purchase_price: undefined })
+    expect(parsed.purchase_price).toBeUndefined()
+  })
+
+  it('still rejects acquisition_date and plate garbage', () => {
     expect(acquisitionSchema.safeParse({ ...baseAcquisition, acquisition_date: 'invalid' }).success).toBe(false)
+    expect(acquisitionSchema.safeParse({ ...baseAcquisition, license_plate: 'abc' }).success).toBe(false)
   })
 
   it('rejects invalid year bounds (<1950 or far future)', () => {

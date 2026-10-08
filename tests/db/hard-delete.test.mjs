@@ -42,9 +42,9 @@ export async function runHardDeleteTests(externalDb, { engine = 'postgres' } = {
 
     const vehicleData = (overrides = {}) => ({
       request_id: randomUUID(),
-      brand: 'Honda', model: 'SH 160', license_plate: `KD-${randomUUID().slice(0, 6).toUpperCase()}`,
+      vehicle_type: 'Xe tay ga', license_plate: `KD-${randomUUID().slice(0, 6).toUpperCase()}`,
       frame_number: `FRAME${randomUUID().slice(0, 8)}`, purchase_date: day,
-      purchase_price: 80_000_000, asking_price: 90_000_000, ...overrides,
+      purchase_price: 80_000_000, ...overrides,
     })
 
     // 1. Full cascade purge with audit evidence for an ordinary inventory vehicle.

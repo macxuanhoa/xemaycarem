@@ -26,7 +26,6 @@ export type OcrPass = { text: string; confidence: number; ms: number };
 export type LocalRead = {
   license_plate: string;
   frame_number: string;
-  engine_number: string;
   /** Confidence attached to the winning plate (0..100), 0 when none. */
   plateConfidence: number;
   ocrMs: number;
@@ -114,7 +113,7 @@ export function releaseOcrWorker(): void {
 export async function localReadFrame(source: HTMLVideoElement | HTMLCanvasElement): Promise<LocalRead | null> {
   const full = source instanceof HTMLCanvasElement ? source : sourceCanvas(source);
   if (!full) return null;
-  const empty: LocalRead = { license_plate: "", frame_number: "", engine_number: "", plateConfidence: 0, ocrMs: 0, passes: 0 };
+  const empty: LocalRead = { license_plate: "", frame_number: "", plateConfidence: 0, ocrMs: 0, passes: 0 };
   const started = performance.now();
   let best = empty;
   const band = bandCanvas(full);
@@ -134,10 +133,9 @@ export async function localReadFrame(source: HTMLVideoElement | HTMLCanvasElemen
         : null;
       best = {
         license_plate: parsed.license_plate,
-        // Keep band-pass frame/engine when both found something: the band is
-        // the closer, higher-resolution read.
+        // Keep the band-pass frame number when both found something: the band
+        // is the closer, higher-resolution read.
         frame_number: best.frame_number || parsed.frame_number,
-        engine_number: best.engine_number || parsed.engine_number,
         plateConfidence: plate?.confidence ?? 0,
         ocrMs: Math.round(performance.now() - started),
         passes: best.passes + 1,

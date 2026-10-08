@@ -4,6 +4,7 @@ import {
   normalizePlate,
   parseShorthandMoney,
   parseIntakeNotes,
+  type IntakeFieldKey,
   type LearnedDictionary,
 } from "@/lib/shorthand/parseIntakeNotes";
 import {
@@ -18,11 +19,27 @@ import {
   entryToImportRow,
   validateIntakeEntry,
 } from "@/lib/shorthand/intakeRows";
+import { UNCLASSIFIED_VEHICLE_TYPE } from "@/lib/vehicleDisplay";
+import type { VehicleTypeItem } from "@/types";
 
-function parseFirst(line: string, dict: LearnedDictionary = {}) {
-  const entries = parseIntakeNotes(line, dict);
+function parseFirst(
+  line: string,
+  dict: LearnedDictionary = {},
+  vehicleTypes?: readonly string[],
+) {
+  const entries = parseIntakeNotes(line, dict, vehicleTypes);
   expect(entries).toHaveLength(1);
   return entries[0].fields;
+}
+
+function parseSingle(
+  line: string,
+  dict: LearnedDictionary = {},
+  vehicleTypes?: readonly string[],
+) {
+  const entries = parseIntakeNotes(line, dict, vehicleTypes);
+  expect(entries).toHaveLength(1);
+  return entries[0];
 }
 
 describe("parseShorthandMoney", () => {
@@ -60,103 +77,153 @@ describe("normalizePlate", () => {
 });
 
 describe("parseIntakeNotes", () => {
-  it("parses a typical shorthand line into structured fields", () => {
-    const fields = parseFirst("sh den bs 29b1-123.45 nam 22 2v gia 18tr5");
+  it("parses a typical shorthand line into the fields the record still has", () => {
+    const fields = parseFirst("den bs 29b1-123.45 nam 22 gia 18tr5");
     expect(fields).toMatchObject({
-      brand: "Honda",
-      model: "SH",
       color: "Đen",
       license_plate: "29-B1 123.45",
       year: "2022",
-      odometer: "20000",
       purchase_price: "18500000",
     });
   });
-  it("captures seller, phone and second price", () => {
-    const fields = parseFirst(
-      "ex 155 abs xanh tm 19,5tr chu Nam sdt 0901234567 niemyet 22tr",
+  it("captures seller and phone, and no longer claims a second price", () => {
+    const entries = parseIntakeNotes(
+      "xanh tm 19,5tr chu Nam sdt 0901234567 niemyet 22tr",
     );
-    expect(fields).toMatchObject({
-      brand: "Yamaha",
-      model: "Exciter 155",
-      variant: "ABS",
+    expect(entries[0].fields).toMatchObject({
       color: "Xanh",
       supplier_name: "Nam",
       supplier_phone: "0901234567",
       purchase_price: "19500000",
-      asking_price: "22000000",
     });
+    // Giá bán không còn là trường hồ sơ xe: chỉ sinh ra từ phiếu Bán xe,
+    // nên con số thứ hai ở lại trong hàng đợi chip để nhân viên tự gán.
+    expect(entries[0].fields).not.toHaveProperty("asking_price");
+    expect(entries[0].unknownTokens).toContain("22tr");
+    expect(entries[0].unknownTokens).toContain("niemyet");
   });
-  it("upgrades wave → wave rsx instead of dropping the token", () => {
-    const fields = parseFirst("wave rsx 1d trang 8tr5");
-    expect(fields.model).toBe("Wave RSX");
-    expect(fields.brand).toBe("Honda");
-    expect(fields.variant).toBe("1 đĩa");
+  it("recognises a vehicle type across tokens and only from the catalogue", () => {
+    expect(parseFirst("tay ga den 30tr").vehicle_type).toBe("Xe tay ga");
+    expect(parseFirst("xe so trang 12tr").vehicle_type).toBe("Xe số");
+    expect(parseFirst("con tay do 45tr").vehicle_type).toBe("Xe côn tay");
+    expect(parseFirst("ga 50cc trang 15tr").vehicle_type).toBe("Ga 50cc");
+    expect(parseFirst("dien vang 20tr").vehicle_type).toBe("Xe điện");
+    // Hàng đợi "Chưa phân loại" không bao giờ được tốc ký tự gán.
+    expect(parseFirst("chưa phân loại den 10tr").vehicle_type).toBeUndefined();
+  });
+  it("honours a shop-specific catalogue without inventing names", () => {
+    const fields = parseFirst(
+      "ga 50cc den 15tr",
+      {},
+      ["Ga 50cc", "Chưa phân loại"],
+    );
+    expect(fields.vehicle_type).toBe("Ga 50cc");
+    expect(fields.color).toBe("Đen");
+    expect(fields.purchase_price).toBe("15000000");
+    // Tên nằm ngoài danh mục đang dùng -> chỉ thành chip lạ.
+    const unknown = parseFirst("loai abc den 20tr");
+    expect(unknown.vehicle_type).toBeUndefined();
+    expect(unknown.license_plate).toBeUndefined();
+  });
+  it("never reads a type substring inside a frame or plate code", () => {
+    // "ga"/"so" chỉ khớp khi nằm gọn trên ranh giới token, nên mã khung
+    // chứa chữ tương tự không bị gán thành loại xe.
+    const fields = parseFirst("RLHSGA1234567 den 20tr");
+    expect(fields.frame_number).toBe("RLHSGA1234567");
+    expect(fields.vehicle_type).toBeUndefined();
   });
   it("keeps unrecognized tokens reviewable, never guesses prices", () => {
     const entries = parseIntakeNotes("abdo den 30tr phi dao");
     expect(entries[0].fields.purchase_price).toBe("30000000");
-    expect(entries[0].unknownTokens).toContain("phi dao".split(" ")[0]);
+    expect(entries[0].unknownTokens).toContain("phi");
+    expect(entries[0].unknownTokens).toContain("dao");
+    expect(entries[0].unknownTokens).toContain("abdo");
   });
-  it("supports fk/gm keywords and detects frame codes", () => {
-    const fields = parseFirst("fk RLH160-001 gm KF16099 vision den 20tr");
-    expect(fields.frame_number).toBe("RLH160-001");
-    expect(fields.engine_number).toBe("KF16099");
-    expect(fields.model).toBe("Vision");
+  it("drops the purged model/variant/engine vocabulary", () => {
+    // Trước 08/10/2026 mấy token này đổ vào Hãng/Dòng/Phiên bản/Số máy.
+    // Bây giờ chỉ còn một chỗ cho mã: Số khung, nên mã số máy rơi vào đó
+    // (nhân viên sửa lại trên thẻ); không trường nào âm thầm nhận nó.
+    const entries = parseIntakeNotes("wave rsx 1d abs gm KF16099 den 8tr5");
+    expect(entries[0].fields).toEqual({
+      frame_number: "KF16099",
+      color: "Đen",
+      purchase_price: "8500000",
+    });
+    expect(entries[0].fields).not.toHaveProperty("model");
+    expect(entries[0].fields).not.toHaveProperty("brand");
+    expect(entries[0].fields).not.toHaveProperty("variant");
+    expect(entries[0].fields).not.toHaveProperty("engine_number");
+    expect(entries[0].fields).not.toHaveProperty("odometer");
+    expect(entries[0].unknownTokens).toContain("wave");
+    expect(entries[0].unknownTokens).toContain("rsx");
+    expect(entries[0].unknownTokens).toContain("gm");
+  });
+  it("supports the fk keyword and keeps a second frame code visible", () => {
+    const entries = parseIntakeNotes("fk RLH160-001 den 20tr");
+    expect(entries[0].fields.frame_number).toBe("RLH160-001");
+    expect(entries[0].fields.color).toBe("Đen");
   });
   it("reads dates and trailing free text as notes", () => {
     const fields = parseFirst("lead do 12/03/26 15tr ghcn phu tung zin");
     expect(fields.purchase_date).toBe("2026-03-12");
     expect(fields.notes).toBe("phu tung zin");
+    expect(fields.color).toBe("Đỏ");
   });
   it("applies learned abbreviations before the built-in vocabulary", () => {
     const dict: LearnedDictionary = {
-      nxs: { key: "nxs", field: "model", value: "NVX 155" },
-      muabannhan: { key: "muabannhan", field: "notes", value: "Mua bán nhanh" },
+      den: { key: "den", field: "year", value: "2019" },
     };
-    const fields = parseFirst("nxs den 40tr muabannhan", dict);
-    expect(fields).toMatchObject({
-      model: "NVX 155",
-      brand: "Yamaha",
-      color: "Đen",
-      purchase_price: "40000000",
-      notes: "Mua bán nhanh",
+    const learned = parseSingle("den 15tr", dict);
+    // "den" vốn là màu trong builtin; luật đã học thắng và không còn màu nào.
+    expect(learned.fields).toEqual({
+      year: "2019",
+      purchase_price: "15000000",
     });
+    expect(learned.fields.color).toBeUndefined();
+
+    const taught: LearnedDictionary = {
+      zx: { key: "zx", field: "color", value: "Xanh ngọc" },
+    };
+    expect(parseSingle("zx 15tr", taught).fields.color).toBe("Xanh ngọc");
   });
   it("splits one entry per line and skips headings/blank lines", () => {
-    const entries = parseIntakeNotes("# đanh sách thu\n\nsh 18tr\nwave 9tr\n");
-    expect(entries.map((e) => e.fields.model)).toEqual(["SH", "Wave"]);
+    const entries = parseIntakeNotes("# đanh sách thu\n\nsh 18tr\ntay ga 9tr\n");
+    expect(entries).toHaveLength(2);
+    expect(entries[0].fields.purchase_price).toBe("18000000");
+    expect(entries[1].fields.vehicle_type).toBe("Xe tay ga");
   });
   it("records provenance so the UI can suggest teaching edits", () => {
     const entries = parseIntakeNotes("ex den 15tr");
-    expect(entries[0].provenance.model).toBe("ex");
     expect(entries[0].provenance.color).toBe("den");
+    expect(entries[0].provenance.purchase_price).toBe("15tr");
+    expect(entries[0].unknownTokens).toContain("ex");
   });
   it("keeps a second value for the same field visible instead of silent", () => {
-    const entries = parseIntakeNotes("RLH1-1 sdt 0901234567 0987654321 fk XYZ");
+    const entries = parseIntakeNotes("RLH1-1 sdt 0901234567 0987654321");
     expect(entries[0].fields.supplier_phone).toBe("0901234567");
     expect(entries[0].unknownTokens).toContain("0987654321");
   });
   it("detects a plate without the 'bs' keyword, joining a space-split serial", () => {
     // Regression: "29b1 123.45" used to leak "123.45" into the odometer
-    // bucket because the parser only looked at a single token.
-    const fields = parseFirst("sh den 29b1 123.45 gia 18tr5");
+    // bucket; the odometer field no longer exists at all, so the leak can
+    // only ever show up as an unknown token — assert both halves of that.
+    const fields = parseFirst("den 29b1 123.45 gia 18tr5");
     expect(fields.license_plate).toBe("29-B1 123.45");
-    expect(fields.odometer).toBeUndefined();
+    expect(fields).not.toHaveProperty("odometer");
     expect(fields.purchase_price).toBe("18500000");
   });
   it("treats a bare 2- or 4-digit number as the production year", () => {
-    expect(parseFirst("vision den 21 18tr").year).toBe("2021");
-    expect(parseFirst("vision den 2021 18tr").year).toBe("2021");
+    expect(parseFirst("den 21 18tr").year).toBe("2021");
+    expect(parseFirst("den 2021 18tr").year).toBe("2021");
   });
   it("routes a mid-line `#token` and everything after it into notes", () => {
-    const fields = parseFirst("ex abs xanh 27tr #chinh chu ban");
+    const fields = parseFirst("xanh 27tr #chinh chu ban");
     expect(fields.notes).toBe("chinh chu ban");
     expect(fields.purchase_price).toBe("27000000");
-    expect(fields.variant).toBe("ABS");
+    expect(fields).not.toHaveProperty("variant");
   });
   it("rejects garbage after 'bs' instead of storing it as a plate", () => {
-    const fields = parseFirst("sh den bs abcxyz");
+    const fields = parseFirst("den bs abcxyz");
     expect(fields.license_plate).toBeUndefined();
   });
 });
@@ -172,20 +239,43 @@ describe("learnedDictionary", () => {
   }
   it("learns, persists and forgets rules keyed per account", () => {
     const storage = memory();
-    let dict = learnRule("u1", "NXL", "model", "Novux", storage);
-    expect(dict["nxl"].value).toBe("Novux");
-    dict = learnRule("u1", "nxl", "model", "Novox 155", storage);
+    let dict = learnRule("u1", "NXL", "vehicle_type", "Xe côn tay", storage);
+    expect(dict["nxl"].value).toBe("Xe côn tay");
+    dict = learnRule("u1", "nxl", "vehicle_type", "Xe côn tay", storage);
     expect(dict["nxl"].count).toBe(2);
     expect(Object.keys(loadDictionary("u2", storage))).toHaveLength(0);
     expect(listRules(loadDictionary("u1", storage))[0].key).toBe("nxl");
     dict = forgetRule("u1", "nxl", storage);
     expect(dict).toEqual({});
   });
+  it("refuses purged fields and drops stale rules saved before the purge", () => {
+    const storage = memory();
+    // Luật cũ lưu theo field đã bị xoá khỏi hồ sơ (model/odometer/brand): bị lọc
+    // ngay lúc đọc nên không cần đổi khoá localStorage.
+    storage.setItem(
+      "carem_shorthand_dict_v1:u1",
+      JSON.stringify({
+        sh: { key: "sh", field: "model", value: "SH 160i" },
+        km: { key: "km", field: "odometer", value: "20000" },
+        hang: { key: "hang", field: "brand", value: "Honda" },
+        ga: { key: "ga", field: "vehicle_type", value: "Xe tay ga" },
+      }),
+    );
+    const dict = loadDictionary("u1", storage);
+    expect(Object.keys(dict)).toEqual(["ga"]);
+    const purgedField = "model" as unknown as IntakeFieldKey;
+    expect(learnRule("u1", "abc", purgedField, "SH 160i", storage)).toEqual(dict);
+    expect(learnRule("u1", "abc", "color", "Đen nhám", storage)["abc"].value).toBe(
+      "Đen nhám",
+    );
+  });
   it("survives corrupt payloads and anonymous users", () => {
     const storage = memory();
     storage.setItem("carem_shorthand_dict_v1:u1", "{oops");
     expect(loadDictionary("u1", storage)).toEqual({});
-    expect(learnRule(undefined, "x", "brand", "Honda", storage)).toEqual({});
+    expect(learnRule(undefined, "x", "color", "Honda", storage)).toEqual({});
+    // Tên người bán / SĐT / Ghi chú không còn nằm trong danh sách dạy được,
+    // nên dữ liệu cá nhân không bao giờ được lưu vào từ điển.
     learnRule("u1", "private", "supplier_name", "Test private seller", storage);
     learnRule("u1", "privatephone", "supplier_phone", "0900000001", storage);
     learnRule("u1", "privatenote", "notes", "Test private note", storage);
@@ -197,42 +287,75 @@ describe("learnedDictionary", () => {
 });
 
 describe("intake payload", () => {
-  const entry = parseIntakeNotes("sh den 29b1-123.45 gia 18tr5 fk RLH160-001")[0];
+  const TYPES: VehicleTypeItem[] = [
+    { id: "t-ga", name: "Xe tay ga" },
+    { id: "t-so", name: "Xe số" },
+    { id: "t-unclassified", name: UNCLASSIFIED_VEHICLE_TYPE },
+  ];
+  const entry = parseIntakeNotes(
+    "tay ga den 29b1-123.45 gia 18tr5 fk RLH160-001",
+  )[0];
 
-  it("allows missing model and purchase price while keeping other validation", () => {
-    expect(validateIntakeEntry(entry, true)).toEqual([]);
-    expect(validateIntakeEntry(entry, false)).toEqual([]);
-    // Model, frame, brand, and purchase price may be filled in after intake.
-    const missing = { ...entry, fields: { brand: "Honda" } };
-    expect(validateIntakeEntry(missing, true)).toEqual([]);
-    expect(validateIntakeEntry(missing, false)).toEqual([]);
+  it("requires a catalogue type and keeps optional fields optional", () => {
+    expect(validateIntakeEntry(entry, true, TYPES)).toEqual([]);
+    expect(validateIntakeEntry(entry, false, TYPES)).toEqual([]);
+    // Số khung, biển số, năm, giá thu đều có thể bổ sung sau khi thu.
+    const sparse = { ...entry, fields: { vehicle_type: "Xe tay ga" } };
+    expect(validateIntakeEntry(sparse, true, TYPES)).toEqual([]);
+  });
+  it("blocks a row whose type is missing or outside the catalogue", () => {
+    const none = { ...entry, fields: {} };
+    expect(validateIntakeEntry(none, true, TYPES).join(" ")).toMatch(/loại xe/);
+    const invented = {
+      ...entry,
+      fields: { ...entry.fields, vehicle_type: "Honda SH 160i" },
+    };
+    expect(validateIntakeEntry(invented, true, TYPES).join(" ")).toMatch(/loại xe/);
+    // Danh mục chưa tải về (mảng rỗng) cũng không cho ghi tắt.
+    expect(validateIntakeEntry(entry, true).join(" ")).toMatch(/loại xe/);
   });
   it("never sends purchase_price for users without financial rights", () => {
-    const row = entryToImportRow(entry, false);
+    const row = entryToImportRow(entry, false, TYPES);
     expect("purchase_price" in row).toBe(false);
-    expect(row.brand).toBe("Honda");
+    expect(row.vehicle_type_id).toBe("t-ga");
     expect(row.supplier_name).toBe("");
-    const finRow = entryToImportRow(entry, true);
+    for (const purged of ["brand", "model", "variant", "engine_number", "odometer", "asking_price"]) {
+      expect(row).not.toHaveProperty(purged);
+    }
+    const finRow = entryToImportRow(entry, true, TYPES);
     expect(finRow.purchase_price).toBe(18_500_000);
   });
   it("maps supplier fields to the single-vehicle form names", () => {
-    const draft = entryToAcquisitionDraft(entry);
+    const draft = entryToAcquisitionDraft(entry, TYPES);
     expect(draft.frame_number).toBe("RLH160-001");
     expect(draft.license_plate).toBe("29-B1 123.45");
+    expect(draft.vehicle_type_id).toBe("t-ga");
+    expect(draft.purchase_date).toBeUndefined();
   });
   it("rejects a garbage plate but keeps the field optional", () => {
     const garbage = {
       ...entry,
       fields: { ...entry.fields, license_plate: "abc xyz" },
     };
-    expect(validateIntakeEntry(garbage, true).join(" ")).toMatch(/Biển số/);
+    expect(validateIntakeEntry(garbage, true, TYPES).join(" ")).toMatch(/Biển số/);
     const blank = {
       ...entry,
       fields: { ...entry.fields, license_plate: "   " },
     };
-    expect(validateIntakeEntry(blank, true)).toEqual([]);
+    expect(validateIntakeEntry(blank, true, TYPES)).toEqual([]);
   });
-  it("INTAKE_FIELDS covers every editable field", () => {
-    expect(INTAKE_FIELDS.length).toBe(15);
+  it("INTAKE_FIELDS covers exactly the editable fields that survive the purge", () => {
+    expect(INTAKE_FIELDS.map((f) => f.key)).toEqual([
+      "vehicle_type",
+      "color",
+      "frame_number",
+      "license_plate",
+      "year",
+      "purchase_date",
+      "purchase_price",
+      "supplier_name",
+      "supplier_phone",
+      "notes",
+    ]);
   });
 });

@@ -37,6 +37,7 @@ import { MoneyInput } from "@/components/ui/MoneyInput";
 import { Highlight } from "@/components/search/Highlight";
 import type { Expense, Paged, Vehicle } from "@/types";
 import { AVAILABLE_VEHICLE_FILTER } from "@/lib/vehicleFilters";
+import { vehicleSubtitle, vehicleTitle } from "@/lib/vehicleDisplay";
 import {
   businessExpenseLabels,
   dateValue,
@@ -344,7 +345,7 @@ export function ExpensesPage({
                         >
                           <Highlight text={expense.vehicle_code || expense.internal_code || "Chi tiết xe"} query={deferredSearch} />
                         </Link>
-                        <small>{expense.vehicle_name ? <Highlight text={expense.vehicle_name} query={deferredSearch} /> : null}</small>
+                        <small>{expense.vehicle_title ? <Highlight text={expense.vehicle_title} query={deferredSearch} /> : null}</small>
                       </td>
                     )}
                     <td>
@@ -421,7 +422,7 @@ export function ExpensesPage({
                     className="text-link"
                     to={`/vehicles/${expense.vehicle_id}`}
                   >
-                    <Highlight text={expense.vehicle_code || expense.internal_code || expense.vehicle_name || ""} query={deferredSearch} />
+                    <Highlight text={expense.vehicle_title || expense.vehicle_code || expense.internal_code || ""} query={deferredSearch} />
                   </Link>
                 )}
                 <div className="row between">
@@ -769,7 +770,10 @@ function ExpenseEditor({
             ) : (
               <p className="notice">
                 {currentVehicle.data?.internal_code} ·{" "}
-                {currentVehicle.data?.brand} {currentVehicle.data?.model}
+                {vehicleTitle(currentVehicle.data)}
+                {vehicleSubtitle(currentVehicle.data)
+                  ? ` · ${vehicleSubtitle(currentVehicle.data)}`
+                  : ""}
                 {currentVehicle.data?.status === "SOLD" &&
                   " — Xe đã bán: các khoản chi đã khóa để giữ nguyên giá vốn giao dịch."}
                 {currentVehicle.data?.status === "CANCELLED" &&
@@ -787,7 +791,7 @@ function ExpenseEditor({
                     form.setValue("vehicle_id", "", { shouldDirty: true });
                     form.clearErrors("vehicle_id");
                   }}
-                  placeholder="Mã xe, biển số, hãng…"
+                  placeholder="Mã xe, biển số, số khung, loại xe…"
                 />
               </Field>
               <Field
@@ -811,7 +815,7 @@ function ExpenseEditor({
                   </option>
                   {vehicleChoices.data?.items.map((vehicle) => (
                     <option value={vehicle.id} key={vehicle.id}>
-                      {vehicle.internal_code} · {vehicle.brand} {vehicle.model}{" "}
+                      {vehicle.internal_code} · {vehicleTitle(vehicle)}{" "}
                       · {vehicle.license_plate || "Chưa có biển số"}
                     </option>
                   ))}

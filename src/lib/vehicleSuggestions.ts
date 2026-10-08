@@ -1,24 +1,19 @@
 import type { Vehicle } from "@/types";
 import { getRecentValues } from "./recentVehicles";
 
+/**
+ * Gợi ý giá trị đã dùng gần đây cho ô Màu sắc. Hãng/Dòng xe/Phiên bản đã bị
+ * xoá vĩnh viễn nên không còn loại gợi ý nào khác; loại xe lấy từ danh mục
+ * `vehicle_types` (bộ chọn riêng), không suy ra từ dữ liệu cũ.
+ */
 export function vehicleSuggestions(
   vehicles: Vehicle[],
-  field: "brand" | "model" | "variant" | "color",
+  field: "color",
   userId?: string,
-  brand = "",
 ) {
-  const category =
-    field === "model" ? `model:${brand.trim().toLowerCase()}` : field;
-  const recent = getRecentValues(category, userId);
-  const matches =
-    field === "model" || field === "variant"
-      ? vehicles.filter(
-          (vehicle) =>
-            vehicle.brand.trim().toLowerCase() === brand.trim().toLowerCase(),
-        )
-      : vehicles;
+  const recent = getRecentValues(field, userId);
   const counts = new Map<string, { value: string; count: number }>();
-  for (const vehicle of matches) {
+  for (const vehicle of vehicles) {
     const value = vehicle[field]?.trim();
     if (!value) continue;
     const key = value.toLowerCase();

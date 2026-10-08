@@ -27,6 +27,16 @@ export type VehicleStatus = "IN_STOCK" | "RESERVED" | "SOLD" | "CANCELLED";
  */
 export type VehicleStatusFilter = VehicleStatus | "AVAILABLE" | "UNSOLD";
 export type AcquisitionStatus = "COMPLETED" | "CANCELLED";
+/**
+ * A row of the `vehicle_types` catalogue (migration 20261008000300). OWNER
+ * maintains it in Settings; STAFF only ever pick from it. `vehicle_count` is
+ * absent for the anonymous showroom projection.
+ */
+export type VehicleTypeItem = {
+  id: string;
+  name: string;
+  vehicle_count?: number;
+};
 export type VehicleImage = {
   id: string;
   vehicle_id: string;
@@ -49,7 +59,10 @@ export type Expense = {
   id: string;
   vehicle_id?: string;
   internal_code?: string;
-  vehicle_name?: string;
+  vehicle_code?: string;
+  vehicle_type?: string;
+  vehicle_title?: string;
+  vehicle_subtitle?: string;
   expense_type?: string;
   category?: string;
   description: string;
@@ -60,19 +73,28 @@ export type Expense = {
   created_by?: string;
   updated_at?: string;
 };
-/** Public showroom projection from list_showroom_vehicles — safe fields only. */
+/**
+ * Public showroom projection from list_showroom_vehicles — identity fields only.
+ * The RPC never emits a price, an odometer reading, a variant or a brand; keep
+ * this type free of those keys so no screen can quietly reintroduce them.
+ */
 export type ShowroomVehicle = {
   id: string;
-  brand: string;
-  model: string;
-  variant: string;
+  internal_code: string;
+  license_plate: string | null;
+  frame_number: string;
   year: number | null;
-  color: string;
-  license_plate: string;
-  odometer: number | null;
-  asking_price: number;
-  purchase_date: string;
+  color: string | null;
+  vehicle_type: string;
+  vehicle_title: string;
+  vehicle_subtitle: string;
   created_at: string;
+};
+/** Vehicle types that currently have a bike on display (filter chips). */
+export type ShowroomVehicleList = {
+  total: number;
+  items: ShowroomVehicle[];
+  vehicle_types: { name: string }[];
 };
 export type ShowroomLeadStatus = "NEW" | "CONTACTED" | "CLOSED" | "SPAM";
 /** Showroom inquiry / buyback lead captured anonymously on /showroom. */
@@ -94,19 +116,21 @@ export type Vehicle = {
   id: string;
   internal_code: string;
   license_plate: string;
-  brand: string;
-  model: string;
-  variant: string;
+  /** FK to `vehicle_types`. Required on every read path since the purge. */
+  vehicle_type_id: string;
+  /** Denormalised catalogue name from private.vehicle_display. */
+  vehicle_type: string;
+  /** "Biển số · số khung" — always render through src/lib/vehicleDisplay. */
+  vehicle_title?: string;
+  /** "Loại xe · Đời xe · Màu sắc". */
+  vehicle_subtitle?: string;
   year: number | null;
   color: string;
   frame_number: string;
-  engine_number: string;
-  odometer: number;
   purchase_date: string;
   purchase_price?: number | null;
   expense_total?: number;
   total_cost?: number | null;
-  asking_price: number;
   status: VehicleStatus;
   supplier_name: string;
   supplier_phone: string;
@@ -116,6 +140,8 @@ export type Vehicle = {
   created_by?: string;
   cost_pending: boolean;
   days_in_inventory: number;
+  /** STAFF filed a delete request; hidden from inventory, awaiting OWNER approval. */
+  pending_deletion?: boolean;
   images?: VehicleImage[];
   expenses?: Expense[];
   sales?: Sale[];
@@ -142,10 +168,12 @@ export type Acquisition = {
   vehicle_id: string;
   frame_number: string;
   license_plate?: string;
-  brand: string;
-  model: string;
+  vehicle_type?: string;
+  year?: number | null;
+  color?: string;
   internal_code?: string;
-  vehicle_name?: string;
+  vehicle_title?: string;
+  vehicle_subtitle?: string;
   acquisition_date: string;
   purchase_price?: number | null;
   seller_name: string;
@@ -175,12 +203,12 @@ export type Sale = {
   id: string;
   sale_code: string;
   vehicle_id: string;
-  vehicle_name?: string;
+  vehicle_type?: string;
+  vehicle_title?: string;
+  vehicle_subtitle?: string;
+  vehicle_code?: string;
   internal_code?: string;
-  brand?: string;
-  model?: string;
   license_plate?: string;
-  frame_number?: string;
   customer_name: string;
   customer_phone: string;
   sale_price: number;
@@ -199,7 +227,11 @@ export type Sale = {
   paid_amount: number;
   remaining_amount: number;
   payments?: Payment[];
-  vehicle?: Vehicle;
+  /** Raw vehicles row (no display extras); title fields live on the sale itself. */
+  vehicle?: Omit<
+    Vehicle,
+    "vehicle_type" | "vehicle_title" | "vehicle_subtitle" | "cost_pending" | "days_in_inventory"
+  >;
   created_at: string;
   updated_at?: string;
 };
@@ -272,8 +304,9 @@ export type DailyReconciliationPayment = Payment & {
   customer_name: string;
   customer_phone: string;
   sale_date: string;
-  sale_price: number;
-  vehicle_name: string;
+  vehicle_type?: string;
+  vehicle_title?: string;
+  vehicle_subtitle?: string;
   internal_code: string;
   license_plate: string;
   is_prior_debt: boolean;
@@ -300,17 +333,8 @@ export type DailyReconciliation = {
 };
 
 export type GlobalSearchResult = {
-  vehicles: Array<{
-    id: string;
-    internal_code: string;
-    brand: string;
-    model: string;
-    license_plate: string;
-    frame_number: string;
-    engine_number: string;
-    asking_price: number;
-    status: VehicleStatus;
-  }>;
+  /** Full private.vehicle_json projection — same shape as `Vehicle`. */
+  vehicles: Vehicle[];
   customers: Array<{
     customer_name: string;
     customer_phone: string;
@@ -323,7 +347,7 @@ export type GlobalSearchResult = {
     sale_code: string;
     customer_name: string;
     customer_phone: string;
-    vehicle_name: string;
+    vehicle_title: string;
     internal_code: string;
     license_plate: string;
     sale_date: string;
@@ -451,7 +475,29 @@ export type NotificationAction =
   | "CREATE_PAYMENT"
   | "VOID_PAYMENT"
   | "CREATE_VEHICLE"
-  | "UPDATE_VEHICLE";
+  | "UPDATE_VEHICLE"
+  | "REQUEST_DELETE_VEHICLE";
+
+/**
+ * Generic approval queue row (migration 20261008000200). `kind` discriminates
+ * the workflow; VEHICLE_DELETION is the first kind. OWNER reviews these on
+ * /approvals. Vehicle fields are denormalized for the pending list only.
+ */
+export type ApprovalKind = "VEHICLE_DELETION";
+export type ApprovalRequest = {
+  id: string;
+  kind: ApprovalKind;
+  subject_id: string;
+  reason: string;
+  requested_by: string;
+  requester_name: string | null;
+  created_at: string;
+  vehicle_code: string | null;
+  vehicle_title: string | null;
+  vehicle_subtitle: string | null;
+  license_plate: string | null;
+  vehicle_status: string | null;
+};
 
 export type NotificationItem = {
   id: string;

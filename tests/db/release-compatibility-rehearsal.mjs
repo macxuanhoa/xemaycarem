@@ -95,7 +95,7 @@ try {
     assert.deepEqual(await financialSnapshot(), baseline);
   });
   await check('current inventory creation is keyed and recovers exactlyonevehicle without manufacturing acquisition', async () => {
-    const payload = { request_id: randomUUID(), model: 'Synthetic keyed inventory creation', frame_number: '', purchase_price: 50, asking_price: 100, purchase_date: day };
+    const payload = { request_id: randomUUID(), vehicle_type: 'Xe tay ga', frame_number: '', purchase_price: 50, purchase_date: day };
     const before = (await db.query('SELECT (SELECT count(*) FROM public.vehicles)::int AS vehicles,(SELECT count(*) FROM public.acquisitions)::int AS acquisitions')).rows[0];
     const created = await call('save_vehicle', payload);
     assert.equal(await call('save_vehicle', payload), created);

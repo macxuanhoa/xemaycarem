@@ -239,11 +239,7 @@ async function manageUser(input: {
   action:
     | "reset_password"
     | "disable"
-    | "restore"
     | "delete"
-    | "hard_delete"
-    | "purge"
-    | "sweep"
     | "change_role"
     | "promote_to_owner"
     | "enable_user";
@@ -252,7 +248,7 @@ async function manageUser(input: {
   disabled_until?: string | null;
   disable_reason?: string | null;
   role?: string;
-}) {
+}): Promise<{ outcome?: "removed" | "tombstoned" }> {
   ensureOnline();
   if (!supabase) throw new AppError("Chưa kết nối cơ sở dữ liệu.");
   const { data, error } = await supabase.functions.invoke("manage-users", {
@@ -318,6 +314,40 @@ export const api = {
   /** Xóa cứng xe kho (OWNER/MANAGER). Bị chặn nếu xe từng có giao dịch bán. */
   deleteVehicle: async (id: string, reason: string) =>
     call<void>("delete_vehicle", { p_id: id, p_reason: reason }),
+  /** STAFF gửi yêu cầu xóa xe: xe tạm ẩn khỏi kho, chờ OWNER duyệt hoặc khôi phục. */
+  requestDeleteVehicle: async (id: string, reason: string) =>
+    call<void>("request_delete_vehicle", { p_id: id, p_reason: reason }),
+  /** OWNER xử lý yêu cầu xóa: APPROVE (xóa vĩnh viễn) hoặc RESTORE (trả lại kho). */
+  resolveVehicleDeletion: async (
+    requestId: string,
+    action: "APPROVE" | "RESTORE",
+    note?: string,
+  ) =>
+    call<void>("resolve_vehicle_deletion", {
+      p_request_id: requestId,
+      p_action: action,
+      p_note: note ?? null,
+    }),
+  /** OWNER đọc hàng đợi chờ duyệt (mọi loại, nhóm theo kind). */
+  listPendingApprovals: async (filters: Record<string, unknown> = {}) =>
+    call<{ items: import("@/types").ApprovalRequest[]; total: number }>(
+      "list_pending_approvals",
+      { p_filters: filters },
+    ),
+  /**
+   * Danh mục loại xe (bảng vehicle_types). Mọi role đang công tác đọc được;
+   * `save_vehicle_type`/`delete_vehicle_type` là OWNER tuyệt đối — server từ
+   * chối trùng tên sau chuẩn hoá và chặn xoá loại đang có xe tham chiếu.
+   */
+  listVehicleTypes: async () =>
+    call<import("@/types").VehicleTypeItem[]>("list_vehicle_types"),
+  saveVehicleType: async (id: string | null, name: string) =>
+    call<{ id: string; name: string }>("save_vehicle_type", {
+      p_id: id,
+      p_name: name,
+    }),
+  deleteVehicleType: async (id: string) =>
+    call<void>("delete_vehicle_type", { p_id: id }),
   /** Xóa cứng phiếu thu kèm xe đã thu (OWNER/MANAGER). */
   deleteAcquisition: async (id: string, reason: string) =>
     call<void>("delete_acquisition", { p_id: id, p_reason: reason }),

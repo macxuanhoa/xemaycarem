@@ -1,24 +1,48 @@
 import { Link } from "react-router-dom";
-import { CirclePlus, ShoppingBag, X } from "lucide-react";
+import {
+  CirclePlus,
+  SendHorizontal,
+  ShoppingBag,
+  Trash2,
+  X,
+} from "lucide-react";
 import { useAuth } from "@/features/auth/AuthProvider";
-import { canManage, canOperate } from "@/lib/permissions";
+import {
+  canDeleteVehicle,
+  canOperate,
+  canRequestVehicleDelete,
+} from "@/lib/permissions";
 import { useDialog } from "@/lib/useDialog";
+import {
+  vehicleAriaLabel,
+  vehicleSubtitle,
+  vehicleTitle,
+} from "@/lib/vehicleDisplay";
 import type { Vehicle } from "@/types";
 
 export function VehicleActionsSheet({
   vehicle,
   onClose,
   onExpense,
+  onDelete,
+  onRequestDelete,
   returnTo,
 }: {
   vehicle: Vehicle;
   onClose: () => void;
   onExpense: () => void;
+  onDelete?: () => void;
+  onRequestDelete?: () => void;
   returnTo?: string;
 }) {
   const { profile } = useAuth();
   const panelRef = useDialog(true, onClose);
   const available = ["IN_STOCK", "RESERVED"].includes(vehicle.status);
+  const pending = !!vehicle.pending_deletion;
+  const canDirectDelete =
+    !!onDelete && canDeleteVehicle(profile) && available && !pending;
+  const canRequestDelete =
+    !!onRequestDelete && canRequestVehicleDelete(profile) && available && !pending;
   const state = { fromInventory: returnTo };
   return (
     <div className="modal-backdrop" onClick={onClose} role="presentation">
@@ -28,19 +52,13 @@ export function VehicleActionsSheet({
         className="modal-card vehicle-actions-sheet"
         role="dialog"
         aria-modal="true"
-        aria-label={`Thao tác với ${vehicle.brand} ${vehicle.model}`}
+        aria-label={`Thao tác với ${vehicleAriaLabel(vehicle)}`}
         onClick={(event) => event.stopPropagation()}
       >
         <div className="modal-header">
           <div>
-            <h3>
-              {vehicle.brand} {vehicle.model}
-            </h3>
-            <p className="muted">
-              {vehicle.license_plate ||
-                vehicle.frame_number ||
-                vehicle.internal_code}
-            </p>
+            <h3>{vehicleTitle(vehicle)}</h3>
+            <p className="muted">{vehicleSubtitle(vehicle)}</p>
           </div>
           <button
             className="icon-button"
@@ -59,7 +77,7 @@ export function VehicleActionsSheet({
           >
             Xem chi tiết
           </Link>
-          {canManage(profile) && available && (
+          {canOperate(profile) && available && !pending && (
             <button
               type="button"
               className="button secondary"
@@ -68,7 +86,7 @@ export function VehicleActionsSheet({
               <CirclePlus size={17} /> Chi phí
             </button>
           )}
-          {canOperate(profile) && available && !vehicle.cost_pending && (
+          {canOperate(profile) && available && !vehicle.cost_pending && !pending && (
             <Link
               className="button primary"
               to={`/vehicles/${vehicle.id}/sell`}
@@ -77,13 +95,31 @@ export function VehicleActionsSheet({
               <ShoppingBag size={17} /> Bán xe
             </Link>
           )}
-          {canOperate(profile) && (
+          {canOperate(profile) && !pending && (
             <Link
               className="button secondary"
               to={`/capture?vehicle=${vehicle.id}`}
             >
               Thêm ảnh
             </Link>
+          )}
+          {canDirectDelete && (
+            <button
+              type="button"
+              className="button danger"
+              onClick={onDelete}
+            >
+              <Trash2 size={17} /> Xóa xe khỏi kho
+            </button>
+          )}
+          {canRequestDelete && (
+            <button
+              type="button"
+              className="button danger"
+              onClick={onRequestDelete}
+            >
+              <SendHorizontal size={17} /> Gửi yêu cầu xóa
+            </button>
           )}
         </div>
       </div>

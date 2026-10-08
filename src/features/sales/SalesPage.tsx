@@ -19,12 +19,12 @@ import {
 } from "@/components/ui";
 import { Highlight } from "@/components/search/Highlight";
 import type { Paged, ReceivablesSummary, Sale } from "@/types";
+import { vehicleSubtitle, vehicleTitle } from "@/lib/vehicleDisplay";
 import { ReceivablesPage } from "./ReceivablesPage";
 
 const pageSize = 6;
 type SaleRecord = Sale & {
   vehicle_code?: string;
-  vehicle_name?: string;
   cancellation_reason?: string;
 };
 
@@ -222,10 +222,10 @@ export function SalesPage({
                         </td>
                         <td>
                           <strong>
-                            <Highlight text={sale.vehicle_name || `${sale.vehicle?.brand ?? ""} ${sale.vehicle?.model ?? ""}`} query={deferredSearch} />
+                            <Highlight text={vehicleTitle(sale)} query={deferredSearch} />
                           </strong>
                           <small>
-                            <Highlight text={sale.vehicle_code || sale.vehicle?.internal_code || ""} query={deferredSearch} />
+                            <Highlight text={vehicleSubtitle(sale) || sale.vehicle_code || sale.vehicle?.internal_code || ""} query={deferredSearch} />
                           </small>
                         </td>
                         <td>
@@ -268,7 +268,7 @@ export function SalesPage({
                       <strong><Highlight text={sale.sale_code} query={deferredSearch} /></strong>
                       <Badge status={sale.status} />
                     </div>
-                    <span><Highlight text={sale.vehicle_name || sale.vehicle_code || ""} query={deferredSearch} /></span>
+                    <span><Highlight text={vehicleTitle(sale)} query={deferredSearch} /></span>
                     <span className="muted">
                       <Highlight text={sale.customer_name} query={deferredSearch} /> · {dateLabel(sale.sale_date)}
                     </span>

@@ -32,7 +32,8 @@ import { QuickChips } from "@/components/ui/QuickChips";
 import { saveRecentValue } from "@/lib/recentVehicles";
 import { useFormDraft } from "@/lib/useFormDraft";
 import { vehicleSuggestions } from "@/lib/vehicleSuggestions";
-import { useQuickPick } from "@/lib/useQuickPick";
+import { useVehicleTypes } from "@/lib/useVehicleTypes";
+import { vehicleTitle } from "@/lib/vehicleDisplay";
 import { compressImage } from "@/lib/imageCompression";
 import type { Paged } from "@/types";
 
@@ -108,18 +109,13 @@ function VehicleEditor({ vehicle }: { vehicle?: Vehicle }) {
     resolver: zodResolver(vehicleSchema),
     mode: "onBlur",
     defaultValues: {
-      brand: vehicle?.brand ?? "",
-      model: vehicle?.model ?? "",
-      variant: vehicle?.variant ?? "",
+      vehicle_type_id: vehicle?.vehicle_type_id ?? "",
       license_plate: vehicle?.license_plate ?? "",
       year: vehicle?.year ?? undefined,
       color: vehicle?.color ?? "",
       frame_number: vehicle?.frame_number ?? "",
-      engine_number: vehicle?.engine_number ?? "",
-      odometer: vehicle?.odometer ?? 0,
       purchase_date: vehicle?.purchase_date ?? today(),
       purchase_price: vehicle?.purchase_price ?? undefined,
-      asking_price: vehicle?.asking_price ?? 0,
       supplier_name: vehicle?.supplier_name ?? "",
       supplier_phone: vehicle?.supplier_phone ?? "",
       status:
@@ -136,7 +132,6 @@ function VehicleEditor({ vehicle }: { vehicle?: Vehicle }) {
     profile?.id,
     form,
   );
-  const brand = form.watch("brand");
   const rawFrame = form.watch("frame_number").trim();
   const checkedFrame = useDebouncedValue(rawFrame, 450);
   const duplicateQuery = useQuery({
@@ -164,16 +159,18 @@ function VehicleEditor({ vehicle }: { vehicle?: Vehicle }) {
       }),
     staleTime: 5 * 60 * 1000,
   });
-  const quickPick = useQuickPick();
-  const suggestions = (field: "brand" | "model" | "variant" | "color") =>
-    vehicleSuggestions(catalog.data?.items ?? [], field, profile?.id, brand);
-  const setText = (
-    field: "brand" | "model" | "variant" | "color",
-    value: string,
-  ) =>
+  const vehicleTypes = useVehicleTypes();
+  const suggestions = (field: "color") =>
+    vehicleSuggestions(catalog.data?.items ?? [], field, profile?.id);
+  const setText = (field: "color", value: string) =>
     form.setValue(field, value, {
       shouldDirty: true,
       shouldValidate: !!form.formState.errors[field],
+    });
+  const selectVehicleType = (id: string) =>
+    form.setValue("vehicle_type_id", id, {
+      shouldDirty: true,
+      shouldValidate: !!form.formState.errors.vehicle_type_id,
     });
 
   const mutation = useMutation({
@@ -182,7 +179,7 @@ function VehicleEditor({ vehicle }: { vehicle?: Vehicle }) {
         throw new AppError("Vui lòng nhập giá mua xe.");
       if (duplicate)
         throw new AppError(
-          `Số khung đã tồn tại trên xe khác: ${duplicate.brand} ${duplicate.model} (${duplicate.internal_code}).`,
+          `Số khung đã tồn tại trên xe khác: ${vehicleTitle(duplicate)} (${duplicate.internal_code}).`,
         );
       const data: Record<string, unknown> = {
         ...values,
@@ -201,14 +198,7 @@ function VehicleEditor({ vehicle }: { vehicle?: Vehicle }) {
             ));
       setSavedId(resultId);
       draft.complete();
-      saveRecentValue("brand", values.brand, profile?.id);
-      saveRecentValue(
-        `model:${values.brand.trim().toLowerCase()}`,
-        values.model,
-        profile?.id,
-      );
       saveRecentValue("color", values.color, profile?.id);
-      saveRecentValue("variant", values.variant, profile?.id);
       await client.invalidateQueries();
       if (files.length) {
         const remaining = [...files];
@@ -263,8 +253,8 @@ function VehicleEditor({ vehicle }: { vehicle?: Vehicle }) {
       {draft.draft && (
         <div className="notice draft-notice">
           <p>
-            Có bản nháp thông tin xe. Giá tiền và trạng thái cần kiểm tra lại
-            trước khi lưu.
+            Có bản nháp thông tin xe. Nhấn tiếp tục để khôi phục đầy đủ giá và
+            thông tin đã nhập; kiểm tra lại trước khi lưu.
           </p>
           <div className="row">
             <Button variant="secondary" onClick={draft.resume}>
@@ -290,37 +280,23 @@ function VehicleEditor({ vehicle }: { vehicle?: Vehicle }) {
           <Card>
             <div className="section-heading">
               <h2 className="section-title" style={{ margin: 0 }}>1. Thông tin cơ bản</h2>
-              <span className="muted small">Bắt buộc: Dòng xe</span>
+              <span className="muted small">Bắt buộc: Loại xe</span>
             </div>
             <div className="form-grid">
-              <Field label="Hãng xe" error={error("brand")}>
-                <AutocompleteInput
-                  aria-label="Hãng xe"
-                  value={brand}
-                  onChange={(value) => setText("brand", value)}
-                  onBlur={() => void form.trigger("brand")}
-                  suggestions={suggestions("brand")}
-                  placeholder="Ví dụ: Honda"
-                />
-              </Field>
-              <Field label="Dòng xe *" error={error("model")}>
-                <AutocompleteInput
-                  aria-label="Dòng xe *"
-                  value={form.watch("model")}
-                  onChange={(value) => setText("model", value)}
-                  onBlur={() => void form.trigger("model")}
-                  suggestions={suggestions("model")}
-                  placeholder="Ví dụ: SH 160i"
-                />
-              </Field>
-              <Field label="Phiên bản" error={error("variant")}>
-                <AutocompleteInput
-                  aria-label="Phiên bản"
-                  value={form.watch("variant")}
-                  onChange={(value) => setText("variant", value)}
-                  suggestions={suggestions("variant")}
-                  placeholder="ABS, Cao cấp…"
-                />
+              <Field label="Loại xe *" error={error("vehicle_type_id")}>
+                <select
+                  aria-label="Loại xe *"
+                  {...form.register("vehicle_type_id")}
+                >
+                  <option value="">
+                    {vehicleTypes.isLoading ? "Đang tải danh mục…" : "— Chọn loại xe —"}
+                  </option>
+                  {vehicleTypes.items.map((type) => (
+                    <option key={type.id} value={type.id}>
+                      {type.name}
+                    </option>
+                  ))}
+                </select>
               </Field>
               <Field label="Biển số" error={error("license_plate")}>
                 <input
@@ -379,22 +355,10 @@ function VehicleEditor({ vehicle }: { vehicle?: Vehicle }) {
                       color: "#9c493d",
                     }}
                   >
-                    Số khung này đã tồn tại trên xe: {duplicate.brand}{" "}
-                    {duplicate.model} ({duplicate.internal_code})
+                    Số khung này đã tồn tại trên xe: {vehicleTitle(duplicate)} (
+                    {duplicate.internal_code})
                   </p>
                 )}
-              </Field>
-              <Field label="Số máy" error={error("engine_number")}>
-                <input {...form.register("engine_number")} />
-              </Field>
-              <Field label="Số km đã đi" error={error("odometer")}>
-                <input
-                  type="number"
-                  inputMode="numeric"
-                  min="0"
-                  step="1"
-                  {...form.register("odometer", { valueAsNumber: true })}
-                />
               </Field>
               <Field label="Trạng thái">
                 <select {...form.register("status")}>
@@ -407,24 +371,16 @@ function VehicleEditor({ vehicle }: { vehicle?: Vehicle }) {
               </Field>
             </div>
             <QuickChips
-              label="Chọn hãng nhanh"
-              options={quickPick.brandChips}
-              selected={brand}
-              onSelect={(value) => setText("brand", value)}
+              label="Chọn loại nhanh"
+              options={vehicleTypes.chips}
+              selected={form.watch("vehicle_type_id")}
+              onSelect={selectVehicleType}
             />
-            {brand.trim() && quickPick.modelsFor(brand).length > 0 && (
-              <QuickChips
-                label="Chọn dòng nhanh"
-                options={quickPick.modelsFor(brand)}
-                selected={form.watch("model")}
-                onSelect={(value) => setText("model", value)}
-              />
-            )}
           </Card>
           <Card>
             <div className="section-heading">
               <h2 className="section-title" style={{ margin: 0 }}>2. Giá cả & Nhập kho</h2>
-              <span className="muted small">Bắt buộc: Ngày nhập, Giá bán dự kiến</span>
+              <span className="muted small">Bắt buộc: Ngày nhập</span>
             </div>
             {!financial && (
               <p className="notice">
@@ -432,6 +388,10 @@ function VehicleEditor({ vehicle }: { vehicle?: Vehicle }) {
                 trước khi bán xe.
               </p>
             )}
+            <p className="notice">
+              Hệ thống không lưu giá bán dự kiến. Giá chỉ được ghi nhận khi lập
+              phiếu Bán xe và không tự điền từ bất kỳ đâu.
+            </p>
             <div className="form-grid">
               <Field label="Ngày nhập kho *" error={error("purchase_date")}>
                 <DatePicker
@@ -465,31 +425,6 @@ function VehicleEditor({ vehicle }: { vehicle?: Vehicle }) {
                   />
                 </Field>
               )}
-              <Field label="Giá bán dự kiến (₫) *" error={error("asking_price")}>
-                <MoneyInput
-                  aria-label="Giá bán dự kiến (₫) *"
-                  value={form.watch("asking_price")}
-                  onChange={(value) =>
-                    form.setValue("asking_price", value ?? Number.NaN, {
-                      shouldDirty: true,
-                      shouldValidate: !!form.formState.errors.asking_price,
-                    })
-                  }
-                  onBlur={() => void form.trigger("asking_price")}
-                  min={0}
-                  required
-                />
-                {financial &&
-                  typeof form.watch("purchase_price") === "number" &&
-                  (form.watch("purchase_price") ?? 0) > 0 &&
-                  typeof form.watch("asking_price") === "number" &&
-                  form.watch("asking_price") > 0 &&
-                  form.watch("asking_price") <= (form.watch("purchase_price") ?? 0) && (
-                    <p className="notice" style={{ marginTop: "4px", fontSize: "12px" }}>
-                      Lưu ý: Giá bán dự kiến đang thấp hơn hoặc bằng giá mua vào.
-                    </p>
-                  )}
-              </Field>
               <Field label="Tên nhà cung cấp" error={error("supplier_name")}>
                 <input {...form.register("supplier_name")} />
               </Field>

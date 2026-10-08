@@ -11,24 +11,8 @@ export function useFormDraft<T extends FieldValues>(
   const [draft, setDraft] = useState(() => readFormDraft(kind, userId));
   const [saved, setSaved] = useState(false);
   const dirtyRef = useRef(false);
-  const financialRef = useRef(false);
   const completed = useRef(false);
   dirtyRef.current = form.formState.isDirty;
-  financialRef.current = [
-    "purchase_price",
-    "sale_price",
-    "initial_payment",
-    "asking_price",
-    "seller_name",
-    "seller_phone",
-    "supplier_name",
-    "supplier_phone",
-    "customer_name",
-    "customer_phone",
-    "notes",
-  ].some(
-    (field) => (form.formState.dirtyFields as Record<string, unknown>)[field],
-  );
   useEffect(() => {
     let timer: ReturnType<typeof setTimeout>;
     const persist = () => {
@@ -42,10 +26,9 @@ export function useFormDraft<T extends FieldValues>(
     });
     const unload = (event: BeforeUnloadEvent) => {
       if (!dirtyRef.current || completed.current) return;
-      const values = form.getValues();
-      // Money and personal/free-text fields are excluded from local drafts.
-      const persisted = saveFormDraft(kind, userId, values);
-      if (financialRef.current || !persisted) {
+      // Every business field now persists to the local draft; only warn when
+      // storage itself is unavailable, because then the edits would be lost.
+      if (!saveFormDraft(kind, userId, form.getValues())) {
         event.preventDefault();
         event.returnValue = "";
       }
@@ -84,13 +67,13 @@ export function useFormDraft<T extends FieldValues>(
         return;
       }
       const persisted = saveFormDraft(kind, userId, form.getValues());
-      if (financialRef.current || !persisted) {
+      if (!persisted) {
         event.preventDefault();
         event.stopPropagation();
         void confirmAction({
           title: "Bạn có thay đổi chưa lưu",
           description:
-            "Thông số xe được giữ trong bản nháp nếu có thể. Giá tiền, thông tin khách hàng/người bán và ghi chú cần nhập lại. Rời trang?",
+            "Trình duyệt không lưu được bản nháp trên thiết bị này. Rời trang sẽ mất các thông tin đã nhập. Rời trang?",
           confirmLabel: "Bỏ thay đổi và rời trang",
           cancelLabel: "Ở lại trang",
           tone: "danger",

@@ -55,11 +55,9 @@ test.beforeEach(async ({ page }) => {
       rpc(c, "save_vehicle", "$1::jsonb", [
         JSON.stringify({
           request_id: randomUUID(),
-          brand: "Honda",
-          model: `Wave Alpha Seed ${ids.OWNER.slice(0, 4)}`,
+          vehicle_type: "Xe số",
           purchase_date: day,
           purchase_price: 15000000,
-          asking_price: 18000000,
           license_plate: `29A-${ids.OWNER.slice(0, 4)}`,
           year: 2023,
         }),
@@ -265,17 +263,16 @@ test("FLOW A: OWNER full lifecycle (create vehicle -> inventory -> expense -> se
 
   // 1. Add vehicle
   await page.goto("/vehicles/new");
-  await page.getByLabel("Hãng xe", { exact: true }).fill("Yamaha");
-  await page.getByLabel("Dòng xe *", { exact: true }).fill("Exciter 155 Flow A");
+  await page.getByLabel("Loại xe *", { exact: true }).selectOption({ label: "Xe côn tay" });
+  await page.getByLabel("Số khung", { exact: true }).fill("FLOWA0001");
   await page.getByLabel("Giá mua (₫) *", { exact: false }).fill("40000000");
-  await page.getByLabel("Giá bán dự kiến (₫) *", { exact: false }).fill("48000000");
   await page.getByRole("button", { name: "Lưu xe mới", exact: true }).click();
   await expect(page).toHaveURL(/\/vehicles\/[a-f0-9-]{36}$/);
   const vehicleId = page.url().split("/").at(-1);
 
-  // 2. Appears in inventory
+  // 2. Appears in inventory (định danh = biển · số khung; hãng/dòng đã xoá)
   await page.goto("/vehicles");
-  await expect(page.getByText("Exciter 155 Flow A").first()).toBeVisible();
+  await expect(page.getByText("FLOWA0001").first()).toBeVisible();
 
   // 3. Add expense
   await page.goto(`/expenses?kind=vehicle&vehicle=${vehicleId}&new=1`);
@@ -287,12 +284,14 @@ test("FLOW A: OWNER full lifecycle (create vehicle -> inventory -> expense -> se
   // 4. Sell vehicle
   await page.goto(`/vehicles/${vehicleId}/sell`);
   await page.getByLabel("Tên khách hàng *", { exact: true }).fill("Khách hàng Flow A");
-  await page.getByLabel("Thu tiền lần đầu (₫)", { exact: false }).fill("20000000");
+  await page.getByLabel("Bán với giá", { exact: false }).fill("48000000");
+  await page.getByRole("button", { name: "Thêm chi tiết thanh toán" }).click();
+  await page.getByLabel("Khách đã trả trước (₫)", { exact: false }).fill("20000000");
   await page.getByRole("button", { name: "Xác nhận bán xe", exact: true }).click();
   await page.getByRole("alertdialog").getByRole("button", { name: "Xác nhận bán xe", exact: true }).click();
   await expect(page).toHaveURL(/\/sales\/[a-f0-9-]{36}$/);
-  await expect(page.getByRole("heading", { name: "Lời cảm ơn khách hàng" })).toBeVisible();
-  await expect(page.getByText(/Chưa cấu hình kênh nhắn tin/)).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Thông tin giao dịch" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "In phiếu bán xe", exact: true })).toBeVisible();
 
   // 5. Record remaining payment
   await expect(page.getByText(/28\.000\.000/)).toBeVisible(); // Remaining amount 48M - 20M = 28M
@@ -312,10 +311,9 @@ test("FLOW B: Partial payment -> second payment -> fully paid", async ({ page })
 
   // Create vehicle with price 50M
   await page.goto("/vehicles/new");
-  await page.getByLabel("Hãng xe", { exact: true }).fill("Honda");
-  await page.getByLabel("Dòng xe *", { exact: true }).fill("Air Blade Flow B");
+  await page.getByLabel("Loại xe *", { exact: true }).selectOption({ label: "Xe tay ga" });
+  await page.getByLabel("Số khung", { exact: true }).fill("FLOWB0001");
   await page.getByLabel("Giá mua (₫) *", { exact: false }).fill("28000000");
-  await page.getByLabel("Giá bán dự kiến (₫) *", { exact: false }).fill("50000000");
   await page.getByRole("button", { name: "Lưu xe mới", exact: true }).click();
   await expect(page).toHaveURL(/\/vehicles\/[a-f0-9-]{36}$/);
   const vehicleId = page.url().split("/").at(-1);
@@ -323,7 +321,9 @@ test("FLOW B: Partial payment -> second payment -> fully paid", async ({ page })
   // Sell with initial partial payment of 20M (30M remaining)
   await page.goto(`/vehicles/${vehicleId}/sell`);
   await page.getByLabel("Tên khách hàng *", { exact: true }).fill("Khách trả góp Flow B");
-  await page.getByLabel("Thu tiền lần đầu (₫)", { exact: false }).fill("20000000");
+  await page.getByLabel("Bán với giá", { exact: false }).fill("50000000");
+  await page.getByRole("button", { name: "Thêm chi tiết thanh toán" }).click();
+  await page.getByLabel("Khách đã trả trước (₫)", { exact: false }).fill("20000000");
   await page.getByRole("button", { name: "Xác nhận bán xe", exact: true }).click();
   await page.getByRole("alertdialog").getByRole("button", { name: "Xác nhận bán xe", exact: true }).click();
   await expect(page).toHaveURL(/\/sales\/[a-f0-9-]{36}$/);
@@ -345,11 +345,13 @@ test("FLOW C: Sell vehicle -> cancel sale -> vehicle returns to inventory", asyn
   // Sell vehicle
   await page.goto(`/vehicles/${vehicleId}/sell`);
   await page.getByLabel("Tên khách hàng *", { exact: true }).fill("Khách hủy đơn Flow C");
+  await page.getByLabel("Bán với giá", { exact: false }).fill("18000000");
   await page.getByRole("button", { name: "Xác nhận bán xe", exact: true }).click();
   await page.getByRole("alertdialog").getByRole("button", { name: "Xác nhận bán xe", exact: true }).click();
   await expect(page).toHaveURL(/\/sales\/[a-f0-9-]{36}$/);
 
   // Cancel sale
+  await page.getByRole("button", { name: "Điều chỉnh giao dịch", exact: true }).click();
   await page.getByRole("button", { name: "Hủy giao dịch bán xe", exact: true }).click();
   await page.getByLabel("Lý do hủy *", { exact: true }).fill("Khách hàng không đủ tiền");
   await page.getByRole("button", { name: "Xác nhận hủy giao dịch", exact: true }).click();
@@ -539,8 +541,7 @@ test("Recovery: canonical receipt alias survives lost response and reload withou
 test("Recovery: intake without chassis reconciles a lost response after reload without a second acquisition", async ({ page }) => {
   await loginAs(page, "owner");
   await page.goto("/acquisitions/new");
-  await page.getByLabel("Hãng xe", { exact: true }).fill("Honda");
-  await page.getByLabel("Dòng xe *", { exact: true }).fill("Synthetic intake recovery");
+  await page.getByLabel("Loại xe *", { exact: true }).selectOption({ label: "Xe số" });
   await page.getByLabel("Giá thu (₫) *", { exact: false }).fill("18000000");
   const requests = [];
   page.on("request", request => { if (request.url().endsWith("/rest/v1/rpc/acquire_vehicle")) requests.push(request.postDataJSON()); });
@@ -559,7 +560,7 @@ test("Recovery: intake without chassis reconciles a lost response after reload w
 test("Recovery: shorthand batch reconciles after commit and reload without repeating the import", async ({ page }) => {
   await loginAs(page, "owner");
   await page.goto("/intake");
-  await page.locator("textarea.intake-notes").fill("wave den 18tr\nvision trang 20tr");
+  await page.locator("textarea.intake-notes").fill("xe so den 18tr\nxe ga trang 20tr");
   await page.getByRole("button", { name: "Tách thành danh sách" }).click();
   const requests = [];
   page.on("request", request => { if (request.url().endsWith("/rest/v1/rpc/import_vehicles")) requests.push(request.postDataJSON()); });
@@ -581,7 +582,9 @@ test("Recovery: committed sale with initial payment reconciles from the sold veh
   const vehicleId = createdVehicles[0];
   await page.goto(`/vehicles/${vehicleId}/sell`);
   await page.getByLabel("Tên khách hàng *", { exact: true }).fill("Synthetic sale recovery");
-  await page.getByLabel("Thu tiền lần đầu (₫)", { exact: false }).fill("3000000");
+  await page.getByLabel("Bán với giá", { exact: false }).fill("18000000");
+  await page.getByRole("button", { name: "Thêm chi tiết thanh toán" }).click();
+  await page.getByLabel("Khách đã trả trước (₫)", { exact: false }).fill("3000000");
   const requests = [];
   page.on("request", request => { if (request.url().endsWith("/rest/v1/rpc/sell_vehicle")) requests.push(request.postDataJSON()); });
   failNextOperationResponse = "sell_vehicle";
@@ -602,6 +605,7 @@ test("Failure: a 503 before sale commit preserves input and manual retry records
   const vehicleId = createdVehicles[0];
   await page.goto(`/vehicles/${vehicleId}/sell`);
   await page.getByLabel("Tên khách hàng *", { exact: true }).fill("Synthetic outage recovery");
+  await page.getByLabel("Bán với giá", { exact: false }).fill("18000000");
   failBeforeCommit = "sell_vehicle";
   await page.getByRole("button", { name: "Xác nhận bán xe", exact: true }).click();
   await page.getByRole("alertdialog").getByRole("button", { name: "Xác nhận bán xe", exact: true }).click();
@@ -619,6 +623,7 @@ test("Failure: slow sale remains pending without false success or duplicate requ
   const vehicleId = createdVehicles[0];
   await page.goto(`/vehicles/${vehicleId}/sell`);
   await page.getByLabel("Tên khách hàng *", { exact: true }).fill("Synthetic slow request");
+  await page.getByLabel("Bán với giá", { exact: false }).fill("18000000");
   let release;
   slowMutation = { name: "sell_vehicle", wait: new Promise(resolve => { release = resolve; }) };
   const requests = [];

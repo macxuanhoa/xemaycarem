@@ -1,6 +1,17 @@
 # Release handoff — Xe CRM
 
-Last reviewed: 2026-10-06 (Asia/Saigon)
+Last reviewed: 2026-10-08 (Asia/Saigon)
+
+## Vehicle field purge + "Loại xe" catalogue — 2026-10-08
+
+Scope: six vehicle specification fields are removed from the product permanently and the free-text **Dòng xe** becomes a governed **Loại xe** catalogue. Decisions, impact counts and the destructive-apply protocol live in `docs/VEHICLE_FIELD_PURGE_IMPACT.md`, `docs/DECISIONS.md` (section dated 08/10/2026) and `docs/PRODUCTION_RELEASE.md` ("Pending destructive migration"). Read those before touching this area.
+
+- **Server**: forward-only `supabase/migrations/20261008000300_vehicle_type_catalog_and_purge.sql` — new `public.vehicle_types` + `list_vehicle_types`/`save_vehicle_type`/`delete_vehicle_type`, history wipe (`audit_logs`, `vehicle_activity`, `notifications`, `customer_communications`, `message_outbox`), `DROP COLUMN brand, model, variant, engine_number, odometer, asking_price CASCADE` + `system_settings.quickpick_brands/quickpick_models`, and a rebuild of every dependent RPC (`private.vehicle_label_text`/`vehicle_subtitle_text`, `save_vehicle`, `acquire_vehicle`, `create_vehicle`, `import_vehicles`, `validate_import_vehicles`, `list_vehicles`, `get_vehicle`, `list_acquisitions`, `list_receivables`, `list_customers`, `get_customer_history`, `daily_reconciliation`, `dashboard`, `global_search`, `list_showroom_vehicles`, `sell_vehicle`, `get_settings`/`save_settings`, the notification trigger). It closes with `PURGE_ASSERT_FAILED` guards, so a half-applied migration aborts rather than leaving a broken schema.
+- **Client**: `src/lib/vehicleDisplay.ts` is the single identity source (`vehicleTitle` = biển số · số khung, `vehicleSubtitle` = loại xe · đời · màu); every screen, receipt, alt text and aria-label goes through it. Settings tab QUICKPICK is now the OWNER-only **Loại xe** catalogue editor. Shorthand/OCR/camera no longer read or emit engine number, odometer, brand, variant or asking price; the "unknown token falls into Dòng xe" rule is deleted and unknown tokens only become chips. `sale_price`/`initial_payment` on the sell form start empty (`Number.NaN`) with no prefill from any source.
+- **Edge**: `ai-assist` contract lost the `odometer` task entirely and every vehicle extraction now returns `frame_number, license_plate, color, year` only; `copilot.ts` labels and facts use the new identity; `process-message` templates carry no commercial vehicle name.
+- **Ledger observed 2026-10-08** (`supabase migration list --linked`, read-only): 57 applied through `20261006001400`, 3 local/pending (`20261008000100`, `20261008000200`, `20261008000300`), 0 divergent. This **contradicts** the 2026-10-06 record in this file (42 applied / 15 pending): 15 versions that were pending then are applied now, and nothing in this workspace pushed them. Reconcile who applied them and with what dump before any further hosted write — do not assume the earlier ledger snapshot still holds.
+- **Not yet done**: the local gate suite as a whole (`npm run check`, `test:e2e`, `test:pwa`, migration-chain replay on a disposable DB) and every hosted step. Local Supabase/Docker was not running during implementation, so `npm run test:db` and `db reset` replay results are outstanding; Deno is absent, so `scripts/check-edge-native.mjs` cannot run (`spawn deno ENOENT`) — install Deno or run that check in CI before deploying `ai-assist`/`process-message`.
+- **Hard rule**: the purge migration must not be pushed without a same-day pre-write dump and explicit OWNER authorization naming it as irreversible, and the frontend release plus `ai-assist`/`process-message` deploy must land in the same window (an old bundle is refused writes by design; an old hosted function advertises fields the database no longer has).
 
 ## Copilot answering + draft-to-save and release-candidate commit — 2026-10-06
 
@@ -65,7 +76,7 @@ Production state verified read-only 2026-10-03 (single writer, no mutations this
 
 - The cached Supabase link reference was verified against the live account on 2026-10-02/03: CLI-authenticated `projects list` confirms `atsgqtarxhmxrsugulva` (xemaycarem) is the linked production target; live identity is VERIFIED, not just cached.
 - Supabase CLI runs and is authenticated. The linked production migration history is queryable and was read: versions 001–037 applied.
-- The worktree now carries migrations `20260930000100` through `20261002003800`; 001–037 are applied on production, `038_knowledge_reseed` is local/pending. Version `20260930001800` is applied on the ledger as the neutralized no-op placeholder; the credential-bearing original stays in `supabase/quarantine/` (Git-ignored) and must never be applied.
+- The worktree now carries migrations `20260930000100` through `20261008000300`; as of the 2026-10-08 read-only check 57 are applied on production and the three `20261008000*` versions are local/pending (see the dated handoff section at the top — this supersedes the "001–037 applied, 038 local/pending" snapshot below, which was accurate only on 2026-10-03). Version `20260930001800` is applied on the ledger as the neutralized no-op placeholder; the credential-bearing original stays in `supabase/quarantine/` (Git-ignored) and must never be applied.
 - Production backup/PITR: FREE plan — none. The enforced procedure is a fresh manual logical dump with manifest before any write; three dated sets exist under `backups/` (see KNOWN_ISSUES "Production release blockers").
 - Production apply operations are no longer categorically blocked; each future write still requires target re-verification, ledger reconciliation, reviewed forward SQL, a same-day dump, and explicit authorization.
 
@@ -79,7 +90,7 @@ Production state verified read-only 2026-10-03 (single writer, no mutations this
   - Role changes now go through `manage-users` edge function instead of direct `update_profile` RPC
   - Reuses existing architecture; no second user-management system created
   - `profiles.role` remains protected from direct authenticated UPDATE (no RLS grants loosened)
-- `ai-assist`: optional local authenticated/read-only assistant; requires `AI_ENABLED`, `AI_PROVIDER_API_KEY`, and `AI_MODEL` server-side. Provider configuration is absent; AI remains disabled and is not a CRM release dependency.
+- `ai-assist`: optional local authenticated/read-only assistant; requires `AI_ENABLED`, `AI_PROVIDER_API_KEY`, and `AI_MODEL` server-side. Provider configuration is absent; AI remains disabled and is not a CRM release dependency. The 2026-10-08 contract revision (no `odometer` task, vehicle extraction limited to frame/plate/color/year) is LOCAL ONLY — deployed v3 still exposes the old surface, so `ai-assist` and `process-message` must be redeployed together with the purge migration and the frontend bundle.
 - `reset-owner`: retired local endpoint returns HTTP 410. Do not deploy it.
 
 ## User management architecture
@@ -99,8 +110,7 @@ All account administration after initial OWNER bootstrap is possible from the Nh
 - `UPDATE_ACCESS_SCHEDULE`: Update working hours/days
 - `RESET_TEMP_PASSWORD`: Set temporary password + force change on next login
 - `FORCE_PASSWORD_CHANGE`: Require password change without setting new password
-- `RESTORE`: Reactivate deleted account
-- `HARD_DELETE`: Complete deletion (only if no business history)
+- `DELETE_USER`: Remove the account from the system immediately — erase profile + Auth when no business history exists, otherwise tombstone the profile (`deleted_at`/`purged_at`) and revoke login so recorded work stays attributable. No restore path
 
 **Security guarantees:**
 - `SUPABASE_SERVICE_ROLE_KEY` never exposed to frontend

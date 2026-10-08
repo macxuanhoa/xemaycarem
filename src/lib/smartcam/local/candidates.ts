@@ -83,20 +83,6 @@ export function parseFrameCandidates(text: string, confidence: number): Candidat
   return [...found.values()];
 }
 
-/** Engine numbers: short mixed codes like KF30E-7412345, E3T123456, FM-12345. */
-export function parseEngineCandidates(text: string, confidence: number): Candidate[] {
-  const upper = text.toUpperCase();
-  const found = new Map<string, Candidate>();
-  for (const match of upper.matchAll(/\b([A-Z]{1,4}[\s\-._]?[0-9]{0,4}[A-Z]?[\s\-._]?\d{4,8})\b/g)) {
-    const value = match[1].replace(/[^A-Z0-9]/g, "");
-    const digits = value.replace(/[^0-9]/g, "").length;
-    const letters = value.replace(/[^A-Z]/g, "").length;
-    if (value.length < 7 || value.length > 16 || digits < 4 || letters < 1) continue;
-    if (!found.has(value)) found.set(value, { value, confidence });
-  }
-  return [...found.values()];
-}
-
 /** Pick the highest-confidence candidate; ties prefer the first seen. */
 export function bestCandidate(candidates: Candidate[]): Candidate | null {
   let best: Candidate | null = null;
@@ -105,15 +91,17 @@ export function bestCandidate(candidates: Candidate[]): Candidate | null {
   return best;
 }
 
-/** Raw OCR output → the field draft `normalizeScan` understands. */
+/**
+ * Raw OCR output → the field draft `normalizeScan` understands.
+ * Bộ đọc tại máy chỉ còn biển số + số khung: cột `engine_number` đã bị xoá
+ * vĩnh viễn nên đọc ra cũng không có chỗ lưu.
+ */
 export function candidatesFromOcr(text: string, confidence: number): {
   license_plate: string;
   frame_number: string;
-  engine_number: string;
 } {
   return {
     license_plate: bestCandidate(parsePlateCandidates(text, confidence))?.value ?? "",
     frame_number: bestCandidate(parseFrameCandidates(text, confidence))?.value ?? "",
-    engine_number: bestCandidate(parseEngineCandidates(text, confidence))?.value ?? "",
   };
 }

@@ -1,7 +1,7 @@
 export interface RecentVehicleItem {
   id: string;
-  brand: string;
-  model: string;
+  /** Tên loại xe trong danh mục — không còn hãng/dòng xe. */
+  vehicle_type?: string;
   internal_code?: string;
   frame_number?: string;
   license_plate?: string;
@@ -15,7 +15,9 @@ export interface LastExpenseRecord {
   timestamp: number;
 }
 
-const PREFIX = "xe_crm_ux_v2";
+// v3: bản nháp xe cũ lưu Hãng/Dòng xe/Số máy/Số km/Giá dự kiến — nay các trường đó
+// không còn nữa, đổi khoá để chúng bị loại thay vì nạp lại vào form mới.
+const PREFIX = "xe_crm_ux_v3";
 const MAX_RECENT_VEHICLES = 8;
 
 function key(category: string, userId?: string) {
@@ -50,8 +52,6 @@ export function getRecentVehicles(userId?: string): RecentVehicleItem[] {
       (item): item is RecentVehicleItem =>
         !!item &&
         typeof item.id === "string" &&
-        typeof item.brand === "string" &&
-        typeof item.model === "string" &&
         typeof item.status === "string" &&
         Number.isFinite(item.updated_at),
     )
@@ -61,8 +61,7 @@ export function getRecentVehicles(userId?: string): RecentVehicleItem[] {
 export function addRecentVehicle(
   vehicle: {
     id: string;
-    brand?: string;
-    model?: string;
+    vehicle_type?: string | null;
     internal_code?: string;
     frame_number?: string;
     license_plate?: string;
@@ -76,8 +75,7 @@ export function addRecentVehicle(
   );
   const updated: RecentVehicleItem = {
     id: vehicle.id,
-    brand: vehicle.brand || "Xe",
-    model: vehicle.model || "",
+    vehicle_type: vehicle.vehicle_type || undefined,
     internal_code: vehicle.internal_code,
     frame_number: vehicle.frame_number,
     license_plate: vehicle.license_plate,
@@ -110,7 +108,7 @@ export function clearRecentVehicles(userId?: string): void {
 }
 
 function safeCategory(category: string) {
-  return /^(brand|model:[^:]{1,80}|variant|color|expense_desc|payment_method)$/.test(
+  return /^(vehicle_type|color|expense_desc|payment_method)$/.test(
     category,
   );
 }

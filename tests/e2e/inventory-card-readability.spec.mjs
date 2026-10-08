@@ -30,9 +30,7 @@ async function installMock(page) {
     {
       id: "00000000-0000-4000-8000-000000000011",
       internal_code: "XE-RD-001",
-      brand: "Honda",
-      model: "Vision",
-      variant: "Đặc biệt",
+      vehicle_type: "Xe tay ga",
       year: 2023,
       color: "Đen",
       frame_number: "RLH2023XYZ000001",
@@ -41,37 +39,32 @@ async function installMock(page) {
       purchase_date: "2026-09-01",
       days_in_inventory: 31,
       purchase_price: 28000000,
-      asking_price: 35000000,
       total_cost: 30000000,
       cost_pending: false,
     },
     {
       id: "00000000-0000-4000-8000-000000000012",
       internal_code: "XE-RD-002",
-      brand: "Yamaha",
-      model: "Exciter 155 hoàn toàn mới phiên bản giới hạn",
+      vehicle_type: "Xe côn tay",
       frame_number: "RLY155ABC000002",
       license_plate: "43B2-11111",
       status: "RESERVED",
       purchase_date: new Date().toISOString().slice(0, 10),
       days_in_inventory: 0,
       purchase_price: 40000000,
-      asking_price: 47000000,
       total_cost: 42000000,
       cost_pending: false,
     },
     {
       id: "00000000-0000-4000-8000-000000000013",
       internal_code: "XE-RD-003",
-      brand: "Wave",
-      model: "Wave RSX",
+      vehicle_type: "Xe số",
       frame_number: "RLWRSX000000003",
       license_plate: "43C3-22222",
       status: "IN_STOCK",
       purchase_date: "2026-08-15",
       days_in_inventory: 48,
       purchase_price: 18000000,
-      asking_price: 24000000,
       total_cost: 19500000,
       cost_pending: true,
     },
@@ -110,6 +103,13 @@ async function installMock(page) {
     if (name === "list_active_announcements") return reply([]);
     if (name === "get_settings")
       return reply({ store_name: "Cửa hàng kiểm thử" });
+    if (name === "list_vehicle_types")
+      return reply([
+        { id: "vt-so", name: "Xe số", vehicle_count: 1 },
+        { id: "vt-ga", name: "Xe tay ga", vehicle_count: 1 },
+        { id: "vt-con", name: "Xe côn tay", vehicle_count: 1 },
+        { id: "vt-chua", name: "Chưa phân loại", vehicle_count: 0 },
+      ]);
     if (name === "list_vehicles")
       return reply({ items: vehicles, total: vehicles.length });
     return reply({});
@@ -163,7 +163,7 @@ for (const width of [320, 375, 390, 430]) {
 
     // C. Internal hierarchy: header, meta, grouped detail lines, financials, cost.
     const card = cards.first();
-    await expect(card.locator(".row").first().locator("strong")).toHaveText("Honda Vision");
+    await expect(card.locator(".row").first().locator("strong")).toHaveText("43A1-99999 · RLH2023XYZ000001");
     await expect(card.getByText("Sẵn sàng bán", { exact: true })).toBeVisible();
     await expect(card.locator(".record-details")).toBeVisible();
     await expect(card.getByText("Mã xe: XE-RD-001", { exact: true })).toBeVisible();
@@ -174,7 +174,7 @@ for (const width of [320, 375, 390, 430]) {
     // D. Actions are a compact ••• pinned to the card's top-right corner.
     const actions = card.locator(".record-actions");
     await expect(
-      actions.getByRole("button", { name: "Thao tác với Honda Vision" }),
+      actions.getByRole("button", { name: "Thao tác với 43A1-99999 · RLH2023XYZ000001" }),
     ).toBeVisible();
     const corner = await actions.evaluate((node) => {
       const parent = node.closest(".mobile-record");

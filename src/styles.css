@@ -376,6 +376,20 @@ pre {
   min-width: 0;
   overflow-wrap: break-word;
 }
+/* Transaction-detail header (mã giao dịch + trạng thái + in phiếu): the code
+   is a single short line, so centre the action cluster against it instead of
+   parking both at the top edge — the pill and the button then read as one
+   aligned row on every screen. */
+.heading-row:has(.heading-actions .badge ~ .button) {
+  align-items: center;
+}
+/* Kebab (three-dot) opener: a square icon button matching the CTA height so
+   the header cluster stays visually one line of equal-weight frames. */
+.heading-actions .button.heading-kebab {
+  padding: 0;
+  width: 43px;
+  flex: 0 0 auto;
+}
 .page-heading p {
   color: var(--muted);
   line-height: 1.6;
@@ -542,6 +556,33 @@ pre {
   background: #fff4ef;
   border-color: #efd5cd;
   color: #9c493d;
+}
+.notice.warning {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: #fff8e9;
+  border-color: #f0dcb0;
+  color: #8a6d1f;
+}
+.approvals-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+.approvals-row-main {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 220px;
+  flex: 1 1 260px;
+}
+.approvals-row-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
 }
 .text-link {
   display: inline-flex;
@@ -1607,6 +1648,65 @@ pre {
   color: #94a3b8;
   font-size: 11px;
 }
+/* Inventory filter: full-width date-range field + compact trigger */
+.filter-field-full {
+  grid-column: 1 / -1;
+}
+.date-range-trigger {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-height: 38px;
+  padding: 6px 12px;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 9px;
+  color: #1e293b;
+  font-size: 13px;
+  font-family: inherit;
+  cursor: pointer;
+  transition: all 0.16s ease;
+}
+.date-range-trigger:hover {
+  border-color: #a5b4fc;
+}
+.date-range-trigger:focus-visible {
+  outline: 2px solid var(--brand-primary, #2f6f4f);
+  outline-offset: 2px;
+}
+.date-range-trigger > svg:first-child {
+  color: #94a3b8;
+  flex-shrink: 0;
+}
+.date-range-trigger-text {
+  flex: 1;
+  text-align: left;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.date-range-chevron {
+  color: #94a3b8;
+  flex-shrink: 0;
+  transition: transform 0.15s ease;
+}
+.date-range-chevron.open {
+  transform: rotate(180deg);
+}
+.date-range-panel {
+  margin-top: 8px;
+}
+.filter-actions {
+  margin-top: 16px;
+}
+.result-count {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: #475569;
+}
 
 /* Dashboard Grids */
 .dashboard-main-grid {
@@ -2326,6 +2426,11 @@ pre {
   gap: 22px;
   align-items: start;
 }
+/* Single-column variant when the viewer has no finance sidebar (staff): the
+   main stack spans the full width instead of leaving an empty sidebar track. */
+.detail-grid-single {
+  grid-template-columns: minmax(0, 1fr);
+}
 .details-list {
   display: grid;
   /* Auto-fit spreads values horizontally on wide screens so the block stays
@@ -2832,15 +2937,6 @@ pre {
   letter-spacing: -0.3px;
   overflow-wrap: anywhere;
 }
-.value-item.highlight {
-  background: #eef7ea;
-  border-color: #cfe3c4;
-}
-.value-item.highlight strong {
-  font-size: 21px;
-  color: #426d40;
-  letter-spacing: -0.7px;
-}
 .value-item.total strong {
   color: #425b36;
 }
@@ -2850,13 +2946,6 @@ pre {
 }
 [data-theme="dark"] .value-item span {
   color: #8f96a8;
-}
-[data-theme="dark"] .value-item.highlight {
-  background: #14201a;
-  border-color: #234031;
-}
-[data-theme="dark"] .value-item.highlight strong {
-  color: #7cc78f;
 }
 [data-theme="dark"] .value-item.total strong {
   color: #a7c4b0;
@@ -3700,6 +3789,9 @@ pre {
     width: 16px;
     height: 16px;
   }
+  .heading-actions .button.heading-kebab {
+    width: 41px;
+  }
   .heading-actions .row {
     flex-wrap: wrap;
     justify-content: flex-end;
@@ -4181,18 +4273,27 @@ pre {
    The title gives way by wrapping its own text, exactly like every other
    mobile header. */
 @media (max-width: 430px) {
-  .heading-row:has(.heading-actions .button ~ .button) .heading-actions {
+  .heading-row:has(.heading-actions .button ~ .button) .heading-actions,
+  .heading-row:has(.heading-actions .badge ~ .button) .heading-actions {
     max-width: none;
     flex: 0 0 auto;
     flex-wrap: nowrap;
   }
-  .heading-row:has(.heading-actions .button ~ .button) .heading-actions .row {
+  .heading-row:has(.heading-actions .button ~ .button) .heading-actions .row,
+  .heading-row:has(.heading-actions .badge ~ .button) .heading-actions .row {
     flex-wrap: nowrap;
     gap: 8px;
   }
-  .heading-row:has(.heading-actions .button ~ .button) .heading-actions .button {
+  .heading-row:has(.heading-actions .button ~ .button) .heading-actions .button,
+  .heading-row:has(.heading-actions .badge ~ .button) .heading-actions .button {
     flex: 0 0 auto;
     min-width: 0;
+  }
+  /* Status pill + print button stay one line: shrink the pill's own footprint
+     so the pair never crowds out the transaction code. */
+  .heading-row:has(.heading-actions .badge ~ .button) .heading-actions .badge {
+    padding: 3px 7px;
+    font-size: 10.5px;
   }
 }
 /* Smallest-phone tier (320px and nearby): the CTA still shares the title row.
@@ -4218,6 +4319,9 @@ pre {
     width: 14px;
     height: 14px;
     flex: none;
+  }
+  .heading-actions .button.heading-kebab {
+    width: 38px;
   }
   .cta-label-full {
     display: none;
@@ -4683,21 +4787,80 @@ mark.search-hit {
   color: #fff;
   background: var(--accent, #6b835a);
 }
+/* CCCD action bar. The cluster must look identical whichever side is the
+   current target. The old flex row wrapped on content width, so the 12px
+   longer "Mặt trước" caption pushed the whole button pair onto a row of its
+   own while "Mặt sau" kept them inline — the pair visibly jumped between
+   399px and 405px (iPhone 16 Pro / 17 Pro class widths). A fixed two-track
+   grid removes the decision from the text: the caption owns the flexible
+   track and can only shrink itself, the pair always keeps one horizontal
+   line. */
 .identity-action-bar {
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  flex-wrap: wrap;
+  gap: 8px 12px;
   margin-top: 2px;
+}
+.identity-action-bar > .muted {
+  min-width: 0;
 }
 .identity-upload-actions {
   display: flex;
-  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  /* Never fold the pair inside its own track: a stacked pair is what reads
+     as an inconsistent layout when switching sides. */
+  flex-wrap: nowrap;
   gap: 8px;
 }
 .identity-upload-actions .upload-button {
   margin-top: 0;
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+/* Phones: compact the pair so the "Đang thêm: Mặt trước" caption still keeps
+   its single line beside it. Tap height stays at the 43px floor from
+   `.button`; only horizontal density changes. */
+@media (max-width: 430px) {
+  .identity-action-bar {
+    gap: 8px 10px;
+  }
+  /* The status caption reads at the same density as the compacted pair, and
+     keeps "Đang thêm: Mặt trước" on one line down to 390px so the caption
+     never breaks to a second line when only the side name changes. */
+  .identity-action-bar > .muted {
+    font-size: 11.5px;
+  }
+  .identity-upload-actions {
+    gap: 6px;
+  }
+  .identity-upload-actions .upload-button {
+    font-size: 11.5px;
+    padding: 9px 11px;
+    gap: 6px;
+  }
+  .identity-upload-actions .upload-button svg {
+    width: 15px;
+    height: 15px;
+  }
+}
+/* Smallest phones: the caption and the pair cannot share a line any more.
+   Fold on a hard breakpoint instead of on label length, and spread the two
+   buttons evenly so the row still reads as one horizontal action bar. */
+@media (max-width: 389px) {
+  .identity-action-bar {
+    grid-template-columns: 1fr;
+  }
+  .identity-upload-actions {
+    width: 100%;
+    justify-content: stretch;
+  }
+  .identity-upload-actions .upload-button {
+    flex: 1 1 0;
+    min-width: 0;
+    justify-content: center;
+  }
 }
 .identity-photo {
   width: 100%;
@@ -6982,6 +7145,71 @@ mark.search-hit {
   box-shadow: 0 1px 3px rgba(79, 70, 229, 0.18);
 }
 
+/* Vehicle-type catalogue (Cài đặt → Loại xe) */
+.vehicle-type-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.vehicle-type-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 6px 12px;
+  padding: 10px 12px;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  background: #f8fafc;
+}
+
+.vehicle-type-row input {
+  min-width: 0;
+  width: 100%;
+}
+
+.vehicle-type-meta {
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.vehicle-type-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.vehicle-type-warn {
+  grid-column: 1 / -1;
+  color: #b42318;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+[data-theme="dark"] .vehicle-type-row {
+  background: #14161e;
+  border-color: #232531;
+}
+
+[data-theme="dark"] .vehicle-type-warn {
+  color: #fda4af;
+}
+
+@media (max-width: 768px) {
+  .vehicle-type-row {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+  .vehicle-type-actions {
+    grid-column: 2;
+    grid-row: 1;
+  }
+  .vehicle-type-meta {
+    grid-column: 1 / -1;
+    grid-row: 2;
+    white-space: normal;
+  }
+}
+
 /* Money Input */
 .money-input-wrap {
   width: 100%;
@@ -7088,15 +7316,6 @@ mark.search-hit {
 
 .draft-status-subtle .status-icon {
   flex-shrink: 0;
-}
-
-.draft-status-subtle .status-reentry-hint {
-  color: #b45309;
-  font-size: 12px;
-  margin-left: 4px;
-  padding-left: 8px;
-  border-left: 1px solid #cbd5e1;
-  font-weight: 500;
 }
 
 .form-actions-acquisition {
@@ -10353,10 +10572,6 @@ html[data-theme="dark"] .header-theme-toggle {
   border-color: rgba(34, 197, 94, 0.3);
   color: #4ade80;
 }
-[data-theme="dark"] .draft-status-subtle .status-reentry-hint {
-  color: #fcd34d;
-  border-left-color: #262833;
-}
 [data-theme="dark"] .advanced-fields-box {
   background: #101117;
   border-color: #2c2f3d;
@@ -12798,8 +13013,28 @@ html[data-theme="dark"] .header-theme-toggle {
 .sale-payment-summary[data-state="invalid"] dd {
   color: #b91c1c;
 }
-.sale-payment-shortcuts {
-  margin-bottom: var(--space-lg);
+/* Nút toggle thêm/ẩn chi tiết thanh toán – nhỏ gọn dưới dạng inline text-link */
+.sale-payment-details-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 0;
+  min-height: unset;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--readable-muted, #475569);
+  cursor: pointer;
+  margin-block: 2px;
+}
+.sale-payment-details-toggle:hover {
+  color: #0f172a;
+  background: transparent;
+}
+[data-theme="dark"] .sale-payment-details-toggle:hover {
+  color: #e2e5ee;
 }
 /* Sell summary card identity: the 30px glyph needs a frame that actually fits
    it, and the name/code/badge sit beside the icon so long names never wrap

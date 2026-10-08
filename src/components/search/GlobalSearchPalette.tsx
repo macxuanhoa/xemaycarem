@@ -24,6 +24,7 @@ import { useDebouncedValue } from "@/lib/useDebouncedValue";
 import { useDialog } from "@/lib/useDialog";
 import { getRecentVehicles, formatRelativeTime } from "@/lib/recentVehicles";
 import { Highlight } from "@/components/search/Highlight";
+import { vehicleSubtitle, vehicleTitle } from "@/lib/vehicleDisplay";
 import type { GlobalSearchResult } from "@/types";
 
 export function GlobalSearchPalette() {
@@ -225,17 +226,13 @@ export function GlobalSearchPalette() {
               <Bike size={20} />
               <span className="result-info">
                 <strong>
-                  <Highlight
-                    text={`${vehicle.brand} ${vehicle.model}`}
-                    query={term}
-                  />
+                  <Highlight text={vehicleTitle(vehicle)} query={term} />
                 </strong>
                 <small>
                   <Highlight
-                    text={vehicle.license_plate || vehicle.internal_code}
+                    text={vehicleSubtitle(vehicle) || vehicle.internal_code}
                     query={term}
-                  />{" "}
-                  · SK: <Highlight text={vehicle.frame_number} query={term} />
+                  />
                 </small>
               </span>
               <Badge status={vehicle.status} />
@@ -274,11 +271,11 @@ export function GlobalSearchPalette() {
               <span className="result-info">
                 <strong>
                   <Highlight text={sale.sale_code} query={term} /> ·{" "}
-                  <Highlight text={sale.vehicle_name} query={term} />
+                  <Highlight text={sale.vehicle_title} query={term} />
                 </strong>
                 <small>
                   <Highlight text={sale.customer_name} query={term} /> ·{" "}
-                  <Highlight text={sale.license_plate} query={term} />
+                  <Highlight text={sale.internal_code} query={term} />
                 </small>
               </span>
               <Badge status={sale.status} />
@@ -314,10 +311,10 @@ export function GlobalSearchPalette() {
               >
                 <span className="result-info">
                   <strong>
-                    {vehicle.brand} {vehicle.model}
+                    {vehicleTitle(vehicle)}
                   </strong>
                   <small>
-                    {vehicle.license_plate || vehicle.internal_code} ·{" "}
+                    {vehicleSubtitle(vehicle) || vehicle.internal_code} ·{" "}
                     {formatRelativeTime(vehicle.updated_at)}
                   </small>
                 </span>

@@ -23,6 +23,7 @@ export async function runMigrationTests({ engine = 'postgres' } = {}) {
     const expectedTables = [
       'profiles',
       'vehicles',
+      'vehicle_types',
       'vehicle_financials',
       'vehicle_expenses',
       'sales',
@@ -110,7 +111,8 @@ export async function runMigrationTests({ engine = 'postgres' } = {}) {
       'vehicles_status_purchase',
       'vehicles_license_plate',
       'vehicles_frame_number',
-      'vehicles_engine_number',
+      'vehicles_vehicle_type',
+      'vehicle_types_name_norm',
       'vehicles_created_at',
       'vehicle_expenses_vehicle',
       'vehicle_expenses_date',
@@ -128,6 +130,31 @@ export async function runMigrationTests({ engine = 'postgres' } = {}) {
       assert.ok(indexDefs.has(idx), `Expected index '${idx}' must exist in public schema`)
     }
     console.log(`✓ Unique constraints and all ${expectedIndexes.length} performance indexes exist`)
+
+    // 4b. Purge guard: the six retired vehicle fields must stay gone for good, and the
+    // transactional history tables start empty (migration 20261008000300).
+    const purgedColumns = await db.query(`
+      SELECT table_schema || '.' || table_name || '.' || column_name AS col
+      FROM information_schema.columns
+      WHERE (table_schema, table_name, column_name) IN (
+        ('public','vehicles','brand'),('public','vehicles','model'),('public','vehicles','variant'),
+        ('public','vehicles','engine_number'),('public','vehicles','odometer'),('public','vehicles','asking_price'),
+        ('public','system_settings','quickpick_brands'),('public','system_settings','quickpick_models'))
+    `)
+    assert.deepEqual(purgedColumns.rows, [], 'Retired vehicle columns must not exist any more')
+    const fkCount = await db.query(`
+      SELECT count(*)::int AS n FROM information_schema.table_constraints
+      WHERE constraint_type='FOREIGN KEY' AND table_schema='public' AND table_name='vehicles'
+        AND constraint_name='vehicles_vehicle_type_id_fkey'
+    `)
+    assert.equal(fkCount.rows[0].n, 1, 'vehicles.vehicle_type_id must reference vehicle_types')
+    const historyCounts = await db.query(`
+      SELECT (SELECT count(*) FROM public.audit_logs) + (SELECT count(*) FROM public.vehicle_activity)
+        + (SELECT count(*) FROM public.notifications) + (SELECT count(*) FROM public.customer_communications)
+        + (SELECT count(*) FROM public.message_outbox) AS leftover
+    `)
+    assert.equal(Number(historyCounts.rows[0].leftover), 0, 'Purged history tables must be empty after the migration chain')
+    console.log('✓ Retired columns are gone and every purged history table is empty')
 
     // 5. Expected public RPC functions exist and have fixed search_path
     const expectedPublicFunctions = [
@@ -161,6 +188,9 @@ export async function runMigrationTests({ engine = 'postgres' } = {}) {
       'finish_mock_message',
       'fail_message',
       'skip_message',
+      'list_vehicle_types',
+      'save_vehicle_type',
+      'delete_vehicle_type',
     ]
 
     const procResult = await db.query(`
@@ -196,6 +226,11 @@ export async function runMigrationTests({ engine = 'postgres' } = {}) {
       'new_auth_user',
       'vehicle_json',
       'sale_json',
+      'vehicle_display',
+      'vehicle_label_text',
+      'vehicle_subtitle_text',
+      'vehicle_type_input',
+      'vehicle_type_input_optional',
     ]
     const privateProcResult = await db.query(`
       SELECT p.proname

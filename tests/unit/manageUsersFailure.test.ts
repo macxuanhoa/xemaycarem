@@ -4,7 +4,7 @@ import ts from "typescript";
 import { expect, it, vi } from "vitest";
 
 // Exercise the actual Edge HTTP handler with an injected SDK, without Auth/production calls.
-it("purge eligibility RPC failure returns HTTP 500 and performs no deletion", async () => {
+it("delete eligibility RPC failure returns HTTP 500 and performs no deletion", async () => {
   let handler: ((request: Request) => Promise<Response>) | undefined;
   const remove = vi.fn();
   const target = { id: "00000000-0000-4000-8000-000000000002", role: "STAFF", deleted_at: new Date().toISOString() };
@@ -46,9 +46,9 @@ it("purge eligibility RPC failure returns HTTP 500 and performs no deletion", as
   expect(handler).toBeDefined();
   const response = await handler!(new Request("https://example.test/manage-users", {
     method: "POST", headers: { Authorization: "Bearer test-token" },
-    body: JSON.stringify({ action: "purge", user_id: target.id }),
+    body: JSON.stringify({ action: "delete", user_id: target.id }),
   }));
   expect(response.status).toBe(500);
-  expect(await response.json()).toMatchObject({ error: "PURGE_CHECK_FAILED" });
+  expect(await response.json()).toMatchObject({ error: "DELETE_ELIGIBILITY_FAILED" });
   expect(remove).not.toHaveBeenCalled();
 });

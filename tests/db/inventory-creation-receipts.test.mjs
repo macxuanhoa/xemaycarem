@@ -17,7 +17,7 @@ export async function runInventoryCreationReceiptTests(externalDb, { engine = 'p
       await db.query("UPDATE public.profiles SET role=$1::public.user_role,active=true,must_change_password=false,can_view_financials=true WHERE id=$2", [id === owner ? 'OWNER' : 'MANAGER', id])
     }
     const day = (await row('SELECT private.today()::text AS day')).day
-    const data = { model: 'Synthetic inventory protocol', frame_number: '', purchase_price: 100, asking_price: 1000, purchase_date: day }
+    const data = { vehicle_type: 'Xe tay ga', frame_number: '', purchase_price: 100, purchase_date: day }
     let vehicleId
     await check('old keyless inventory creates fail before inventory/cost/financial history writes', async () => {
       const before = await counts()
@@ -64,11 +64,11 @@ export async function runInventoryCreationReceiptTests(externalDb, { engine = 'p
       }
     })
     await check('failed creation rolls back the receipt and same UUID can be corrected safely', async () => {
-      const payload = { ...data, request_id: randomUUID(), asking_price: -1 }
+      const payload = { ...data, request_id: randomUUID(), purchase_price: -1 }
       const before = await counts()
-      await assert.rejects(() => save(db, owner, payload), /INVALID_MONEY/)
+      await assert.rejects(() => save(db, owner, payload), /INVALID_MONEY|check constraint/)
       assert.deepEqual(await counts(), before)
-      assert.ok(await save(db, owner, { ...payload, asking_price: 1000 }))
+      assert.ok(await save(db, owner, { ...payload, purchase_price: 100 }))
     })
     await check('the existing inventory edit and cost accounting semantics remain available', async () => {
       const current = await asUser(db, owner, c => rpc(c, 'get_vehicle', '$1::uuid', [vehicleId]))

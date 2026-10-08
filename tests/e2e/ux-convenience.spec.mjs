@@ -12,13 +12,14 @@ const seedVehicle = {
   id: vehicleId,
   internal_code: "XE-UX-001",
   frame_number: "DUPLICATE-FRAME",
-  brand: "Honda",
-  model: "Vision",
+  vehicle_type_id: "vt-ga",
+  vehicle_type: "Xe tay ga",
+  vehicle_title: "43A1-12345 · DUPLICATE-FRAME",
+  vehicle_subtitle: "Xe tay ga · 2024 · Đen",
   license_plate: "43A1-12345",
   status: "IN_STOCK",
   purchase_date: today,
   purchase_price: 30000000,
-  asking_price: 35000000,
   total_cost: 30000000,
   cost_pending: false,
   expenses: [],
@@ -89,14 +90,14 @@ async function installMock(page) {
         items: [
           {
             id: vehicleId,
-            brand: "Honda",
-            model: "Vision",
-            variant: "Premium",
+            internal_code: "XE-UX-001",
+            license_plate: "43A1-12345",
+            frame_number: "RLHJ123M4PY100001",
             year: 2024,
             color: "Đen",
-            license_plate: "43A1-12345",
-            odometer: 12500,
-            asking_price: 35000000,
+            vehicle_type: "Xe tay ga",
+            vehicle_title: "43A1-12345 · RLHJ123M4PY100001",
+            vehicle_subtitle: "Xe tay ga · 2024 · Đen",
             purchase_date: today,
             created_at: today,
           },
@@ -166,6 +167,14 @@ async function installMock(page) {
       });
     if (name === "get_settings")
       return reply({ store_name: "Cửa hàng kiểm thử" });
+    if (name === "list_vehicle_types")
+      return reply([
+        { id: "vt-ga", name: "Xe tay ga", vehicle_count: 10 },
+        { id: "vt-so", name: "Xe số", vehicle_count: 5 },
+        { id: "vt-con", name: "Xe côn tay", vehicle_count: 3 },
+        { id: "vt-dien", name: "Xe điện", vehicle_count: 1 },
+        { id: "vt-chua", name: "Chưa phân loại", vehicle_count: 2 },
+      ]);
     if (name === "list_vehicles") {
       const filters = body.p_filters ?? {},
         search = (filters.search ?? "").toLowerCase();
@@ -182,7 +191,7 @@ async function installMock(page) {
       const filtered = items.filter(
         (v) =>
           !search ||
-          [v.frame_number, v.brand, v.model, v.license_plate]
+          [v.frame_number, v.vehicle_type, v.license_plate]
             .join(" ")
             .toLowerCase()
             .includes(search),
@@ -236,7 +245,7 @@ test("Mobile acquisition uses visible save, normalized money and keeps advanced 
   );
   expect(position).not.toBe("fixed");
   expect(position).not.toBe("sticky");
-  await expect(page.getByText("Nhập dòng xe.")).toHaveCount(0);
+  await expect(page.getByText("Chọn loại xe.")).toHaveCount(0);
   await action.scrollIntoViewIfNeeded();
   await expect(action).toBeVisible();
   const bounds = await action.boundingBox();
@@ -244,10 +253,7 @@ test("Mobile acquisition uses visible save, normalized money and keeps advanced 
   const started = Date.now();
   await page.getByLabel("Số khung", { exact: true }).fill("NEW-UX-FRAME");
   await page.getByLabel("Biển số (nếu có)", { exact: true }).fill("43A1-99999");
-  await page.getByRole("button", { name: "Honda", exact: true }).click();
-  await page
-    .getByRole("combobox", { name: "Dòng xe *", exact: true })
-    .fill("Vision");
+  await page.getByRole("button", { name: "Xe tay ga", exact: true }).click();
   await page.getByLabel("Giá thu (₫) *", { exact: true }).fill("82tr");
   await action.click();
 
@@ -305,9 +311,9 @@ test("Acquisition submit validates on demand and focuses the first error", async
   await page.setViewportSize({ width: 390, height: 700 });
   await installMock(page);
   await page.goto("/acquisitions/new");
-  // No required-field error before interaction. Số khung and Hãng are now
-  // optional; only Dòng xe (model) still blocks a bare submit.
-  await expect(page.getByText("Nhập dòng xe.")).toHaveCount(0);
+  // No required-field error before interaction. Số khung and Biển số are now
+  // optional; only Loại xe (the catalogue) still blocks a bare submit.
+  await expect(page.getByText("Chọn loại xe.")).toHaveCount(0);
   const action = page.getByRole("button", {
     name: "Thu xe & tạo phiếu",
     exact: true,
@@ -315,18 +321,14 @@ test("Acquisition submit validates on demand and focuses the first error", async
   await action.scrollIntoViewIfNeeded();
   await action.click();
   // Submission is blocked and the first invalid field reports inline.
-  await expect(page.getByText("Nhập dòng xe.")).toBeVisible();
-  const focusedIsModel = await page.evaluate(
+  await expect(page.getByText("Chọn loại xe.")).toBeVisible();
+  const focusedIsType = await page.evaluate(
     () =>
       document.activeElement
         ?.getAttribute("aria-label")
-        ?.startsWith("Dòng xe") ??
-      document.activeElement
-        ?.getAttribute("placeholder")
-        ?.includes("SH 160i") ??
-      false,
+        ?.startsWith("Loại xe") ?? false,
   );
-  expect(focusedIsModel).toBe(true);
+  expect(focusedIsType).toBe(true);
 });
 
 test("Frame duplicates are reported while typing before the form is submitted", async ({
@@ -395,7 +397,7 @@ test("Inventory filters, sort, page and scroll survive opening a vehicle and ret
 }) => {
   await installMock(page);
   const inventoryUrl =
-    "/vehicles?q=Honda&status=IN_STOCK&sort=oldest&page=2&brand=Honda";
+    "/vehicles?q=43A1&status=IN_STOCK&sort=oldest&page=2&vehicle_type_id=vt-ga";
   await page.goto(inventoryUrl);
   await expect(page.locator(".desktop-table tbody tr")).toHaveCount(6);
   await page
@@ -412,12 +414,12 @@ test("Inventory filters, sort, page and scroll survive opening a vehicle and ret
     .last()
     .click();
   await expect(
-    page.getByRole("heading", { name: "Honda Vision", exact: true }),
+    page.getByRole("heading", { name: "43A1-12345 · DUPLICATE-FRAME", exact: true }),
   ).toBeVisible();
   await page.locator(".back-link").click();
   await expect(page).toHaveURL(
     new RegExp(
-      `/vehicles\\?q=Honda&status=IN_STOCK&sort=oldest&page=2&brand=Honda$`,
+      `/vehicles\\?q=43A1&status=IN_STOCK&sort=oldest&page=2&vehicle_type_id=vt-ga$`,
     ),
   );
   await expect(page.getByLabel("Sắp xếp xe")).toHaveValue("oldest");
@@ -438,9 +440,10 @@ test("Inventory rows use clear vehicle metadata, status, age and preset wording"
   await page.goto("/vehicles");
   const firstRow = page.locator(".desktop-table tbody tr").first();
   const vehicleCell = firstRow.locator("td").nth(0);
-  const plateCell = firstRow.locator("td").nth(2);
+  const typeCell = firstRow.locator("td").nth(1);
   await expect(vehicleCell.getByText("XE-UX-1", { exact: true })).toBeVisible();
-  await expect(plateCell).not.toContainText("XE-UX-1");
+  await expect(typeCell).toHaveText("Xe tay ga");
+  await expect(typeCell).not.toContainText("XE-UX-1");
   await expect(firstRow.getByText("Hôm nay", { exact: true })).toBeVisible();
   await expect(
     firstRow.getByText("Sẵn sàng bán", { exact: true }),
@@ -455,9 +458,9 @@ test("Inventory rows use clear vehicle metadata, status, age and preset wording"
   await expect(
     page.getByRole("button", { name: "Tồn kho lâu > 60 ngày" }),
   ).toBeVisible();
-  await expect(
-    page.getByRole("button", { name: "Chờ giá nhập" }),
-  ).toBeVisible();
+  await expect(page.getByRole("button", { name: "Chờ giá nhập" })).toHaveCount(
+    0,
+  );
   await expect(page.getByText("Dữ liệu được phân quyền")).toHaveCount(0);
   await page.screenshot({
     path: "test-results/inventory-audit-desktop.png",
@@ -609,7 +612,9 @@ test("Showroom dialogs have accessible names and contain keyboard focus", async 
     exact: true,
   });
   await bikeOpener.click();
-  const bikeDialog = page.getByRole("dialog", { name: "Honda Vision Premium" });
+  const bikeDialog = page.getByRole("dialog", {
+    name: "43A1-12345 · RLHJ123M4PY100001",
+  });
   await expect(bikeDialog).toBeVisible();
   const bikeClose = bikeDialog.getByRole("button", {
     name: "Đóng chi tiết xe",
@@ -719,7 +724,7 @@ test("Desktop search responds while typing with one debounced request and keyboa
   const calls = await installMock(page);
   await page.goto(`/vehicles/${vehicleId}`);
   await expect(
-    page.getByRole("heading", { name: "Honda Vision", exact: true }),
+    page.getByRole("heading", { name: "43A1-12345 · DUPLICATE-FRAME", exact: true }),
   ).toBeVisible();
   await page.keyboard.press("Control+k");
   const input = page.getByLabel("Tìm xe toàn hệ thống", { exact: true });
@@ -788,7 +793,7 @@ test("Mobile search contains focus, preserves scroll and fits a reduced visible 
   await page.setViewportSize({ width: 360, height: 844 });
   await page.goto(`/vehicles/${vehicleId}`);
   await expect(
-    page.getByRole("heading", { name: "Honda Vision", exact: true }),
+    page.getByRole("heading", { name: "43A1-12345 · DUPLICATE-FRAME", exact: true }),
   ).toBeVisible();
   await page.evaluate(() => window.scrollTo(0, 260));
   const scrollBefore = await page.evaluate(() => window.scrollY);
@@ -850,7 +855,9 @@ test("Matching vehicle results render without quick commands and never write", a
     exact: true,
   });
   await expect(results.locator(".palette-result-item")).toHaveCount(1);
-  await expect(results.locator("button").first()).toContainText("Honda Vision");
+  await expect(results.locator("button").first()).toContainText(
+    "43A1-12345 · DUPLICATE-FRAME",
+  );
   // Quick-command tiles were removed from the shared search palette.
   await expect(results.locator(".palette-cmd-btn")).toHaveCount(0);
   expect(calls.filter((call) => call.name === "global_search")).toHaveLength(1);
@@ -870,11 +877,11 @@ test("Acquisition validates the existing plate rule on first blur", async ({
   await page.goto("/acquisitions/new");
   const plate = page.getByLabel("Biển số (nếu có)", { exact: true });
   await plate.fill("not-a-plate");
-  await page.getByLabel("Số máy", { exact: true }).focus();
+  await page.getByLabel("Loại xe *", { exact: true }).focus();
   const field = page.locator(".field").filter({ has: plate });
   await expect(field.locator(".field-error")).toBeVisible();
   await plate.fill("43A1-99999");
-  await page.getByLabel("Số máy", { exact: true }).focus();
+  await page.getByLabel("Loại xe *", { exact: true }).focus();
   await expect(field.locator(".field-error")).toHaveCount(0);
   expect(calls.some((call) => call.name === "acquire_vehicle")).toBe(false);
 });

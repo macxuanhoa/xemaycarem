@@ -56,6 +56,7 @@ const ExpensesPage = lazy(() =>
 );
 const UsersPage = lazy(() => import("@/features/users/UsersPage"));
 const AuditPage = lazy(() => import("@/features/audit/AuditPage"));
+const ApprovalsPage = lazy(() => import("@/features/approvals/ApprovalsPage"));
 const SettingsPage = lazy(() => import("@/features/settings/SettingsPage"));
 const ReceivablesPage = lazy(() =>
   import("@/features/sales/ReceivablesPage").then((m) => ({
@@ -198,6 +199,7 @@ export default function App() {
               </Route>
               <Route element={<Protected access="owner" />}>
                 <Route path="audit" element={<AuditPage />} />
+                <Route path="approvals" element={<ApprovalsPage />} />
               </Route>
             </Route>
           </Route>

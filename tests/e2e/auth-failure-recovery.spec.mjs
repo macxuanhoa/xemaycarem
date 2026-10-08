@@ -87,6 +87,19 @@ async function mockAuth(
     if (path.endsWith("/get_settings"))
       return reply({ store_name: "Cửa hàng kiểm thử" });
     if (path.endsWith("/list_vehicles")) return reply({ items: [], total: 0 });
+    if (path.endsWith("/list_vehicle_types"))
+      return reply([
+        {
+          id: "00000000-0000-4000-8000-0000000000a1",
+          name: "Xe số",
+          vehicle_count: 0,
+        },
+        {
+          id: "00000000-0000-4000-8000-0000000000a2",
+          name: "Xe tay ga",
+          vehicle_count: 0,
+        },
+      ]);
     if (path === "/auth/v1/user") return reply(user);
     return reply(null);
   });
@@ -271,9 +284,10 @@ test("A mutation rejected with expired JWT retains input and never shows saved s
   await enterLogin(page);
   await expect(page).toHaveURL(/\/$/);
   await page.goto("/vehicles/new");
+  await page.getByLabel("Loại xe *", { exact: true }).selectOption({ index: 1 });
   await page
-    .getByRole("combobox", { name: "Dòng xe *", exact: true })
-    .fill("Xe kiểm thử hết phiên");
+    .getByLabel("Biển số", { exact: true })
+    .fill("59-A1 234.56");
   await page.getByRole("button", { name: "Lưu xe mới", exact: true }).click();
   await expect(
     page.getByText("Phiên làm việc đã hết hạn. Vui lòng đăng nhập lại.", {
@@ -282,8 +296,8 @@ test("A mutation rejected with expired JWT retains input and never shows saved s
   ).toBeVisible();
   await expect(page).toHaveURL(/\/vehicles\/new$/);
   await expect(
-    page.getByRole("combobox", { name: "Dòng xe *", exact: true }),
-  ).toHaveValue("Xe kiểm thử hết phiên");
+    page.getByLabel("Biển số", { exact: true }),
+  ).toHaveValue("59-A1 234.56");
   expect(attempts).toBe(1);
 });
 

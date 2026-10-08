@@ -53,9 +53,9 @@ for (const width of [320, 360, 375, 390, 430]) {
     expect(
       await input.evaluate((x) => parseFloat(getComputedStyle(x).fontSize)),
     ).toBeGreaterThanOrEqual(16);
-    await input.fill("Vision");
+    await input.fill("43-A1");
     await expect(
-      dialog.getByRole("button", { name: /Honda Vision/ }).first(),
+      dialog.getByRole("button", { name: /43-A1 123\.45 · RLH/ }).first(),
     ).toBeVisible();
     await page.setViewportSize({ width, height: 450 });
     await expect
@@ -76,7 +76,7 @@ test("Malformed money stays invalid and cannot become a different amount", async
 }) => {
   const { writes } = await installUiuxMock(page);
   await page.goto(`/vehicles/${vehicleId}/sell`);
-  const input = page.getByLabel("Giá bán thực tế (₫) *", { exact: true });
+  const input = page.getByLabel("Bán với giá", { exact: true });
   for (const raw of [
     "-82.000.000",
     "82000000.5",
@@ -139,12 +139,16 @@ test("Sale review uses intended values and cancellation preserves form without w
   await page.setViewportSize({ width: 390, height: 844 });
   const { writes } = await installUiuxMock(page);
   await page.goto(`/vehicles/${vehicleId}/sell`);
+  // Mở chi tiết thanh toán TRƯỚC khi gõ giá: nếu gõ giá trước, một lần
+  // validate trung gian (giá vừa đổi, "đã thu" chưa đồng bộ) sẽ tự mở khối
+  // này, và cú click sau đó sẽ đóng nó lại.
+  await page.getByRole("button", { name: "Thêm chi tiết thanh toán" }).click();
   await page
     .getByLabel("Tên khách hàng *", { exact: true })
     .fill("Nguyễn Văn Kiểm Thử");
   await page.getByLabel("Số điện thoại", { exact: true }).fill("0900000000");
-  await page.getByLabel("Giá bán thực tế (₫) *", { exact: true }).fill("35tr");
-  await page.getByLabel("Thu tiền lần đầu (₫)", { exact: true }).fill("10tr");
+  await page.getByLabel("Bán với giá", { exact: true }).fill("35tr");
+  await page.getByLabel("Khách đã trả trước (₫)", { exact: true }).fill("10tr");
   await page
     .getByLabel("Hình thức thanh toán", { exact: true })
     .selectOption("BANK_TRANSFER");
@@ -169,30 +173,41 @@ test("Sale review uses intended values and cancellation preserves form without w
     page.getByLabel("Tên khách hàng *", { exact: true }),
   ).toHaveValue("Nguyễn Văn Kiểm Thử");
   await expect(
-    page.getByLabel("Thu tiền lần đầu (₫)", { exact: true }),
+    page.getByLabel("Khách đã trả trước (₫)", { exact: true }),
   ).toHaveValue("10.000.000");
   expect(writes).toHaveLength(0);
 });
 
-test("Full-payment control is accessible and overpayment is not presented as zero debt", async ({
+test("Collected amount tracks the price until staff adjust it; overpayment stays flagged", async ({
   page,
 }) => {
   await installUiuxMock(page);
   await page.goto(`/vehicles/${vehicleId}/sell`);
-  await page.getByLabel("Thu tiền lần đầu (₫)", { exact: true }).fill("40tr");
+  await page.getByRole("button", { name: "Thêm chi tiết thanh toán" }).click();
+  // Bán xe là nơi DUY NHẤT sinh giá: mở form thì giá để trống (không còn prefill
+  // từ giá dự kiến của xe — đã xoá vĩnh viễn). Nhân viên gõ giá bán thì "đã thu"
+  // tự theo giá cho tới khi họ tự sửa; không có nút "đã thu đủ" riêng.
+  await page.getByLabel("Bán với giá", { exact: true }).fill("35tr");
+  await expect(
+    page.getByLabel("Khách đã trả trước (₫)", { exact: true }),
+  ).toHaveValue("35.000.000");
+  await expect(page.locator(".sale-payment-summary")).toHaveAttribute(
+    "data-state",
+    "valid",
+  );
+  await expect(
+    page.getByRole("button", { name: "Đã thu đủ tiền", exact: true }),
+  ).toHaveCount(0);
+  await page.getByLabel("Khách đã trả trước (₫)", { exact: true }).fill("40tr");
   await expect(page.locator(".sale-payment-summary")).toHaveAttribute(
     "data-state",
     "invalid",
   );
-  const full = page.getByRole("button", {
-    name: "Đã thu đủ tiền",
-    exact: true,
-  });
-  await expect(full).toBeVisible();
-  await full.click();
+  // A manual adjustment sticks: later price edits no longer overwrite it.
+  await page.getByLabel("Bán với giá", { exact: true }).fill("50tr");
   await expect(
-    page.getByLabel("Thu tiền lần đầu (₫)", { exact: true }),
-  ).toHaveValue("35.000.000");
+    page.getByLabel("Khách đã trả trước (₫)", { exact: true }),
+  ).toHaveValue("40.000.000");
   await expect(page.locator(".sale-payment-summary")).toHaveAttribute(
     "data-state",
     "valid",
@@ -394,20 +409,24 @@ test("Sell picker rows stay inside the card and never fake a 0 ₫ price", async
             {
               id: vehicleId,
               internal_code: "XE-2026-000021",
-              brand: "Honda",
-              model: "Wave Alpha",
+              vehicle_type_id: "00000000-0000-4000-8000-000000000011",
+              vehicle_type: "Xe tay ga",
+              frame_number: "RLHJ123K4PY0000001",
               license_plate: null,
-              asking_price: 0,
+              vehicle_title: "chưa có biển · RLHJ123K4PY0000001",
+              vehicle_subtitle: "Xe tay ga · 2023 · Đỏ",
               cost_pending: false,
               status: "IN_STOCK",
             },
             {
               id: "00000000-0000-4000-8000-000000000004",
               internal_code: "XE-2026-000020",
-              brand: "Suzukidjjdjsjsd",
-              model: "Shxjd Phiên Bản Đặc Biệt",
-              license_plate: "92-D1728282",
-              asking_price: 17000000,
+              vehicle_type_id: "vt-so",
+              vehicle_type: "Xe số",
+              frame_number: "MH3BY31YXPJ0000020",
+              license_plate: "92-D1 728.28",
+              vehicle_title: "92-D1 728.28 · MH3BY31YXPJ0000020",
+              vehicle_subtitle: "Xe số · 2022 · Trắng",
               cost_pending: false,
               status: "IN_STOCK",
             },
@@ -458,7 +477,8 @@ test("Sell picker rows stay inside the card and never fake a 0 ₫ price", async
   expect(Math.abs(geometry.dividerInset - geometry.rowPadLeft)).toBeLessThanOrEqual(1);
   // A short list hugs its rows: the desktop floor must not leave a blank band.
   expect(geometry.deadBelow).toBeLessThanOrEqual(2);
-  // A vehicle without an asking price is honest, and a real one still formats.
-  expect(geometry.prices).toEqual(["Chưa có giá", "17.000.000 ₫"]);
+  // The picker shows no price at all now: a sale price only exists once the
+  // staff fills the Bán xe form, so a vehicle can never fake a 0 ₫ asking price.
+  expect(geometry.prices).toEqual([]);
   expect(geometry.nameHidden).toBeLessThanOrEqual(1);
 });

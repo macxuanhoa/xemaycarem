@@ -267,6 +267,8 @@ describe('Auth Recovery & Account Control Matrix (Comprehensive Section 39 Tests
   });
 
   describe('4. Deactivation vs Hard Deletion Safety', () => {
+    // Mirror of check_user_can_hard_delete: any non-cascade reference to the profile
+    // forbids erasing the row, because history must stay attributable to who made it.
     const checkCanHardDelete = (
       user: Profile,
       businessRecordsCount: {
@@ -275,6 +277,8 @@ describe('Auth Recovery & Account Control Matrix (Comprehensive Section 39 Tests
         sales: number;
         payments: number;
         expenses: number;
+        identityDocuments: number;
+        vehicleActivity: number;
         auditLogs: number;
       }
     ) => {
@@ -286,7 +290,7 @@ describe('Auth Recovery & Account Control Matrix (Comprehensive Section 39 Tests
         return {
           canDelete: false,
           reason: 'USER_HAS_BUSINESS_HISTORY',
-          message: 'Tài khoản đã có lịch sử nghiệp vụ. Chỉ có thể xóa tài khoản (giữ lịch sử).',
+          message: 'Tài khoản này đã ghi nhận nghiệp vụ. Hệ thống xóa tài khoản đăng nhập nhưng giữ hồ sơ để đối soát.',
         };
       }
       return { canDelete: true };
@@ -300,6 +304,8 @@ describe('Auth Recovery & Account Control Matrix (Comprehensive Section 39 Tests
         sales: 0,
         payments: 0,
         expenses: 0,
+        identityDocuments: 0,
+        vehicleActivity: 0,
         auditLogs: 0,
       });
       expect(check.canDelete).toBe(false);
@@ -314,10 +320,34 @@ describe('Auth Recovery & Account Control Matrix (Comprehensive Section 39 Tests
         sales: 1,
         payments: 1,
         expenses: 0,
+        identityDocuments: 0,
+        vehicleActivity: 0,
         auditLogs: 3,
       });
       expect(checkWithSales.canDelete).toBe(false);
       expect(checkWithSales.reason).toBe('USER_HAS_BUSINESS_HISTORY');
+    });
+
+    it('Refuses hard delete when the only trace is an CCCD photo or an activity row', () => {
+      const staff = createProfile({ role: 'STAFF' });
+      for (const trace of [
+        { identityDocuments: 1 },
+        { vehicleActivity: 1 },
+      ]) {
+        const check = checkCanHardDelete(staff, {
+          acquisitions: 0,
+          vehicles: 0,
+          sales: 0,
+          payments: 0,
+          expenses: 0,
+          identityDocuments: 0,
+          vehicleActivity: 0,
+          auditLogs: 0,
+          ...trace,
+        });
+        expect(check.canDelete).toBe(false);
+        expect(check.reason).toBe('USER_HAS_BUSINESS_HISTORY');
+      }
     });
 
     it('Permits hard delete ONLY for completely unused test accounts', () => {
@@ -328,6 +358,8 @@ describe('Auth Recovery & Account Control Matrix (Comprehensive Section 39 Tests
         sales: 0,
         payments: 0,
         expenses: 0,
+        identityDocuments: 0,
+        vehicleActivity: 0,
         auditLogs: 0,
       });
       expect(check.canDelete).toBe(true);

@@ -71,6 +71,15 @@ async function installMock(page) {
     if (name === "check_user_access") return reply({ allowed: true });
     if (name === "list_active_announcements") return reply([]);
     if (name === "get_settings") return reply({ store_name: "Cửa hàng kiểm thử" });
+    // InventoryPage renders a "Loại xe" filter sourced from the vehicle_types
+    // catalogue; the hook expects an array, so stub it (the catch-all `{}`
+    // below would otherwise make the page crash before its heading paints).
+    if (name === "list_vehicle_types")
+      return reply([
+        { id: "vt-ga", name: "Xe tay ga", vehicle_count: 0 },
+        { id: "vt-so", name: "Xe số", vehicle_count: 0 },
+        { id: "vt-chua", name: "Chưa phân loại", vehicle_count: 0 },
+      ]);
     if (name === "list_vehicles") return reply({ items: [], total: 0 });
     if (name === "list_sales") return reply({ items: [], total: 0 });
     if (name === "list_receivables")

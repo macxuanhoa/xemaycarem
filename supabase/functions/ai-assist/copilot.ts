@@ -156,9 +156,11 @@ const INTENTS: Intent[] = [
         const price = Number(row.sale_price ?? 0)
         if (!Number.isFinite(price)) continue
         const who = String(row.customer_name || 'Khách')
-        const vehicleName = String(row.vehicle_name || [row.brand, row.model].filter(Boolean).join(' ') || 'xe')
-        const citation = context.addCitation({ type: 'sale', label: who, detail: String(row.license_plate || '') || vehicleName, route: `/sales/${row.id}` })
-        context.addFact({ label: `${who} mua ${vehicleName}`, value: price, display: money(price), citation })
+        // Danh tính xe do database sinh ra (biển · khung) — copilot không tự nối
+        // chuỗi và cũng không còn Hãng/Dòng xe để đoán.
+        const vehicleTitle = String(row.vehicle_title || row.internal_code || 'xe')
+        const citation = context.addCitation({ type: 'sale', label: who, detail: vehicleTitle, route: `/sales/${row.id}` })
+        context.addFact({ label: `${who} mua ${vehicleTitle}`, value: price, display: money(price), citation })
       }
       if (items.length) context.addSuggestion({ label: 'Mở danh sách bán hàng', route: '/sales' })
     },
@@ -224,13 +226,14 @@ const INTENTS: Intent[] = [
       const longest = Array.isArray(data?.longest_stock) ? data!.longest_stock as Record<string, unknown>[] : []
       for (const row of longest.slice(0, 5)) {
         if (!row?.id) continue
+        const title = String(row.vehicle_title || row.internal_code || 'Xe')
         const citation = context.addCitation({
           type: 'vehicle',
-          label: [row.brand, row.model].filter(Boolean).join(' ') || 'Xe',
-          detail: String(row.license_plate || row.frame_number || '') || null,
+          label: title,
+          detail: String(row.vehicle_subtitle || row.license_plate || row.frame_number || '') || null,
           route: `/vehicles/${row.id}`,
         })
-        context.addFact({ label: `Tồn lâu nhất: ${[row.brand, row.model].filter(Boolean).join(' ')}`, value: Number(row.days_in_inventory ?? 0), display: count(Number(row.days_in_inventory ?? 0), 'ngày'), citation })
+        context.addFact({ label: `Tồn lâu nhất: ${title}`, value: Number(row.days_in_inventory ?? 0), display: count(Number(row.days_in_inventory ?? 0), 'ngày'), citation })
       }
     },
   },
@@ -253,7 +256,7 @@ const INTENTS: Intent[] = [
       }
       for (const row of (Array.isArray(data.items) ? data.items as Record<string, unknown>[] : []).slice(0, 5)) {
         if (!row?.id) continue
-        const citation = context.addCitation({ type: 'sale', label: String(row.customer_name || 'Khách'), detail: String(row.license_plate || '') || null, route: `/sales/${row.id}` })
+        const citation = context.addCitation({ type: 'sale', label: String(row.customer_name || 'Khách'), detail: String(row.vehicle_title || row.license_plate || '') || null, route: `/sales/${row.id}` })
         context.addFact({ label: `Còn phải thu: ${row.customer_name || 'khách'}`, value: Number(row.remaining_amount ?? 0), display: money(Number(row.remaining_amount ?? 0)), citation })
       }
       context.addSuggestion({ label: 'Mở Sổ công nợ', route: '/receivables' })
@@ -344,7 +347,7 @@ const INTENTS: Intent[] = [
   },
 ]
 
-/** Free-text lookup when the question names a plate, phone, or a quoted brand/model. */
+/** Free-text lookup when the question names a plate, a frame number or a quoted vehicle type. */
 async function entityLookup(context: RunContext) {
   const compact = context.question.replace(/[\s.-]+/g, '')
   const plate = context.question.match(/\b\d{3,6}[-\s]?[a-z]{1,3}[-\s]?\d{1,3}(?:\.\d{1,2})?\b/i)?.[0]
@@ -358,18 +361,21 @@ async function entityLookup(context: RunContext) {
   for (const row of Array.isArray(data.vehicles) ? data.vehicles as Record<string, unknown>[] : []) {
     if (!row?.id) continue
     found = true
-    const name = [row.brand, row.model].filter(Boolean).join(' ') || 'Xe'
-    const citation = context.addCitation({ type: 'vehicle', label: name, detail: String(row.license_plate || row.frame_number || '') || null, route: `/vehicles/${row.id}` })
-    context.addFact({ label: `Xe khớp "${search}": ${name}`, value: Number(row.asking_price ?? 0), display: row.asking_price ? money(Number(row.asking_price)) : 'chưa ra giá', citation })
+    // Hệ thống không còn giá dự kiến trên xe nên bản tin khớp xe nêu danh tính
+    // và tình trạng, không bịa một con số tiền chưa hề được giao dịch.
+    const title = String(row.vehicle_title || row.internal_code || 'Xe')
+    const detail = [String(row.vehicle_subtitle || ''), String(row.status || '')].filter(Boolean).join(' · ')
+    const citation = context.addCitation({ type: 'vehicle', label: title, detail: detail || null, route: `/vehicles/${row.id}` })
+    context.addFact({ label: `Xe khớp "${search}": ${title}`, value: detail || 'chưa rõ thông tin', display: detail || 'chưa rõ thông tin', citation })
   }
   for (const row of Array.isArray(data.sales) ? data.sales as Record<string, unknown>[] : []) {
     if (!row?.id) continue
     found = true
     const who = String(row.customer_name || 'Khách')
-    const vehicleName = String(row.vehicle_name || 'xe')
+    const vehicleTitle = String(row.vehicle_title || row.internal_code || 'xe')
     const price = Number(row.sale_price ?? 0)
-    const citation = context.addCitation({ type: 'sale', label: who, detail: String(row.license_plate || '') || null, route: `/sales/${row.id}` })
-    context.addFact({ label: `Đơn bán ${who} · ${vehicleName}`, value: price, display: money(price), citation })
+    const citation = context.addCitation({ type: 'sale', label: who, detail: vehicleTitle, route: `/sales/${row.id}` })
+    context.addFact({ label: `Đơn bán ${who} · ${vehicleTitle}`, value: price, display: money(price), citation })
   }
   for (const row of Array.isArray(data.customers) ? data.customers as Record<string, unknown>[] : []) {
     const name = String(row.customer_name || '')

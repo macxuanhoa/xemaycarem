@@ -16,6 +16,7 @@ const routeLoaders: Record<string, () => Promise<unknown>> = {
   "/expenses": () => import("@/features/expenses/ExpensePages"),
   "/users": () => import("@/features/users/UsersPage"),
   "/audit": () => import("@/features/audit/AuditPage"),
+  "/approvals": () => import("@/features/approvals/ApprovalsPage"),
   "/settings": () => import("@/features/settings/SettingsPage"),
   "/capture": () => import("@/features/capture/CapturePage"),
   "/assist": () => import("@/features/assistant/AssistPage"),

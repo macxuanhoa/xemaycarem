@@ -26,7 +26,7 @@ export async function runOperationalTests(externalDb, { engine = 'postgres' } = 
     let sequence = 0
     const vehicle = async (overrides = {}) => {
       sequence++
-      return call('owner', 'save_vehicle', { request_id: randomUUID(), brand: 'Honda', model: `Xe kiểm thử ${sequence}`, frame_number: `${suite}-FRAME-${sequence}`, engine_number: `${suite}-ENGINE-${sequence}`, license_plate: `${suite}-PLATE-${sequence}`, purchase_date: intake, purchase_price: 10_000_000, asking_price: 110_000_000, ...overrides })
+      return call('owner', 'save_vehicle', { request_id: randomUUID(), vehicle_type: 'Xe tay ga', frame_number: `${suite}-FRAME-${sequence}`, license_plate: `${suite}-PLATE-${sequence}`, color: `${suite}-MAU-${sequence}`, purchase_date: intake, purchase_price: 10_000_000, ...overrides })
     }
     const sale = async (price, date, initial = 0, overrides = {}) => {
       const vehicleId = await vehicle()
@@ -200,9 +200,9 @@ export async function runOperationalTests(externalDb, { engine = 'postgres' } = 
       assert.equal(data.items.length, 1)
       await deny(() => read('staff', 'get_customer_history', '$1::text', ['0009999999']), /CUSTOMER_NOT_FOUND/)
     })
-    await test('global search executes all result groups and finds code/plate/frame/engine/brand/model/name/phone', async () => {
+    await test('global search executes all result groups and finds code/plate/frame/color/name/phone', async () => {
       const record = await read('staff', 'get_vehicle', '$1::uuid', [partial.vehicleId])
-      for (const field of ['internal_code', 'license_plate', 'frame_number', 'engine_number', 'brand', 'model']) {
+      for (const field of ['internal_code', 'license_plate', 'frame_number', 'color']) {
         const data = await read('staff', 'global_search', '$1::text, $2::integer', [record[field], 30])
         assert.ok(data.vehicles.some(v => v.id === record.id), `Missing ${field} search`)
       }
@@ -229,30 +229,30 @@ export async function runOperationalTests(externalDb, { engine = 'postgres' } = 
       assert.ok(!('gross_profit' in data))
       assert.equal((await read('owner', 'get_sale', '$1::uuid', [partial.id])).gross_profit, 90_000_000)
     })
-    const importRow = (overrides = {}) => ({ frame_number: `${suite}-IMPORT-${randomUUID().slice(0, 8)}`, brand: 'Yamaha', model: 'Xe nhập thử', purchase_date: day, purchase_price: 12_000_000, asking_price: 15_000_000, ...overrides })
+    const importRow = (overrides = {}) => ({ frame_number: `${suite}-IMPORT-${randomUUID().slice(0, 8)}`, vehicle_type: 'Xe tay ga', purchase_date: day, purchase_price: 12_000_000, ...overrides })
     const importBatch = (actor, rows) => call(actor, 'import_vehicles', { request_id: randomUUID(), rows })
     await test('import server preview rejects negative/fractional/garbage money and malformed date/year/enum', async () => {
-      // Brand and frame_number are optional as of migration 20261005000000,
-      // so an empty brand must NOT be flagged as an error. Keep the other
-      // invalid payloads and add a positive assertion for blank brand/frame.
-      for (const values of [{ purchase_price: -1 }, { purchase_price: 1.2 }, { purchase_price: 'abc' }, { purchase_price: 1_000_000_000_001 }, { purchase_date: '2026-02-30' }, { purchase_date: '1/2/2026' }, { purchase_date: tomorrow }, { year: '2023abc' }, { year: 1800 }, { odometer: -5 }, { status: 'SOLD' }]) {
+      // frame_number, license_plate and vehicle_type are the guarded import fields now:
+      // brand/model/engine_number/odometer/asking_price no longer exist on a vehicle,
+      // so an empty frame is accepted but a missing/blank vehicle type must error.
+      for (const values of [{ purchase_price: -1 }, { purchase_price: 1.2 }, { purchase_price: 'abc' }, { purchase_price: 1_000_000_000_001 }, { purchase_date: '2026-02-30' }, { purchase_date: '1/2/2026' }, { purchase_date: tomorrow }, { year: '2023abc' }, { year: 1800 }, { status: 'SOLD' }, { vehicle_type: '' }]) {
         const data = await call('owner', 'validate_import_vehicles', [importRow(values)])
         assert.ok(data.errors.length > 0, `Accepted invalid ${JSON.stringify(values)}`)
       }
-      const blankBrand = await call('owner', 'validate_import_vehicles', [importRow({ brand: '' })])
-      assert.equal(blankBrand.errors.length, 0, 'Empty brand should now be accepted')
       const blankFrame = await call('owner', 'validate_import_vehicles', [importRow({ frame_number: '' })])
       assert.equal(blankFrame.errors.length, 0, 'Empty frame should now be accepted')
+      const missingType = await call('owner', 'validate_import_vehicles', [importRow({ vehicle_type: undefined })])
+      assert.ok(missingType.errors.some(e => e.field === 'vehicle_type'), 'Missing vehicle type must be rejected')
       await deny(() => call('owner', 'validate_import_vehicles', {}), /INVALID_INPUT/)
       await deny(() => call('owner', 'validate_import_vehicles', Array.from({ length: 501 }, () => importRow())), /IMPORT_BATCH_TOO_LARGE/)
     })
-    await test('import preview detects in-file duplicates and existing chassis, engine and plate case-insensitively', async () => {
+    await test('import preview detects in-file duplicates and existing chassis and plate case-insensitively', async () => {
       const record = await read('owner', 'get_vehicle', '$1::uuid', [partial.vehicleId])
-      const existing = await call('owner', 'validate_import_vehicles', [importRow({ frame_number: record.frame_number.toLowerCase(), engine_number: record.engine_number.toLowerCase(), license_plate: record.license_plate.toLowerCase() })])
-      assert.equal(existing.duplicates.length, 3)
-      const a = importRow({ engine_number: 'ENGINE-CSV', license_plate: 'PLATE-CSV' })
+      const existing = await call('owner', 'validate_import_vehicles', [importRow({ frame_number: record.frame_number.toLowerCase(), license_plate: record.license_plate.toLowerCase() })])
+      assert.equal(existing.duplicates.length, 2)
+      const a = importRow({ license_plate: 'PLATE-CSV' })
       const data = await call('owner', 'validate_import_vehicles', [a, { ...a }])
-      assert.equal(data.duplicates.length, 3)
+      assert.equal(data.duplicates.length, 2)
       assert.ok(data.duplicates.every(d => d.index === 1))
       const plateVehicle = await vehicle({ license_plate: '43A1-123.45' })
       const punctuated = await call('owner', 'validate_import_vehicles', [importRow({ license_plate: '43a1 12345' })])
@@ -272,9 +272,9 @@ export async function runOperationalTests(externalDb, { engine = 'postgres' } = 
       assert.equal(Number((await row('SELECT count(*) AS n FROM public.audit_logs')).n), logsBefore)
     })
     await test('unexpected failure in second acquisition rolls back first acquisition and its audit', async () => {
-      await db.exec("CREATE FUNCTION private.test_import_failure() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN IF NEW.model = 'TEST_IMPORT_ROLLBACK' THEN RAISE EXCEPTION 'TEST_IMPORT_FAILURE'; END IF; RETURN NEW; END $$; CREATE TRIGGER test_import_failure BEFORE INSERT ON public.vehicles FOR EACH ROW EXECUTE FUNCTION private.test_import_failure();")
+      await db.exec("CREATE FUNCTION private.test_import_failure() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN IF NEW.license_plate = 'TEST-IMPORT-ROLLBACK' THEN RAISE EXCEPTION 'TEST_IMPORT_FAILURE'; END IF; RETURN NEW; END $$; CREATE TRIGGER test_import_failure BEFORE INSERT ON public.vehicles FOR EACH ROW EXECUTE FUNCTION private.test_import_failure();")
       const first = importRow()
-      const second = importRow({ model: 'TEST_IMPORT_ROLLBACK' })
+      const second = importRow({ license_plate: 'TEST-IMPORT-ROLLBACK' })
       const logsBefore = Number((await row('SELECT count(*) AS n FROM public.audit_logs')).n)
       try {
         await deny(() => importBatch('owner', [first, second]), /TEST_IMPORT_FAILURE/)

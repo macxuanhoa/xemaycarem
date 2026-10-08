@@ -28,7 +28,6 @@ import {
   EmptyState,
   ErrorState,
   Field,
-  GroupedIntegerInput,
   PageHeader,
 } from "@/components/ui";
 import { MoneyInput } from "@/components/ui/MoneyInput";
@@ -37,7 +36,8 @@ import { QuickChips } from "@/components/ui/QuickChips";
 import { saveRecentValue } from "@/lib/recentVehicles";
 import { useDebouncedValue } from "@/lib/useDebouncedValue";
 import { vehicleSuggestions } from "@/lib/vehicleSuggestions";
-import { useQuickPick } from "@/lib/useQuickPick";
+import { useVehicleTypes } from "@/lib/useVehicleTypes";
+import { vehicleTitle } from "@/lib/vehicleDisplay";
 import { useFormDraft } from "@/lib/useFormDraft";
 import { draftFields } from "@/lib/formDrafts";
 import { normalizeVehicleYear } from "@/lib/vehicleInputFormatting";
@@ -70,17 +70,12 @@ function AcquisitionEditor() {
     mode: "onBlur",
     defaultValues: {
       frame_number: "",
-      engine_number: "",
       license_plate: "",
-      brand: "",
-      model: "",
-      variant: "",
+      vehicle_type_id: "",
       year: undefined,
       color: "",
-      odometer: undefined,
       acquisition_date: today(),
       purchase_price: undefined,
-      asking_price: undefined,
       seller_name: "",
       seller_phone: "",
       notes: "",
@@ -93,7 +88,6 @@ function AcquisitionEditor() {
   });
 
   const draft = useFormDraft("acquisition", profile?.id, form);
-  const brand = form.watch("brand");
   const rawFrame = form.watch("frame_number");
   const frame = (rawFrame || "").trim().toUpperCase();
   const checkedFrame = useDebouncedValue(frame, 450);
@@ -107,7 +101,7 @@ function AcquisitionEditor() {
     staleTime: 5 * 60 * 1000,
   });
 
-  const quickPick = useQuickPick();
+  const vehicleTypes = useVehicleTypes();
 
   const duplicateQuery = useQuery({
     queryKey: ["vehicle-frame-check", profile?.id, checkedFrame],
@@ -126,16 +120,19 @@ function AcquisitionEditor() {
         )
       : undefined;
 
-  const suggestions = (field: "brand" | "model" | "variant" | "color") =>
-    vehicleSuggestions(catalog.data?.items ?? [], field, profile?.id, brand);
+  const suggestions = (field: "color") =>
+    vehicleSuggestions(catalog.data?.items ?? [], field, profile?.id);
 
-  const setText = (
-    field: "brand" | "model" | "variant" | "color",
-    value: string,
-  ) =>
+  const setText = (field: "color", value: string) =>
     form.setValue(field, value, {
       shouldDirty: true,
       shouldValidate: !!form.formState.errors[field],
+    });
+
+  const selectVehicleType = (id: string) =>
+    form.setValue("vehicle_type_id", id, {
+      shouldDirty: true,
+      shouldValidate: !!form.formState.errors.vehicle_type_id,
     });
 
   const mutation = useMutation({
@@ -152,8 +149,6 @@ function AcquisitionEditor() {
       const data: Record<string, unknown> = {
         ...values,
         year: values.year ?? null,
-        odometer: values.odometer ?? null,
-        asking_price: values.asking_price ?? 0,
       };
       if (!financial) delete data.purchase_price;
       if (!profile)
@@ -171,13 +166,6 @@ function AcquisitionEditor() {
     onSuccess: async (vehicleId, values) => {
       setPendingConfirmation(null);
       draft.complete();
-      saveRecentValue("brand", values.brand, profile?.id);
-      saveRecentValue(
-        `model:${values.brand.trim().toLowerCase()}`,
-        values.model,
-        profile?.id,
-      );
-      saveRecentValue("variant", values.variant, profile?.id);
       saveRecentValue("color", values.color, profile?.id);
       await client.invalidateQueries();
       navigate(`/vehicles/${vehicleId}`, {
@@ -201,11 +189,7 @@ function AcquisitionEditor() {
     const normalized: AcquisitionFormValues = {
       ...values,
       frame_number: values.frame_number.trim().toUpperCase(),
-      engine_number: values.engine_number.trim().toUpperCase(),
       license_plate: canonicalizePlate(values.license_plate),
-      brand: values.brand.trim(),
-      model: values.model.trim(),
-      variant: values.variant.trim(),
       year: normalizeVehicleYear(values.year) ?? values.year,
       color: values.color.trim(),
       seller_name: values.seller_name.trim(),
@@ -256,7 +240,7 @@ function AcquisitionEditor() {
       />
       {location.state?.aiDraft && (
         <p className="notice">
-          Bản nháp từ ảnh/giọng nói: kiểm tra số khung và nhập giá thu trước khi
+          Bản nháp từ ảnh/giọng nói: kiểm tra lại số khung và giá thu trước khi
           xác nhận.
         </p>
       )}
@@ -265,8 +249,9 @@ function AcquisitionEditor() {
           <div className="row" style={{ gap: "8px", alignItems: "center" }}>
             <Clock size={16} />
             <p>
-              Có bản nháp thu xe chưa hoàn tất trên thiết bị này. Vì lý do bảo
-              mật, giá thu cần nhập lại trước khi xác nhận.
+              Có bản nháp thu xe chưa hoàn tất trên thiết bị này. Nhấn tiếp tục
+              để khôi phục đầy đủ, sau đó kiểm tra lại giá thu trước khi xác
+              nhận.
             </p>
           </div>
           <div className="row" style={{ marginTop: "10px" }}>
@@ -377,9 +362,7 @@ function AcquisitionEditor() {
                       <strong>Số khung đã tồn tại trong hệ thống</strong>
                     </div>
                     <div style={{ marginTop: "6px" }}>
-                      <strong>
-                        {duplicate.brand} {duplicate.model}
-                      </strong>{" "}
+                      <strong>{vehicleTitle(duplicate)}</strong>{" "}
                       · {duplicate.license_plate || duplicate.internal_code}
                     </div>
                     <div style={{ marginTop: "6px" }}>
@@ -392,22 +375,6 @@ function AcquisitionEditor() {
                     </div>
                   </div>
                 )}
-              </Field>
-
-              <Field label="Số máy" error={error("engine_number")}>
-                <input
-                  autoCapitalize="characters"
-                  enterKeyHint="next"
-                  {...form.register("engine_number")}
-                  onBlur={() => {
-                    const val = form.getValues("engine_number");
-                    form.setValue("engine_number", val.trim().toUpperCase(), {
-                      shouldValidate: true,
-                      shouldTouch: true,
-                    });
-                  }}
-                  placeholder="Nhập số máy (nếu có)"
-                />
               </Field>
 
               <Field label="Biển số (nếu có)" error={error("license_plate")}>
@@ -426,44 +393,24 @@ function AcquisitionEditor() {
                 />
               </Field>
 
-              <Field label="Hãng xe" error={error("brand")}>
-                <AutocompleteInput
-                  aria-label="Hãng xe"
-                  value={brand}
-                  onChange={(value) => setText("brand", value)}
-                  onBlur={() => {
-                    void form.trigger("brand");
-                  }}
-                  suggestions={suggestions("brand")}
-                  placeholder="Ví dụ: Honda"
-                  enterKeyHint="next"
-                />
+              <Field label="Loại xe *" error={error("vehicle_type_id")}>
+                <select
+                  aria-label="Loại xe *"
+                  {...form.register("vehicle_type_id")}
+                >
+                  <option value="">
+                    {vehicleTypes.isLoading
+                      ? "Đang tải danh mục…"
+                      : "— Chọn loại xe —"}
+                  </option>
+                  {vehicleTypes.items.map((type) => (
+                    <option key={type.id} value={type.id}>
+                      {type.name}
+                    </option>
+                  ))}
+                </select>
               </Field>
 
-              <Field label="Dòng xe *" error={error("model")}>
-                <AutocompleteInput
-                  aria-label="Dòng xe *"
-                  value={form.watch("model")}
-                  onChange={(value) => setText("model", value)}
-                  onBlur={() => {
-                    void form.trigger("model");
-                  }}
-                  suggestions={suggestions("model")}
-                  placeholder="Ví dụ: SH 160i, Vision…"
-                  enterKeyHint="next"
-                />
-              </Field>
-
-              <Field label="Phiên bản" error={error("variant")}>
-                <AutocompleteInput
-                  aria-label="Phiên bản"
-                  value={form.watch("variant")}
-                  onChange={(value) => setText("variant", value)}
-                  onBlur={() => void form.trigger("variant")}
-                  suggestions={suggestions("variant")}
-                  placeholder="ABS, Cao cấp, Đặc biệt…"
-                />
-              </Field>
               <Field label="Năm sản xuất" error={error("year")}>
                 <input
                   type="number"
@@ -506,40 +453,6 @@ function AcquisitionEditor() {
                   placeholder="Ví dụ: Đỏ đen, Trắng…"
                 />
               </Field>
-              <Field label="Số km đã đi" error={error("odometer")}>
-                <GroupedIntegerInput
-                  aria-label="Số km đã đi"
-                  placeholder="12.500"
-                  value={form.watch("odometer")}
-                  onBlur={() => void form.trigger("odometer")}
-                  onChange={(digits) =>
-                    form.setValue(
-                      "odometer",
-                      digits ? Number(digits) : undefined,
-                      {
-                        shouldDirty: true,
-                        shouldValidate: !!error("odometer"),
-                      },
-                    )
-                  }
-                />
-              </Field>
-
-              <Field label="Giá bán dự kiến (₫)" error={error("asking_price")}>
-                <MoneyInput
-                  aria-label="Giá bán dự kiến (₫)"
-                  placeholder="Ví dụ: 95tr hoặc 95.000.000"
-                  value={form.watch("asking_price")}
-                  onChange={(value) =>
-                    form.setValue("asking_price", value, {
-                      shouldDirty: true,
-                      shouldValidate: !!error("asking_price"),
-                    })
-                  }
-                  onBlur={() => void form.trigger("asking_price")}
-                />
-              </Field>
-
               {financial && (
                 <Field label="Giá thu (₫) *" error={error("purchase_price")}>
                   <MoneyInput
@@ -576,19 +489,11 @@ function AcquisitionEditor() {
             </div>
 
             <QuickChips
-              label="Chọn nhanh hãng xe"
-              options={quickPick.brandChips}
-              selected={brand}
-              onSelect={(value) => setText("brand", value)}
+              label="Chọn nhanh loại xe"
+              options={vehicleTypes.chips}
+              selected={form.watch("vehicle_type_id")}
+              onSelect={selectVehicleType}
             />
-            {brand.trim() && quickPick.modelsFor(brand).length > 0 && (
-              <QuickChips
-                label="Chọn nhanh dòng xe"
-                options={quickPick.modelsFor(brand)}
-                selected={form.watch("model")}
-                onSelect={(value) => setText("model", value)}
-              />
-            )}
 
             <Field label="Ghi chú" error={error("notes")}>
               <textarea
@@ -643,11 +548,7 @@ function AcquisitionEditor() {
 
         <div className="form-actions form-actions-acquisition form-footer-actions">
           <div className="form-actions-status">
-            {isDraftRestored &&
-            financial &&
-            (form.watch("purchase_price") === undefined ||
-              form.watch("purchase_price") === null ||
-              form.watch("purchase_price") === ("" as unknown as number)) ? (
+            {isDraftRestored ? (
               <div
                 className="draft-status-subtle"
                 role="status"
@@ -658,9 +559,8 @@ function AcquisitionEditor() {
                   className="status-icon positive"
                   aria-hidden="true"
                 />
-                <span className="status-text">Đã khôi phục bản nháp</span>
-                <span className="status-reentry-hint">
-                  Giá thu cần nhập lại.
+                <span className="status-text">
+                  Đã khôi phục bản nháp — kiểm tra lại giá thu trước khi xác nhận.
                 </span>
               </div>
             ) : draft.saved ? (
@@ -736,12 +636,11 @@ function AcquisitionEditor() {
 
             <div className="confirm-summary-list">
               <div className="confirm-summary-row">
-                <span className="confirm-label">Hãng & Dòng xe:</span>
+                <span className="confirm-label">Loại xe:</span>
                 <strong className="confirm-value">
-                  {pendingConfirmation.brand} {pendingConfirmation.model}
-                  {pendingConfirmation.variant
-                    ? ` (${pendingConfirmation.variant})`
-                    : ""}
+                  {vehicleTypes.nameOf(pendingConfirmation.vehicle_type_id) ||
+                    pendingConfirmation.vehicle_type_id ||
+                    "—"}
                 </strong>
               </div>
               <div className="confirm-summary-row">
@@ -755,18 +654,6 @@ function AcquisitionEditor() {
                 <code className="confirm-code">
                   {pendingConfirmation.frame_number}
                 </code>
-              </div>
-              <div className="confirm-summary-row">
-                <span className="confirm-label">Số máy:</span>
-                <span className="confirm-value">
-                  {pendingConfirmation.engine_number ? (
-                    <code className="confirm-code">
-                      {pendingConfirmation.engine_number}
-                    </code>
-                  ) : (
-                    "Chưa có"
-                  )}
-                </span>
               </div>
               {financial && (
                 <div className="confirm-summary-row highlight-price">
@@ -797,14 +684,6 @@ function AcquisitionEditor() {
                   {dateLabel(pendingConfirmation.acquisition_date)}
                 </span>
               </div>
-              {pendingConfirmation.asking_price ? (
-                <div className="confirm-summary-row">
-                  <span className="confirm-label">Giá bán dự kiến:</span>
-                  <span className="confirm-value">
-                    {money(pendingConfirmation.asking_price)}
-                  </span>
-                </div>
-              ) : null}
             </div>
 
             {mutation.isError && <ErrorState error={mutation.error} />}

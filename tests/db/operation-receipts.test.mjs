@@ -13,7 +13,7 @@ try {
   await db.query("UPDATE public.profiles SET role='OWNER', active=true WHERE id=$1", [owner]);
   await db.query("UPDATE public.profiles SET role='STAFF', active=true WHERE id=$1", [staff]);
   const day = (await db.query('SELECT private.today()::text AS day')).rows[0].day;
-  const intake = (extra={}) => ({ brand:'Honda', model:'Synthetic', frame_number:'', purchase_price:100, acquisition_date:day, request_id:randomUUID(), ...extra });
+  const intake = (extra={}) => ({ vehicle_type:'Xe tay ga', frame_number:'', purchase_price:100, acquisition_date:day, request_id:randomUUID(), ...extra });
   let vehicle, sale;
   await test('concurrent keyed intake without frame stores one acquisition and returns same vehicle', async () => {
     const data = intake(); const a = await db.connection(), b = await db.connection();

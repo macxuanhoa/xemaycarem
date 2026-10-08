@@ -9,8 +9,8 @@ import { test, expect } from '@playwright/test'
 // engine degrades to "unavailable" and this spec skips with that reason.
 const userId = '11111111-1111-4111-8111-111111111111'
 const vehicleId = '22222222-2222-4222-8222-222222222222'
-const known = { id: vehicleId, internal_code: 'XE-TEST-000001', brand: 'Honda', model: 'Vision', frame_number: 'RLHTEST000001',
-  license_plate: '59-A1 234.56', status: 'IN_STOCK', purchase_date: '2026-10-01', asking_price: 45000000, year: 2022, color: 'Đen' }
+const known = { id: vehicleId, internal_code: 'XE-TEST-000001', vehicle_type_id: 'vt-ga', vehicle_type: 'Xe tay ga',
+  frame_number: 'RLHTEST000001', license_plate: '59-A1 234.56', status: 'IN_STOCK', purchase_date: '2026-10-01', year: 2022, color: 'Đen' }
 
 test('smart camera runtime: real WASM OCR reads a rendered plate with zero cloud calls', async ({ page }) => {
   test.setTimeout(240_000)
@@ -48,7 +48,7 @@ test('smart camera runtime: real WASM OCR reads a rendered plate with zero cloud
     if (name === 'get_settings') return reply({ store_name: 'Xe CRM fixture', phone: '', address: '' })
     if (name === 'list_vehicles') {
       const search = String(body.p_filters?.search ?? '').toUpperCase()
-      const hay = row => `${row.license_plate ?? ''} ${row.brand ?? ''} ${row.model ?? ''} ${row.frame_number ?? ''} ${row.engine_number ?? ''}`.toUpperCase()
+      const hay = row => `${row.license_plate ?? ''} ${row.frame_number ?? ''} ${row.internal_code ?? ''} ${row.color ?? ''} ${row.vehicle_type ?? ''}`.toUpperCase()
       const items = search ? [known].filter(row => hay(row).includes(search)) : [known]
       return reply({ items, total: items.length })
     }
@@ -76,7 +76,7 @@ test('smart camera runtime: real WASM OCR reads a rendered plate with zero cloud
   await page.getByLabel('Chọn ảnh xe từ thư viện').setInputFiles({ name: 'plate.png', mimeType: 'image/png', buffer })
 
   // Real recognition over the real engine — or an honest environment skip.
-  const matched = page.getByText(/Đã xác khớp xe trong kho: Honda Vision · 59-A1 234\.56/)
+  const matched = page.getByText(/Đã xác khớp xe trong kho: 59-A1 234\.56 · RLHTEST000001/)
   const degraded = page.getByText('OCR trên máy không tải được — dùng ảnh thư viện, AI hoặc nhập tay')
   await Promise.race([
     matched.waitFor({ timeout: 200_000 }),

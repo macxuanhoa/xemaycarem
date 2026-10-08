@@ -37,57 +37,73 @@ describe('Input Fuzzing and Malicious Payload Handling', () => {
   ]
 
   describe('Vehicle Schema Resilience', () => {
+    // Khuôn hồ sơ xe sau 08/10/2026: loại xe lấy từ danh mục, không còn
+    // Hãng / Dòng / Phiên bản / Số máy / Số km / Giá bán dự kiến.
     const validVehicle = {
-      brand: 'Honda',
-      model: 'Air Blade',
+      vehicle_type_id: 'type-xe-tay-ga',
       purchase_date: '2026-09-30',
-      asking_price: 45_000_000,
       status: 'IN_STOCK' as const,
       license_plate: '',
       color: '',
       frame_number: '',
-      engine_number: '',
-      odometer: 0,
       supplier_name: '',
       supplier_phone: '',
       notes: '',
     }
+    const purgedKeys = ['brand', 'model', 'variant', 'engine_number', 'odometer', 'asking_price'] as const
 
     it('sanitizes and treats SQL injection strings in vehicle fields as literal text without crashing', () => {
       for (const payload of sqlInjectionPayloads) {
         const vehicle = {
           ...validVehicle,
-          brand: payload.slice(0, 80),
+          color: payload.slice(0, 60),
+          frame_number: payload.slice(0, 100),
           notes: payload,
         }
         const parsed = vehicleSchema.safeParse(vehicle)
+        expect(parsed.success, payload).toBe(true)
         if (parsed.success) {
-          expect(typeof parsed.data.brand).toBe('string')
+          expect(parsed.data.color).toBe(payload.slice(0, 60))
+          expect(parsed.data.frame_number).toBe(payload.slice(0, 100))
           expect(parsed.data.notes).toBe(payload)
         }
       }
     })
 
-    it('rejects strings exceeding database column limits (e.g. brand > 80 chars, model > 120 chars)', () => {
-      const oversizedBrand = 'A'.repeat(81)
-      const oversizedModel = 'M'.repeat(121)
+    it('never lets a payload injected through a purged key reach the payload', () => {
+      // Client cũ / form cũ vẫn có thể gửi các khoá đã xoá: schema phải
+      // chặn, không được âm thầm chuyển tiếp chúng xuống RPC.
+      for (const key of purgedKeys) {
+        const parsed = vehicleSchema.safeParse({
+          ...validVehicle,
+          [key]: "'; DROP TABLE vehicles; --",
+        })
+        expect(parsed.success, key).toBe(true)
+        if (parsed.success) expect(parsed.data, key).not.toHaveProperty(key)
+      }
+      expect(vehicleSchema.safeParse({ ...validVehicle, vehicle_type_id: '' }).success).toBe(false)
+    })
+
+    it('rejects strings exceeding database column limits (e.g. color > 60 chars, frame > 100 chars)', () => {
       const oversizedLicensePlate = 'P'.repeat(31)
       const oversizedFrame = 'F'.repeat(101)
-      const oversizedEngine = 'E'.repeat(101)
+      const oversizedColor = 'C'.repeat(61)
+      const oversizedSupplierName = 'S'.repeat(161)
+      const oversizedSupplierPhone = '0'.repeat(31)
       const oversizedNotes = 'N'.repeat(5001)
 
-      expect(vehicleSchema.safeParse({ ...validVehicle, brand: oversizedBrand }).success).toBe(false)
-      expect(vehicleSchema.safeParse({ ...validVehicle, model: oversizedModel }).success).toBe(false)
       expect(vehicleSchema.safeParse({ ...validVehicle, license_plate: oversizedLicensePlate }).success).toBe(false)
       expect(vehicleSchema.safeParse({ ...validVehicle, frame_number: oversizedFrame }).success).toBe(false)
-      expect(vehicleSchema.safeParse({ ...validVehicle, engine_number: oversizedEngine }).success).toBe(false)
+      expect(vehicleSchema.safeParse({ ...validVehicle, color: oversizedColor }).success).toBe(false)
+      expect(vehicleSchema.safeParse({ ...validVehicle, supplier_name: oversizedSupplierName }).success).toBe(false)
+      expect(vehicleSchema.safeParse({ ...validVehicle, supplier_phone: oversizedSupplierPhone }).success).toBe(false)
       expect(vehicleSchema.safeParse({ ...validVehicle, notes: oversizedNotes }).success).toBe(false)
     })
 
     it('rejects scientific notation or exponential string attempts in money fields', () => {
-      expect(vehicleSchema.safeParse({ ...validVehicle, asking_price: ('1e8' as unknown as number) }).success).toBe(false)
-      expect(vehicleSchema.safeParse({ ...validVehicle, asking_price: NaN }).success).toBe(false)
-      expect(vehicleSchema.safeParse({ ...validVehicle, asking_price: Infinity }).success).toBe(false)
+      expect(vehicleSchema.safeParse({ ...validVehicle, purchase_price: ('1e8' as unknown as number) }).success).toBe(false)
+      expect(vehicleSchema.safeParse({ ...validVehicle, purchase_price: NaN }).success).toBe(false)
+      expect(vehicleSchema.safeParse({ ...validVehicle, purchase_price: Infinity }).success).toBe(false)
     })
   })
 

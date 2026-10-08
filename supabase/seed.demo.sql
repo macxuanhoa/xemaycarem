@@ -4,12 +4,18 @@
 -- Chi phí (vehicle + business expenses), Tổng quan (dashboard) and Lịch sử (audit).
 --
 -- It reuses the real SECURITY DEFINER RPCs (acquire_vehicle, save_vehicle, save_expense,
--- sell_vehicle, add_payment, cancel_acquisition) so RLS, cost snapshots and derived
--- views behave exactly like real usage. Data is marked '[DEVELOPMENT-SEED-DEMO]%' and
--- the whole script is idempotent: it exits early if that marker already exists.
+-- sell_vehicle, prepare_payment_receipt, add_payment, cancel_acquisition) so RLS, cost
+-- snapshots and derived views behave exactly like real usage. Data is marked
+-- '[DEVELOPMENT-SEED-DEMO]%' and the whole script is idempotent: it exits early if that
+-- marker already exists.
 --
 -- Requires an already-provisioned, ACTIVE OWNER (role='OWNER', active=true).
 -- Safe on a development database only. Never run against production customer data.
+--
+-- Contract notes: a vehicle is identified by biển số · số khung and described only by
+-- loại xe (catalog), đời xe and màu sơn. There is no brand/model/variant, no engine
+-- number, no odometer and no expected asking price; the only price a vehicle ever
+-- carries is the sale_price typed on a real bán hàng form.
 
 do $$
 declare
@@ -17,6 +23,7 @@ declare
   v_vehicle uuid;
   v_sale uuid;
   v_acq uuid;
+  v_receipt jsonb;
   v_row record;
   v_purchase_date date;
   v_expense_date date;
@@ -36,36 +43,37 @@ begin
   perform set_config('request.jwt.claim.sub', v_owner::text, true);
   perform set_config('request.jwt.claims', jsonb_build_object('sub', v_owner, 'role', 'authenticated')::text, true);
 
-  -- Columns: brand, model, variant, color, year, odo, plate, frame, engine,
-  --          purchase, asking, age(days held), state, customer, phone,
+  -- Columns: vehicle_type, color, year, plate, frame,
+  --          purchase, age(days held), state, customer, phone,
   --          saleage(days ago sold), price, initial, method, dueoff(days from today; 0=none), addpay
   for v_row in
     select * from (values
-      ('Honda','SH 160i','ABS','Trắng',2025,3200,'59-B1 234.56','RLHKC2025AA00123','JC25E00123', 79000000::bigint,89900000::bigint, 4,'IN_STOCK','','',0,0::bigint,0::bigint,'',0,0::bigint),
-      ('Honda','Vision','Cao cấp','Đen',2025,150,'59-E1 88.01','RLHKC2025AA00456','HC25E00456', 31500000,37000000, 0,'IN_STOCK','','',0,0,0,'',0,0),
-      ('Honda','Wave Alpha','','Đỏ đen',2024,15000,'59-F8 21.36','RLHKC2024AA00789','HC24E00789', 12800000,16500000, 110,'IN_STOCK','','',0,0,0,'',0,0),
-      ('Yamaha','Exciter 155','RR','Xám đen',2025,2100,'59-M1 777.77','RLHYC2025AA00321','HY25E00321', 38500000,45000000, 22,'RESERVED','','',0,0,0,'',0,0),
-      ('Yamaha','Grande','Hybrid','Xanh ngọc',2024,8000,'61-B1 456.78','RLHYC2024AA00654','HY24E00654', 30500000,36500000, 48,'IN_STOCK','','',0,0,0,'',0,0),
-      ('Piaggio','Liberty','125S','Trắng',2023,19500,'59-D1 333.33','RLPIA2023AA00987','PI23E00987', 30000000,36900000, 125,'IN_STOCK','','',0,0,0,'',0,0),
-      ('Suzuki','Pro 150R','','Đen nhám',2024,6400,'59-S1 222.22','RLSUZ2024AA00111','SZ24E00111', 22500000,27500000, 66,'IN_STOCK','','',0,0,0,'',0,0),
-      ('Honda','Winner X','150','Xanh',2024,11000,'59-W1 111.11','RLHKC2024AA00777','HC24E00777', 34000000,40000000, 30,'IN_STOCK','','',0,0,0,'',0,0),
-      ('Honda','Lead','125','Nâu',2025,900,'59-G1 456.12','RLHKC2025AA00222','HC25E00222', 33000000,39000000, 9,'SOLD','Trần Minh Anh','0903123456', 0,39000000,39000000,'BANK_TRANSFER',0,0),
-      ('Honda','SH Mode','125','Trắng kem',2024,12000,'59-B2 888.88','RLHKC2024AA00333','HC24E00333', 45000000,53000000, 16,'SOLD','Nguyễn Thị Hồng','0912345678', 6,53000000,20000000,'CASH',14,10000000),
-      ('Yamaha','Janus','125','Hồng',2023,16000,'59-N1 555.55','RLHYC2023AA00444','HY23E00444', 25000000,30000000, 98,'SOLD','Lê Hoàng Phúc','0978654321', 35,30000000,10000000,'BANK_TRANSFER',-10,0),
-      ('Honda','Air Blade','160','Xanh titan',2025,2600,'59-P1 606.06','RLHKC2025AA00555','HC25E00555', 41000000,48000000, 5,'SOLD','Phạm Thu Hà','0988776655', 0,48000000,48000000,'BANK_TRANSFER',0,0),
-      ('Piaggio','Sprint','125','Xanh',2023,9800,'59-V1 999.99','RLPIA2023AA00666','PI23E00666', 48000000,58000000, 150,'SOLD','Đặng Văn Khoa','0905111222', 62,58000000,58000000,'CASH',0,0)
-    ) as d(brand,model,variant,color,year,odo,plate,frame,engine,purchase,asking,age,state,cust,phone,saleage,price,init,method,dueoff,addpay)
+      ('Xe tay ga','Trắng',2025,'59-B1 234.56','RLHKC2025AA00123', 79000000::bigint, 4,'IN_STOCK','','',0,0::bigint,0::bigint,'',0,0::bigint),
+      ('Ga 50cc','Đen',2025,'59-E1 88.01','RLHKC2025AA00456', 31500000, 0,'IN_STOCK','','',0,0,0,'',0,0),
+      ('Xe số','Đỏ đen',2024,'59-F8 21.36','RLHKC2024AA00789', 12800000, 110,'IN_STOCK','','',0,0,0,'',0,0),
+      ('Xe côn tay','Xám đen',2025,'59-M1 777.77','RLHYC2025AA00321', 38500000, 22,'RESERVED','','',0,0,0,'',0,0),
+      ('Xe tay ga','Xanh ngọc',2024,'61-B1 456.78','RLHYC2024AA00654', 30500000, 48,'IN_STOCK','','',0,0,0,'',0,0),
+      ('Xe tay ga','Trắng',2023,'59-D1 333.33','RLPIA2023AA00987', 30000000, 125,'IN_STOCK','','',0,0,0,'',0,0),
+      ('Xe côn tay','Đen nhám',2024,'59-S1 222.22','RLSUZ2024AA00111', 22500000, 66,'IN_STOCK','','',0,0,0,'',0,0),
+      ('Xe côn tay','Xanh',2024,'59-W1 111.11','RLHKC2024AA00777', 34000000, 30,'IN_STOCK','','',0,0,0,'',0,0),
+      ('Xe điện','Đen',2024,'59-D9 900.90','VFKTE2024AA00333', 24000000, 18,'IN_STOCK','','',0,0,0,'',0,0),
+      ('Xe tay ga','Nâu',2025,'59-G1 456.12','RLHKC2025AA00222', 33000000, 9,'SOLD','Trần Minh Anh','0903123456', 0,39000000,39000000,'BANK_TRANSFER',0,0),
+      ('Xe tay ga','Trắng kem',2024,'59-B2 888.88','RLHKC2024AA00333', 45000000, 16,'SOLD','Nguyễn Thị Hồng','0912345678', 6,53000000,20000000,'CASH',14,10000000),
+      ('Xe tay ga','Hồng',2023,'59-N1 555.55','RLHYC2023AA00444', 25000000, 98,'SOLD','Lê Hoàng Phúc','0978654321', 35,30000000,10000000,'BANK_TRANSFER',-10,0),
+      ('Xe tay ga','Xanh titan',2025,'59-P1 606.06','RLHKC2025AA00555', 41000000, 5,'SOLD','Phạm Thu Hà','0988776655', 0,48000000,48000000,'BANK_TRANSFER',0,0),
+      ('Xe tay ga','Xanh',2023,'59-V1 999.99','RLPIA2023AA00666', 48000000, 150,'SOLD','Đặng Văn Khoa','0905111222', 62,58000000,58000000,'CASH',0,0)
+    ) as d(vehicle_type,color,year,plate,frame,purchase,age,state,cust,phone,saleage,price,init,method,dueoff,addpay)
   loop
     v_purchase_date := v_today - v_row.age;
 
     -- Thu vào: creates vehicle + financials + acquisition atomically.
     v_vehicle := public.acquire_vehicle(jsonb_build_object(
-      'frame_number', v_row.frame, 'engine_number', v_row.engine, 'license_plate', v_row.plate,
-      'brand', v_row.brand, 'model', v_row.model, 'variant', v_row.variant, 'color', v_row.color,
-      'year', v_row.year, 'odometer', v_row.odo,
-      'purchase_price', v_row.purchase, 'asking_price', v_row.asking,
+      'request_id', gen_random_uuid(),
+      'frame_number', v_row.frame, 'license_plate', v_row.plate,
+      'vehicle_type', v_row.vehicle_type, 'color', v_row.color, 'year', v_row.year,
+      'purchase_price', v_row.purchase,
       'acquisition_date', v_purchase_date::text,
-      'seller_name', 'Nhà cung cấp mẫu ' || v_row.brand, 'seller_phone', '',
+      'seller_name', 'Nhà cung cấp mẫu', 'seller_phone', '',
       'notes', '[DEVELOPMENT-SEED-DEMO] Dữ liệu giả lập để kiểm thử trực quan; không phải giao dịch thực tế.',
       'acquisition_notes', '[DEVELOPMENT-SEED-DEMO] Phiếu thu vào mẫu.'));
 
@@ -80,6 +88,7 @@ begin
     elsif v_row.state = 'SOLD' then
       v_sale_date := v_today - v_row.saleage;
       v_sale := public.sell_vehicle(jsonb_build_object(
+        'request_id', gen_random_uuid(),
         'vehicle_id', v_vehicle, 'customer_name', v_row.cust, 'customer_phone', v_row.phone,
         'sale_price', v_row.price, 'sale_date', v_sale_date::text,
         'initial_payment', v_row.init, 'payment_method', v_row.method,
@@ -87,18 +96,28 @@ begin
         'notes', '[DEVELOPMENT-SEED-DEMO] Giao dịch bán mẫu.')
         - 'null');
       if v_row.addpay > 0 then
+        -- Một đợt thu bổ sung đi đúng protocol biên lai đã xác minh.
+        v_receipt := public.prepare_payment_receipt(jsonb_build_object(
+          'request_id', gen_random_uuid(), 'sale_id', v_sale, 'amount', v_row.addpay,
+          'payment_method', 'CASH', 'payment_date', v_today::text,
+          'evidence_kind', 'CASH_VOUCHER', 'evidence_scope', 'QUẦY THU NGÂN',
+          'evidence_reference', 'SAMPLE-' || v_row.frame,
+          'notes', '[DEVELOPMENT-SEED-DEMO] Đợt thu bổ sung.'));
         perform public.add_payment(jsonb_build_object(
+          'request_id', gen_random_uuid(), 'receipt_id', (v_receipt->>'id')::uuid,
           'sale_id', v_sale, 'amount', v_row.addpay, 'payment_method', 'CASH',
-          'payment_date', v_today::text, 'notes', '[DEVELOPMENT-SEED-DEMO] Đợt thu bổ sung.'));
+          'payment_date', v_today::text,
+          'verification_reference', '[DEVELOPMENT-SEED-DEMO] Đã đối soát chứng từ mẫu'));
       end if;
     end if;
   end loop;
 
   -- Một thương vụ thu vào đã hủy để màn hình Thu vào có trạng thái CANCELLED.
   v_vehicle := public.acquire_vehicle(jsonb_build_object(
-    'frame_number', 'RLSUZ2022AA00888', 'engine_number', 'SZ22E00888', 'license_plate', '59-A1 313.13',
-    'brand', 'Suzuki', 'model', 'Address', 'variant', '', 'color', 'Đen', 'year', 2022, 'odometer', 20000,
-    'purchase_price', 15000000, 'asking_price', 19000000,
+    'request_id', gen_random_uuid(),
+    'frame_number', 'RLSUZ2022AA00888', 'license_plate', '59-A1 313.13',
+    'vehicle_type', 'Xe tay ga', 'color', 'Đen', 'year', 2022,
+    'purchase_price', 15000000,
     'acquisition_date', (v_today - 80)::text,
     'seller_name', 'Nhà cung cấp mẫu (đổi ý)', 'seller_phone', '',
     'notes', '[DEVELOPMENT-SEED-DEMO] Xe mẫu đã hủy thu vào.',

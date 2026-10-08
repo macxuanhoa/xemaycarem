@@ -35,6 +35,7 @@ import {
 } from "@/components/ui";
 import { Highlight } from "@/components/search/Highlight";
 import type { ReceivablesSummary, Sale } from "@/types";
+import { vehicleTitle } from "@/lib/vehicleDisplay";
 import { PaymentEditor } from "./SaleDetailPage";
 
 const pageSize = 6;
@@ -378,7 +379,7 @@ export function ReceivablesPage({
                       </td>
                       <td>
                         <strong>
-                          <Highlight text={`${sale.brand} ${sale.model}`} query={deferredSearch} />
+                          <Highlight text={vehicleTitle(sale)} query={deferredSearch} />
                         </strong>
                         <small>
                           <Highlight text={sale.internal_code} query={deferredSearch} /> ·{" "}
@@ -496,7 +497,7 @@ export function ReceivablesPage({
                   </div>
                   <div className="row between small">
                     <span>
-                      <Highlight text={`${sale.brand} ${sale.model}`} query={deferredSearch} /> (<Highlight text={sale.internal_code} query={deferredSearch} />)
+                      <Highlight text={vehicleTitle(sale)} query={deferredSearch} /> (<Highlight text={sale.internal_code} query={deferredSearch} />)
                     </span>
                     <span className="muted">{dateLabel(sale.sale_date)}</span>
                   </div>
@@ -713,7 +714,7 @@ export function ReceivablesPage({
                   <h3>Thu thêm tiền công nợ</h3>
                   <p className="muted small">
                     {payingSale.sale_code} · {payingSale.customer_name} (
-                    {payingSale.brand} {payingSale.model})
+                    {vehicleTitle(payingSale)})
                   </p>
                 </div>
               </div>

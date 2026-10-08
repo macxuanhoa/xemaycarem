@@ -8,48 +8,38 @@
  * user to assign or teach.
  */
 import {
-  BRAND_ALIASES,
   COLOR_ALIASES,
+  DEFAULT_VEHICLE_TYPE_NAMES,
   KEYWORD_FIELDS,
-  MODEL_ALIASES,
-  MODEL_BRANDS,
   STOP_TOKENS,
-  VARIANT_TOKENS,
+  VEHICLE_TYPE_ALIASES,
+  matchVehicleType,
   normalizeKey,
+  vehicleTypeKey,
 } from "./vocabulary";
 import { normalizePlate } from "@/lib/plate";
 import { normalizeVehicleYear } from "@/lib/vehicleInputFormatting";
 
 export type IntakeFieldKey =
-  | "brand"
-  | "model"
-  | "variant"
+  | "vehicle_type"
   | "color"
   | "frame_number"
-  | "engine_number"
   | "license_plate"
   | "year"
-  | "odometer"
   | "purchase_date"
   | "purchase_price"
-  | "asking_price"
   | "supplier_name"
   | "supplier_phone"
   | "notes";
 
 export const INTAKE_FIELDS: { key: IntakeFieldKey; label: string }[] = [
-  { key: "brand", label: "Hãng" },
-  { key: "model", label: "Dòng xe" },
-  { key: "variant", label: "Phiên bản" },
+  { key: "vehicle_type", label: "Loại xe" },
   { key: "color", label: "Màu sắc" },
   { key: "frame_number", label: "Số khung" },
-  { key: "engine_number", label: "Số máy" },
   { key: "license_plate", label: "Biển số" },
   { key: "year", label: "Năm sản xuất" },
-  { key: "odometer", label: "Số km" },
   { key: "purchase_date", label: "Ngày thu" },
   { key: "purchase_price", label: "Giá thu" },
-  { key: "asking_price", label: "Giá bán dự kiến" },
   { key: "supplier_name", label: "Tên người bán" },
   { key: "supplier_phone", label: "SĐT người bán" },
   { key: "notes", label: "Ghi chú" },
@@ -113,17 +103,6 @@ export function parseShorthandMoney(raw: string): number | null {
   return null;
 }
 
-/** Odometer shorthand: "2v" → 20_000 km, "1.5wan"? → only v/km/number+km supported. */
-function parseShorthandKm(raw: string): number | null {
-  const t = normalizeKey(raw).replace(/\s+/g, "");
-  const m = t.match(/^(\d+(?:[.,]\d{1,3})?)(v|km)$/);
-  if (!m) return null;
-  const value = Number(m[1].replace(",", ".")) * (m[2] === "v" ? 10_000 : 1);
-  return Number.isFinite(value) && value >= 0 && value <= 10_000_000
-    ? Math.round(value)
-    : null;
-}
-
 /** Vietnamese plate: 29b1 123.45 / 51X1-887.65 / 29-A1-1234 → "29-B1 123.45".
  *  The canonical implementation lives in `@/lib/plate`; re-exported here so the
  *  shorthand parser and its callers keep a single source of truth. */
@@ -157,6 +136,74 @@ function looksLikeFrame(token: string): boolean {
   return normalizePlate(token) === null;
 }
 
+type TypeMatch = { name: string; start: number; end: number };
+
+/**
+ * Điểm nối của khoá từng token khi ghép cả dòng lại (luôn bắt đầu bằng 0 và
+ * kết thúc bằng tổng độ dài) — dùng làm ranh giới để khớp tên loại xe.
+ */
+function typeKeyBounds(tokens: string[]): number[] {
+  const bounds: number[] = [0];
+  for (const token of tokens) bounds.push(bounds[bounds.length - 1] + vehicleTypeKey(token).length);
+  return bounds;
+}
+
+/**
+ * Nhận loại xe trên cả dòng, không chỉ từng token một, vì tên danh mục tiếng
+ * Việt hay có khoảng trắng ("tay ga", "ga 50 cc"). Các token được nối thành
+ * một chuỗi khoá không khoảng trắng; một ứng viên chỉ hợp lệ khi điểm đầu và
+ * điểm cuối của nó trùng đúng ranh giới token — nhờ đó "so" trong mã khung hoặc
+ * biển số không bị hiểu nhầm là "Xe số".
+ *
+ * Kết quả luôn là tên có thật trong danh mục đang dùng (matchVehicleType);
+ * không khớp thì trả null để token rơi vào hàng đợi chip lạ + Ghi chú. Hãng xe,
+ * dòng xe đã bị xoá nên không còn chuyện "token lạ thành Dòng xe".
+ */
+function findVehicleType(
+  tokens: string[],
+  bounds: number[],
+  catalogue: readonly string[],
+): TypeMatch | null {
+  const joined = tokens.map((token) => vehicleTypeKey(token)).join("");
+  if (!joined) return null;
+  const boundary = new Set(bounds);
+  const needles = new Set<string>();
+  for (const name of catalogue) {
+    const key = vehicleTypeKey(name);
+    if (key.length >= 2) needles.add(key);
+  }
+  for (const alias of Object.keys(VEHICLE_TYPE_ALIASES)) {
+    if (alias.length >= 2) needles.add(alias);
+  }
+  let best: TypeMatch | null = null;
+  for (const needle of needles) {
+    const name = matchVehicleType(needle, catalogue);
+    if (!name) continue;
+    let at = joined.indexOf(needle);
+    while (at >= 0) {
+      const end = at + needle.length;
+      if (boundary.has(at) && boundary.has(end)) {
+        if (
+          !best ||
+          at < best.start ||
+          (at === best.start && end - at > best.end - best.start)
+        )
+          best = { name, start: at, end };
+      }
+      at = joined.indexOf(needle, at + 1);
+    }
+  }
+  return best;
+}
+
+/** Số token bị loại xe ăn mất, tính từ chuỗi khoá đã nối. */
+function tokenSpan(bounds: number[], match: TypeMatch): number {
+  const from = bounds.indexOf(match.start);
+  let to = from;
+  while (to + 1 < bounds.length && bounds[to + 1] < match.end) to++;
+  return to - from + 1;
+}
+
 function newId(): string {
   return typeof crypto !== "undefined" && "randomUUID" in crypto
     ? crypto.randomUUID()
@@ -166,7 +213,6 @@ function newId(): string {
 type Pending =
   | { field: IntakeFieldKey }
   | { field: "price" }
-  | { field: "price2" }
   | { field: "supplier_name"; started: boolean }
   | { field: "notes" }
   | null;
@@ -192,6 +238,7 @@ function parseLine(
   line: string,
   dictionary: LearnedDictionary,
   yearNow: number,
+  catalogue: readonly string[],
 ): IntakeEntry | null {
   const cleaned = line
     .replace(/^\s*(?:[-*•°·]|(?:\d{1,2}[.)]))\s*/, "")
@@ -218,13 +265,30 @@ function parseLine(
     const next = normalizeKey(rawTokens[i + 1] ?? "");
     const amount = /^\d+(?:[.,]\d{1,6})?$/.test(current);
     const moneyUnit = /^(?:tr|trieu|m|k|ty|b|nghin|ngan)\d{0,2}$/.test(next);
-    const distanceUnit = /^(?:v|km)$/.test(next);
-    if (amount && (moneyUnit || distanceUnit)) {
+    if (amount && moneyUnit) {
       tokens.push(current + next);
       i++;
     } else {
       tokens.push(current);
     }
+  }
+  // Loại xe được quét trước, ngay trên cả dòng, rồi ăn bớt đúng các token đã
+  // khớp. Số máy/số km/phiên bản không còn nên không có gì để tách sau đó.
+  const bounds = typeKeyBounds(tokens);
+  const typeMatch = findVehicleType(tokens, bounds, catalogue);
+  let cursor = tokens;
+  if (typeMatch) {
+    const from = bounds.indexOf(typeMatch.start);
+    const count = tokenSpan(bounds, typeMatch);
+    cursor = tokens.filter(
+      (_, index) => index < from || index >= from + count,
+    );
+    assign(
+      entry,
+      "vehicle_type",
+      typeMatch.name,
+      tokens.slice(from, from + count).join(" "),
+    );
   }
   let pending: Pending = null;
   let nameWords: string[] = [];
@@ -238,8 +302,8 @@ function parseLine(
     }
   };
 
-  for (let i = 0; i < tokens.length; i++) {
-    const token = token_surface(tokens[i]);
+  for (let i = 0; i < cursor.length; i++) {
+    const token = token_surface(cursor[i]);
     const key = normalizeKey(token);
     if (!key) continue;
 
@@ -259,19 +323,18 @@ function parseLine(
       continue;
     }
 
-    // Plate first and greedily: staff shouldn't need to write "bs", and a
-    // plate typed with a space between series and serial ("59a1 234.56")
-    // must not leak into the odometer/year buckets. If the current token
-    // alone isn't a plate but joining it with the next token is, consume
-    // both so "bs" is truly optional.
+    // Biển số được thử trước và tham lam: nhân viên không cần viết "bs", và
+    // một biển gõ tách khoảng ("59a1 234.56") không được rò sang nhóm năm
+    // sản xuất. Nếu token hiện tại chưa phải biển nhưng nối với token kế thì
+    // thành biển, ăn cả hai để "bs" thực sự là tuỳ chọn.
     const plateSingle = normalizePlate(token);
     if (plateSingle) {
       assign(entry, "license_plate", plateSingle, token);
       if (pending?.field === "license_plate") pending = null;
       continue;
     }
-    if (i + 1 < tokens.length) {
-      const next = token_surface(tokens[i + 1]);
+    if (i + 1 < cursor.length) {
+      const next = token_surface(cursor[i + 1]);
       const joined = normalizePlate(token + next);
       if (joined) {
         assign(entry, "license_plate", joined, `${token} ${next}`);
@@ -283,7 +346,14 @@ function parseLine(
 
     // A keyword arms the next token for a specific field.
     if (pending && pending.field !== "supplier_name") {
-      const consumed = tryAssignTyped(entry, pending.field, token, key, yearNow);
+      const consumed = tryAssignTyped(
+        entry,
+        pending.field,
+        token,
+        key,
+        yearNow,
+        catalogue,
+      );
       if (consumed) {
         pending = null;
         continue;
@@ -340,16 +410,14 @@ function parseLine(
       assign(entry, "purchase_date", date, token);
       continue;
     }
-    const km = parseShorthandKm(token);
-    if (km !== null) {
-      assign(entry, "odometer", String(km), token);
-      continue;
-    }
     const money = parseShorthandMoney(token);
     if (money !== null) {
+      // Giá thu là số tiền duy nhất hồ sơ xe giữ. Amount thứ hai là giá bán
+      // (thời điểm đó chưa có gì chắc) — giá bán giờ chỉ sinh ra từ phiếu Bán
+      // xe, nên số này chỉ còn là chip để nhân viên gán vào Ghi chú.
       if (!entry.fields.purchase_price)
         assign(entry, "purchase_price", String(money), token);
-      else assign(entry, "asking_price", String(money), token);
+      else entry.unknownTokens.push(token);
       continue;
     }
     if (/^\d{4}$/.test(key)) {
@@ -360,24 +428,19 @@ function parseLine(
       }
     }
     if (/^\d{1,2}$/.test(key) && pending === null) {
-      // "22" or "'22" style bare years right after brand/model context.
+      // "22" hoặc "'22" — năm sản xuất viết tắt.
       const value = normalizeVehicleYear(key);
       if (Number(key) <= 30 && value != null && value <= yearNow + 1 && !entry.fields.year) {
         assign(entry, "year", String(value), token);
         continue;
       }
     }
-    if (/^\d{5}$/.test(key) && !entry.fields.odometer) {
-      assign(entry, "odometer", key, token);
-      continue;
-    }
 
-    // Frame/engine codes.
+    // Mã khung: chỉ nhận lượt đầu; mã thứ hai thành chip lạ (số máy đã bị xoá
+    // vĩnh viễn nên không còn chỗ nào để nhét nó).
     if (looksLikeFrame(token)) {
       if (!entry.fields.frame_number)
         assign(entry, "frame_number", token.toUpperCase(), token);
-      else if (!entry.fields.engine_number)
-        assign(entry, "engine_number", token.toUpperCase(), token);
       else entry.unknownTokens.push(token);
       continue;
     }
@@ -386,10 +449,6 @@ function parseLine(
     const keyword = KEYWORD_FIELDS[key];
     if (keyword === "price") {
       pending = { field: "price" };
-      continue;
-    }
-    if (keyword === "price2") {
-      pending = { field: "price2" };
       continue;
     }
     if (keyword === "supplier_name") {
@@ -404,53 +463,14 @@ function parseLine(
       pending = { field: keyword as IntakeFieldKey };
       continue;
     }
-    const brand = BRAND_ALIASES[key];
-    if (brand) {
-      assign(entry, "brand", brand, token);
-      continue;
-    }
-    const model = MODEL_ALIASES[key];
-    if (model) {
-      const current = entry.fields.model;
-      if (!current || model.startsWith(current)) {
-        // "wave" then "rsx" upgrades the model instead of dropping a token.
-        entry.fields.model = model;
-        entry.provenance.model = token;
-        if (!entry.fields.brand && MODEL_BRANDS[model])
-          entry.fields.brand = MODEL_BRANDS[model];
-      } else if (!current.startsWith(model)) {
-        assign(entry, "model", model, token);
-      }
-      continue;
-    }
     const color = COLOR_ALIASES[key];
     if (color) {
       assign(entry, "color", color, token);
       continue;
     }
-    const variant = VARIANT_TOKENS[key];
-    if (variant) {
-      assign(entry, "variant", variant, token);
-      continue;
-    }
 
-    // Model suffix such as "155", "160i" right after a known model.
-    if (
-      entry.fields.model &&
-      /^\d{2,3}[a-z]{0,2}$|^[a-z]+\d{2,3}[a-z]?$/.test(key) &&
-      !entry.fields.year
-    ) {
-      if (!entry.fields.model.endsWith(key.toUpperCase()))
-        entry.fields.model = `${entry.fields.model} ${token.toUpperCase()}`;
-      continue;
-    }
-
-    // First unknown word fills a missing model; later ones stay reviewable.
-    if (!entry.fields.model && /^[^\d\W]{2,}$/u.test(token)) {
-      assign(entry, "model", titleCase(token), token);
-      continue;
-    }
-
+    // Không còn quy tắc "token lạ rơi vào Dòng xe": mọi từ chưa nhận diện được
+    // chỉ thành chip trong hàng đợi để nhân viên gán vào Ghi chú hoặc dạy lại.
     entry.unknownTokens.push(token);
   }
 
@@ -463,16 +483,6 @@ function parseLine(
       "ghichu",
     );
 
-  // Complete the other half of well-known pairs: model ⇄ brand.
-  if (entry.fields.model && !entry.fields.brand) {
-    const brand =
-      MODEL_BRANDS[entry.fields.model] ??
-      Object.entries(MODEL_BRANDS).find(([model]) =>
-        entry.fields.model!.startsWith(model),
-      )?.[1];
-    if (brand) entry.fields.brand = brand;
-  }
-
   return entry;
 }
 
@@ -482,16 +492,12 @@ function tryAssignTyped(
   token: string,
   key: string,
   yearNow: number,
+  catalogue: readonly string[],
 ): boolean {
-  if (field === "price" || field === "price2") {
+  if (field === "price") {
     const money = parseShorthandMoney(token);
     if (money === null) return false;
-    return assign(
-      entry,
-      field === "price" ? "purchase_price" : "asking_price",
-      String(money),
-      token,
-    );
+    return assign(entry, "purchase_price", String(money), token);
   }
   if (field === "supplier_phone") {
     const phone = parsePhone(token);
@@ -508,9 +514,11 @@ function tryAssignTyped(
     if (value == null || value < 1980 || value > yearNow + 1) return false;
     return assign(entry, "year", String(value), token);
   }
-  if (field === "odometer") {
-    if (!/^\d{1,9}$/.test(key)) return false;
-    return assign(entry, "odometer", key, token);
+  if (field === "vehicle_type") {
+    // Chỉ nhận đúng một tên có trong danh mục — không bao giờ lưu tên tự gõ.
+    const name = matchVehicleType(token, catalogue);
+    if (!name) return false;
+    return assign(entry, "vehicle_type", name, token);
   }
   if (field === "license_plate") {
     // Strict: the top-of-loop plate detector already tried both the single
@@ -521,9 +529,9 @@ function tryAssignTyped(
     if (!plate) return false;
     return assign(entry, "license_plate", plate, token);
   }
-  if (field === "frame_number" || field === "engine_number") {
+  if (field === "frame_number") {
     if (!/[A-Za-z0-9]/.test(token) || key.length < 2) return false;
-    return assign(entry, field as IntakeFieldKey, token.toUpperCase(), token);
+    return assign(entry, "frame_number", token.toUpperCase(), token);
   }
   return false;
 }
@@ -534,12 +542,8 @@ function isClassifiable(token: string, key: string, yearNow: number): boolean {
       normalizePlate(token) ||
       parsePhone(token) ||
       isoDate(token) ||
-      parseShorthandKm(token) !== null ||
       parseShorthandMoney(token) !== null ||
-      BRAND_ALIASES[key] ||
-      MODEL_ALIASES[key] ||
       COLOR_ALIASES[key] ||
-      VARIANT_TOKENS[key] ||
       KEYWORD_FIELDS[key] ||
       (/^\d{4}$/.test(key) && Number(key) >= 1980 && Number(key) <= yearNow + 1),
   );
@@ -550,18 +554,20 @@ function token_surface(token: string): string {
   return token.replace(/[?:!.,;]+$/, "").replace(/^['":;]+/, "");
 }
 
-function titleCase(token: string): string {
-  return token.charAt(0).toUpperCase() + token.slice(1);
-}
-
+/**
+ * Tách một dòng ghi chú thành một hồ sơ xe.
+ * `vehicleTypes` là danh mục đang dùng (tên thuần); thiếu tham số này parser
+ * dùng danh mục mặc định đã seed — hữu ích cho unit test và bản nháp offline.
+ */
 export function parseIntakeNotes(
   raw: string,
   dictionary: LearnedDictionary = {},
+  vehicleTypes: readonly string[] = DEFAULT_VEHICLE_TYPE_NAMES,
 ): IntakeEntry[] {
   const yearNow = new Date().getFullYear();
   const entries: IntakeEntry[] = [];
   for (const line of raw.split(/\r?\n/)) {
-    const entry = parseLine(line, dictionary, yearNow);
+    const entry = parseLine(line, dictionary, yearNow, vehicleTypes);
     if (entry) entries.push(entry);
   }
   return entries.slice(0, 100);

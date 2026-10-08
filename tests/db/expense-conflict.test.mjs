@@ -18,7 +18,7 @@ export async function runExpenseConflictTests(externalDb, { engine = 'postgres' 
       await db.query('UPDATE public.profiles SET role=$1::public.user_role,active=true,must_change_password=false WHERE id=$2', [name.toUpperCase(), id])
     }
     const day = (await db.query('SELECT private.today()::text AS day')).rows[0].day
-    const vehicleId = await asUser(db, users.owner, c => rpc(c, 'save_vehicle', '$1::jsonb', [JSON.stringify({ request_id: randomUUID(), brand: 'Honda', model: 'Synthetic expense conflict', purchase_date: day, purchase_price: 100, asking_price: 1000 })]))
+    const vehicleId = await asUser(db, users.owner, c => rpc(c, 'save_vehicle', '$1::jsonb', [JSON.stringify({ request_id: randomUUID(), vehicle_type: 'Xe tay ga', purchase_date: day, purchase_price: 100 })]))
     for (const kind of ['vehicle', 'business']) {
       const data = { description: `Synthetic ${kind} expense`, amount: 100, expense_date: day, ...(kind === 'vehicle' ? { vehicle_id: vehicleId, expense_type: 'OTHER' } : { category: 'OTHER' }) }
       const id = await save(db, 'owner', kind, data)
@@ -85,9 +85,14 @@ export async function runExpenseConflictTests(externalDb, { engine = 'postgres' 
           }
         })
       }
-      await check(`${kind}: staff writes and cancelled expense edits remain denied`, async () => {
+      await check(`${kind}: staff write authorization matches parity and cancelled expense edits remain denied`, async () => {
         const current = await record(kind, id)
-        await assert.rejects(() => save(db, 'staff', kind, { ...data, expected_updated_at: current.updated_at }, id), /ACCESS_DENIED/)
+        if (kind === 'vehicle') {
+          // STAFF has operational parity for vehicle expenses (migration 20261008000200).
+          assert.equal(await save(db, 'staff', kind, { ...data, expected_updated_at: current.updated_at }, id), id)
+        } else {
+          await assert.rejects(() => save(db, 'staff', kind, { ...data, expected_updated_at: current.updated_at }, id), /ACCESS_DENIED/)
+        }
         await asUser(db, users.owner, c => rpc(c, 'cancel_expense', '$1::text,$2::uuid,$3::text', [kind, id, 'Synthetic regression cancellation']))
         await assert.rejects(() => save(db, 'owner', kind, { ...data, expected_updated_at: current.updated_at }, id), /EXPENSE_CANCELLED/)
         assert.equal((await record(kind, id)).status, 'CANCELLED')

@@ -2,18 +2,35 @@
  * Converts reviewed shorthand entries into the exact payload shape that
  * `import_vehicles` expects, with the same checks mirrored client-side so
  * the user sees problems per card before anything is sent to the server.
+ *
+ * Hãng / Dòng xe / Phiên bản / Số máy / Số km / Giá bán dự kiến không còn trong
+ * hợp đồng nữa; đổi lại mọi dòng phải có `vehicle_type_id` — một phần tử của
+ * danh mục `vehicle_types`, không phải tên tự gõ.
  */
 import type { IntakeEntry, IntakeFieldKey } from "./parseIntakeNotes";
 import { parseShorthandMoney } from "./parseIntakeNotes";
 import { today } from "@/lib/format";
-import { canonicalizePlate, isValidMotorbikePlate, PLATE_INVALID_MESSAGE } from "@/lib/plate";
 import {
-  normalizeVehicleYear,
-  parseGroupedInteger,
-} from "@/lib/vehicleInputFormatting";
+  canonicalizePlate,
+  isValidMotorbikePlate,
+  PLATE_INVALID_MESSAGE,
+} from "@/lib/plate";
+import { normalizeVehicleYear } from "@/lib/vehicleInputFormatting";
+import { vehicleTypeKey } from "@/lib/shorthand/vocabulary";
+import type { VehicleTypeItem } from "@/types";
 
 const MAX_PLATE = 30;
 const MAX_FRAME = 100;
+
+/** Tên loại xe (do tốc ký nhận ra) → id trong danh mục đang dùng. */
+export function vehicleTypeIdFor(
+  name: string | undefined,
+  vehicleTypes: readonly VehicleTypeItem[],
+): string {
+  const key = vehicleTypeKey(name ?? "");
+  if (!key) return "";
+  return vehicleTypes.find((item) => vehicleTypeKey(item.name) === key)?.id ?? "";
+}
 
 function moneyOf(entry: IntakeEntry, field: IntakeFieldKey): number | null | "invalid" {
   const raw = entry.fields[field];
@@ -26,17 +43,17 @@ function moneyOf(entry: IntakeEntry, field: IntakeFieldKey): number | null | "in
 export function validateIntakeEntry(
   entry: IntakeEntry,
   financial: boolean,
+  vehicleTypes: readonly VehicleTypeItem[] = [],
 ): string[] {
   const errors: string[] = [];
   const f = entry.fields;
-  // Số khung và Hãng xe không còn bắt buộc — chỉ kiểm tra độ dài khi người
-  // dùng có nhập. Server sinh placeholder "GEN-…" khi khung trống.
+  // Loại xe là bắt buộc khi tạo hồ sơ (server cũng chặn VEHICLE_TYPE_REQUIRED),
+  // nên nhân viên phải chọn từ danh mục ngay trên thẻ tốc ký.
+  if (!vehicleTypeIdFor(f.vehicle_type, vehicleTypes))
+    errors.push("Chọn loại xe từ danh mục.");
+  // Số khung không còn bắt buộc — server sinh placeholder "GEN-…" khi trống.
   if (f.frame_number && f.frame_number.trim().length > MAX_FRAME)
     errors.push(`Số khung tối đa ${MAX_FRAME} ký tự.`);
-  if (f.brand && f.brand.trim().length > 80)
-    errors.push("Hãng xe tối đa 80 ký tự.");
-  if ((f.model ?? "").trim().length > 120)
-    errors.push("Dòng xe tối đa 120 ký tự.");
   // Biển số không bắt buộc, nhưng nếu có thì phải đúng format xe máy VN —
   // tránh nhập bậy vẫn được nhận. Rỗng/whitespace luôn hợp lệ.
   const plate = (f.license_plate ?? "").trim();
@@ -47,11 +64,6 @@ export function validateIntakeEntry(
     if (year == null || year < 1900 || year > 2100)
       errors.push("Năm sản xuất phải từ 1900 đến 2100.");
   }
-  if (f.odometer) {
-    const km = parseGroupedInteger(f.odometer);
-    if (km == null || km > 10_000_000)
-      errors.push("Số km phải từ 0 đến 10.000.000.");
-  }
   if (f.purchase_date) {
     if (!/^\d{4}-\d{2}-\d{2}$/.test(f.purchase_date))
       errors.push("Ngày thu không hợp lệ (định dạng dd/mm/yyyy).");
@@ -61,37 +73,34 @@ export function validateIntakeEntry(
   const purchase = moneyOf(entry, "purchase_price");
   if (financial && purchase === "invalid")
     errors.push("Giá thu không hợp lệ (vd: 18tr5).");
-  const asking = moneyOf(entry, "asking_price");
-  if (asking === "invalid") errors.push("Giá bán dự kiến không hợp lệ (vd: 22tr).");
   if ((f.supplier_name ?? "").length > 200) errors.push("Tên người bán quá dài.");
   if ((f.supplier_phone ?? "").length > 40) errors.push("SĐT người bán quá dài.");
   if ((f.notes ?? "").length > 10_000) errors.push("Ghi chú quá dài.");
   return errors;
 }
 
-/** Payload row for `import_vehicles`; field names follow the RPC contract. */
+/**
+ * Payload row for `import_vehicles`; field names follow the RPC contract.
+ * Không có `brand`/`model`/`variant`/`engine_number`/`odometer`/`asking_price`
+ * — các key đó đã bị server từ chối lẫn cột DB đã bị xoá.
+ */
 export function entryToImportRow(
   entry: IntakeEntry,
   financial: boolean,
+  vehicleTypes: readonly VehicleTypeItem[] = [],
 ): Record<string, unknown> {
   const f = entry.fields;
   const row: Record<string, unknown> = {
     frame_number: (f.frame_number ?? "").trim().toUpperCase(),
-    engine_number: (f.engine_number ?? "").trim().toUpperCase(),
     license_plate: canonicalizePlate(f.license_plate ?? ""),
-    brand: (f.brand ?? "").trim(),
-    model: (f.model ?? "").trim(),
-    variant: (f.variant ?? "").trim(),
+    vehicle_type_id: vehicleTypeIdFor(f.vehicle_type, vehicleTypes),
     color: (f.color ?? "").trim(),
     notes: (f.notes ?? "").trim(),
     supplier_name: (f.supplier_name ?? "").trim(),
     supplier_phone: (f.supplier_phone ?? "").trim(),
   };
   if (f.year) row.year = normalizeVehicleYear(f.year) ?? Number(f.year);
-  if (f.odometer) row.odometer = parseGroupedInteger(f.odometer) ?? Number(f.odometer);
   if (f.purchase_date) row.purchase_date = f.purchase_date;
-  const asking = moneyOf(entry, "asking_price");
-  if (typeof asking === "number") row.asking_price = asking;
   // The server rejects any row that carries purchase_price for a user without
   // financial rights, so the key is only present when it is allowed and filled.
   if (financial) {
@@ -102,22 +111,21 @@ export function entryToImportRow(
 }
 
 /** Draft for /acquisitions/new (single-vehicle form uses seller_* field names). */
-export function entryToAcquisitionDraft(entry: IntakeEntry): Record<string, unknown> {
+export function entryToAcquisitionDraft(
+  entry: IntakeEntry,
+  vehicleTypes: readonly VehicleTypeItem[] = [],
+): Record<string, unknown> {
   const f = entry.fields;
   const draft: Record<string, unknown> = {
     frame_number: (f.frame_number ?? "").trim().toUpperCase(),
-    engine_number: (f.engine_number ?? "").trim().toUpperCase(),
     license_plate: canonicalizePlate(f.license_plate ?? ""),
-    brand: (f.brand ?? "").trim(),
-    model: (f.model ?? "").trim(),
-    variant: (f.variant ?? "").trim(),
+    vehicle_type_id: vehicleTypeIdFor(f.vehicle_type, vehicleTypes),
     color: (f.color ?? "").trim(),
     seller_name: (f.supplier_name ?? "").trim(),
     seller_phone: (f.supplier_phone ?? "").trim(),
     notes: (f.notes ?? "").trim(),
   };
   if (f.year) draft.year = normalizeVehicleYear(f.year) ?? Number(f.year);
-  if (f.odometer) draft.odometer = parseGroupedInteger(f.odometer) ?? Number(f.odometer);
   if (f.purchase_date) draft.acquisition_date = f.purchase_date;
   return draft;
 }

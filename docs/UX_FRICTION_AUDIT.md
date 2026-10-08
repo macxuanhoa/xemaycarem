@@ -50,8 +50,8 @@ These concrete defects took priority over new gestures or visual redesign.
 - Brand/model/variant/color autocomplete derives from recent values and permitted recent store vehicles. Model/variant suggestions follow the selected brand. Chips are optional shortcuts; manual input remains available.
 - Money input accepts normalized VND paste and supported shorthand, displays the interpreted value, and rejects negative, malformed, fractional raw VND and unsafe amounts. Persisted money remains an integer.
 - Frame duplicate warnings appear after a 450 ms debounce and link to the existing record. This is advisory convenience; server uniqueness and permission checks still decide the transaction.
-- Local drafts are versioned, user-specific and expire after seven days. They include a whitelist of nonfinancial fields only. Prices, payment amounts, status, permissions and secrets are excluded. Users explicitly resume or discard a draft and enter prices again.
-- Financial edits or unavailable draft storage trigger close/reload loss protection and confirmation for an internal link that leaves the form. Browser history retains the nonfinancial draft; the current BrowserRouter does not provide a blocker for a native Back action. Drafts are never described as completed transactions.
+- Local drafts are versioned, user-specific and expire after seven days. They restore the form's full business content — specs, prices, seller/customer contacts and notes — so an interrupted entry resumes completely after an explicit resume or discard. Credentials, identity-document numbers, status, permissions and secrets stay excluded.
+- Draft storage failure (private mode/quota) triggers close/reload loss protection and confirmation for an internal link that leaves the form; successful persistence never blocks navigation because the draft is restored next visit. The current BrowserRouter does not provide a blocker for a native Back action. Drafts are never described as completed transactions.
 - Primary acquisition/edit/sale actions stay reachable on mobile. Dates use `Asia/Ho_Chi_Minh` and stay visible/editable.
 - A successful acquisition opens the real vehicle with next actions: Thu xe tiếp, Thêm ảnh and permitted Chi phí. Success comes from the confirmed RPC, not an arbitrary query string.
 - AI review handoffs, when explicitly selected by the user, prefill only safe structured acquisition fields. Purchase prices must be entered by the user. An expense handoff displays a review notice and requires the normal explicit save.
@@ -72,7 +72,7 @@ Source review covers all frequent workflows listed above. Automated validation i
 Meaningful convenience tests include:
 
 - Scoped recent records and categorical values do not cross accounts; malformed/unavailable storage is handled.
-- Money and permissions/status/secrets are excluded from reusable drafts and recent values.
+- Permissions/status/secrets and identity numbers are excluded from reusable drafts; recent values never store amounts.
 - Repeat expense does not store/reuse an amount.
 - Strict money normalization rejects malformed/negative/unsafe values.
 - Isolated mocked browser interactions cover mobile acquisition with a visible action, integer shorthand conversion, duplicate detection before submit, contextual expenses with valid enum values, repeat amount clearing, Escape/focus behavior and inventory return context.

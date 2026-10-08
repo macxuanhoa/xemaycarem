@@ -15,22 +15,18 @@ const today = new Intl.DateTimeFormat("en-CA", {
 const baseVehicle = {
   id: vehicleId,
   internal_code: "XE-DEL-0001",
-  brand: "Yamaha",
-  model: "Janus",
-  variant: "",
+  vehicle_type_id: "vt-ga",
+  vehicle_type: "Xe tay ga",
   year: 2023,
   color: "Trắng",
   frame_number: "MH3BY31YXPJ000123",
-  engine_number: "E3P1J000123",
   license_plate: "59-X1 123.45",
-  odometer: 8000,
   supplier_name: "Lê Văn Bán",
   supplier_phone: "0900000000",
   notes: "",
   status: "IN_STOCK",
   purchase_date: today,
   purchase_price: 30000000,
-  asking_price: 34000000,
   expense_total: 0,
   total_cost: 30000000,
   cost_pending: false,
@@ -41,7 +37,7 @@ const baseVehicle = {
 };
 
 async function installMock(page, { role = "OWNER", vehicle = baseVehicle } = {}) {
-  const calls = { deleteVehicle: [] };
+  const calls = { deleteVehicle: [], requestDelete: [], resolve: [] };
   const session = {
     access_token: `eyJhbGciOiJIUzI1NiJ9.${Buffer.from(
       JSON.stringify({ sub: ownerId, exp: Math.floor(Date.now() / 1000) + 3600 }),
@@ -103,6 +99,34 @@ async function installMock(page, { role = "OWNER", vehicle = baseVehicle } = {})
       calls.deleteVehicle.push(JSON.parse(request.postData() || "{}"));
       return reply(null);
     }
+    if (name === "request_delete_vehicle") {
+      calls.requestDelete.push(JSON.parse(request.postData() || "{}"));
+      return reply(null);
+    }
+    if (name === "resolve_vehicle_deletion") {
+      calls.resolve.push(JSON.parse(request.postData() || "{}"));
+      return reply(null);
+    }
+    if (name === "list_pending_approvals")
+      return reply({
+        items: [
+          {
+            id: "00000000-0000-4000-8000-000000000099",
+            kind: "VEHICLE_DELETION",
+            subject_id: vehicleId,
+            reason: "Nhập nhầm xe, trùng phiếu",
+            requested_by: ownerId,
+            requester_name: "Nhân viên A",
+            created_at: new Date().toISOString(),
+            vehicle_code: vehicle.internal_code,
+            vehicle_title: "59-X1 123.45 · MH3BY31YXPJ000123",
+            vehicle_subtitle: "Xe tay ga · 2023 · Trắng",
+            license_plate: vehicle.license_plate,
+            vehicle_status: vehicle.status,
+          },
+        ],
+        total: 1,
+      });
     return reply({});
   });
   return calls;
@@ -164,7 +188,7 @@ test("delete button is hidden once the vehicle has sale history", async ({
     },
   });
   await page.goto(`/vehicles/${vehicleId}`);
-  await expect(page.getByRole("heading", { name: /Yamaha Janus/ })).toBeVisible();
+  await expect(page.getByRole("heading", { name: /59-X1 123\.45/ })).toBeVisible();
   const trigger = page.getByRole("button", { name: "Thao tác trên xe" });
   if (await trigger.count()) await trigger.click();
   await expect(
@@ -180,4 +204,54 @@ test("STAFF never sees the hard-delete control", async ({ page }) => {
   await expect(
     page.getByRole("button", { name: "Xóa xe khỏi kho" }),
   ).toHaveCount(0);
+});
+
+test("STAFF files a delete request instead of purging directly", async ({
+  page,
+}) => {
+  const calls = await installMock(page, { role: "STAFF" });
+  await page.goto(`/vehicles/${vehicleId}`);
+  await page.getByRole("button", { name: "Thao tác trên xe" }).click();
+  const requestButton = page.getByRole("button", { name: "Gửi yêu cầu xóa" });
+  await expect(requestButton).toBeVisible();
+  // STAFF must never be offered the direct purge.
+  await expect(page.getByRole("button", { name: "Xóa xe khỏi kho" })).toHaveCount(0);
+
+  await requestButton.click();
+  const dialog = page.getByRole("dialog", { name: "Gửi yêu cầu xóa xe" });
+  await expect(dialog).toBeVisible();
+  const submit = dialog.getByRole("button", { name: "Gửi yêu cầu xóa" });
+  await expect(submit).toBeDisabled();
+  await dialog.getByRole("textbox").fill("Nhập nhầm xe, khách không bán nữa");
+  await expect(submit).toBeEnabled();
+  await submit.click();
+
+  await expect.poll(() => calls.requestDelete.length).toBe(1);
+  expect(calls.requestDelete[0]).toMatchObject({
+    p_id: vehicleId,
+    p_reason: "Nhập nhầm xe, khách không bán nữa",
+  });
+});
+
+test("OWNER reviews the approval queue and resolves a deletion", async ({
+  page,
+}) => {
+  const calls = await installMock(page, { role: "OWNER" });
+  await page.goto("/approvals");
+  await expect(
+    page.getByRole("heading", { name: "Chờ duyệt" }),
+  ).toBeVisible();
+  await expect(page.getByText("59-X1 123.45 · MH3BY31YXPJ000123")).toBeVisible();
+
+  await page.getByRole("button", { name: "Duyệt xóa" }).click();
+  const confirm = page.getByRole("alertdialog");
+  await expect(
+    confirm.getByRole("heading", { name: "Duyệt xóa xe?" }),
+  ).toBeVisible();
+  await confirm.getByRole("button", { name: "Duyệt xóa" }).click();
+  await expect.poll(() => calls.resolve.length).toBe(1);
+  expect(calls.resolve[0]).toMatchObject({
+    p_request_id: "00000000-0000-4000-8000-000000000099",
+    p_action: "APPROVE",
+  });
 });

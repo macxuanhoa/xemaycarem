@@ -27,7 +27,7 @@ export async function runMandatoryWriteProtocolTests(externalDb, { engine = 'pos
       await db.query('UPDATE public.profiles SET role=$1::public.user_role,active=true,must_change_password=false WHERE id=$2', [name.toUpperCase(), id])
     }
     const { day, next, later } = await row('SELECT private.today()::text AS day,(private.today()+3)::text AS next,(private.today()+7)::text AS later')
-    const intake = extra => ({ brand: 'Honda', model: 'Synthetic required protocol', frame_number: '', acquisition_date: day, purchase_price: 100, ...extra })
+    const intake = extra => ({ vehicle_type: 'Xe tay ga', frame_number: '', acquisition_date: day, purchase_price: 100, ...extra })
     let vehicleId
     await check('legacy acquisition requests, including overlapping retries, have no writes or audit', async () => {
       const before = await totals()
@@ -89,10 +89,13 @@ export async function runMandatoryWriteProtocolTests(externalDb, { engine = 'pos
       assert.deepEqual(await call(db, 'owner', 'import_vehicles', payload), results[0].value)
     })
     await check('batch fault rolls back its receipt, all rows and audit; same UUID can safely retry', async () => {
-      const model = `Synthetic fault ${randomUUID()}`
-      await db.exec(`CREATE FUNCTION private.protocol_fault() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN IF NEW.model LIKE 'Synthetic fault %' THEN RAISE EXCEPTION 'SYNTHETIC_PROTOCOL_FAULT'; END IF; RETURN NEW; END $$; CREATE TRIGGER protocol_fault BEFORE INSERT ON public.vehicles FOR EACH ROW EXECUTE FUNCTION private.protocol_fault()`)
+      // Inject the fault via frame_number: import now enforces a canonical
+      // license_plate, so a synthetic plate would be rejected before the
+      // BEFORE INSERT trigger could fire. frame_number stays a free-text key.
+      const faultFrame = `SYNTHETIC FAULT ${randomUUID()}`
+      await db.exec(`CREATE FUNCTION private.protocol_fault() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN IF NEW.frame_number LIKE 'SYNTHETIC FAULT %' THEN RAISE EXCEPTION 'SYNTHETIC_PROTOCOL_FAULT'; END IF; RETURN NEW; END $$; CREATE TRIGGER protocol_fault BEFORE INSERT ON public.vehicles FOR EACH ROW EXECUTE FUNCTION private.protocol_fault()`)
       const before = await totals()
-      const payload = { request_id: randomUUID(), rows: [{ ...intake(), purchase_date: day }, { ...intake(), model, purchase_date: day }] }
+      const payload = { request_id: randomUUID(), rows: [{ ...intake(), purchase_date: day }, { ...intake(), frame_number: faultFrame, purchase_date: day }] }
       try {
         await assert.rejects(() => call(db, 'owner', 'import_vehicles', payload), /SYNTHETIC_PROTOCOL_FAULT/)
         assert.deepEqual(await totals(), before)

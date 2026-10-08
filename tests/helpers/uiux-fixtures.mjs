@@ -8,25 +8,27 @@ export const day = new Intl.DateTimeFormat("en-CA", {
   month: "2-digit",
   day: "2-digit",
 }).format(new Date());
+export const vehicleTitle = "43-A1 123.45 · RLH123456789012345";
+export const vehicleSubtitle = "Xe tay ga · 2024 · Đen";
 export const vehicle = {
   id: vehicleId,
   internal_code: "XE-UI-001",
-  brand: "Honda",
-  model: "Vision",
-  variant: "Cao cấp",
+  // Hồ sơ xe sau 08/10/2026: không còn Hãng / Dòng / Phiên bản / Số máy / Số km
+  // / Giá bán dự kiến; RPC gắn sẵn danh tính mới nên fixture phải có đúng shape.
+  vehicle_type_id: "00000000-0000-4000-8000-000000000011",
+  vehicle_type: "Xe tay ga",
+  vehicle_title: vehicleTitle,
+  vehicle_subtitle: vehicleSubtitle,
   year: 2024,
   frame_number: "RLH123456789012345",
-  engine_number: "JF58E1234567",
   license_plate: "43-A1 123.45",
   color: "Đen",
   status: "IN_STOCK",
   purchase_date: day,
   purchase_price: 30000000,
-  asking_price: 35000000,
   total_cost: 30000000,
   expense_total: 0,
   cost_pending: false,
-  odometer: 12500,
   supplier_name: "Nguyễn Văn Thanh",
   supplier_phone: "0905123456",
   notes: "Xe kiểm thử giả định, không phải dữ liệu khách hàng.",
@@ -55,8 +57,8 @@ export const evidence = {
     {
       id: "v3",
       type: "vehicle",
-      label: "Honda Vision",
-      detail: "43-A1 123.45",
+      label: vehicleTitle,
+      detail: vehicleSubtitle,
       route: `/vehicles/${vehicleId}`,
     },
   ],
@@ -140,7 +142,7 @@ export async function installUiuxMock(
     ? {
         ...vehicle,
         frame_number: "RLH".repeat(33),
-        engine_number: "ENGINE".repeat(16),
+        vehicle_title: `43-A1 123.45 · ${"RLH".repeat(33)}`,
         supplier_name: "Nguyễn Văn ".repeat(15),
         supplier_phone: "",
         notes: "Xe cũ: ".repeat(90),
@@ -208,7 +210,9 @@ export async function installUiuxMock(
         sale_code: "BAN-UI-001",
         vehicle_id: vehicleId,
         vehicle: { ...v, status: "SOLD" },
-        vehicle_name: "Honda Vision",
+        vehicle_title: vehicleTitle,
+        vehicle_subtitle: vehicleSubtitle,
+        vehicle_type: v.vehicle_type,
         internal_code: v.internal_code,
         license_plate: v.license_plate,
         customer_name: "Khách kiểm thử",
@@ -228,6 +232,18 @@ export async function installUiuxMock(
         gross_profit: 5000000,
       });
     if (name === "get_vehicle") return reply(empty ? null : v);
+    if (name === "list_vehicle_types")
+      return reply([
+        {
+          id: "00000000-0000-4000-8000-000000000011",
+          name: "Xe tay ga",
+          vehicle_count: 1,
+        },
+        { id: "vt-so", name: "Xe số", vehicle_count: 0 },
+        { id: "vt-con", name: "Xe côn tay", vehicle_count: 0 },
+        { id: "vt-dien", name: "Xe điện", vehicle_count: 0 },
+        { id: "vt-chua", name: "Chưa phân loại", vehicle_count: 0 },
+      ]);
     if (
       name === "get_acquisition_for_vehicle" ||
       name === "get_operation_result"

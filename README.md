@@ -99,10 +99,10 @@ Tài khoản `active=false` bị từ chối tại database dù session Auth cò
 
 - Đăng nhập, duy trì phiên theo lựa chọn; đăng xuất; đổi mật khẩu; khôi phục mật khẩu khi đã cấu hình.
 - Tổng quan: tồn kho, giữ chỗ, bán hôm nay/tháng này, doanh thu/lợi nhuận theo quyền, vốn tồn, tuổi tồn, xe mới/xe lợi nhuận cao.
-- Kho xe: tìm mã xe/biển số/hãng/dòng/số khung/số máy/SĐT khách; lọc trạng thái/hãng/năm/giá/ngày; phân trang/sắp xếp; nhập/sửa/chi tiết/ảnh/lịch sử.
-- Bán hàng: bán xe trong một biểu mẫu, trả nhiều lần, chi tiết giao dịch và hủy có lý do.
+- Kho xe: tìm mã xe/biển số/số khung/màu/loại xe/SĐT khách; lọc trạng thái/loại xe/năm/ngày; phân trang/sắp xếp; nhập/sửa/chi tiết/ảnh/lịch sử. Hồ sơ xe chỉ định danh bằng **biển số · số khung**, dòng phụ hiển thị **loại xe · đời xe · màu sắc**; không còn hãng, dòng xe, phiên bản, số máy, số km hay giá bán dự kiến.
+- Bán hàng: bán xe trong một biểu mẫu, giá bán và khoản thu đầu tiên do người bán gõ trực tiếp (hệ thống không có giá dự kiến để tự điền), trả nhiều lần, chi tiết giao dịch và hủy có lý do.
 - Chi phí xe và cửa hàng: thêm, sửa, hủy có lịch sử.
-- Nhân sự, audit trước/sau thay đổi, hồ sơ và cài đặt cửa hàng.
+- Nhân sự, audit trước/sau thay đổi, hồ sơ và cài đặt cửa hàng (OWNER quản lý **danh mục loại xe** ở tab **Loại xe**).
 - Trợ lý AI (`/copilot`) hỏi đáp có bằng chứng bấm được, và tài liệu cửa hàng (`/docs`) xem ngay trong app.
 
 ## Trợ lý AI và tài liệu cửa hàng

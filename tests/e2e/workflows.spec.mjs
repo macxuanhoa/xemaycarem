@@ -38,11 +38,9 @@ test.beforeEach(async ({ page }) => {
           rpc(c, "save_vehicle", "$1::jsonb", [
             JSON.stringify({
               request_id: randomUUID(),
-              brand: i === 1 ? "Yamaha" : "Honda",
-              model: `Test ${ids.OWNER.slice(0, 5)} ${i}`,
+              vehicle_type: "Xe số",
               purchase_date: day,
               purchase_price: 80000000 + i * 1000000,
-              asking_price: 90000000 + i * 1000000,
               license_plate: `TEST-${ids.OWNER.slice(0, 5)}-${i}`,
               year: 2024,
             }),
@@ -222,27 +220,28 @@ async function noOverflow(page) {
 test("Inventory creation: lost committed response survives reload and reconciles without duplicate stock", async ({ page }) => {
   await login(page);
   await page.goto("/vehicles/new");
-  const model = `Synthetic stock recovery ${ids.OWNER.slice(0, 8)}`;
+  // Số khung là mốc định danh duy nhất (cột model đã bị xoá vĩnh viễn).
+  const frame = `SYNCRECOVER${ids.OWNER.slice(0, 8)}`.toUpperCase();
   const requests = [];
   page.on("request", request => {
     if (request.url().endsWith("/rest/v1/rpc/save_vehicle")) requests.push(request.postDataJSON());
   });
-  await page.getByLabel("Hãng xe", { exact: true }).fill("Honda");
-  await page.getByLabel("Dòng xe *", { exact: true }).fill(model);
+  await page.getByLabel("Loại xe *", { exact: true }).selectOption({ label: "Xe số" });
+  await page.getByLabel("Biển số", { exact: true }).fill("59-B1 111.11");
+  await page.getByLabel("Số khung", { exact: true }).fill(frame);
   await page.getByLabel("Giá mua (₫) *", { exact: false }).fill("18000000");
-  await page.getByLabel("Giá bán dự kiến (₫) *", { exact: false }).fill("20000000");
   failNextInventoryResponse = true;
   await page.getByRole("button", { name: "Lưu xe mới", exact: true }).click();
   await expect(page.getByText(/Giao dịch chưa được xác nhận/)).toBeVisible();
   expect(requests).toHaveLength(1);
   expect(requests[0].p_data.request_id).toMatch(/^[0-9a-f-]{36}$/i);
-  const created = (await db.query("SELECT id FROM public.vehicles WHERE created_by=$1 AND model=$2", [ids.OWNER, model])).rows;
+  const created = (await db.query("SELECT id FROM public.vehicles WHERE created_by=$1 AND frame_number=$2", [ids.OWNER, frame])).rows;
   expect(created).toHaveLength(1);
   await page.reload();
   await page.getByRole("button", { name: "Kiểm tra giao dịch trước", exact: true }).click();
   await expect(page).toHaveURL(`/vehicles/${created[0].id}`);
   expect(requests).toHaveLength(1);
-  const proof = (await db.query("SELECT (SELECT count(*) FROM public.vehicles WHERE created_by=$1 AND model=$2) AS stock,(SELECT count(*) FROM public.vehicle_financials WHERE vehicle_id=$3) AS costs,(SELECT count(*) FROM public.acquisitions WHERE vehicle_id=$3) AS acquisitions,(SELECT count(*) FROM public.audit_logs WHERE entity_id=$3 AND action='CREATE_VEHICLE') AS audits", [ids.OWNER, model, created[0].id])).rows[0];
+  const proof = (await db.query("SELECT (SELECT count(*) FROM public.vehicles WHERE created_by=$1 AND frame_number=$2) AS stock,(SELECT count(*) FROM public.vehicle_financials WHERE vehicle_id=$3) AS costs,(SELECT count(*) FROM public.acquisitions WHERE vehicle_id=$3) AS acquisitions,(SELECT count(*) FROM public.audit_logs WHERE entity_id=$3 AND action='CREATE_VEHICLE') AS audits", [ids.OWNER, frame, created[0].id])).rows[0];
   expect(Object.values(proof).map(Number)).toEqual([1, 1, 0, 1]);
 });
 
@@ -261,10 +260,9 @@ test("Owner: login, persistent session, add/edit vehicle, expense, sale, payment
     fullPage: true,
   });
   await page.goto("/vehicles/new");
-  await page.getByLabel("Hãng xe", { exact: true }).fill("Honda");
-  await page.getByLabel("Dòng xe *", { exact: true }).fill("SH Kiểm thử UI");
+  await page.getByLabel("Loại xe *", { exact: true }).selectOption({ label: "Xe số" });
+  await page.getByLabel("Biển số", { exact: true }).fill("61-C1 222.22");
   await page.getByLabel("Giá mua (₫) *", { exact: false }).fill("80000000");
-  await page.getByLabel("Giá bán dự kiến (₫) *", { exact: false }).fill("90000000");
   await page.getByRole("button", { name: "Lưu xe mới", exact: true }).click();
   await expect(page).toHaveURL(/\/vehicles\/[a-f0-9-]{36}$/);
   const vehicleId = page.url().split("/").at(-1);
@@ -283,8 +281,11 @@ test("Owner: login, persistent session, add/edit vehicle, expense, sale, payment
   await page
     .getByLabel("Tên khách hàng *", { exact: true })
     .fill("Khách kiểm thử UI");
+  // Giá bán giờ không tự điền từ hồ sơ xe — nhân viên phải nhập tay.
+  await page.getByLabel("Bán với giá", { exact: false }).fill("90000000");
+  await page.getByRole("button", { name: "Thêm chi tiết thanh toán", exact: true }).click();
   await page
-    .getByLabel("Thu tiền lần đầu (₫)", { exact: false })
+    .getByLabel("Khách đã trả trước (₫)", { exact: false })
     .fill("20000000");
   await page
     .getByRole("button", { name: "Xác nhận bán xe", exact: true })
@@ -309,6 +310,9 @@ test("Owner: login, persistent session, add/edit vehicle, expense, sale, payment
   await expect(page.getByRole("button", { name: "Xác minh và ghi nhận", exact: true })).toBeEnabled();
   await page.getByRole("button", { name: "Xác minh và ghi nhận", exact: true }).click();
   await expect(page.getByText("Đã thanh toán đủ")).toBeVisible();
+  await page
+    .getByRole("button", { name: "Điều chỉnh giao dịch", exact: true })
+    .click();
   await page
     .getByRole("button", { name: "Hủy giao dịch bán xe", exact: true })
     .click();
@@ -467,6 +471,7 @@ test("Offline: sale mutation is not submitted and shows a clear message", async 
   await page
     .getByLabel("Tên khách hàng *", { exact: true })
     .fill("Khách offline");
+  await page.getByLabel("Bán với giá", { exact: false }).fill("40000000");
   await context.setOffline(true);
   await page
     .getByRole("button", { name: "Xác nhận bán xe", exact: true })
@@ -554,11 +559,9 @@ test("Regression: global inventory search resets page two to the first matching 
         rpc(client, "save_vehicle", "$1::jsonb", [
           JSON.stringify({
             request_id: randomUUID(),
-            brand: "Honda",
-            model: `Pagination ${ids.OWNER.slice(0, 5)} ${i}`,
+            vehicle_type: "Xe số",
             purchase_date: day,
             purchase_price: 30000000,
-            asking_price: 35000000,
           }),
         ]),
       );

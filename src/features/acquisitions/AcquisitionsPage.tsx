@@ -35,6 +35,7 @@ import {
 import { RowDeleteAction, RowViewAction } from "@/components/ui/RowActions";
 import { Highlight } from "@/components/search/Highlight";
 import type { Acquisition, Paged } from "@/types";
+import { vehicleSubtitle, vehicleTitle } from "@/lib/vehicleDisplay";
 
 const pageSize = 6;
 
@@ -114,7 +115,7 @@ export function AcquisitionsPage() {
             <Search size={19} aria-hidden="true" />
             <input
               aria-label="Tìm kiếm xe thu vào"
-              placeholder="Tìm số khung, biển số, hãng, dòng xe, người bán…"
+              placeholder="Tìm số khung, biển số, loại xe, người bán…"
               value={search}
               onChange={(e) => {
                 setSearch(e.target.value);
@@ -177,10 +178,11 @@ export function AcquisitionsPage() {
                         to={`/vehicles/${acq.vehicle_id}`}
                       >
                         <strong>
-                          <Highlight text={`${acq.brand} ${acq.model}`} query={debouncedSearch} />
+                          <Highlight text={vehicleTitle(acq)} query={debouncedSearch} />
                         </strong>
                       </Link>
                       <small className="muted">
+                        {vehicleSubtitle(acq) || "Chưa phân loại"} ·{" "}
                         {acq.internal_code ? <Highlight text={acq.internal_code} query={debouncedSearch} /> : "—"}
                       </small>
                     </td>
@@ -213,11 +215,11 @@ export function AcquisitionsPage() {
                       <div className="row-actions">
                         <RowViewAction
                           to={`/vehicles/${acq.vehicle_id}`}
-                          label={`xe ${acq.brand} ${acq.model}`}
+                          label={`xe ${vehicleTitle(acq)}`}
                         />
                         {canDeleteVehicle(profile) && (
                           <RowDeleteAction
-                            label={`phiếu thu xe ${acq.brand} ${acq.model}`}
+                            label={`phiếu thu xe ${vehicleTitle(acq)}`}
                             title="Xóa phiếu thu (kèm xóa xe đã thu, không hoàn tác)"
                             onClick={() => setDeleting(acq)}
                           />
@@ -239,7 +241,7 @@ export function AcquisitionsPage() {
               >
                 <div className="row between">
                   <strong>
-                    <Highlight text={`${acq.brand} ${acq.model}`} query={debouncedSearch} />
+                    <Highlight text={vehicleTitle(acq)} query={debouncedSearch} />
                   </strong>
                   <Badge status={acq.status} />
                 </div>
@@ -331,7 +333,7 @@ function DeleteAcquisitionDialog({
           <div className="delete-dialog-heading">
             <h2 id="delete-acq-title">Xóa phiếu thu</h2>
             <p>
-              {acquisition.brand} {acquisition.model}
+              {vehicleTitle(acquisition)}
               {acquisition.frame_number ? ` · ${acquisition.frame_number}` : ""}
             </p>
           </div>

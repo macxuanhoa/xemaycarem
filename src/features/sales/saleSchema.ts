@@ -14,7 +14,7 @@ export const saleSchema = z
   })
   .refine((values) => values.initial_payment <= values.sale_price, {
     path: ["initial_payment"],
-    message: "Số tiền thu không được vượt quá giá bán.",
+    message: "Số tiền khách trả trước không được vượt quá giá bán.",
   })
   .refine(
     (values) => {

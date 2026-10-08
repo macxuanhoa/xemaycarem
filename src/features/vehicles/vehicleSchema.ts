@@ -18,9 +18,8 @@ export {
 } from "@/features/expenses/expenseSchema";
 
 export const vehicleSchema = z.object({
-  brand: z.string().trim().max(80),
-  model: z.string().trim().min(1, "Nhập dòng xe.").max(120),
-  variant: z.string().trim().max(120),
+  // Danh mục loại xe (bảng vehicle_types): chỉ chọn, không gõ tay.
+  vehicle_type_id: z.string().trim().min(1, "Chọn loại xe."),
   license_plate: z
     .string()
     .trim()
@@ -34,15 +33,8 @@ export const vehicleSchema = z.object({
     .optional(),
   color: z.string().trim().max(60),
   frame_number: z.string().trim().max(100),
-  engine_number: z.string().trim().max(100),
-  odometer: z
-    .number({ error: "Nhập số km hợp lệ." })
-    .int()
-    .min(0)
-    .max(10_000_000),
   purchase_date: dateValue,
   purchase_price: moneyValue.optional(),
-  asking_price: moneyValue,
   supplier_name: z.string().trim().max(160),
   supplier_phone: z.string().trim().max(30),
   status: z.enum(["IN_STOCK", "RESERVED", "CANCELLED"]),
@@ -68,6 +60,9 @@ export const actionLabels: Record<string, string> = {
   CANCEL_EXPENSE: "Hủy chi phí",
   CREATE_SALE: "Bán xe",
   CANCEL_SALE: "Hủy giao dịch bán",
+  REQUEST_DELETE_VEHICLE: "Gửi yêu cầu xóa xe",
+  APPROVE_VEHICLE_DELETION: "Duyệt xóa xe",
+  RESTORE_VEHICLE_DELETION: "Khôi phục xe sau yêu cầu xóa",
   CREATE_PAYMENT: "Ghi nhận thanh toán",
   ADD_PAYMENT: "Ghi nhận thanh toán",
   VOID_PAYMENT: "Hoàn thanh toán",

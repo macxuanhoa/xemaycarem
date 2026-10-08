@@ -25,9 +25,8 @@ const vehicle = (over: Partial<Vehicle>): Vehicle =>
     id: crypto.randomUUID(),
     internal_code: "XE-TEST-000001",
     license_plate: "",
-    brand: "Honda",
-    model: "Vision",
     frame_number: "",
+    vehicle_type: "Xe tay ga",
     status: "IN_STOCK",
     ...over,
   }) as Vehicle;
@@ -35,13 +34,8 @@ const vehicle = (over: Partial<Vehicle>): Vehicle =>
 const fields = (over: Partial<ScannedFields> = {}): ScannedFields => ({
   license_plate: "",
   frame_number: "",
-  engine_number: "",
-  brand: "",
-  model: "",
-  variant: "",
   color: "",
   year: "",
-  odometer: "",
   ...over,
 });
 
@@ -50,29 +44,29 @@ describe("normalizeScan", () => {
     const scan = normalizeScan({
       license_plate: "59 a1 234.56",
       frame_number: "rlh160 kd12345",
+      color: "Đen",
+      year: 1850,
+      // Key cũ của hợp đồng xe ảnh: không còn trường nào để lưu, bị bỏ hẳn.
       engine_number: "kf30e-99999",
       brand: "Honda",
       model: "Vision 2022",
-      variant: "  ",
-      color: "Đen",
-      year: 1850,
+      variant: "ABS",
       odometer: 99_999_999,
     });
     expect(scan.license_plate).toBe("59-A1 234.56");
     expect(scan.frame_number).toBe("RLH160KD12345");
-    expect(scan.engine_number).toBe("KF30E99999");
-    expect(scan.variant).toBe("");
     expect(scan.color).toBe("Đen");
-    // Out-of-range year/odometer degrade to unreadable, never to a guess.
+    // Năm ngoài khoảng 1900..2100 coi như đọc không được, không đoán.
     expect(scan.year).toBe("");
-    expect(scan.odometer).toBe("");
+    for (const purged of ["engine_number", "brand", "model", "variant", "odometer"]) {
+      expect(scan).not.toHaveProperty(purged);
+    }
   });
-  it("treats digit-only 'names' as artifacts and keeps a plausible year", () => {
-    const scan = normalizeScan({ brand: "123", model: "SH 160i", year: 2019, odometer: 18500 });
-    expect(scan.brand).toBe("");
-    expect(scan.model).toBe("SH 160i");
+  it("treats a digit-only colour as an artifact and keeps a plausible year", () => {
+    const scan = normalizeScan({ color: "123", year: 2019, frame_number: "  RLH160-001 " });
+    expect(scan.color).toBe("");
     expect(scan.year).toBe("2019");
-    expect(scan.odometer).toBe("18500");
+    expect(scan.frame_number).toBe("RLH160001");
   });
 });
 
@@ -85,7 +79,10 @@ describe("CRM identity resolution", () => {
     expect(match).toMatchObject({ state: "unique", vehicle: { id: known.id } });
     const statuses = classifyFields(scanned, match);
     expect(statuses.license_plate).toBe("VERIFIED");
-    expect(statuses.brand).toBe("UNREADABLE");
+    expect(statuses.frame_number).toBe("VERIFIED");
+    // Ảnh chỉ đọc danh tính; màu và năm không đọc được thì UNREADABLE.
+    expect(statuses.color).toBe("UNREADABLE");
+    expect(statuses.year).toBe("UNREADABLE");
   });
 
   it("B: neither identifier found is the only path to 'new vehicle'", () => {
@@ -124,14 +121,22 @@ describe("CRM identity resolution", () => {
   it("several plate candidates stay ambiguous for manual verification", () => {
     const first = vehicle({ license_plate: "59-A1 234.56" });
     const second = vehicle({ license_plate: "59-A1 234.56" });
-    const match = matchIdentity(scanned, [ { id: first.id, internal_code: "", license_plate: first.license_plate!, brand: "", model: "", frame_number: "", status: "IN_STOCK" }, { id: second.id, internal_code: "", license_plate: second.license_plate!, brand: "", model: "", frame_number: "", status: "SOLD" } ], []);
+    const match = matchIdentity(scanned, [ { id: first.id, internal_code: "", license_plate: first.license_plate!, vehicle_type: "", frame_number: "", status: "IN_STOCK" }, { id: second.id, internal_code: "", license_plate: second.license_plate!, vehicle_type: "", frame_number: "", status: "SOLD" } ], []);
     expect(match.state).toBe("ambiguous");
     if (match.state === "ambiguous") expect(match.candidates).toHaveLength(2);
   });
 });
 
 describe("intake handoff", () => {
-  const scanned = normalizeScan({ license_plate: "59a1234.56", brand: "Honda", model: "Vision", year: 2022, odometer: 12500 });
+  const scanned = normalizeScan({
+    license_plate: "59a1234.56",
+    frame_number: "RLH160KD12345",
+    color: "Đen",
+    year: 2022,
+    brand: "Honda",
+    model: "Vision",
+    odometer: 12500,
+  });
   const noneMatch: VehicleMatch = { state: "none" };
   const recognition: Recognition = {
     version: 1,
@@ -148,19 +153,28 @@ describe("intake handoff", () => {
     expect(entry.sourceLine).toBe("Camera thông minh");
     expect(entry.fields.purchase_date).toBe("2026-10-06");
     expect(entry.fields.license_plate).toBe("59-A1 234.56");
-    expect(entry.fields.brand).toBe("Honda");
+    expect(entry.fields.frame_number).toBe("RLH160KD12345");
+    expect(entry.fields.color).toBe("Đen");
     expect(entry.fields.year).toBe("2022");
-    expect(entry.fields.odometer).toBe("12500");
+    // Trường đã bị xoá vĩnh viễn: camera không đọc và cũng không có chỗ lưu.
+    for (const purged of ["brand", "model", "variant", "engine_number", "odometer"]) {
+      expect(entry.fields).not.toHaveProperty(purged);
+    }
+    // Phân loại xe vẫn là bước của người thật: ảnh không cho ra vehicle_type.
+    expect(entry.fields.vehicle_type).toBeUndefined();
     // Never invents financial or customer data the camera cannot see.
     expect(entry.fields.purchase_price).toBeUndefined();
     expect(entry.fields.supplier_name).toBeUndefined();
-    expect(entry.provenance.brand).toBe("camera");
+    expect(entry.provenance.color).toBe("camera");
+    // Nguồn gốc đọc được chỉ gắn cho bốn trường còn lại.
+    for (const purged of ["brand", "model", "variant", "engine_number", "odometer"])
+      expect(entry.provenance as Record<string, unknown>).not.toHaveProperty(purged);
     expect(entry.fieldStatus?.license_plate).toBe("SUGGESTED");
     expect(entry.fields.notes).toContain("Chưa tìm thấy trong kho");
   });
 
   it("no beep key repeats for the same vehicle across rescans", () => {
-    const unique: VehicleMatch = { state: "unique", vehicle: { id: "abc", internal_code: "", license_plate: "", brand: "", model: "", frame_number: "", status: "IN_STOCK" } };
+    const unique: VehicleMatch = { state: "unique", vehicle: { id: "abc", internal_code: "", license_plate: "", vehicle_type: "", frame_number: "", status: "IN_STOCK" } };
     expect(scanTargetKey(unique, recognition.fields)).toBe("vehicle:abc");
     expect(scanTargetKey(unique, recognition.fields)).toBe(scanTargetKey(unique, recognition.fields));
     expect(scanTargetKey({ state: "none" }, fields({ license_plate: "59-A1 234.56" })))
@@ -204,7 +218,13 @@ describe("intake handoff", () => {
 describe("intakeRows compatibility", () => {
   it("camera entries flow through the existing validation unchanged", async () => {
     const { validateIntakeEntry } = await import("@/lib/shorthand/intakeRows");
-    const scanned = normalizeScan({ license_plate: "59-a1 234.56", brand: "Honda", model: "Vision" });
+    const TYPES = [{ id: "t-ga", name: "Xe tay ga" }];
+    const scanned = normalizeScan({
+      license_plate: "59-a1 234.56",
+      color: "Đen",
+      brand: "Honda",
+      model: "Vision",
+    });
     const noneMatch: VehicleMatch = { state: "none" };
     const recognition: Recognition = {
       version: 1,
@@ -216,8 +236,12 @@ describe("intakeRows compatibility", () => {
     };
     recognition.statuses = classifyFields(recognition.fields, recognition.match);
     const entry = recognitionToIntakeEntry(recognition, "entry-2", "2026-10-06");
-    expect(validateIntakeEntry(entry, false)).toEqual([]);
-    const bad = { ...entry, fields: { ...entry.fields, license_plate: "XYZ" } };
-    expect(validateIntakeEntry(bad, false).length).toBeGreaterThan(0);
+    // Ảnh không đọc được loại xe -> thẻ bắt buộc nhân viên chọn từ danh mục,
+    // đúng luật VEHICLE_TYPE_REQUIRED phía server.
+    expect(validateIntakeEntry(entry, false, TYPES).join(" ")).toMatch(/loại xe/);
+    const typed = { ...entry, fields: { ...entry.fields, vehicle_type: "Xe tay ga" } };
+    expect(validateIntakeEntry(typed, false, TYPES)).toEqual([]);
+    const bad = { ...typed, fields: { ...typed.fields, license_plate: "XYZ" } };
+    expect(validateIntakeEntry(bad, false, TYPES).length).toBeGreaterThan(0);
   });
 });

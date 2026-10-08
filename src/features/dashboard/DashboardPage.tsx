@@ -35,6 +35,7 @@ import {
 import { useAuth } from "@/features/auth/AuthProvider";
 import { DashboardExecutiveBanner } from "./DashboardExecutiveBanner";
 import type { DashboardData, DailyReconciliation, DateFilter } from "@/types";
+import { vehicleSubtitle, vehicleTitle } from "@/lib/vehicleDisplay";
 
 export default function DashboardPage() {
   const { profile } = useAuth();
@@ -427,7 +428,7 @@ export default function DashboardPage() {
                               <Receipt size={18} />
                             </span>
                             <div>
-                              <strong>{s.brand} {s.model || s.sale_code}</strong>
+                              <strong>{vehicleTitle(s)}</strong>
                               <small>{s.customer_name} · {dateLabel(s.sale_date)}</small>
                             </div>
                             <div className="align-right">
@@ -451,8 +452,8 @@ export default function DashboardPage() {
                         {d.recent_acquisitions.map((a) => (
                           <Link className="compact-row" key={a.id} to={"/vehicles/" + a.vehicle_id}>
                             <div>
-                              <strong>{a.brand} {a.model}</strong>
-                              <small>{a.frame_number} · {dateLabel(a.acquisition_date)}</small>
+                              <strong>{vehicleTitle(a)}</strong>
+                              <small>{vehicleSubtitle(a) || a.frame_number} · {dateLabel(a.acquisition_date)}</small>
                             </div>
                             {canFinance(profile) && a.purchase_price != null && (
                               <strong>{money(a.purchase_price)}</strong>
@@ -474,7 +475,7 @@ export default function DashboardPage() {
                         {d.top_profitable.map((s) => (
                           <Link className="compact-row" key={s.id} to={"/sales/" + s.id}>
                             <div>
-                              <strong>{s.brand} {s.model || s.sale_code}</strong>
+                              <strong>{vehicleTitle(s)}</strong>
                               <small>{dateLabel(s.sale_date)}</small>
                             </div>
                             <strong className="positive" style={{ color: "#16a34a" }}>

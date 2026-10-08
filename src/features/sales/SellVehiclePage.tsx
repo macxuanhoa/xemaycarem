@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useDebouncedValue } from "@/lib/useDebouncedValue";
 import { useFormDraft } from "@/lib/useFormDraft";
 import { MoneyInput } from "@/components/ui/MoneyInput";
@@ -7,7 +7,7 @@ import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { ArrowLeft, ArrowRight, Bike, Search, ShoppingBag } from "lucide-react";
+import { ArrowLeft, ArrowRight, Bike, ChevronDown, ChevronUp, Search, ShoppingBag } from "lucide-react";
 import { api } from "@/lib/api";
 import { AppError } from "@/lib/errors";
 import { executeOperation } from "@/lib/operationRecovery";
@@ -30,6 +30,7 @@ import {
 import { Highlight } from "@/components/search/Highlight";
 import type { Paged, Vehicle } from "@/types";
 import { AVAILABLE_VEHICLE_FILTER } from "@/lib/vehicleFilters";
+import { vehicleSubtitle, vehicleTitle } from "@/lib/vehicleDisplay";
 import { paymentLabels } from "@/features/vehicles/vehicleSchema";
 import { saleSchema, type SaleFormValues } from "./saleSchema";
 
@@ -80,7 +81,7 @@ export function SellVehiclePage() {
             <input
               aria-label="Tìm xe để bán"
               autoFocus
-              placeholder="Tìm mã xe, biển số, hãng, dòng xe…"
+              placeholder="Tìm mã xe, biển số, số khung, loại xe…"
               value={search}
               onChange={(event) => {
                 setSearch(event.target.value);
@@ -119,19 +120,16 @@ export function SellVehiclePage() {
                     <Bike size={25} />
                   </span>
                   <div>
-                    <strong title={`${item.brand} ${item.model}`}>
-                      <Highlight text={`${item.brand} ${item.model}`} query={deferredSearch} />
+                    <strong title={vehicleTitle(item)}>
+                      <Highlight text={vehicleTitle(item)} query={deferredSearch} />
                     </strong>
                     <small>
-                      <Highlight text={item.internal_code} query={deferredSearch} /> ·{" "}
-                      {item.license_plate ? <Highlight text={item.license_plate} query={deferredSearch} /> : "Chưa có biển số"}
+                      <Highlight text={vehicleSubtitle(item)} query={deferredSearch} /> ·{" "}
+                      <Highlight text={item.internal_code} query={deferredSearch} />
                     </small>
                   </div>
                 </div>
                 <div className="row">
-                  <span className={item.asking_price ? "price" : "price muted"}>
-                    {item.asking_price ? money(item.asking_price) : "Chưa có giá"}
-                  </span>
                   {item.cost_pending ? (
                     <button
                       type="button"
@@ -204,6 +202,9 @@ function SaleEditor({ vehicle }: { vehicle: Vehicle }) {
   // stays editable and the save still goes through the confirmed sell RPC.
   const aiDraft = (location.state as { aiDraft?: Record<string, unknown> } | null)
     ?.aiDraft;
+  // Bán hàng là nghiệp vụ duy nhất sinh giá: ô giá mở form để trống, không lấy
+  // từ hồ sơ xe, không lấy từ bản nháp AI — nhân viên tự nhập giá thật tại quầy.
+  const emptyPrice = Number.NaN;
 
   const form = useForm<SaleFormValues>({
     resolver: zodResolver(saleSchema),
@@ -216,13 +217,10 @@ function SaleEditor({ vehicle }: { vehicle: Vehicle }) {
         typeof aiDraft?.customer_phone === "string"
           ? aiDraft.customer_phone.slice(0, 15)
           : "",
-      sale_price:
-        typeof aiDraft?.sale_price === "number" && aiDraft.sale_price >= 1_000_000
-          ? aiDraft.sale_price
-          : vehicle.asking_price,
+      sale_price: emptyPrice,
       sale_date: today(),
       due_date: "",
-      initial_payment: 0,
+      initial_payment: emptyPrice,
       payment_method: "CASH",
       notes: "",
     },
@@ -232,10 +230,15 @@ function SaleEditor({ vehicle }: { vehicle: Vehicle }) {
   const draft = draftState.draft;
   const price = form.watch("sale_price");
   const paid = form.watch("initial_payment");
+  // Blank money is modelled as NaN; a MoneyInput must render it as an empty
+  // box (undefined), never leak the literal "NaN" when it mounts mid-session.
+  const priceInput = Number.isFinite(price) ? price : undefined;
+  const paidInput = Number.isFinite(paid) ? paid : undefined;
   const paymentValid = Number.isFinite(price) && Number.isFinite(paid) && paid <= price;
   const remaining = paymentValid ? price - paid : undefined;
   const priceField = form.register("sale_price");
   const paidField = form.register("initial_payment");
+  const [showPaymentDetails, setShowPaymentDetails] = useState(false);
   const reviewPending = useRef(false);
   const [reviewing, setReviewing] = useState(false);
 
@@ -262,6 +265,13 @@ function SaleEditor({ vehicle }: { vehicle: Vehicle }) {
   const error = (key: keyof SaleFormValues) =>
     form.formState.errors[key]?.message;
 
+  // Tự mở phần chi tiết khi có lỗi ở các field bị ẩn để nhân viên nhìn thấy ngay.
+  useEffect(() => {
+    if (form.formState.errors.initial_payment || form.formState.errors.due_date) {
+      setShowPaymentDetails(true);
+    }
+  }, [form.formState.errors.initial_payment, form.formState.errors.due_date]);
+
   const reviewSale = async (values: SaleFormValues) => {
     if (reviewPending.current || mutation.isPending) return;
     reviewPending.current = true;
@@ -276,14 +286,15 @@ function SaleEditor({ vehicle }: { vehicle: Vehicle }) {
         cancelLabel: "Quay lại chỉnh sửa",
         summary: (
           <dl className="summary-list sale-review-summary">
-            <div><dt>Xe</dt><dd>{[vehicle.brand, vehicle.model].filter(Boolean).join(" ") || "Chưa có tên xe"}</dd></div>
-            <div><dt>Biển số / mã xe</dt><dd>{vehicle.license_plate || "Chưa có biển số"} · {vehicle.internal_code}</dd></div>
+            <div><dt>Xe</dt><dd>{vehicleTitle(vehicle)}</dd></div>
+            <div><dt>Loại xe / đời / màu</dt><dd>{vehicleSubtitle(vehicle) || "Chưa phân loại"}</dd></div>
+            <div><dt>Mã xe</dt><dd>{vehicle.internal_code}</dd></div>
             <div><dt>Khách hàng</dt><dd>{snapshot.customer_name}</dd></div>
             <div><dt>Số điện thoại</dt><dd>{snapshot.customer_phone || "Chưa cung cấp"}</dd></div>
             <div><dt>Ngày bán</dt><dd>{dateLabel(snapshot.sale_date)}</dd></div>
             <div><dt>Hình thức thu</dt><dd>{paymentLabels[snapshot.payment_method]}</dd></div>
             <div><dt>Giá bán</dt><dd>{money(snapshot.sale_price)}</dd></div>
-            <div><dt>Thu lần đầu</dt><dd>{money(snapshot.initial_payment)}</dd></div>
+            <div><dt>Khách đã trả trước</dt><dd>{money(snapshot.initial_payment)}</dd></div>
             <div className="summary-total"><dt>Còn phải thu</dt><dd>{money(snapshot.sale_price - snapshot.initial_payment)}</dd></div>
             <div><dt>Hạn thanh toán</dt><dd>{snapshot.due_date ? dateLabel(snapshot.due_date) : "Chưa hẹn ngày"}</dd></div>
             {snapshot.notes && <div><dt>Ghi chú</dt><dd>{snapshot.notes}</dd></div>}
@@ -323,8 +334,9 @@ function SaleEditor({ vehicle }: { vehicle: Vehicle }) {
       {draft && (
         <div className="notice draft-notice">
           <span>
-            Có bản nháp ngày giao dịch cho xe này. Thông tin khách hàng, giá,
-            thanh toán và ghi chú cần nhập lại.
+            Có bản nháp giao dịch chưa hoàn tất cho xe này. Nhấn tiếp tục để
+            khôi phục đầy đủ thông tin khách hàng, giá bán, thanh toán và ghi
+            chú.
           </span>
           <Button variant="secondary" onClick={draftState.resume}>
             Tiếp tục bản nháp
@@ -361,22 +373,31 @@ function SaleEditor({ vehicle }: { vehicle: Vehicle }) {
           </Card>
           <Card>
             <h2 className="section-title">Giá bán & thanh toán</h2>
+            {/* Hàng luôn hiển thị: giá bán và ngày bán */}
             <div className="form-grid">
-              <Field label="Giá bán thực tế (₫) *" error={error("sale_price")}>
+              <Field label="Bán với giá" error={error("sale_price")}>
                 <MoneyInput
-                  aria-label="Giá bán thực tế (₫) *"
+                  aria-label="Bán với giá"
                   name={priceField.name}
                   ref={priceField.ref}
-                  value={price}
+                  value={priceInput}
                   min={0}
                   required
                   onBlur={() => void form.trigger("sale_price")}
-                  onChange={(value) =>
+                  onChange={(value) => {
                     form.setValue("sale_price", value ?? Number.NaN, {
                       shouldValidate: true,
                       shouldDirty: true,
-                    })
-                  }
+                    });
+                    // Giữ "trả trước" đúng bằng giá cho tới khi nhân viên tự sửa.
+                    if (!form.formState.dirtyFields.initial_payment) {
+                      form.setValue(
+                        "initial_payment",
+                        value ?? Number.NaN,
+                        { shouldValidate: true },
+                      );
+                    }
+                  }}
                 />
               </Field>
               <Field label="Ngày bán *" error={error("sale_date")}>
@@ -394,85 +415,91 @@ function SaleEditor({ vehicle }: { vehicle: Vehicle }) {
                   required
                 />
               </Field>
-              <Field
-                label="Thu tiền lần đầu (₫)"
-                error={error("initial_payment")}
-              >
-                <MoneyInput
-                  aria-label="Thu tiền lần đầu (₫)"
-                  name={paidField.name}
-                  ref={paidField.ref}
-                  value={paid}
-                  min={0}
-                  onBlur={() => void form.trigger("initial_payment")}
-                  onChange={(value) =>
-                    form.setValue("initial_payment", value ?? Number.NaN, {
-                      shouldValidate: true,
-                      shouldDirty: true,
-                    })
-                  }
-                />
-              </Field>
-              <Field label="Hình thức thanh toán">
-                <select {...form.register("payment_method")}>
-                  {Object.entries(paymentLabels).map(([value, label]) => (
-                    <option value={value} key={value}>
-                      {label}
-                    </option>
-                  ))}
-                </select>
-              </Field>
-              <Field
-                label="Hạn thanh toán (nếu còn nợ)"
-                error={error("due_date")}
-              >
-                <DatePicker
-                  aria-label="Hạn thanh toán (nếu còn nợ)"
-                  value={form.watch("due_date")}
-                  min={form.watch("sale_date")}
-                  onChange={(val) =>
-                    form.setValue("due_date", val, {
-                      shouldDirty: true,
-                      shouldValidate: !!error("due_date"),
-                    })
-                  }
-                  onBlur={() => void form.trigger("due_date")}
-                />
-                {Number.isFinite(price) &&
-                  Number.isFinite(paid) &&
-                  price > paid &&
-                  !form.watch("due_date") && (
-                    <small
-                      className="muted"
-                      style={{ display: "block", marginTop: "4px" }}
-                    >
-                      Khách còn nợ {money(price - paid)}. Nên hẹn ngày thanh toán để quản lý công nợ.
-                    </small>
-                  )}
-              </Field>
             </div>
-            <dl className="summary-list sale-payment-summary" data-state={paymentValid ? "valid" : "invalid"} aria-label="Tóm tắt thanh toán">
-              <div><dt>Giá bán</dt><dd>{Number.isFinite(price) ? money(price) : "Chưa hợp lệ"}</dd></div>
-              <div><dt>Thu lần đầu</dt><dd>{Number.isFinite(paid) ? money(paid) : "Chưa hợp lệ"}</dd></div>
-              <div className="summary-total"><dt>Còn phải thu</dt><dd>{paymentValid ? money(remaining) : "Kiểm tra số tiền"}</dd></div>
-            </dl>
-            <div className="sale-payment-shortcuts">
+            {/* Nút toggle thêm/ẩn chi tiết thanh toán */}
             <Button
               type="button"
-              variant="secondary"
-              disabled={!Number.isFinite(price) || mutation.isPending || reviewing}
-              onClick={() => {
-                form.setValue(
-                  "initial_payment",
-                  Number.isFinite(price) ? price : 0,
-                  { shouldValidate: true, shouldDirty: true },
-                );
-                form.setValue("due_date", "", { shouldDirty: true });
+              variant="ghost"
+              className="sale-payment-details-toggle"
+              onClick={() => setShowPaymentDetails((v) => !v)}
+              aria-expanded={showPaymentDetails}
+            >
+              {showPaymentDetails ? <ChevronUp size={15} /> : <ChevronDown size={15} />}
+              {showPaymentDetails ? "Ẩn chi tiết thanh toán" : "Thêm chi tiết thanh toán"}
+            </Button>
+            {/* Fields stay mounted so "đã trả trước" attaches at first paint
+                like "Bán với giá" (a late-mounted controlled money input lets
+                react-hook-form write the NaN blank-sentinel into the DOM as
+                the literal "NaN"); the toggle only collapses its visibility. */}
+            <div
+              className="form-grid sale-payment-details"
+              style={{
+                marginTop: "8px",
+                display: showPaymentDetails ? undefined : "none",
               }}
             >
-              Đã thu đủ tiền
-            </Button>
-            </div>
+                <Field
+                  label="Khách đã trả trước (₫)"
+                  error={error("initial_payment")}
+                >
+                  <MoneyInput
+                    aria-label="Khách đã trả trước (₫)"
+                    name={paidField.name}
+                    ref={paidField.ref}
+                    value={paidInput}
+                    min={0}
+                    onBlur={() => void form.trigger("initial_payment")}
+                    onChange={(value) =>
+                      form.setValue("initial_payment", value ?? Number.NaN, {
+                        shouldValidate: true,
+                        shouldDirty: true,
+                      })
+                    }
+                  />
+                </Field>
+                <Field label="Hình thức thanh toán">
+                  <select {...form.register("payment_method")}>
+                    {Object.entries(paymentLabels).map(([value, label]) => (
+                      <option value={value} key={value}>
+                        {label}
+                      </option>
+                    ))}
+                  </select>
+                </Field>
+                <Field
+                  label="Hạn thanh toán (nếu còn nợ)"
+                  error={error("due_date")}
+                >
+                  <DatePicker
+                    aria-label="Hạn thanh toán (nếu còn nợ)"
+                    value={form.watch("due_date")}
+                    min={form.watch("sale_date")}
+                    onChange={(val) =>
+                      form.setValue("due_date", val, {
+                        shouldDirty: true,
+                        shouldValidate: !!error("due_date"),
+                      })
+                    }
+                    onBlur={() => void form.trigger("due_date")}
+                  />
+                  {Number.isFinite(price) &&
+                    Number.isFinite(paid) &&
+                    price > paid &&
+                    !form.watch("due_date") && (
+                      <small
+                        className="muted"
+                        style={{ display: "block", marginTop: "4px" }}
+                      >
+                        Khách còn nợ {money(price - paid)}. Nên hẹn ngày thanh toán để quản lý công nợ.
+                      </small>
+                    )}
+                </Field>
+              </div>
+            <dl className="summary-list sale-payment-summary" data-state={paymentValid ? "valid" : "invalid"} aria-label="Tóm tắt thanh toán">
+              <div><dt>Giá bán</dt><dd>{Number.isFinite(price) ? money(price) : "Chưa hợp lệ"}</dd></div>
+              <div><dt>Đã trả trước</dt><dd>{Number.isFinite(paid) ? money(paid) : "Chưa hợp lệ"}</dd></div>
+              <div className="summary-total"><dt>Còn phải thu</dt><dd>{paymentValid ? money(remaining) : "Kiểm tra số tiền"}</dd></div>
+            </dl>
             <Field label="Ghi chú" error={error("notes")}>
               <textarea
                 rows={3}
@@ -500,20 +527,16 @@ function SaleEditor({ vehicle }: { vehicle: Vehicle }) {
               </div>
               <div className="sale-vehicle-head-text">
                 <h2 className="section-title">
-                  {vehicle.brand} {vehicle.model}
+                  {vehicleTitle(vehicle)}
                 </h2>
                 <p className="muted small">
-                  {vehicle.internal_code} ·{" "}
-                  {vehicle.license_plate || "Chưa có biển số"}
+                  {vehicleSubtitle(vehicle) || "Chưa phân loại"} ·{" "}
+                  {vehicle.internal_code}
                 </p>
                 <Badge status={vehicle.status} />
               </div>
             </div>
             <dl className="summary-list">
-              <div>
-                <dt>Giá bán dự kiến</dt>
-                <dd>{money(vehicle.asking_price)}</dd>
-              </div>
               {canFinance(profile) && (
                 <div>
                   <dt>Giá vốn hiện tại</dt>

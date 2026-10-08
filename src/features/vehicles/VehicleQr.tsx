@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { Button, Card, ErrorState } from "@/components/ui";
 import { generateQrSvg, vehicleQrUrl } from "@/lib/qrcode";
+import { vehicleSubtitle, vehicleTitle } from "@/lib/vehicleDisplay";
 import type { Vehicle } from "@/types";
 
 export function VehicleQr({ vehicle }: { vehicle: Vehicle }) {
@@ -29,19 +30,16 @@ export function VehicleQr({ vehicle }: { vehicle: Vehicle }) {
     <Card>
       <h2 className="section-title">QR xe</h2>
       <div className="vehicle-label print-vehicle-label">
-        <strong>
-          {vehicle.brand} {vehicle.model}
-        </strong>
-        <span>{vehicle.license_plate || vehicle.internal_code}</span>
+        <strong>{vehicleTitle(vehicle)}</strong>
+        <span>{vehicleSubtitle(vehicle)}</span>
         {query.data && (
           <img
             width={240}
             height={240}
-            alt={`QR mở xe ${vehicle.internal_code}`}
+            alt={`QR mở xe ${vehicleTitle(vehicle)}`}
             src={`data:image/svg+xml;charset=utf-8,${encodeURIComponent(query.data)}`}
           />
         )}
-        <small>Số khung: {vehicle.frame_number}</small>
       </div>
       {query.error && <ErrorState error={query.error} />}
       <div className="row">

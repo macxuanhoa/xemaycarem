@@ -57,9 +57,9 @@ export async function runNotificationsTests(externalDb, { engine = 'postgres' } 
     // 1. save_vehicle by staff notifies the actor plus bosses, not other staff.
     const vehicleData = (overrides = {}) => ({
       request_id: randomUUID(),
-      brand: 'Honda', model: 'SH 160', license_plate: `NB-${randomUUID().slice(0, 6).toUpperCase()}`,
+      vehicle_type: 'Xe tay ga', license_plate: `NB-${randomUUID().slice(0, 6).toUpperCase()}`,
       frame_number: `NFRAME${randomUUID().slice(0, 8)}`, purchase_date: day,
-      purchase_price: 80_000_000, asking_price: 90_000_000, ...overrides,
+      purchase_price: 80_000_000, ...overrides,
     })
     // STAFF cannot store prices, so the inventory entry starts cost-pending.
     const carA = await call('staff', 'save_vehicle', vehicleData({ purchase_price: undefined }))
@@ -69,7 +69,7 @@ export async function runNotificationsTests(externalDb, { engine = 'postgres' } 
       [users.owner, users.manager, users.financialManager, users.staff].sort(),
     )
     assert.equal(created.every((n) => n.actor_id === users.staff), true)
-    assert.match(created[0].title, /Honda SH 160/)
+    assert.match(created[0].title, /Thêm xe NB-/) // tiêu đề = biển · khung, không còn hãng/dòng
     assert.match(created.find((n) => n.user_id === users.owner).body, /đã thêm xe/)
     assert.equal(created.find((n) => n.user_id === users.staff).deep_link, `/vehicles/${carA}`)
     pass('CREATE_VEHICLE fans out to the acting STAFF and all active OWNER/MANAGER accounts')
@@ -187,7 +187,7 @@ export async function runNotificationsTests(externalDb, { engine = 'postgres' } 
     const beforeBosses = await count('SELECT count(*) AS count FROM public.notifications WHERE action=$1', ['UPDATE_VEHICLE'])
     await db.query(
       "INSERT INTO public.audit_logs(user_id,action,entity_type,entity_id,new_data) VALUES(NULL,'UPDATE_VEHICLE','vehicles',$1::uuid,$2::jsonb)",
-      [carA, JSON.stringify({ brand: 'Honda', model: 'SH 160', created_by: users.staff })],
+      [carA, JSON.stringify({ vehicle_type: 'Xe tay ga', created_by: users.staff })],
     )
     created = await notifs('UPDATE_VEHICLE', carA)
     const fresh = created.filter((n) => n.actor_id === null)

@@ -790,14 +790,14 @@
   box-shadow: 0 0 12px rgba(225, 29, 72, 0.4);
 }
 
-.brand-chips-row {
+.type-chips-row {
   display: flex;
   align-items: center;
   gap: 6px;
   flex-wrap: wrap;
 }
 
-.brand-chip {
+.type-chip {
   background: rgba(255, 255, 255, 0.05);
   border: 1px solid rgba(255, 255, 255, 0.1);
   color: #cbd5e1;
@@ -809,12 +809,12 @@
   transition: all 0.15s;
 }
 
-.brand-chip:hover {
+.type-chip:hover {
   background: rgba(255, 255, 255, 0.1);
   color: #fff;
 }
 
-.brand-chip.active {
+.type-chip.active {
   background: #fff;
   color: #090b0e;
   border-color: #fff;
@@ -960,7 +960,7 @@
   flex: 1;
 }
 
-.bike-brand-year {
+.bike-type-year {
   display: flex;
   align-items: center;
   gap: 8px;
@@ -970,7 +970,7 @@
   margin-bottom: 6px;
 }
 
-.bike-brand {
+.bike-type {
   color: #ff4d6d;
   text-transform: uppercase;
   letter-spacing: 0.5px;
@@ -999,29 +999,8 @@
   margin: 0 0 14px;
 }
 
-.bike-price-row {
-  margin-top: auto;
-  padding-top: 12px;
-  border-top: 1px solid rgba(255, 255, 255, 0.08);
-  margin-bottom: 14px;
-}
-
-.price-label {
-  display: block;
-  font-size: 11px;
-  color: #94a3b8;
-  margin-bottom: 2px;
-}
-
-.price-amount {
-  font-size: 20px;
-  font-weight: 900;
-  color: #ff3366;
-  letter-spacing: -0.5px;
-  text-shadow: 0 0 12px rgba(225, 29, 72, 0.35);
-}
-
 .bike-actions-row {
+  margin-top: auto;
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 8px;
@@ -1736,7 +1715,7 @@
   margin-bottom: 8px;
 }
 
-.modal-brand-tag {
+.modal-type-tag {
   background: var(--sr-red);
   color: #fff;
   font-size: 11px;
@@ -1759,26 +1738,6 @@
   font-weight: 900;
   color: #fff;
   margin: 0 0 12px;
-}
-
-.modal-price-box {
-  background: rgba(225, 29, 72, 0.1);
-  border: 1px solid rgba(225, 29, 72, 0.3);
-  padding: 10px 16px;
-  border-radius: 8px;
-  margin-bottom: 16px;
-}
-
-.modal-price-box .label {
-  display: block;
-  font-size: 11px;
-  color: #94a3b8;
-}
-
-.modal-price-box .val {
-  font-size: 24px;
-  font-weight: 900;
-  color: #ff3366;
 }
 
 .modal-bike-desc {

@@ -10,6 +10,7 @@ import { runCopilotGapTests } from '../tests/db/copilot-gaps.test.mjs'
 import { runIdentityDocumentTests } from '../tests/db/identity-documents.test.mjs'
 import { runShowroomTests } from '../tests/db/showroom.test.mjs'
 import { runHardDeleteTests } from '../tests/db/hard-delete.test.mjs'
+import { runStaffDeleteApprovalTests } from '../tests/db/staff-parity-delete-approval.test.mjs'
 import { runNotificationsTests } from '../tests/db/notifications.test.mjs'
 import { runSaleDueDateConflictTests } from '../tests/db/sale-due-date-conflict.test.mjs'
 import { runOperationReceiptTests } from '../tests/db/operation-receipts.test.mjs'
@@ -18,6 +19,8 @@ import { runMandatoryWriteProtocolTests } from '../tests/db/mandatory-write-prot
 import { runPaymentReceiptTests } from '../tests/db/payment-receipts.test.mjs'
 import { runMessageLeaseTests } from '../tests/db/message-leases.test.mjs'
 import { runInventoryCreationReceiptTests } from '../tests/db/inventory-creation-receipts.test.mjs'
+import { runVehicleTypeCatalogTests } from '../tests/db/vehicle-type-catalog.test.mjs'
+import { runFieldPurgeIntegrityTests } from '../tests/db/field-purge-integrity.test.mjs'
 import { verifiedPayment } from '../tests/db/payment-fixtures.mjs'
 import { runPaymentReceiptSecurityTests } from '../tests/db/payment-receipt-security.test.mjs'
 
@@ -32,6 +35,7 @@ await runCopilotGapTests(null, { engine })
 await runIdentityDocumentTests(null, { engine })
 await runShowroomTests(null, { engine })
 await runHardDeleteTests(null, { engine })
+await runStaffDeleteApprovalTests(null, { engine })
 await runNotificationsTests(null, { engine })
 await runSaleDueDateConflictTests(null, { engine })
 await runOperationReceiptTests(null, { engine })
@@ -41,6 +45,8 @@ await runPaymentReceiptTests()
 await runPaymentReceiptSecurityTests(null, { engine })
 await runMessageLeaseTests(null, { engine })
 await runInventoryCreationReceiptTests(null, { engine })
+await runVehicleTypeCatalogTests(null, { engine })
+await runFieldPurgeIntegrityTests(null, { engine })
 const db = await createDatabase({ engine })
 let passed = 0
 const users = Object.fromEntries(['owner', 'manager', 'financialManager', 'staff', 'disabled'].map((role) => [role, randomUUID()]))
@@ -54,7 +60,7 @@ async function test(name, operation) {
   console.log(`PASS ${passed}. ${name}`)
 }
 let day, vehicleId, saleId, expenseId
-const vehicle = (overrides = {}) => ({ request_id:randomUUID(), brand: 'Honda', model: 'SH 160', license_plate: 'TEST-ONLY', purchase_date: day, purchase_price: 80_000_000, asking_price: 90_000_000, ...overrides })
+const vehicle = (overrides = {}) => ({ request_id:randomUUID(), vehicle_type: 'Xe tay ga', license_plate: 'TEST-ONLY', purchase_date: day, purchase_price: 80_000_000, ...overrides })
 const sale = (id, overrides = {}) => ({ vehicle_id: id, customer_name: 'Khách kiểm thử', customer_phone: '0000000000', sale_price: 90_000_000, sale_date: day, initial_payment: 20_000_000, payment_method: 'CASH', ...overrides })
 const expense = (id, amount = 1_200_000) => ({ vehicle_id: id, expense_type: 'REPAIR', description: 'Chi phí kiểm thử', amount, expense_date: day })
 const getVehicle = (user, id) => run(user, (client) => rpc(client, 'get_vehicle', '$1::uuid', [id]))
@@ -117,9 +123,13 @@ try {
     assert.equal((await run('disabled', (client) => client.query('SELECT * FROM public.vehicles'))).rows.length, 0)
     assert.equal((await run('disabled', (client) => client.query('SELECT * FROM public.vehicle_financials'))).rows.length, 0)
   })
-  await test('STAFF cannot create expenses or escalate roles', async () => {
+  await test('STAFF has vehicle-operation parity (adds a vehicle expense) but cannot escalate roles', async () => {
     assert.equal((await call('staff', 'list_vehicles', {})).total, 1)
-    await deny(() => addExpense('staff', vehicleId, 1_200_000))
+    // STAFF now mirrors a non-financial MANAGER for vehicle operations: they may
+    // record a vehicle expense. Cancel it so the shared totals in later checks
+    // remain unchanged (parity opens the write path, not the accounting here).
+    const staffExpense = await addExpense('staff', vehicleId, 100_000)
+    await run('staff', (client) => rpc(client, 'cancel_expense', "'vehicle',$1::uuid,'Hủy kiểm thử parity'", [staffExpense]))
     await deny(() => run('staff', (client) => rpc(client, 'update_profile', '$1::uuid,$2::jsonb', [users.staff, '{"role":"OWNER"}'])))
     await deny(() => run('staff', (client) => rpc(client, 'list_profiles')))
     await deny(() => call('staff', 'list_audit', {}))
@@ -144,7 +154,7 @@ try {
   })
   await test('Database rejects fractional, negative and oversized money', async () => {
     for (const amount of [-1, 1.5, '1e7', 1_000_000_000_001]) await deny(() => addExpense('owner', vehicleId, amount), /INVALID_MONEY|check constraint/)
-    await deny(() => call('owner', 'save_vehicle', vehicle({ asking_price: -1 })), /INVALID_MONEY/)
+    await deny(() => call('owner', 'save_vehicle', vehicle({ purchase_price: -1 })), /INVALID_MONEY|check constraint/)
   })
   await test('A late audit failure rolls back sale, snapshot, payment and vehicle status together', async () => {
     const id = await call('owner', 'save_vehicle', vehicle())
@@ -332,7 +342,7 @@ async function concurrencyTests() {
     assert.equal(Number((await row('SELECT count(*) AS count FROM public.sales WHERE vehicle_id=$1', [id])).count), 1)
   })
   await test('Concurrent payments cannot jointly overpay the remaining balance', async () => {
-    const id = await call('owner', 'save_vehicle', vehicle({ purchase_price: 50, asking_price: 100 }))
+    const id = await call('owner', 'save_vehicle', vehicle({ purchase_price: 50 }))
     const sold = await call('owner', 'sell_vehicle', sale(id, { sale_price: 100, initial_payment: 0 }))
     const receipts = await Promise.all([0,1].map(() => call('staff','prepare_payment_receipt',{request_id:randomUUID(),sale_id:sold,amount:60,payment_method:'CASH',payment_date:day})))
     const inputs = receipts.map(r=>JSON.stringify({request_id:randomUUID(),receipt_id:r.id,verification_reference:'Synthetic manager checked distinct real fixture voucher',evidence_kind:'CASH_VOUCHER',evidence_scope:'SYNTHETIC CONCURRENCY',evidence_reference:r.id}))

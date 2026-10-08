@@ -3,9 +3,9 @@ import { test, expect } from '@playwright/test'
 const userId = '11111111-1111-4111-8111-111111111111'
 const vehicleId = '22222222-2222-4222-8222-222222222222'
 const pixel = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aX2sAAAAASUVORK5CYII=', 'base64')
-const vehicle = { id: vehicleId, internal_code: 'XE-TEST-000001', brand: 'Honda', model: 'SH160', frame_number: 'RLH-TEST-123',
-  license_plate: '43A1-12345', status: 'IN_STOCK', purchase_date: '2026-09-30', asking_price: 93000000,
-  year: 2024, color: 'Trắng', odometer: 18500, images: [], expenses: [], sales: [], activity: [] }
+const vehicle = { id: vehicleId, internal_code: 'XE-TEST-000001', vehicle_type_id: '33333333-3333-4333-8333-333333333333', vehicle_type: 'Xe côn tay', vehicle_title: '43A1-12345 · RLH-TEST-123', vehicle_subtitle: 'Xe côn tay · 2024 · Trắng', frame_number: 'RLH-TEST-123',
+  license_plate: '43A1-12345', status: 'IN_STOCK', purchase_date: '2026-09-30',
+  year: 2024, color: 'Trắng', images: [], expenses: [], sales: [], activity: [] }
 function draftResponse(task, draft) {
   return { kind: 'draft', task, vehicle_id: vehicleId, draft, human_confirmation_required: true,
     warnings: ['Kiểm tra lại số khung, xe và số tiền trước khi lưu.'] }
@@ -119,7 +119,7 @@ test('receipt capture stays transient and saves only after review in the existin
 })
 
 test('staff document draft opens a review form without financial fields or automatic acquisition', async ({ page }) => {
-  const calls = await setup(page, { role: 'STAFF', result: draftResponse('vehicle_document', { frame_number: 'RLHNEW123', engine_number: 'E123', license_plate: '43A1-45678', brand: 'Honda', model: 'SH160', color: 'Trắng', year: 2024 }) })
+  const calls = await setup(page, { role: 'STAFF', result: draftResponse('vehicle_document', { frame_number: 'RLHNEW123', license_plate: '43A1-45678', color: 'Trắng', year: 2024 }) })
   await page.goto('/assist?task=vehicle_document')
   await submitDraft(page)
   await page.getByRole('link', { name: 'Kiểm tra trong phiếu thu xe' }).click()

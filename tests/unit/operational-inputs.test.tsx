@@ -57,9 +57,9 @@ it("customer receipts exclude all internal financial data and notes", () => {
     purchase_cost_snapshot: 12345678,
     gross_profit: 87654321,
     vehicle: {
-      brand: "Honda",
-      model: "Wave",
-      engine_number: "ENGINE-TEST",
+      vehicle_title: "59-B1 123 · RLHWAVE",
+      vehicle_subtitle: "Xe số · 2023 · Đen",
+      vehicle_type: "Xe số",
       notes: "SECRET-VEHICLE-NOTE",
       purchase_price: 23456789,
     },
@@ -145,7 +145,7 @@ describe("MoneyInput Vietnamese component rendering", () => {
   it("renders no quick-add amount chips; the typed value and its words are the only feedback", async () => {
     const { MoneyInput } = await import("@/components/ui/MoneyInput");
     const html = renderToStaticMarkup(
-      <MoneyInput value={82500000} onChange={() => {}} required min={0} aria-label="Giá bán thực tế (₫) *" />,
+      <MoneyInput value={82500000} onChange={() => {}} required min={0} aria-label="Bán với giá" />,
     );
     expect(html).not.toContain("money-shortcuts");
     expect(html).not.toContain("chip-btn");
@@ -252,7 +252,7 @@ describe("AcquisitionsPage layout, table readability and operational UX", () => 
     // Local page search input preserved
     expect(html).toContain('aria-label="Tìm kiếm xe thu vào"');
     expect(html).toContain(
-      'placeholder="Tìm số khung, biển số, hãng, dòng xe, người bán…"',
+      'placeholder="Tìm số khung, biển số, loại xe, người bán…"',
     );
     // Date filter presets rendered
     expect(html).toContain("Hôm nay");
@@ -329,8 +329,9 @@ describe("AcquisitionsPage layout, table readability and operational UX", () => 
           {
             id: "acq-1",
             vehicle_id: "veh-1",
-            brand: "Honda",
-            model: "Vision",
+            vehicle_type: "Xe tay ga",
+            year: 2023,
+            color: "Đen",
             internal_code: "XE-2026-0001",
             frame_number: "RLH123456",
             license_plate: "43A1-99999",
@@ -358,9 +359,12 @@ describe("AcquisitionsPage layout, table readability and operational UX", () => 
     expect(html).toContain("RLH123456");
     expect(html).toContain("BS:");
     expect(html).toContain("43A1-99999");
-    // Primary vehicle name & muted internal code
-    expect(html).toContain("Honda Vision");
+    // Primary identity = Biển số · Số khung, dòng phụ = Loại xe · Đời · Màu
+    expect(html).toContain("43A1-99999 · RLH123456");
+    expect(html).toContain("Xe tay ga · 2023 · Đen");
     expect(html).toContain("XE-2026-0001");
+    // Trường đã xoá vĩnh viễn không được xuất hiện lại ở bất kỳ đâu
+    expect(html).not.toMatch(/Honda|Vision/i);
     // Vietnamese date DD/MM/YYYY
     expect(html).toContain("01/10/2026");
     // Seller name and phone
@@ -370,7 +374,7 @@ describe("AcquisitionsPage layout, table readability and operational UX", () => 
     expect(html).toContain("numeric price");
     expect(html).toMatch(/32\.000\.000(&nbsp;|\s)₫/);
     // Accessible action
-    expect(html).toContain('aria-label="Xem chi tiết xe Honda Vision"');
+    expect(html).toContain('aria-label="Xem chi tiết xe 43A1-99999 · RLH123456"');
   });
 });
 

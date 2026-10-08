@@ -10,7 +10,7 @@ let day, passed = 0, failed = 0
 const failures = []
 const call = (connection, actor, name, payload, id) => asUser(connection, users[actor], client =>
   rpc(client, name, id ? '$1::jsonb,$2::uuid' : '$1::jsonb', id ? [JSON.stringify(payload), id] : [JSON.stringify(payload)]))
-const vehicle = (extra = {}) => ({ request_id: randomUUID(), brand: 'Honda', model: 'Synthetic extended audit', frame_number: `EXT-${randomUUID()}`, purchase_date: day, purchase_price: 100, asking_price: 1000, ...extra })
+const vehicle = (extra = {}) => ({ request_id: randomUUID(), vehicle_type: 'Xe tay ga', frame_number: `EXT-${randomUUID()}`, purchase_date: day, purchase_price: 100, ...extra })
 const create = extra => call(db, 'owner', 'save_vehicle', vehicle(extra))
 const sale = (id, extra = {}) => ({ request_id: randomUUID(), vehicle_id: id, customer_name: 'Synthetic customer', customer_phone: '', sale_price: 1000, initial_payment: 0, payment_method: 'CASH', sale_date: day, ...extra })
 const reason = 'Synthetic audit only'
@@ -161,8 +161,8 @@ try {
     assert.equal(Number((await db.query('SELECT count(*) AS n FROM public.vehicles WHERE upper(btrim(frame_number))=ANY($1::text[])', [[shared.frame_number, first.frame_number, second.frame_number].map(frame => frame.toUpperCase())])).rows[0].n), 2)
   })
   await check('injected error after first bulk row rolls back rows and audits', async () => {
-    const first = vehicle(), second = vehicle({ model: 'Synthetic reject second row' })
-    await db.exec("CREATE FUNCTION private.extended_reject_insert() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN IF NEW.model='Synthetic reject second row' THEN RAISE EXCEPTION USING errcode='P0001',message='SYNTHETIC_FAILURE'; END IF; RETURN NEW; END $$; CREATE TRIGGER extended_reject_insert BEFORE INSERT ON public.vehicles FOR EACH ROW EXECUTE FUNCTION private.extended_reject_insert();")
+    const first = vehicle(), second = vehicle({ license_plate: 'EXT-ROLLBACK-SECOND' })
+    await db.exec("CREATE FUNCTION private.extended_reject_insert() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN IF NEW.license_plate='EXT-ROLLBACK-SECOND' THEN RAISE EXCEPTION USING errcode='P0001',message='SYNTHETIC_FAILURE'; END IF; RETURN NEW; END $$; CREATE TRIGGER extended_reject_insert BEFORE INSERT ON public.vehicles FOR EACH ROW EXECUTE FUNCTION private.extended_reject_insert();")
     const before = Number((await db.query('SELECT count(*) AS n FROM public.audit_logs')).rows[0].n)
     try {
       await assert.rejects(() => asUser(db, users.owner, c => rpc(c, 'import_vehicles', '$1::jsonb', [JSON.stringify({ request_id: randomUUID(), rows: [first, second] })])), /SYNTHETIC_FAILURE/)

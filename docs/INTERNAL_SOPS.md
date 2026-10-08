@@ -21,12 +21,27 @@ Lưu ý: Function chỉ tạo tài khoản bằng mật khẩu, không tự gử
 
 ## Quản lý tài khoản sau khi tạo (chỉ OWNER)
 
-Tất cả đi qua cùng Edge Function `manage-users` với các hành động: `reset_password` (cấp mật khẩu tạm mới, kèm buộc đổi lần đầu), `force_password_change` (chặn màn hình cho tới khi người dùng tự đổi mật khẩu), `disable` (vô hiệu có thời hạn `disabled_until` kèm lý do — tài khoản bị chặn đăng nhập ngay), `enable_user` / `restore` (mở lại trước hạn), `delete` (xóa mềm, giữ lịch sử), `hard_delete` (xóa vĩnh viễn, chỉ khi được kiểm tra quyền `check_user_can_hard_delete`), `update_schedule` (giờ/ngày làm việc), `change_role`, `promote_to_owner` / `demote_owner`. Chủ cửa hàng **không thể vô hiệu hoặc hạ cấp OWNER đang hoạt động cuối cùng** — luôn có ít nhất một chủ tài khoản điều hành được.
+Tất cả đi qua cùng Edge Function `manage-users` với các hành động: `reset_password` (cấp mật khẩu tạm mới, kèm buộc đổi lần đầu), `disable` (vô hiệu có thời hạn `disabled_until` kèm lý do — tài khoản bị chặn đăng nhập ngay), `enable_user` (mở lại trước hạn cấm), `delete` (xóa tài khoản — xem mục dưới), `change_role` (chỉ OWNER đổi vai trò tài khoản không phải Chủ; MANAGER chỉ đổi được Nhân viên), `promote_to_owner` (chuyển giao quyền Chủ, hệ thống luôn đúng một Chủ). Chủ cửa hàng **không thể vô hiệu hoặc hạ cấp OWNER đang hoạt động cuối cùng** — luôn có ít nhất một chủ tài khoản điều hành được.
+
+## Xóa tài khoản nhân sự (chỉ OWNER)
+
+Bấm **Xóa tài khoản** trong popup nhân sự là tài khoản rời khỏi hệ thống **ngay lập tức**: không có thùng rác 30 ngày, không có nút khôi phục, và `enable_user` cũng không mở lại được.
+
+1. Mở **Nhân sự** (`/users`) → chọn nhân viên → tab **Xóa tài khoản** → điền **Lý do xóa (tùy chọn)** → bấm **Xóa tài khoản** → xác nhận.
+2. Hệ thống kiểm tra người đó đã ghi nhận nghiệp vụ chưa (RPC `check_user_can_hard_delete`, quét toàn bộ bảng tham chiếu hồ sơ: xe thu vào, tồn kho, chi phí, ảnh, nhật ký hoạt động, phiếu bán, thu tiền, chứng từ, liên lạc khách, CCCD, cài đặt, nhật ký thao tác...):
+   - **Chưa ghi nhận gì**: xóa sạch hồ sơ và tài khoản đăng nhập. Tài khoản biến mất hoàn toàn.
+   - **Đã có nghiệp vụ**: giữ lại hồ sơ như một "mộ" và hủy khả năng đăng nhập (mật khẩu đổi sang chuỗi ngẫu nhiên, `check_user_access` chặn `ACCOUNT_DELETED`). **Toàn bộ công việc người đó đã làm vẫn còn nguyên** — xe, phiếu bán, chi phí, chứng từ, nhật ký vẫn đúng tên người đã ghi để đối soát; riêng tài khoản thì biến mất khỏi danh sách Nhân sự.
+3. Vì vậy khi tuyển lại người cũ hoặc tạo tài khoản mới, **không dùng lại tên đăng nhập của người đã xóa** (tên vẫn bị giữ để lịch sử không bị nhả lẫn sang người khác); hãy chọn tên khác.
+4. Mọi lần xóa đều ghi vào lịch sử thao tác (`/audit`) với lý do và cho biết nghiệp vụ cũ được giữ hay đã xóa sạch.
+
+Tài khoản **Chủ cửa hàng không xóa được** bằng nút này (hệ thống báo `CANNOT_DELETE_OWNER`); muốn gỡ quyền Chủ thì dùng chuyển giao quyền Chủ cho người khác trước.
+
+Lưu ý: xóa tài khoản **không** xóa xe/bán/chi phí mà người đó đã ghi. Muốn dọn nghiệp vụ sai thì hủy phiếu bán hoặc xóa xe/chi phí theo đúng luồng có lý do, không phải bằng cách xóa người.
 
 ## Ghi nhận xe thu vào (STAFF trở lên, trong lịch làm việc)
 
 1. Mở **Thu vào** (`/acquisitions`) để xem danh sách; bấm tạo mới để vào form (`/acquisitions/new`).
-2. Điền thông tin xe: **dòng xe** là bắt buộc; hãng, số khung, biển số, số máy, đời, màu, km, giá mua, chi phí linh tinh, ngày thu, người bán có thể để trống nếu chưa có ngay lúc thu.
+2. Điền thông tin xe: **loại xe** là bắt buộc — chọn từ danh mục cửa hàng (không gõ tay), chưa xác định được thì chọn `Chưa phân loại` rồi sửa lại sau. Số khung, biển số, đời xe, màu sơn, giá mua, chi phí linh tinh, ngày thu, người bán có thể để trống nếu chưa có ngay lúc thu. Hồ sơ xe **không còn** hãng, dòng xe, phiên bản, số máy, số km và giá bán dự kiến; màn hình nào cũng định danh xe bằng **biển số · số khung**, dòng phụ ghi **loại xe · đời xe · màu sắc**.
 3. Ảnh CCCD của người bán (khi thu xe) chụp và tải trực tiếp trong form: ảnh chỉ lưu ở bucket riêng tư `identity-documents`, liên kết theo hồ sơ thu qua `save_identity_document` + `register_identity_document_image`; người có quyền chỉ xem được bằng liên kết tạm 120 giây. Không lưu ảnh CCCD vào nơi khác.
 4. Bấm Lưu. Giao dịch được ghi bằng RPC `acquire_vehicle` — một transaction duy nhất tạo xe + chi phí + hồ sơ; hoặc có thể thêm xe bằng form Tồn kho (`save_vehicle`) rồi bổ sung chi phí sau.
 5. Giá mua chưa xác định được thì để trống: xe ở trạng thái "chờ giá vốn" (`cost_pending`), **chưa bán được** cho tới khi người có quyền tài chính nhập giá mua thật.
@@ -36,28 +51,30 @@ Tất cả đi qua cùng Edge Function `manage-users` với các hành động: 
 
 Khi có một danh sách nhiều xe cần thu (tin nhắn Notes/Zalo), dùng trang **Thu xe tốc ký** (`/intake`, nằm trong mục Thu vào) thay vì nhập từng xe:
 
-1. Dán tin nhắn vào ô ghi chú, **mỗi dòng là một xe**, rồi bấm **Tách thành danh sách**. Ví dụ: `sh den bs 29b1-123.45 nam 22 2v gia 18tr5`.
-2. Từ viết tắt có sẵn nhận diện được: hãng (`hd`=Honda, `yam`/`ym`=Yamaha, `sz`=Suzuki, `vb`=Vinfast, `vespa`=Piaggio…), dòng xe (`sh`, `ex`=Exciter, `vis`=Vision, `ab`=Air Blade, `rsx`=Wave RSX, `janus`, `nvx`…), màu (`den`, `trang`, `do`, `xanh`…), phiên bản (`abs`, `cbs`, `phunxe`, `lazang`/`mamduc`=Mâm đúc). Tra cứu không dấu nên `SH`, `sh`, `Đen`, `den` đều khớp.
-3. Từ khóa đứng trước giá trị cần lấy: `fk`/`khung`/`chassi` (số khung), `gm`/`may` (số máy), `bs`/`bien`/`bienso` (biển số), `sdt`/`dt`/`phone`/`tel` (SĐT người bán), `gia`/`thu` (giá thu), `giaban`/`niemyet`/`giasale`/`giabannoi`/`banra` (giá bán dự kiến), `km`/`van` (số km), `nam`/`yr` (năm), `ngay`/`date` (ngày thu), `ten`/`chu`/`anh`/`chi` (tên người bán), `ghichu`/`ghcn` (ghi chú — nhận hết phần còn lại của dòng).
+1. Dán tin nhắn vào ô ghi chú, **mỗi dòng là một xe**, rồi bấm **Tách thành danh sách**. Ví dụ: `ga den bs 29b1-123.45 nam 22 gia 18tr5` → loại xe Xe tay ga, màu Đen, biển số, năm 2022, giá thu 18.500.000₫.
+2. Từ viết tắt nhận diện được hiện nay chỉ còn **loại xe** và **màu**: `so`/`xeso`/`cub` → Xe số, `ga`/`tayga`/`xega`/`auto` → Xe tay ga, `contay`/`con`/`pk`/`sport` → Xe côn tay, `dien`/`ev`/`accu` → Xe điện, `ga50`/`50cc` → Ga 50cc; màu `den`, `trang`, `do`, `xanh`… Từ loại xe chỉ được **gợi ý**: bộ khớp đối chiếu với danh mục thật đang dùng, token không khớp danh mục sẽ không bao giờ được tự chọn (nhân viên phải bấm chọn trên thẻ). Tra cứu không dấu nên `Xe Số`, `xe so`, `Đen`, `den` đều khớp.
+3. Từ khóa đứng trước giá trị cần lấy: `fk`/`khung`/`chassi` (số khung), `bs`/`bien`/`bienso` (biển số), `loai`/`loaixe`/`type` (loại xe), `sdt`/`dt`/`phone`/`tel` (SĐT người bán), `gia`/`giathu`/`thu` (giá thu), `nam`/`yr` (năm), `ngay`/`date` (ngày thu), `ten`/`chu`/`anh`/`chi` (tên người bán), `ghichu`/`ghcn` (ghi chú — nhận hết phần còn lại của dòng). **Không còn** khóa cho số máy, số km, giá bán dự kiến hay hãng/dòng xe.
 4. Tiền viết tắt: `18tr5` = 18.500.000, `1.2ty` = 1.200.000.000, `450k` = 450.000, hoặc số đầy đủ `18.000.000`.
-5. Từ không nhận diện được **không bao giờ bị đoán vào trường tiền**; chúng hiện ở mục "từ chưa nhận diện" để bạn gán vào Ghi chú hoặc dạy cho máy.
-6. **Dạy viết tắt**: sửa một giá trị (hãng, dòng, phiên bản, màu, tên người bán) khác token gốc sẽ hiện nút dạy; xác nhận là lần sau dán lại tự đúng. Bộ nhớ viết tắt lưu **theo tài khoản ngay trên máy đó** (localStorage), không đồng bộ sang máy khác; xem và xóa từng quy tắc trong bảng "Bộ nhớ viết tắt" cuối trang.
-7. Trước khi lưu, mỗi thẻ xe tự kiểm tra: bắt buộc có **dòng xe**; nếu bạn có quyền tài chính thì **bắt buộc giá thu**; số khung/hãng xe được phép để trống (khung trống → server tự sinh `GEN-<uuid>`); năm 1900–2100; km 0–10.000.000; biển số ≤ 30 ký tự; ngày thu không ở tương lai. Nhân viên không có quyền tài chính không ghi giá thu (chủ/nhân viên quản lý có quyền sẽ nhập sau; xe chờ giá vốn không bán được).
+5. Từ không nhận diện được **không bao giờ bị đoán vào trường tiền và cũng không còn được đổ vào "Dòng xe"** (quy tắc đó đã bị xoá cùng các trường cũ): chúng hiện ở mục "từ chưa nhận diện" để bạn gán vào Ghi chú hoặc dạy cho máy.
+6. **Dạy viết tắt**: sửa một giá trị (loại xe, màu, tên người bán) khác token gốc sẽ hiện nút dạy; xác nhận là lần sau dán lại tự đúng. Bộ nhớ viết tắt lưu **theo tài khoản ngay trên máy đó** (localStorage), không đồng bộ sang máy khác; xem và xóa từng quy tắc trong bảng "Bộ nhớ viết tắt" cuối trang.
+7. Trước khi lưu, mỗi thẻ xe tự kiểm tra: **bắt buộc có loại xe nằm trong danh mục** (`Chọn loại xe từ danh mục.`); nếu bạn có quyền tài chính thì **bắt buộc giá thu**; số khung và biển số được phép để trống (khung trống → server tự sinh `GEN-<uuid>`, biển có gõ thì phải đúng format xe máy Việt Nam); năm 1900–2100; ngày thu không ở tương lai. Nhân viên không có quyền tài chính không ghi giá thu (chủ/nhân viên quản lý có quyền sẽ nhập sau; xe chờ giá vốn không bán được).
 8. Bấm **Xác nhận thu xe**: hệ thống gửi cả lô cho `validate_import_vehicles` kiểm tra trùng lặp và tính hợp lệ phía server. Nếu có bất kỳ lỗi/trùng nào → báo ngay trên từng thẻ, **không lưu gì cả** để bạn sửa. Khi sạch lỗi → `import_vehicles` lưu toàn bộ xe + phiếu thu trong một giao dịch rồi chuyển về danh sách Thu vào.
 
 ## Cập nhật xe trong tồn kho
 
 Mở **Tồn kho** (`/vehicles`), bấm vào xe để xem chi tiết (`/vehicles/:id`), bấm **Sửa** (`/vehicles/:id/edit`). Form dùng RPC `save_vehicle`; các trường số tiền là VND nguyên (không dấu phẩy). Ảnh xe tải lên bucket riêng tư `vehicle-images` (JPG/PNG/WebP, tối đa 5 MB mỗi ảnh trong app), đăng ký qua `register_vehicle_image`; xóa ảnh chỉ gỡ tham chiếu (soft delete), ảnh gốc giữ cho kiểm kê/sao lưu và quản trị viên dọn sau. Ảnh chưa đăng ký không ai đọc được.
 
-## Tùy chỉnh chip "Chọn nhanh hãng & dòng xe"
+## Quản lý danh mục **Loại xe** (chỉ OWNER)
 
-Form **Thu vào** (`/acquisitions/new`) và **Nhập xe mới** (`/vehicles/new`, `/vehicles/:id/edit`) hiển thị hai hàng chip: **Chọn nhanh hãng xe** và **Chọn nhanh dòng xe** (chỉ hiện sau khi đã chọn hãng). Chip giúp nhân viên một chạm điền đúng tên hãng/dòng, giảm sai chính tả (`honda`/`Hoong da`) trong autocomplete.
+Form **Thu vào** (`/acquisitions/new`), **Nhập xe mới** (`/vehicles/new`, `/vehicles/:id/edit`) và **Thu xe tốc ký** đều bắt buộc chọn **loại xe** — và chỉ được chọn từ danh mục, không gõ tự do. Danh mục do OWNER bảo trì:
 
-- Mặc định mở hàng: Honda (SH 125i, SH 150i, SH 160i, SH Mode, Vision, Air Blade, Lead, Wave, Future, Dax ST125), Piaggio (Vespa Sprint, Vespa Primavera), Suzuki (Satria, Raider), Yamaha (Exciter).
-- OWNER chỉnh trong **Cài đặt → Chọn nhanh xe**: mỗi hãng một dòng theo khuôn `Honda: SH 125i, Vision`. Dòng trống bị bỏ qua; mỗi tên tự cắt khoảng trắng và khử trùng lặp không phân biệt hoa/thường. Bấm **Khôi phục mặc định** để quay về danh sách mở hàng, rồi **Lưu danh mục**.
-- Danh mục lưu ở `system_settings.quickpick_brands` (mảng text) và `quickpick_models` (JSONB `{ "honda": [...] }`, key là hãng đã lowercase). Ghi qua `save_settings` — **chỉ OWNER**, các vai trò khác nhận `ACCESS_DENIED`. Sai định dạng trả `INVALID_INPUT` (quá 30 hãng, quá 60 mẫu/hãng, tên rỗng, tên quá dài).
-- `get_settings` trả nguyên hàng `system_settings`, nên STAFF/MANAGER đọc được chip mà không cần quyền ghi. Cache dùng chung query key `["settings"]` — khi OWNER lưu từ Cài đặt, chip ở form đang mở sẽ đổi ngay sau khi React Query refresh.
-- Autocomplete vẫn hoạt động song song với chip: nhân viên có thể gõ tay hoặc bấm lịch sử xe gần nhất (`recentVehicles`) nếu mẫu chưa nằm trong danh mục.
+- Mở **Cài đặt → Loại xe**: mỗi loại một dòng, bấm **Thêm loại xe**, sửa ngay tại dòng để **đổi tên**, hoặc **Xóa**. Cột đếm cho biết đang có bao nhiêu xe mang loại đó.
+- Tên được chuẩn hóa trước khi lưu (cắt khoảng trắng thừa, so khớp **không phân biệt hoa/thường**). Trùng tên được báo **ngay khi gõ** — dòng đó hiện cảnh báo đỏ và nút **Lưu tên** bị khóa; nếu vẫn gửi đi thì server trả `DUPLICATE_VEHICLE_TYPE`. Tên dưới 2 ký tự không được gửi, ô nhập giới hạn 60 ký tự; vi phạm khác hiển thị trong khối lỗi cuối card.
+- Loại `Chưa phân loại` là **hàng đợi mặc định** của toàn bộ xe cũ sau đợt tẩy trường và **không đổi được tên, không xóa được** (`VEHICLE_TYPE_PROTECTED`). Muốn dọn: mở từng hồ sơ xe, chọn loại thật.
+- **Không xóa được loại đang có xe tham chiếu** — nút **Xóa** bị xám khi cột đếm > 0, và server chặn `VEHICLE_TYPE_IN_USE` nếu hai máy cùng sửa. Trước hết phải chuyển những xe đó sang loại khác.
+- Thêm loại mới **không cần migration**, có ngay trên mọi máy sau khi React Query refresh (query key `vehicle-types`); tab **Loại xe** chỉ hiện với OWNER nên STAFF/MANAGER không có đường ghi.
+- Bộ gõ tốc ký chỉ **gợi ý** loại xe từ danh mục này (`matchVehicleType`), nên đặt tên kiểu `Xe tay ga`, `Ga 50cc` sẽ được nhận ra từ `ga`, `tay ga`, `50cc`; tên tự đặt kiểu `Ga 50cc thể thao` vẫn khớp nhờ so khớp con.
+- Danh mục gốc seed theo migration `20261008000300`: `Xe số`, `Xe tay ga`, `Xe côn tay`, `Xe điện`, `Ga 50cc`, `Chưa phân loại`.
 
 ## Chọn màu xe bằng ô màu (thay cho chip "Chọn màu nhanh")
 
@@ -71,7 +88,7 @@ Form **Thu vào**, **Nhập xe mới**, và **Thu tốc ký** hiển thị một
 ## Bán xe (STAFF trở lên, trong lịch làm việc)
 
 1. Từ xe trong kho bấm **Bán** (`/vehicles/:id/sell`) — xe phải đã chốt giá mua (không còn `cost_pending`).
-2. Form bán (`sell_vehicle`) gồm: tên khách, số điện thoại khách, giá bán, ngày bán, số tiền đặt cọc/trả trước, phương thức thanh toán, ghi chú. Toàn bộ là SĐT và số tiền VND nguyên; tổng thanh toán không được vượt giá bán.
+2. Form bán (`sell_vehicle`) gồm: tên khách, số điện thoại khách, giá bán, ngày bán, số tiền đặt cọc/trả trước, phương thức thanh toán, ghi chú. **Giá bán và khoản trả trước luôn mở trống** — nhân viên phải tự gõ; hệ thống không còn lưu giá bán dự kiến trên xe nên không có gì để điền sẵn, và bản nháp AI, tốc ký hay handoff từ màn hình khác cũng không được prefill giá. Toàn bộ là SĐT và số tiền VND nguyên; tổng thanh toán không được vượt giá bán.
 3. Lưu tạo bản ghi bán và chuyển xe sang trạng thái SOLD; hóa đơn cho khách in từ trang chi tiết bán (`/sales/:id`).
 4. Muốn xóa bán sai: chủ/nhân viên được quyền bấm **Hủy bán** trên trang chi tiết, **bắt buộc nhập lý do** (`cancel_sale`). Các khoản đã thu bị đánh dấu `VOIDED` và loại khỏi công nợ đang hiệu lực nhưng vẫn giữ lịch sử; việc **hoàn tiền thật thực hiện bằng tiền mặt/chuyển khoản ngoài app** và phải tự đối chiếu.
 
@@ -83,9 +100,26 @@ Mở **Sổ công nợ** (`/receivables`) — thấy với mọi tài khoản ho
 
 Mở **Chi phí** (`/expenses`) — cần MANAGER/OWNER để xem danh sách; STAFF thêm chi phí nhanh của một xe (QuickExpenseModal) hoặc chi phí hoạt động chung. RPC `save_expense` với `p_kind` là `vehicle` (gắn xe) hoặc `business` (chung). Muốn xóa: `cancel_expense` kèm lý do — bản ghi giữ lịch sử, chỉ bị loại khỏi tổng đang hiệu lực.
 
+## Quyền nghiệp vụ xe của Nhân viên (parity với Quản lý mặc định)
+
+Nhân viên (STAFF) hoạt động trên xe **ngang tầm một Quản lý mặc định không xem được tài chính**: thêm/sửa xe, **hủy và khôi phục trạng thái** xe, **thêm–sửa–hủy chi phí gắn theo xe** (`save_expense`/`cancel_expense` với `p_kind='vehicle'`), và **bán xe**. STAFF **không** được: xem danh sách chi phí chung/số liệu lãi–giá vốn (khi chưa bật *Xem số tài chính*), ghi **chi phí hoạt động chung** (`p_kind='business'` vẫn yêu cầu MANAGER/OWNER), và quản lý tài khoản/quản trị hệ thống. Mọi giới hạn này do RPC `private.require_role` + `private.can_financials` buộc, không phụ thuộc giao diện.
+
+## Gửi yêu cầu xóa xe (chỉ STAFF) — chờ Chủ duyệt
+
+Khác Quản lý/Chủ được **xóa xe ngay** (`delete_vehicle`), Nhân viên bấm **Gửi yêu cầu xóa** trên menu **Thao tác trên xe** (hoặc tấm thao tác trên điện thoại). Quy trình:
+
+1. STAFF mở xe trong **Tồn kho** → menu ••• → **Gửi yêu cầu xóa**, nhập **lý do** (3–1000 ký tự, bắt buộc) → xác nhận. Xe **lập tức ẩn khỏi danh sách tồn kho** và mang cờ *đang chờ duyệt xóa* (`pending_deletion`); khi đó **không** sửa, bán, thêm chi phí hay xóa trực tiếp được nữa (RPC trả `DELETE_PENDING`).
+2. Hệ thống ghi nhật ký `REQUEST_DELETE_VEHICLE` và **báo cho Chủ cửa hàng** (chuông thông báo, bấm mở trang **Chờ duyệt** `/approvals`).
+3. **Chỉ OWNER** vào **Chờ duyệt** (`/approvals`, mục dành riêng cho Chủ) và quyết định từng yêu cầu:
+   - **Duyệt xóa** → xe bị **xóa cứng** khỏi hệ thống (`private.purge_vehicle`; vẫn chặn nếu xe từng có lịch sử bán → `SALE_HISTORY_EXISTS`).
+   - **Khôi phục** → yêu cầu bị từ chối và **xe trở lại tồn kho** như cũ.
+4. Không gửi được **hai yêu cầu cùng lúc** cho một xe (`ALREADY_PENDING`); xe **đã từng bán** thì không gửi được (`SALE_HISTORY_EXISTS`); lý do quá ngắn bị chặn (`DELETION_REASON_REQUIRED`).
+
+Xe chờ duyệt chỉ còn truy cập được qua trang **Chờ duyệt** của Chủ (và liên kết trực tiếp tới trang chi tiết, nơi hiện dải “Đang chờ chủ cửa hàng duyệt xóa”). Toàn bộ quyết định duyệt/khôi phục đều vào lịch sử thao tác (`/audit`).
+
 ## Showroom công khai và khách vãng lai
 
-Trang `/showroom` hiển thị xe đang có thật cho người ngoài xem (chỉ những xe chủ/showroom bật công khai). Khi khách để lại liên hệ, hệ thống tạo **lead** qua `create_showroom_lead`. Lead và khách mua được quản lý ở **Khách hàng** (`/customers`): đổi trạng thái lead (`update_showroom_lead_status`), xem lịch sử của khách (`get_customer_history`), tin nhắn đã gửi/đến (`list_customer_communications`, xử lý qua Edge Function `process-message`). Việc nhắn tin cho khách luôn do người thật xác nhận, AI không tự gửi.
+Trang `/showroom` hiển thị xe đang có thật cho người ngoài xem (chỉ những xe chủ/showroom bật công khai). Thẻ xe và modal chi tiết chỉ nói **biển số · số khung**, **loại xe · đời xe · màu sơn**, tình trạng và ảnh — **không bao giờ hiện giá** (không có "Giá bán", không có "đã lăn bánh"), vì giá nằm sau form Bán xe và chỉ người có quyền mới thấy. Bộ lọc công khai theo **loại xe**, không theo hãng. Khách chỉ cần chọn loại xe đang bày bán, nên danh mục gửi ra anon chỉ gồm các loại còn xe IN_STOCK và không kèm số lượng. Khi khách để lại liên hệ, hệ thống tạo **lead** qua `create_showroom_lead`. Lead và khách mua được quản lý ở **Khách hàng** (`/customers`): đổi trạng thái lead (`update_showroom_lead_status`), xem lịch sử của khách (`get_customer_history`), tin nhắn đã gửi/đến (`list_customer_communications`, xử lý qua Edge Function `process-message`). Việc nhắn tin cho khách luôn do người thật xác nhận, AI không tự gửi. Form "Định giá xe cần bán" của khách vẫn giữ nguyên: `expected_price` là số **khách tự khai** cho nhu cầu thu mua, không phải giá hệ thống gán cho xe.
 
 ## Tìm kiếm nhanh và bảng điều khiển
 
@@ -112,6 +146,15 @@ Tài liệu copilot đọc được sinh tự động từ markdown trong repo �
 2. Chạy `npm run knowledge:seed` để sinh lại `supabase/migrations/*_knowledge_seed.sql`, rồi chạy `npm run knowledge:check` để xác nhận khớp.
 3. Áp migration lên database (forward-only). Mỗi mục `##` thành một phần tra cứu riêng; tier quyền theo nguồn: `docs/INTERNAL_SOPS.md` = STAFF, OPERATIONS/DECISIONS = MANAGER, PRODUCTION_RELEASE/SECURITY = OWNER.
 4. CI báo lỗi nếu sửa `.md` mà quên sinh seed — luôn chạy `npm run check` trước khi commit.
+
+## Chuyển đổi danh tính xe ngày 08/10/2026 — nhân viên cần biết
+
+- Hồ sơ xe **bỏ vĩnh viễn** Hãng, Dòng xe, Phiên bản, Số máy, Số km và Giá bán dự kiến. Danh tính duy nhất là **biển số · số khung**; dòng phụ là **loại xe · đời xe · màu sơn**. Đừng tìm các ô cũ trong form và đừng báo "thiếu thông tin hãng xe" — đó là thiết kế mới, không phải lỗi.
+- **Toàn bộ xe cũ rơi vào loại `Chưa phân loại`** (không tự đoán từ tên xe cũ: `SH 160i` không suy ra `Xe tay ga`). Khi mở một hồ sơ để sửa nghiệp vụ, chọn luôn loại xe thật; chưa có màn hình phân loại hàng loạt.
+- **Nhật ký cũ đã bị tẩy rỗng** theo quyết định chủ quán: lịch sử thao tác, hoạt động xe, chuông thông báo, liên lạc khách và hàng đợi tin nhắn trước 08/10/2026 đều còn 0 dòng. Khi đối chiếu nghiệp vụ cũ, dựa trên **xe, phiếu bán, chi phí, chứng từ, giá vốn–lãi** (các bảng này giữ nguyên), không dựa vào nhật ký.
+- Giá bán **không có sẵn ở đâu để điền**: mở form Bán xe là hai ô giá và khoản trả trước trống, nhân viên phải tự gõ từ hợp đồng thật.
+- Máy chưa cập nhật PWA sẽ bị **từ chối khi ghi** xe/thu xe (`VEHICLE_TYPE_REQUIRED`) và file CSV/tốc ký lưu theo khuôn cũ (cột Hãng, Dòng, Số máy, Km, Giá bán) bị báo lỗi tiếng Việt chứ không tự dịch. Cách xử lý: tải lại tab / cập nhật ứng dụng rồi nhập lại theo khuôn mới.
+- Bản nháp cũ trên máy bị **loại có chủ đích** (khóa lưu đổi thành `xe_crm_draft_v2`, danh sách xe gần đây thành `xe_crm_ux_v3`) vì chúng chứa trường không còn tồn tại; dữ liệu đã lưu trên server không mất.
 
 ## Xác minh khoản thu trước khi ghi nhận
 

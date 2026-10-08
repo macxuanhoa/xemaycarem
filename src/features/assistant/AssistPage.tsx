@@ -11,12 +11,12 @@ import { dateLabel, money } from "@/lib/format";
 import { detectDraftAction } from "@/lib/shorthand/draftActions";
 import { DraftActionCard } from "@/features/copilot/DraftActionCard";
 import { actionLabels } from "@/features/vehicles/vehicleSchema";
+import { identityFromRecord, vehicleSubtitle, vehicleTitle } from "@/lib/vehicleDisplay";
 
 type Task =
   | "business_question"
   | "vehicle_document"
   | "license_plate"
-  | "odometer"
   | "receipt"
   | "voice";
 type AssistResult =
@@ -48,16 +48,15 @@ const tasks: Record<Task, string> = {
   business_question: "Hỏi dữ liệu cửa hàng",
   vehicle_document: "Đọc giấy tờ xe",
   license_plate: "Đọc biển số",
-  odometer: "Đọc đồng hồ km",
   receipt: "Đọc hóa đơn chi phí",
   voice: "Chuẩn bị bản nháp từ lời nói",
 };
+// Hợp đồng ai-assist không còn task `odometer` và không trả hãng/dòng/phiên bản/
+// số máy/giá dự kiến; nhãn dưới đây chỉ còn đúng các trường bản nháp hiện có.
 const labels: Record<string, string> = {
   frame_number: "Số khung",
-  engine_number: "Số máy",
   license_plate: "Biển số",
-  brand: "Hãng",
-  model: "Dòng xe",
+  vehicle_type: "Loại xe",
   color: "Màu",
   year: "Năm",
   amount: "Số tiền (₫)",
@@ -66,11 +65,9 @@ const labels: Record<string, string> = {
   description: "Nội dung",
   expense_type: "Loại chi phí",
   intent: "Thao tác đề xuất",
-  odometer: "Số km",
   purchase_price: "Giá mua đề xuất (₫)",
-  sale_price: "Giá bán đề xuất (₫)",
 };
-const imageTasks = ["vehicle_document", "license_plate", "odometer", "receipt"];
+const imageTasks = ["vehicle_document", "license_plate", "receipt"];
 const draftValues: Record<string, string> = {
   CREATE_ACQUISITION: "Thu xe",
   ADD_VEHICLE_EXPENSE: "Thêm chi phí",
@@ -126,13 +123,8 @@ function BusinessFacts({ facts }: { facts: Record<string, unknown> }) {
       </dl>
       {[...rows("matches"), ...rows("longest_stock")].map((row, index) => (
         <div className="compact-row" key={index}>
-          <strong>
-            {String(row.brand || "")} {String(row.model || "")}
-          </strong>
-          <span>
-            {String(row.license_plate || row.internal_code || "")} ·{" "}
-            {String(row.frame_number || "")}
-          </span>
+          <strong>{vehicleTitle(identityFromRecord(row))}</strong>
+          <span>{vehicleSubtitle(identityFromRecord(row))}</span>
           {typeof row.days_in_inventory === "number" && (
             <small>{row.days_in_inventory} ngày trong kho</small>
           )}
@@ -320,8 +312,8 @@ export default function AssistPage() {
           </Field>
           {vehicle.data && (
             <p className="notice">
-              Xe đang chọn: {vehicle.data.brand} {vehicle.data.model} ·{" "}
-              {vehicle.data.license_plate || vehicle.data.frame_number}
+              Xe đang chọn: {vehicleTitle(vehicle.data)} ·{" "}
+              {vehicleSubtitle(vehicle.data) || "chưa phân loại"}
             </p>
           )}
           {!imageTasks.includes(task) && (
@@ -352,7 +344,6 @@ export default function AssistPage() {
           {[
             "vehicle_document",
             "license_plate",
-            "odometer",
             "receipt",
           ].includes(task) && (
             <Field label="Ảnh cần đọc (JPG, PNG, WebP tối đa 2 MB)">
@@ -447,7 +438,7 @@ export default function AssistPage() {
                 <div key={key}>
                   <dt>{labels[key] || key}</dt>
                   <dd>
-                    {["amount", "purchase_price", "sale_price"].includes(key) &&
+                    {["amount", "purchase_price"].includes(key) &&
                     typeof value === "number"
                       ? money(value)
                       : draftValues[String(value)] || String(value)}
@@ -461,15 +452,6 @@ export default function AssistPage() {
                 {warning}
               </p>
             ))}
-          {task === "odometer" &&
-            vehicle.data &&
-            typeof draft.odometer === "number" &&
-            draft.odometer < vehicle.data.odometer && (
-              <p className="notice">
-                Số km đọc được thấp hơn số đã ghi nhận ({vehicle.data.odometer}{" "}
-                km). Kiểm tra lại ảnh và đồng hồ.
-              </p>
-            )}
           <p className="notice">
             Ảnh hoặc lời nói có thể được nhận sai. Kiểm tra số khung, số tiền,
             ngày và xe trước khi xác nhận.
@@ -500,13 +482,6 @@ export default function AssistPage() {
                 </Link>
               </Button>
             )}
-          {task === "odometer" && vehicle.data && (
-            <Button asChild variant="secondary">
-              <Link to={`/vehicles/${vehicle.data.id}/edit`}>
-                Mở xe để kiểm tra số km
-              </Link>
-            </Button>
-          )}
           {draft.intent === "PREPARE_SALE" &&
             vehicle.data &&
             canOperate(profile) && (
@@ -531,8 +506,8 @@ export default function AssistPage() {
       {expenseOpen && vehicle.data && draft && (
         <QuickExpenseModal
           vehicleId={vehicle.data.id}
-          vehicleName={`${vehicle.data.brand} ${vehicle.data.model}`}
-          vehicleCode={vehicle.data.license_plate || vehicle.data.frame_number}
+          vehicleName={vehicleTitle(vehicle.data)}
+          vehicleCode={vehicle.data.internal_code}
           isOpen
           initialDraft={{
             expense_type:

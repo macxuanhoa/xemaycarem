@@ -66,6 +66,23 @@ Local files at the time of the original audit: versions `20260930000100` (001) t
 
 No production-only migrations, manually applied migrations, duplicate versions, or remote-only versions could be confirmed or ruled out at the time of the original audit. There are no duplicate local version prefixes. Historical Auth and business SQL has been statically inspected. The remote ledger was subsequently queried successfully via the Supabase CLI (2026-10-03) and all 001–037 are confirmed applied with no orphan remote versions.
 
+## Pending destructive migration — vehicle field purge (2026-10-08)
+
+Ledger re-checked read-only on 2026-10-08: **57 applied through `20261006001400`, 3 local/pending, 0 divergent**. The pending set is `20261008000100_staff_delete_permanent.sql`, `20261008000200_staff_vehicle_parity_and_delete_approval.sql` and `20261008000300_vehicle_type_catalog_and_purge.sql`. None has been pushed.
+
+`20261008000300` is the only migration in the repo that **destroys data on purpose**, so it gets its own protocol line. It creates `public.vehicle_types` + three catalogue RPCs, then irreversibly: `ALTER TABLE public.vehicles DROP COLUMN brand, model, variant, engine_number, odometer, asking_price CASCADE`; `ALTER TABLE public.system_settings DROP COLUMN quickpick_brands, DROP COLUMN quickpick_models`; `DROP INDEX vehicles_engine_number`; and `DELETE FROM audit_logs / vehicle_activity / notifications / customer_communications / message_outbox` (all rows, no tombstone, with the `immutable_audit`/`immutable_activity` triggers suspended only for that statement and recreated afterwards). It rebuilds every function that referenced a dropped column and ends with a `DO` block that aborts the transaction if any purged column, any surviving history row, any untyped vehicle, the dropped index, or any `pg_proc` body still naming a purged field is found (`PURGE_ASSERT_FAILED: …`). Business and financial tables are not touched and no `sale_financials` snapshot is rewritten.
+
+Non-negotiables before this version may be applied to `atsgqtarxhmxrsugulva`:
+
+1. Same-day pre-write logical dump (`npm run backup:prod`) — the only recovery point on the FREE plan, and the last copy that still contains the fields about to be deleted. Record it in the manifest and mark it as the pre-purge set.
+2. `db push --dry-run` must list exactly the three pending versions above and nothing else.
+3. Explicit per-operation OWNER authorization for the write, per `docs/AGENT_HANDOFF.md`; the authorization must name the purge as irreversible, because no forward-only rollback exists.
+4. Full local gate suite green including a clean replay of the whole 60-file chain on a disposable database.
+5. Deploy the rebuilt Edge Functions (`ai-assist`, `process-message`) in the same release window, otherwise the hosted assistant still exposes the deleted `odometer` task and old vehicle fields while the database no longer has them.
+6. Release the frontend bundle before or with the migration — an old PWA is refused writes (`VEHICLE_TYPE_REQUIRED`), which is intended fail-closed behavior but looks like an outage to staff if the deploy order is reversed.
+
+Post-apply verification (read-only): row counts of `vehicles`, `acquisitions`, `sales`, `payments`, `vehicle_expenses`, `sale_financials` must match the pre-apply figures exactly; the five history tables must be `0`; every vehicle must have a non-null `vehicle_type_id`; one old vehicle must open with the title **biển số · số khung** and subtitle **loại xe · đời · màu**; one sold receipt must still show the real sale price with no estimated-price line. Full details in `docs/VEHICLE_FIELD_PURGE_IMPACT.md`.
+
 ## Backup and recovery
 
 - Current production backup/PITR plan/retention: **FREE plan — no PITR, no scheduled backups** (verified read-only 2026-10-03).

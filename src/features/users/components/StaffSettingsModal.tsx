@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { Ban, Key, RotateCcw, Shield, Trash2, X } from "lucide-react";
+import { Ban, Key, Shield, Trash2, X } from "lucide-react";
 import { Button, ErrorState, Field } from "@/components/ui";
 import { api } from "@/lib/api";
 import { toast } from "@/lib/toast";
@@ -74,7 +74,7 @@ export function StaffSettingsModal({
     Boolean(user.can_view_financials),
   );
 
-  // Security tabs: password reset, temporary ban, delete/restore
+  // Security tabs: password reset, temporary ban, permanent delete
   const [newPassword, setNewPassword] = useState("");
   const [banPreset, setBanPreset] = useState<BanPreset>("today");
   const [banCustom, setBanCustom] = useState("");
@@ -86,12 +86,10 @@ export function StaffSettingsModal({
 
   const isBanned =
     Boolean(user.disabled_until) && new Date(user.disabled_until!) > new Date();
-  const isDeleted = Boolean(user.deleted_at);
 
   // A manager may only re-assign the role of STAFF accounts (their juniors).
   const canChooseRole =
     !isSelf &&
-    !isDeleted &&
     ((isActorOwner && !isOwnerAcc) ||
       (isActorManager && user.role === "STAFF"));
 
@@ -180,7 +178,7 @@ export function StaffSettingsModal({
     },
   });
 
-  // Mutation 5: Delete account (history preserved)
+  // Mutation 5: Delete account — removed from the system right away (OWNER only)
   const deleteMutation = useMutation({
     mutationFn: () =>
       api.manageUser({
@@ -188,29 +186,18 @@ export function StaffSettingsModal({
         user_id: user.id,
         disable_reason: deleteReason || null,
       }),
-    onSuccess: () => {
+    onSuccess: (result) => {
       void client.invalidateQueries({ queryKey: ["profiles"] });
-      toast.success(`Đã xóa tài khoản của ${user.full_name}.`);
+      toast.success(
+        result.outcome === "tombstoned"
+          ? `Đã xóa tài khoản của ${user.full_name}. Các nghiệp vụ người này đã ghi vẫn giữ để đối soát.`
+          : `Đã xóa tài khoản của ${user.full_name} khỏi hệ thống.`,
+      );
       onClose();
     },
     onError: (err: unknown) => {
       setErrorMessage(
         err instanceof Error ? err.message : "Không thể xóa tài khoản.",
-      );
-    },
-  });
-
-  // Mutation 6: Restore a deleted account
-  const restoreMutation = useMutation({
-    mutationFn: () => api.manageUser({ action: "restore", user_id: user.id }),
-    onSuccess: () => {
-      void client.invalidateQueries({ queryKey: ["profiles"] });
-      toast.success(`Đã khôi phục tài khoản cho ${user.full_name}.`);
-      onClose();
-    },
-    onError: (err: unknown) => {
-      setErrorMessage(
-        err instanceof Error ? err.message : "Không thể khôi phục tài khoản.",
       );
     },
   });
@@ -257,8 +244,7 @@ export function StaffSettingsModal({
     resetPasswordMutation.isPending ||
     banMutation.isPending ||
     unbanMutation.isPending ||
-    deleteMutation.isPending ||
-    restoreMutation.isPending;
+    deleteMutation.isPending;
   const dialogRef = useDialog(true, onClose, isBusy);
 
   // Security tabs are only for managing other non-OWNER accounts.
@@ -285,7 +271,7 @@ export function StaffSettingsModal({
               {user.full_name.split(" ").at(-1)?.[0] ?? "U"}
             </span>
             <span
-              className={`user-modal-status-dot ${user.active && !isDeleted && !isBanned ? "active" : "disabled"}`}
+              className={`user-modal-status-dot ${user.active && !isBanned ? "active" : "disabled"}`}
             />
           </div>
 
@@ -306,11 +292,7 @@ export function StaffSettingsModal({
               <span className="user-settings-role-tag">
                 {roleLabels[user.role]}
               </span>
-              {isDeleted ? (
-                <span className="badge badge-cancelled" style={{ fontSize: "10.5px" }}>
-                  Đã xóa
-                </span>
-              ) : isBanned ? (
+              {isBanned ? (
                 <span className="badge badge-cancelled" style={{ fontSize: "10.5px" }}>
                   Đang bị cấm
                 </span>
@@ -419,9 +401,7 @@ export function StaffSettingsModal({
                   <small className="muted">
                     {isSelf
                       ? "Bạn không thể tự thay đổi vai trò của chính mình."
-                      : isDeleted
-                        ? "Khôi phục tài khoản trước khi thay đổi vai trò."
-                        : "Chỉ Chủ cửa hàng mới được thay đổi vai trò của tài khoản này."}
+                      : "Chỉ Chủ cửa hàng mới được thay đổi vai trò của tài khoản này."}
                   </small>
                 )}
               </Field>
@@ -432,7 +412,7 @@ export function StaffSettingsModal({
                     <input
                       type="checkbox"
                       checked={canViewFinancials}
-                      disabled={isBusy || isDeleted}
+                      disabled={isBusy}
                       onChange={(e) => setCanViewFinancials(e.target.checked)}
                     />
                     <strong>Cho phép xem giá mua xe và lợi nhuận</strong>
@@ -583,54 +563,47 @@ export function StaffSettingsModal({
               </div>
           )}
 
-          {/* TAB 4: DELETE / RESTORE (OWNER only) */}
+          {/* TAB 4: PERMANENT DELETE (OWNER only) */}
           {activeTab === "delete" && showSecurityTabs && (
               <div className="user-security-block user-danger-block">
                 <div className="user-tab-lead">
                   <div className="row" style={{ gap: "6px", alignItems: "center" }}>
-                    {isDeleted ? (
-                      <RotateCcw size={16} style={{ color: "#10b981" }} />
-                    ) : (
-                      <Trash2 size={16} style={{ color: "#ef4444" }} />
-                    )}
-                    <strong>
-                      {isDeleted ? "Khôi phục tài khoản nhân sự" : "Xóa tài khoản"}
-                    </strong>
+                    <Trash2 size={16} style={{ color: "#ef4444" }} />
+                    <strong>Xóa tài khoản</strong>
                   </div>
                   <p className="muted small">
-                    {isDeleted
-                      ? "Khôi phục tài khoản này để nhân sự có thể tiếp tục đăng nhập và làm việc."
-                      : "Tài khoản sẽ ngừng hoạt động và không còn đăng nhập được; lịch sử bán hàng và chứng từ vẫn giữ nguyên để đối soát."}
+                    Xóa ngay khỏi hệ thống: tài khoản biến mất khỏi danh sách Nhân sự,
+                    không đăng nhập được nữa và không có cách khôi phục. Những gì người
+                    này đã ghi nhận — xe thu vào, phiếu bán, chi phí, chứng từ, nhật ký —
+                    vẫn giữ nguyên để đối soát.
                   </p>
                 </div>
 
-                {isDeleted ? (
-                  <Button
-                    type="button"
-                    variant="secondary"
-                    disabled={isBusy}
-                    onClick={() => restoreMutation.mutate()}
-                  >
-                    <RotateCcw size={15} /> Khôi phục tài khoản này
-                  </Button>
-                ) : confirmDelete ? (
-                  <div className="row" style={{ gap: "10px", flexWrap: "wrap" }}>
-                    <Button
-                      type="button"
-                      variant="danger"
-                      disabled={isBusy}
-                      onClick={() => deleteMutation.mutate()}
-                    >
-                      <Trash2 size={14} /> Xác nhận xóa tài khoản
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="secondary"
-                      disabled={isBusy}
-                      onClick={() => setConfirmDelete(false)}
-                    >
-                      Quay lại
-                    </Button>
+                {confirmDelete ? (
+                  <div className="stack" style={{ gap: "10px" }}>
+                    <p className="small" style={{ margin: 0 }}>
+                      <strong>Xóa vĩnh viễn tài khoản của {user.full_name}?</strong>
+                      <br />
+                      Lịch sử nghiệp vụ đã ghi dưới tên người này vẫn còn trong hệ thống.
+                    </p>
+                    <div className="row" style={{ gap: "10px", flexWrap: "wrap" }}>
+                      <Button
+                        type="button"
+                        variant="danger"
+                        disabled={isBusy}
+                        onClick={() => deleteMutation.mutate()}
+                      >
+                        <Trash2 size={14} /> Xác nhận xóa tài khoản
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        disabled={isBusy}
+                        onClick={() => setConfirmDelete(false)}
+                      >
+                        Quay lại
+                      </Button>
+                    </div>
                   </div>
                 ) : (
                   <div className="stack" style={{ gap: "10px" }}>

@@ -19,7 +19,8 @@ export type SaleDraftAction = {
   license_plate: string;
   customer_name?: string;
   customer_phone?: string;
-  sale_price?: number;
+  // Không có `sale_price`: giá bán chỉ do phiếu Bán xe sinh ra, copilot/tốc ký
+  // không được prefill từ bất kỳ nguồn nào (kể cả lời nói của nhân viên).
 };
 export type AcquisitionDraftAction = { kind: "CREATE_ACQUISITION"; seed_text: string };
 export type DraftAction = ExpenseDraftAction | SaleDraftAction | AcquisitionDraftAction;
@@ -135,11 +136,10 @@ export function detectDraftAction(text: string): DraftAction | null {
 
   if (SELL_VERB.test(key)) {
     if (!plate) return null;
-    const price = amounts.find((value) => value >= 3_000_000);
     const customer_name = findCustomer(trimmed);
     const customer_phone = findPhone(trimmed);
-    if (!price && !customer_name && !customer_phone) return null;
-    return { kind: "PREPARE_SALE", license_plate: plate, ...(customer_name ? { customer_name } : {}), ...(customer_phone ? { customer_phone } : {}), ...(price ? { sale_price: price } : {}) };
+    if (!customer_name && !customer_phone) return null;
+    return { kind: "PREPARE_SALE", license_plate: plate, ...(customer_name ? { customer_name } : {}), ...(customer_phone ? { customer_phone } : {}) };
   }
 
   if (LEADING_EXPENSE.test(key) || (plate && amounts.length && (EXPENSE_VERB.test(key) || REPAIR_VERB.test(key)))) {
@@ -152,8 +152,10 @@ export function detectDraftAction(text: string): DraftAction | null {
     return { kind: "ADD_VEHICLE_EXPENSE", license_plate: plate, amount, description, expense_type: expenseType(description), ...(date ? { date } : {}) };
   }
 
+  // Tên thương mại (Hãng/Dòng) đã bị xoá khỏi hệ thống nên không còn là dấu
+  // hiệu nhận diện xe; chỉ dùng từ chung và từ khoá loại xe.
   const looksLikeVehiclePurchase =
-    /\bxe\b|\bmay\b|\bsh\b|\bwave\b|\bvision\b|\blead\b|\bclick\b|\bair blade\b|\bnovamax\b|\bgnr\b|\blatio\b|\bfazzla\b|\bvecx\b|\bwinner\b|\bsirius\b|\bexciter\b|\by12\b|\ba\d{1,2}\b|\be\d{1,2}\b/.test(key);
+    /\bxe\b|\bmay\b|\btay ga\b|\bcon tay\b|\bxe so\b|\bxe dien\b|\b50cc\b/.test(key);
   // Parts-and-services money ("chi 500k mua lop xe") is never a bike price;
   // an acquisition needs a vehicle word or a real-sized amount.
   const priceSized = !amounts.length || Math.max(...amounts) >= 3_000_000;

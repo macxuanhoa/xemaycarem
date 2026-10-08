@@ -7,10 +7,11 @@ import { test, expect } from '@playwright/test'
 const userId = '11111111-1111-4111-8111-111111111111'
 const vehicleId = '22222222-2222-4222-8222-222222222222'
 const pixel = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aX2sAAAAASUVORK5CYII=', 'base64')
-const known = { id: vehicleId, internal_code: 'XE-TEST-000001', brand: 'Honda', model: 'Vision', frame_number: 'RLHTEST000001',
-  license_plate: '59-A1 234.56', status: 'IN_STOCK', purchase_date: '2026-10-01', asking_price: 45000000, year: 2022, color: 'Đen' }
+const known = { id: vehicleId, internal_code: 'XE-TEST-000001', vehicle_type_id: 'vt-ga', vehicle_type: 'Xe tay ga',
+  frame_number: 'RLHTEST000001', license_plate: '59-A1 234.56', status: 'IN_STOCK', purchase_date: '2026-10-01', year: 2022, color: 'Đen' }
 function scanDraft(values) {
-  const empty = { license_plate: null, frame_number: null, engine_number: null, brand: null, model: null, variant: null, color: null, year: null, odometer: null }
+  // Hợp đồng `vehicle_scan` mới chỉ còn bộ four nhận diện: biển · khung · màu · đời.
+  const empty = { license_plate: null, frame_number: null, color: null, year: null }
   return { kind: 'draft', task: 'vehicle_scan', vehicle_id: null, draft: { ...empty, ...values },
     human_confirmation_required: true, warnings: ['Kiểm tra lại từng trường trước khi lưu.'] }
 }
@@ -48,11 +49,16 @@ async function setup(page, { result } = {}) {
     const name = path.split('/').at(-1)
     if (name === 'check_user_access') return reply({ allowed: true, role: 'OWNER', must_change_password: false })
     if (name === 'get_settings') return reply({ store_name: 'Xe CRM fixture', phone: '', address: '' })
+    if (name === 'list_vehicle_types') return reply([
+      { id: 'vt-ga', name: 'Xe tay ga', vehicle_count: 1 },
+      { id: 'vt-so', name: 'Xe số', vehicle_count: 0 },
+      { id: 'vt-chua', name: 'Chưa phân loại', vehicle_count: 0 },
+    ])
     if (name === 'get_vehicle') return reply(known)
     if (name === 'list_vehicles') {
       const search = String(body.p_filters?.search ?? '').toUpperCase()
       const all = [known, ...imported]
-      const hay = row => `${row.license_plate ?? ''} ${row.brand ?? ''} ${row.model ?? ''} ${row.frame_number ?? ''} ${row.engine_number ?? ''}`.toUpperCase()
+      const hay = row => `${row.license_plate ?? ''} ${row.frame_number ?? ''} ${row.internal_code ?? ''} ${row.color ?? ''} ${row.vehicle_type ?? ''}`.toUpperCase()
       const items = search ? all.filter(row => hay(row).includes(search)) : all
       return reply({ items, total: items.length })
     }
@@ -79,7 +85,7 @@ test('smart camera: known plate scan resolves to the existing vehicle profile', 
   await page.goto('/capture')
   await expect(page.getByRole('heading', { name: 'Camera thông minh' })).toBeVisible()
   await scanFromLibrary(page)
-  await expect(page.getByText(/Đã xác khớp xe trong kho: Honda Vision · 59-A1 234\.56/)).toBeVisible()
+  await expect(page.getByText(/Đã xác khớp xe trong kho: 59-A1 234\.56 · RLHTEST000001/)).toBeVisible()
   const assist = calls.assist.find(entry => entry.task === 'vehicle_scan')
   expect(assist).toMatchObject({ consent: true })
   expect(typeof assist.image.base64).toBe('string')
@@ -90,7 +96,7 @@ test('smart camera: known plate scan resolves to the existing vehicle profile', 
 })
 
 test('smart camera: unknown scan prefills the existing shorthand intake and saves only after confirmation', async ({ page }) => {
-  const calls = await setup(page, { result: scanDraft({ license_plate: '61-B1 777.77', brand: 'Yamaha', model: 'Grande', color: 'Trắng', year: 2023 }) })
+  const calls = await setup(page, { result: scanDraft({ license_plate: '61-B1 777.77', color: 'Trắng', year: 2023 }) })
   await page.goto('/capture')
   await scanFromLibrary(page)
   await expect(page.getByText('Không tìm thấy xe này trong kho. Có thể là xe mới về.')).toBeVisible()
@@ -100,10 +106,16 @@ test('smart camera: unknown scan prefills the existing shorthand intake and save
   await expect(page.getByPlaceholder('59-A1 234.56')).toHaveValue('61-B1 777.77')
   await expect(page.getByText('Bản nháp từ Camera thông minh', { exact: false })).toBeVisible()
   await expect(page.locator('.fs-badge.warn').first()).toBeVisible()
+  // Camera không còn đọc hãng/dòng xe, nên nhân viên phải chọn Loại xe từ danh
+  // mục ngay trên thẻ thì nút thu mới mở.
+  await page.getByLabel('Loại xe *').selectOption({ label: 'Xe tay ga' })
   await page.getByRole('button', { name: /Thu 1 xe vào kho/ }).click()
   await page.getByRole('button', { name: 'Xác nhận thu xe' }).click()
   const imported = calls.writes.find(entry => entry.name === 'import_vehicles')
-  expect(imported.body.p_vehicles.rows[0]).toMatchObject({ license_plate: '61-B1 777.77', brand: 'Yamaha', model: 'Grande', year: 2023 })
+  const row = imported.body.p_vehicles.rows[0]
+  expect(row).toMatchObject({ license_plate: '61-B1 777.77', vehicle_type_id: 'vt-ga', color: 'Trắng', year: 2023 })
+  expect('brand' in row).toBe(false)
+  expect('model' in row).toBe(false)
   // The approved scan photo rides the normal secure upload path afterwards —
   // attached via the trusted vehicle_ids from THIS transaction, never a
   // substring re-search of the inventory.

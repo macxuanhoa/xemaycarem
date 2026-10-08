@@ -104,7 +104,7 @@ const job = async id => (await db.query('SELECT to_jsonb(o) AS value FROM public
 const sentAudits = async id => Number((await db.query("SELECT count(*) AS n FROM public.audit_logs WHERE entity_id=$1 AND action='MESSAGE_SENT'", [id])).rows[0].n);
 let day;
 async function createJob() {
-  const vehicle = await call('save_vehicle', { request_id: randomUUID(), model: 'Synthetic native worker', brand: 'Honda', purchase_date: day, purchase_price: 100, asking_price: 1000 });
+  const vehicle = await call('save_vehicle', { request_id: randomUUID(), vehicle_type: 'Xe tay ga', purchase_date: day, purchase_price: 100 });
   const sale = await call('sell_vehicle', { request_id: randomUUID(), vehicle_id: vehicle, customer_name: 'Synthetic native worker', customer_phone: '0912345678', sale_date: day, sale_price: 1000, initial_payment: 0 });
   return asUser(db, owner, client => rpc(client, 'get_sale_communication', '$1::uuid', [sale]));
 }

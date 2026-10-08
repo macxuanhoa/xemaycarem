@@ -19,7 +19,7 @@ const both = async (operations) => {
   finally { await Promise.all(clients.map(client => client.close())) }
 }
 let day
-const vehicle = (extra = {}) => ({ request_id: randomUUID(), brand: 'Honda', model: 'Audit TEST ONLY', frame_number: `AUDIT-${randomUUID()}`, purchase_date: day, purchase_price: 100, asking_price: 1000, ...extra })
+const vehicle = (extra = {}) => ({ request_id: randomUUID(), vehicle_type: 'Xe tay ga', frame_number: `AUDIT-${randomUUID()}`, purchase_date: day, purchase_price: 100, ...extra })
 const create = (extra) => call(db, 'owner', 'save_vehicle', vehicle(extra))
 const sale = (id, extra = {}) => ({ request_id: randomUUID(), vehicle_id: id, customer_name: 'Audit fake customer', customer_phone: '', sale_price: 1000, initial_payment: 0, payment_method: 'CASH', sale_date: day, ...extra })
 const pay = (id, extra = {}) => ({ sale_id: id, amount: 100, payment_method: 'CASH', payment_date: day, request_id: randomUUID(), ...extra })
@@ -101,7 +101,7 @@ try {
     const snapshot = await asUser(db, users.owner, c => rpc(c, 'get_vehicle', '$1::uuid', [id]))
     await call(db, 'owner', 'save_vehicle', { color: 'New color' }, id)
     await assert.rejects(() => call(db, 'owner', 'save_vehicle', {
-      color: snapshot.color, model: 'Unrelated edit', expected_updated_at: snapshot.updated_at,
+      color: snapshot.color, year: 2020, expected_updated_at: snapshot.updated_at,
     }, id), /VEHICLE_EDIT_CONFLICT/)
     const actual = await asUser(db, users.owner, c => rpc(c, 'get_vehicle', '$1::uuid', [id]))
     assert.equal(actual.color, 'New color', 'old form silently overwrote another edit')
@@ -138,8 +138,8 @@ try {
       await lock.close(); await waiting.close()
     }
   })
-  await check('empty model/unknown acquisition price reaches actual backend safely', async () => {
-    const payload = { ...vehicle({ model: '' }), acquisition_date: day }
+  await check('blank plate/unknown acquisition price reaches actual backend safely', async () => {
+    const payload = { ...vehicle({ license_plate: '' }), acquisition_date: day }
     delete payload.purchase_price
     const id = await call(db, 'owner', 'acquire_vehicle', payload)
     await assert.rejects(() => call(db, 'a', 'sell_vehicle', sale(id)), /PURCHASE_COST_REQUIRED/)

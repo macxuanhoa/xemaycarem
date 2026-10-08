@@ -53,12 +53,21 @@ describe('AI drafts and read tools preserve authority outside the model', () => 
     expect(() => validateInput({ task: 'vehicle_scan', image: inputImage }, staff)).toThrow('EXPLICIT_PROCESSING_CONSENT_REQUIRED')
     expect(() => validateInput({ task: 'vehicle_scan', consent: true, text: 'xe vision đen' }, staff)).toThrow('INVALID_INPUT')
     expect(validateInput({ task: 'vehicle_scan', consent: true, image: inputImage }, staff)).toMatchObject({ task: 'vehicle_scan' })
+    // Hợp đồng đầu ra chỉ còn đúng bốn trường nhìn được; loại xe do người chọn.
+    expect(Object.keys(outputSchema('vehicle_scan').properties))
+      .toEqual(['license_plate', 'frame_number', 'color', 'year'])
     // A STAFF scan is allowed (intake is an operational task) but extra keys never pass.
     expect(() => validateOutput('vehicle_scan', { ...draft('vehicle_scan'), purchase_price: 18000000 }, staff)).toThrow('INVALID_INPUT')
-    expect(() => validateOutput('vehicle_scan', draft('vehicle_scan', { odometer: 99999999 }), staff)).toThrow('INVALID_AI_RESULT')
+    // Tên trường đã xoá vĩnh viễn (08/10/2026) bị chặn ngay ở bước kiểm khoá,
+    // kể cả khi model còn trả về theo khuôn cũ.
+    for (const purged of [{ odometer: 99999999 }, { brand: 'Honda' }, { model: 'Vision' }, { variant: 'ABS' }, { engine_number: 'KF30E-7412345' }])
+      expect(() => validateOutput('vehicle_scan', draft('vehicle_scan', purged), staff), JSON.stringify(purged)).toThrow('INVALID_INPUT')
     expect(() => validateOutput('vehicle_scan', draft('vehicle_scan', { year: 1850 }), staff)).toThrow('INVALID_AI_RESULT')
-    expect(validateOutput('vehicle_scan', draft('vehicle_scan', { license_plate: '59-A1 234.56', brand: 'Honda', odometer: 18500 }), staff))
-      .toMatchObject({ license_plate: '59-A1 234.56', brand: 'Honda', odometer: 18500 })
+    expect(() => validateOutput('vehicle_scan', draft('vehicle_scan', { license_plate: 'X'.repeat(31) }), staff)).toThrow('INVALID_AI_RESULT')
+    expect(validateOutput('vehicle_scan', draft('vehicle_scan', {
+      license_plate: '59-A1 234.56', frame_number: 'RLH160KD12345', color: 'Đen', year: 2022,
+    }), staff))
+      .toMatchObject({ license_plate: '59-A1 234.56', frame_number: 'RLH160KD12345', color: 'Đen', year: 2022 })
   })
   it('executes only allowlisted read RPCs and uses database facts, preserving known vehicle context', async () => {
     const caller = { rpc: vi.fn(async (name: string) => { void name; return { data: { gross_profit: 123, expenses: [] }, error: null } }) }

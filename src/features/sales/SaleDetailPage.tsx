@@ -3,7 +3,7 @@ import { Link, useParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { ArrowLeft, ArrowRight, CreditCard } from "lucide-react";
+import { ArrowLeft, ArrowRight, CreditCard, MoreVertical } from "lucide-react";
 import { api } from "@/lib/api";
 import { confirmPayment, pendingPayment, retainPayment } from "@/lib/paymentRecovery";
 import { AppError } from "@/lib/errors";
@@ -29,13 +29,12 @@ import { MoneyInput } from "@/components/ui/MoneyInput";
 import { paymentLabels } from "@/features/vehicles/vehicleSchema";
 import { paymentSchema, type PaymentFormValues } from "./saleSchema";
 import { PaymentReceiptReview, type PaymentReceipt } from "./PaymentReceiptReview";
+import { vehicleTitle } from "@/lib/vehicleDisplay";
 
 type SaleRecord = Sale & {
   vehicle_code?: string;
-  vehicle_name?: string;
   cancellation_reason?: string;
 };
-type CommunicationJob = { id?: string; channel?: string; status?: string; attempt_count?: number; last_error_code?: string; last_error_message_safe?: string; delivery_review_required?: boolean };
 
 export function SaleDetailPage() {
   const { id } = useParams();
@@ -43,6 +42,7 @@ export function SaleDetailPage() {
   const client = useQueryClient();
   const [showPayment, setShowPayment] = useState(false);
   const [showCancel, setShowCancel] = useState(false);
+  const [showAdjust, setShowAdjust] = useState(false);
   const [reason, setReason] = useState("");
   const [receipt, setReceipt] = useState<Payment | "sale" | null>(null);
 
@@ -50,30 +50,13 @@ export function SaleDetailPage() {
     queryKey: ["sale", id],
     queryFn: () => api.call<SaleRecord>("get_sale", { p_id: id }),
   });
-  const communication = useQuery({
-    queryKey: ["sale-communication", id],
-    queryFn: () => api.call<CommunicationJob>("get_sale_communication", { p_sale_id: id }),
-    enabled: !!id,
-    refetchInterval: (q) => q.state.data?.status === "QUEUED" || q.state.data?.status === "PROCESSING" ? 3000 : false,
-  });
-  const retryMessage = useMutation({
-    mutationFn: async () => {
-      await api.call("retry_sale_thank_you", { p_sale_id: id });
-      const job = await api.call<CommunicationJob>("get_sale_communication", { p_sale_id: id });
-      if (job.id) await api.processMessage(job.id);
-    },
-    onSuccess: async () => { await client.invalidateQueries({ queryKey: ["sale-communication", id] }); },
-  });
-  const recoverMessage = useMutation({
-    mutationFn: async () => { if (communication.data?.id) await api.processMessage(communication.data.id); },
-    onSuccess: async () => { await client.invalidateQueries({ queryKey: ["sale-communication", id] }); },
-  });
 
   const cancel = useMutation({
     mutationFn: () =>
       api.call("cancel_sale", { p_id: id, p_reason: reason.trim() }),
     onSuccess: async () => {
       setShowCancel(false);
+      setShowAdjust(false);
       setShowPayment(false);
       await client.invalidateQueries();
     },
@@ -104,41 +87,97 @@ export function SaleDetailPage() {
                 In phiếu bán xe
               </Button>
             )}
+            {canManage(profile) && sale.status === "COMPLETED" && (
+              <Button
+                variant="ghost"
+                className="heading-kebab"
+                aria-label="Điều chỉnh giao dịch"
+                aria-haspopup="true"
+                aria-expanded={showAdjust}
+                onClick={() => setShowAdjust((open) => !open)}
+              >
+                <MoreVertical size={18} />
+              </Button>
+            )}
           </>
         }
       />
+      {canManage(profile) && sale.status === "COMPLETED" && showAdjust && (
+        <Card className="sale-adjust-panel">
+          <div className="row between">
+            <h2 className="section-title">Điều chỉnh giao dịch</h2>
+            <Button
+              variant="ghost"
+              onClick={() => {
+                setShowAdjust(false);
+                setShowCancel(false);
+              }}
+            >
+              Đóng
+            </Button>
+          </div>
+          {!showCancel ? (
+            <>
+              <p className="muted">
+                Hủy giao dịch khi nhập nhầm hoặc khách trả xe. Xe sẽ trở lại tồn
+                kho, lịch sử vẫn được giữ lại.
+              </p>
+              <Button variant="danger" onClick={() => setShowCancel(true)}>
+                Hủy giao dịch bán xe
+              </Button>
+            </>
+          ) : (
+            <form
+              className="stack"
+              onSubmit={(event) => {
+                event.preventDefault();
+                if (reason.trim().length >= 5) cancel.mutate();
+              }}
+            >
+              <p className="notice">
+                Sau khi hủy, đối chiếu và hoàn trả tiền đã nhận bên ngoài hệ
+                thống nếu có. Thao tác này được ghi vào nhật ký.
+              </p>
+              <Field label="Lý do hủy *">
+                <textarea
+                  autoFocus
+                  required
+                  minLength={5}
+                  maxLength={1000}
+                  value={reason}
+                  onChange={(event) => setReason(event.target.value)}
+                  placeholder="Nhập lý do cụ thể (ít nhất 5 ký tự)"
+                />
+              </Field>
+              {cancel.isError && <ErrorState error={cancel.error} />}
+              <div className="form-actions">
+                <Button
+                  type="button"
+                  variant="secondary"
+                  onClick={() => setShowCancel(false)}
+                >
+                  Giữ giao dịch
+                </Button>
+                <Button
+                  variant="danger"
+                  type="submit"
+                  disabled={cancel.isPending || reason.trim().length < 5}
+                >
+                  {cancel.isPending
+                    ? "Đang hủy…"
+                    : "Xác nhận hủy giao dịch"}
+                </Button>
+              </div>
+            </form>
+          )}
+        </Card>
+      )}
       {receipt && (
         <CustomerReceipt
           sale={sale}
           payment={receipt === "sale" ? undefined : receipt}
           onClose={() => setReceipt(null)}
         />
-      )}
-      {sale.status === "COMPLETED" && (
-        <Card className="row between">
-          <div>
-            <h2 className="section-title">Lời cảm ơn khách hàng</h2>
-            <p className="muted small">
-              {communication.data?.status === "SENT" ? `Đã gửi qua ${communication.data.channel === "ZALO_ZNS" ? "Zalo" : communication.data.channel}` :
-                communication.data?.status === "DELIVERED" ? "Nhà cung cấp xác nhận đã nhận tin" :
-                communication.data?.status === "QUEUED" ? "Đang chờ xử lý" :
-                communication.data?.status === "PROCESSING" ? "Đang gửi" :
-                communication.data?.status === "SKIPPED" && communication.data.last_error_code === "PROVIDER_NOT_CONFIGURED" ? "Chưa cấu hình nhà cung cấp tin nhắn" :
-                communication.data?.delivery_review_required ? "Kết quả gửi chưa xác định. Quản lý cần đối chiếu nhà cung cấp trước khi gửi lại." :
-                communication.data?.status === "FAILED" ? `Gửi thất bại${communication.data.last_error_message_safe ? `: ${communication.data.last_error_message_safe}` : ""}` :
-                communication.data?.status === "SKIPPED" ? "Chưa cấu hình kênh nhắn tin hoặc số điện thoại không hợp lệ" : "Chưa gửi"}
-            </p>
-          </div>
-          {canManage(profile) && communication.data?.status === "FAILED" && !communication.data.delivery_review_required && communication.data.last_error_code !== "PROVIDER_NOT_CONFIGURED" && communication.data?.channel !== "DISABLED" && (
-            <Button variant="secondary" disabled={retryMessage.isPending} onClick={() => retryMessage.mutate()}>Thử gửi lại</Button>
-          )}
-          {retryMessage.error && <ErrorState error={retryMessage.error} />}
-          {canManage(profile) && communication.data?.status === "PROCESSING" && (
-            <Button variant="secondary" disabled={recoverMessage.isPending} onClick={() => recoverMessage.mutate()}>Kiểm tra và khôi phục xử lý</Button>
-          )}
-          {recoverMessage.error && <ErrorState error={recoverMessage.error} />}
-          {canManage(profile) && communication.data?.delivery_review_required && communication.data.id && <MessageDeliveryReview jobId={communication.data.id} saleId={sale.id} />}
-        </Card>
       )}
       {sale.status === "CANCELLED" && (
         <p className="notice">
@@ -148,7 +187,7 @@ export function SaleDetailPage() {
           {sale.cancellation_reason && ` Lý do: ${sale.cancellation_reason}`}
         </p>
       )}
-      <div className="detail-grid">
+      <div className={canFinance(profile) ? "detail-grid" : "detail-grid detail-grid-single"}>
         <div className="stack">
           <Card>
             <h2 className="section-title">Thông tin giao dịch</h2>
@@ -160,8 +199,7 @@ export function SaleDetailPage() {
                     className="text-link"
                     to={`/vehicles/${sale.vehicle_id}`}
                   >
-                    {sale.vehicle_name ||
-                      `${sale.vehicle?.brand ?? ""} ${sale.vehicle?.model ?? ""}`}{" "}
+                    {vehicleTitle(sale)}{" "}
                     <ArrowRight size={14} />
                   </Link>
                 </dd>
@@ -196,6 +234,32 @@ export function SaleDetailPage() {
                 <strong>Ghi chú</strong>
                 <p>{sale.notes}</p>
               </div>
+            )}
+          </Card>
+          <Card>
+            <h2 className="section-title">Thanh toán</h2>
+            <div className="price-hero">
+              <span className="muted">Giá bán</span>
+              <strong>{money(sale.sale_price)}</strong>
+            </div>
+            <dl className="summary-list">
+              <div>
+                <dt>
+                  Đã thu {sale.status === "CANCELLED" ? "(đã vô hiệu)" : ""}
+                </dt>
+                <dd>{money(sale.paid_amount)}</dd>
+              </div>
+              <div className="summary-total">
+                <dt>Còn phải thu</dt>
+                <dd>
+                  {sale.status === "CANCELLED"
+                    ? "—"
+                    : money(sale.remaining_amount)}
+                </dd>
+              </div>
+            </dl>
+            {sale.status === "COMPLETED" && sale.remaining_amount === 0 && (
+              <p className="notice success">Đã thanh toán đủ</p>
             )}
           </Card>
           {canManage(profile) && (
@@ -265,94 +329,9 @@ export function SaleDetailPage() {
             )}
           </Card>
           {sale.status === "COMPLETED" && <PaymentReceiptReview saleId={sale.id} />}
-          {canManage(profile) && sale.status === "COMPLETED" && (
-            <Card>
-              <h2 className="section-title">Điều chỉnh giao dịch</h2>
-              {!showCancel ? (
-                <>
-                  <p className="muted">
-                    Hủy giao dịch khi nhập nhầm hoặc khách trả xe. Xe sẽ trở lại
-                    tồn kho, lịch sử vẫn được giữ lại.
-                  </p>
-                  <Button variant="danger" onClick={() => setShowCancel(true)}>
-                    Hủy giao dịch bán xe
-                  </Button>
-                </>
-              ) : (
-                <form
-                  className="stack"
-                  onSubmit={(event) => {
-                    event.preventDefault();
-                    if (reason.trim().length >= 5) cancel.mutate();
-                  }}
-                >
-                  <p className="notice">
-                    Sau khi hủy, đối chiếu và hoàn trả tiền đã nhận bên ngoài hệ
-                    thống nếu có. Thao tác này được ghi vào nhật ký.
-                  </p>
-                  <Field label="Lý do hủy *">
-                    <textarea
-                      autoFocus
-                      required
-                      minLength={5}
-                      maxLength={1000}
-                      value={reason}
-                      onChange={(event) => setReason(event.target.value)}
-                      placeholder="Nhập lý do cụ thể (ít nhất 5 ký tự)"
-                    />
-                  </Field>
-                  {cancel.isError && <ErrorState error={cancel.error} />}
-                  <div className="form-actions">
-                    <Button
-                      type="button"
-                      variant="secondary"
-                      onClick={() => setShowCancel(false)}
-                    >
-                      Giữ giao dịch
-                    </Button>
-                    <Button
-                      variant="danger"
-                      type="submit"
-                      disabled={cancel.isPending || reason.trim().length < 5}
-                    >
-                      {cancel.isPending
-                        ? "Đang hủy…"
-                        : "Xác nhận hủy giao dịch"}
-                    </Button>
-                  </div>
-                </form>
-              )}
-            </Card>
-          )}
         </div>
-        <aside className="stack">
-          <Card>
-            <h2 className="section-title">Thanh toán</h2>
-            <div className="price-hero">
-              <span className="muted">Giá bán</span>
-              <strong>{money(sale.sale_price)}</strong>
-            </div>
-            <dl className="summary-list">
-              <div>
-                <dt>
-                  Đã thu {sale.status === "CANCELLED" ? "(đã vô hiệu)" : ""}
-                </dt>
-                <dd>{money(sale.paid_amount)}</dd>
-              </div>
-              <div className="summary-total">
-                <dt>Còn phải thu</dt>
-                <dd>
-                  {sale.status === "CANCELLED"
-                    ? "—"
-                    : money(sale.remaining_amount)}
-                </dd>
-              </div>
-            </dl>
-            {sale.status === "COMPLETED" && sale.remaining_amount === 0 && (
-              <p className="notice success">Đã thanh toán đủ</p>
-            )}
-          </Card>
-          {canFinance(profile) && (
+        {canFinance(profile) && (
+          <aside className="stack">
             <Card>
               <h2 className="section-title">Giá vốn đã chốt</h2>
               <dl className="summary-list">
@@ -377,31 +356,11 @@ export function SaleDetailPage() {
                 Giá vốn được lưu tại thời điểm bán để bảo toàn báo cáo lịch sử.
               </p>
             </Card>
-          )}
-        </aside>
+          </aside>
+        )}
       </div>
     </div>
   );
-}
-
-function MessageDeliveryReview({ jobId, saleId }: { jobId: string; saleId: string }) {
-  const client = useQueryClient();
-  const [resolution, setResolution] = useState("CONFIRMED_SENT");
-  const [evidence, setEvidence] = useState("");
-  const mutation = useMutation({
-    mutationFn: () => api.call("resolve_message_delivery", { p_message_id: jobId, p_resolution: resolution, p_evidence_reference: evidence.trim() }),
-    onSuccess: async () => { await client.invalidateQueries({ queryKey: ["sale-communication", saleId] }); },
-  });
-  return <form className="stack" onSubmit={event => { event.preventDefault(); mutation.mutate(); }}>
-    <Field label="Kết quả đối chiếu nhà cung cấp"><select value={resolution} onChange={event => setResolution(event.target.value)}>
-      <option value="CONFIRMED_SENT">Đã xác nhận gửi thành công</option>
-      <option value="CONFIRMED_NOT_SENT">Đã xác nhận chưa gửi</option>
-    </select></Field>
-    <Field label="Mã bằng chứng từ nhà cung cấp"><input required minLength={8} maxLength={120} pattern="[A-Za-z0-9][A-Za-z0-9_.:/-]{7,119}" value={evidence} onChange={event => setEvidence(event.target.value)} /></Field>
-    <p className="muted small">Chỉ xác nhận sau khi kiểm tra nhật ký nhà cung cấp. Khi đã xác nhận chưa gửi, có thể dùng nút thử gửi lại.</p>
-    {mutation.error && <ErrorState error={mutation.error} />}
-    <Button type="submit" disabled={mutation.isPending}>Lưu kết quả đối chiếu</Button>
-  </form>;
 }
 
 export function PaymentEditor({

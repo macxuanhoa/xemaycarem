@@ -20,7 +20,7 @@ export async function runSaleDueDateConflictTests(externalDb, { engine = 'postgr
       await db.query('UPDATE public.profiles SET role=$1::public.user_role,active=true,must_change_password=false WHERE id=$2', [name === 'owner' ? 'OWNER' : 'STAFF', id])
     }
     const { day, next, later } = await row('SELECT private.today()::text AS day,(private.today()+3)::text AS next,(private.today()+7)::text AS later')
-    const vehicleId = await call('owner', 'save_vehicle', { request_id: randomUUID(), brand: 'Honda', model: 'Due-date synthetic vehicle', frame_number: `DUE-${randomUUID()}`, purchase_date: day, purchase_price: 80, asking_price: 100 })
+    const vehicleId = await call('owner', 'save_vehicle', { request_id: randomUUID(), vehicle_type: 'Xe tay ga', frame_number: `DUE-${randomUUID()}`, purchase_date: day, purchase_price: 80 })
     const saleId = await call('a', 'sell_vehicle', { vehicle_id: vehicleId, customer_name: 'Due-date synthetic customer', sale_price: 100, sale_date: day, initial_payment: 20 })
     const financialBefore = await row('SELECT * FROM public.sale_financials WHERE sale_id=$1', [saleId])
     const paymentBefore = (await db.query('SELECT * FROM public.payments WHERE sale_id=$1', [saleId])).rows

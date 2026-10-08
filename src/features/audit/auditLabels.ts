@@ -9,6 +9,7 @@
  * for forensic use.
  */
 import { dateLabel, money } from "@/lib/format";
+import { identityFromRecord, vehicleTitle } from "@/lib/vehicleDisplay";
 
 /** Columns that are noise to a human reader (UUIDs, bookkeeping timestamps). */
 const SKIP_KEYS = new Set([
@@ -27,7 +28,6 @@ const SKIP_SUFFIXES = ["_id", "_path", "_paths", "_url", "_token"];
 /** Fields whose numeric value is an amount of Vietnamese đồng. */
 const MONEY_KEYS = new Set([
   "purchase_price",
-  "asking_price",
   "amount",
   "paid_amount",
   "remaining_amount",
@@ -63,6 +63,7 @@ export const entityTypeLabels: Record<string, string> = {
   identity_documents: "hồ sơ CCCD",
   profiles: "tài khoản nhân sự",
   showroom_leads: "khách tham quan",
+  vehicle_types: "loại xe",
 };
 
 /** Short noun shown on the coloured chip in the collapsed header. */
@@ -96,6 +97,9 @@ export const auditActionChips: Record<string, string> = {
   FORCE_PASSWORD_CHANGE: "Yêu cầu đổi mật khẩu",
   TRANSFER_OWNER: "Chuyển quyền chủ cửa hàng",
   UPDATE_SHOWROOM_LEAD_STATUS: "Cập nhật khách tham quan",
+  CREATE_VEHICLE_TYPE: "Thêm loại xe",
+  UPDATE_VEHICLE_TYPE: "Đổi tên loại xe",
+  DELETE_VEHICLE_TYPE: "Xóa loại xe",
 };
 
 /** Verb phrase used in the plain-language sentence "{actor} đã ...". */
@@ -129,22 +133,21 @@ export const auditActionPhrases: Record<string, string> = {
   FORCE_PASSWORD_CHANGE: "đã yêu cầu đổi mật khẩu",
   TRANSFER_OWNER: "đã chuyển quyền chủ cửa hàng",
   UPDATE_SHOWROOM_LEAD_STATUS: "đã cập nhật trạng thái khách tham quan",
+  CREATE_VEHICLE_TYPE: "đã thêm một loại xe vào danh mục",
+  UPDATE_VEHICLE_TYPE: "đã đổi tên một loại xe trong danh mục",
+  DELETE_VEHICLE_TYPE: "đã xóa một loại xe khỏi danh mục",
 };
 
 export const auditFieldLabels: Record<string, string> = {
-  // Vehicle / acquisition
-  brand: "Hãng xe",
-  model: "Dòng xe",
-  variant: "Phiên bản",
+  // Vehicle / acquisition. Hãng, Dòng, Phiên bản, Số máy, Số km và Giá bán dự
+  // kiến đã bị gỡ vĩnh viễn khỏi hồ sơ xe nên không còn nhãn tương ứng.
+  vehicle_type: "Loại xe",
   year: "Năm sản xuất",
   color: "Màu sắc",
   license_plate: "Biển số",
   frame_number: "Số khung",
-  engine_number: "Số máy",
-  odometer: "Số km đã đi",
   purchase_date: "Ngày thu",
   purchase_price: "Giá thu",
-  asking_price: "Giá bán dự kiến",
   supplier_name: "Người bán",
   supplier_phone: "SĐT người bán",
   notes: "Ghi chú",
@@ -366,8 +369,9 @@ export function recordSubject(
     "full_name",
     "customer_name",
     "supplier_name",
-    "model",
     "license_plate",
+    "frame_number",
+    "vehicle_type",
     "sale_code",
     "internal_code",
     "name",
@@ -375,8 +379,10 @@ export function recordSubject(
   for (const key of prefer) {
     const v = data[key];
     if (typeof v === "string" && v.trim()) {
-      if (key === "model" && typeof data.brand === "string" && data.brand) {
-        return `${data.brand} ${v}`.trim();
+      // Biển số luôn đi kèm số khung: xe được đọc bằng đúng danh tính
+      // biển · khung dùng ở mọi màn hình, không còn Hãng + Dòng như trước.
+      if (key === "license_plate" || key === "frame_number") {
+        return vehicleTitle(identityFromRecord(data));
       }
       return v.trim();
     }

@@ -16,7 +16,12 @@ import { AppError } from "@/lib/errors";
 import { toast } from "@/lib/toast";
 import { isOwner, roleLabels } from "@/lib/permissions";
 import { SharedScheduleCard } from "@/features/users/components/SharedScheduleCard";
-import { DEFAULT_QUICKPICK_TEXT } from "@/components/ui/QuickChips";
+import { confirmAction } from "@/components/ui/ConfirmDialog";
+import { UNCLASSIFIED_TYPE_NAME } from "@/lib/shorthand/vocabulary";
+import {
+  useVehicleTypes,
+  VEHICLE_TYPES_QUERY_KEY,
+} from "@/lib/useVehicleTypes";
 import { AnnouncementManager } from "./AnnouncementManager";
 interface InstallPrompt extends Event {
   prompt: () => Promise<void>;
@@ -33,8 +38,6 @@ type Settings = {
   primary_message_channel?: "DISABLED" | "ZALO_ZNS" | "SMS";
   fallback_channel?: "DISABLED" | "ZALO_ZNS" | "SMS";
   support_phone?: string;
-  quickpick_brands?: string[];
-  quickpick_models?: Record<string, string[]>;
 };
 export default function SettingsPage() {
   const { profile, user, refresh } = useAuth();
@@ -43,7 +46,7 @@ export default function SettingsPage() {
     [currentPassword, setCurrentPassword] = useState(""),
     [prompt, setPrompt] = useState<InstallPrompt | null>(null);
   const [activeTab, setActiveTab] = useState<
-    "PROFILE" | "STORE" | "SCHEDULE" | "MESSAGES" | "QUICKPICK" | "DEVICE"
+    "PROFILE" | "STORE" | "SCHEDULE" | "MESSAGES" | "VEHICLE_TYPES" | "DEVICE"
   >("PROFILE");
 
   const client = useQueryClient();
@@ -97,7 +100,7 @@ export default function SettingsPage() {
   const showStore = isOwner(profile) && activeTab === "STORE";
   const showSchedule = isOwner(profile) && activeTab === "SCHEDULE";
   const showMessages = isOwner(profile) && activeTab === "MESSAGES";
-  const showQuickPick = isOwner(profile) && activeTab === "QUICKPICK";
+  const showVehicleTypes = isOwner(profile) && activeTab === "VEHICLE_TYPES";
 
   return (
     <div className="stack settings-shell">
@@ -153,11 +156,11 @@ export default function SettingsPage() {
         {isOwner(profile) && (
           <button
             type="button"
-            aria-pressed={activeTab === "QUICKPICK"}
-            className={`settings-nav-item ${activeTab === "QUICKPICK" ? "active" : ""}`}
-            onClick={() => setActiveTab("QUICKPICK")}
+            aria-pressed={activeTab === "VEHICLE_TYPES"}
+            className={`settings-nav-item ${activeTab === "VEHICLE_TYPES" ? "active" : ""}`}
+            onClick={() => setActiveTab("VEHICLE_TYPES")}
           >
-            <span>Chọn nhanh xe</span>
+            <span>Loại xe</span>
           </button>
         )}
         <button
@@ -275,26 +278,7 @@ export default function SettingsPage() {
 
       {showMessages && <AnnouncementManager />}
 
-      {showQuickPick &&
-        (settings.isPending ? (
-          <Loading />
-        ) : settings.error ? (
-          <ErrorState error={settings.error} />
-        ) : (
-          settings.data && (
-            <QuickPickEditor
-              brands={settings.data.quickpick_brands ?? []}
-              models={settings.data.quickpick_models ?? {}}
-              onDone={() => {
-                void client.invalidateQueries({ queryKey: ["settings"] });
-                toast.success("Đã cập nhật danh mục chọn nhanh", {
-                  description:
-                    "Chip hãng và dòng xe ở form Thu vào, Nhập xe mới sẽ đổi ngay.",
-                });
-              }}
-            />
-          )
-        ))}
+      {showVehicleTypes && <VehicleTypeCatalogEditor />}
 
       {activeTab === "DEVICE" && (
         <div className="settings-balance-grid">
@@ -580,179 +564,176 @@ function StoreSettings({
   );
 }
 
-/** Turn the current catalog into "<Brand>: m1, m2\n…" text. */
-function serializeCatalog(
-  brands: string[],
-  models: Record<string, string[]>,
-): string {
-  const lines = brands
-    .map((brand) => {
-      const trimmed = brand.trim();
-      if (!trimmed) return "";
-      const list = models[trimmed.toLowerCase()] ?? [];
-      const joined = list
-        .map((m) => (typeof m === "string" ? m.trim() : ""))
-        .filter(Boolean)
-        .join(", ");
-      return joined ? `${trimmed}: ${joined}` : `${trimmed}:`;
-    })
-    .filter(Boolean);
-  return lines.length > 0 ? lines.join("\n") : DEFAULT_QUICKPICK_TEXT;
+/** Chuẩn hoá tên loại xe để đối chiếu trùng — đúng như index
+ * `vehicle_types_name_norm` và RPC `save_vehicle_type` đang làm trong database. */
+function normalizeTypeName(value: string): string {
+  return value.trim().replace(/\s+/g, " ").toLowerCase();
 }
 
-/** Parse the textarea content back into structured arrays. Returns an error
- *  message (Vietnamese, user-facing) instead of throwing so the form keeps
- *  its draft text untouched on bad input. */
-function parseCatalog(text: string):
-  | { brands: string[]; models: Record<string, string[]> }
-  | { error: string } {
-  const brands: string[] = [];
-  const models: Record<string, string[]> = {};
-  const seen = new Set<string>();
-  const lines = text.split(/\r?\n/);
-  for (let i = 0; i < lines.length; i++) {
-    const line = lines[i].trim();
-    if (!line) continue;
-    const colon = line.indexOf(":");
-    if (colon < 0) {
-      return {
-        error: `Dòng ${i + 1} thiếu dấu ":" — cần viết "Honda: SH 160i, Vision".`,
-      };
-    }
-    const brand = line.slice(0, colon).trim();
-    const rest = line.slice(colon + 1).trim();
-    if (!brand) return { error: `Dòng ${i + 1} thiếu tên hãng xe.` };
-    if (brand.length > 40) {
-      return {
-        error: `Tên hãng "${brand}" vượt quá 40 ký tự.`,
-      };
-    }
-    const key = brand.toLowerCase();
-    if (seen.has(key)) {
-      return { error: `Hãng "${brand}" bị lặp lại ở hai dòng.` };
-    }
-    seen.add(key);
-    brands.push(brand);
-    const rawList = rest
-      ? rest
-          .split(",")
-          .map((m) => m.trim())
-          .filter(Boolean)
-      : [];
-    if (rawList.length > 60) {
-      return {
-        error: `Hãng "${brand}" có hơn 60 dòng xe (giới hạn để chip gọn gàng).`,
-      };
-    }
-    const dedup: string[] = [];
-    const listSeen = new Set<string>();
-    for (const m of rawList) {
-      if (m.length > 60) {
-        return {
-          error: `Dòng xe "${m}" vượt quá 60 ký tự.`,
-        };
-      }
-      const mk = m.toLowerCase();
-      if (listSeen.has(mk)) continue;
-      listSeen.add(mk);
-      dedup.push(m);
-    }
-    models[key] = dedup;
-  }
-  if (brands.length > 30) {
-    return { error: "Chỉ nên có tối đa 30 hãng trong danh mục chọn nhanh." };
-  }
-  if (brands.length === 0) {
-    return { error: "Danh mục trống — hãy nhập ít nhất một hãng." };
-  }
-  return { brands, models };
-}
-
-function QuickPickEditor({
-  brands,
-  models,
-  onDone,
-}: {
-  brands: string[];
-  models: Record<string, string[]>;
-  onDone: () => void;
-}) {
-  const [text, setText] = useState(() => serializeCatalog(brands, models));
-  const m = useMutation({
-    mutationFn: async () => {
-      const parsed = parseCatalog(text);
-      if ("error" in parsed) throw new AppError(parsed.error);
-      await api.call("save_settings", {
-        p_data: {
-          quickpick_brands: parsed.brands,
-          quickpick_models: parsed.models,
-        },
+/**
+ * Danh mục loại xe (bảng `public.vehicle_types`). OWNER thêm/đổi tên/xoá tại
+ * đây; các vai trò khác chỉ chọn trong form. Vì danh mục nằm trong database
+ * nên thêm loại xe mới KHÔNG cần nâng cấp ứng dụng, và mọi form đang mở cập
+ * nhật ngay sau khi lưu (query key dùng chung `VEHICLE_TYPES_QUERY_KEY`).
+ */
+function VehicleTypeCatalogEditor() {
+  const client = useQueryClient();
+  const { items, isLoading } = useVehicleTypes();
+  const [drafts, setDrafts] = useState<Record<string, string>>({});
+  const [newName, setNewName] = useState("");
+  const refreshCatalog = () =>
+    void client.invalidateQueries({ queryKey: VEHICLE_TYPES_QUERY_KEY });
+  const saved = useMutation({
+    mutationFn: (input: { id: string | null; name: string }) =>
+      api.saveVehicleType(input.id, input.name),
+    onSuccess: () => {
+      setDrafts({});
+      setNewName("");
+      refreshCatalog();
+      toast.success("Đã lưu danh mục loại xe.", {
+        description:
+          "Bộ chọn Loại xe ở form Thu vào, Nhập xe mới và bộ lọc kho đổi ngay.",
       });
     },
-    onSuccess: onDone,
   });
+  const removed = useMutation({
+    mutationFn: (id: string) => api.deleteVehicleType(id),
+    onSuccess: () => {
+      refreshCatalog();
+      toast.success("Đã xoá loại xe khỏi danh mục.");
+    },
+  });
+  const busy = saved.isPending || removed.isPending;
+  const catalogError = saved.error ?? removed.error;
+  const clashWith = (name: string, exceptId?: string) =>
+    items.some(
+      (item) =>
+        item.id !== exceptId && normalizeTypeName(item.name) === normalizeTypeName(name),
+    );
+
+  const askDelete = async (id: string, name: string) => {
+    const confirmed = await confirmAction({
+      title: `Xoá loại "${name}"?`,
+      description:
+        "Loại xe chỉ xoá được khi không còn hồ sơ xe nào thuộc loại này. Danh mục dùng chung cho toàn cửa hàng.",
+      confirmLabel: "Xoá loại xe",
+      cancelLabel: "Giữ lại",
+    });
+    if (confirmed) removed.mutate(id);
+  };
+
+  const candidate = newName.trim().replace(/\s+/g, " ");
+  const newClash = candidate.length > 0 && clashWith(candidate);
 
   return (
     <Card>
-      <h2>Chọn nhanh hãng &amp; dòng xe</h2>
-      <p className="muted small" style={{ marginBottom: "12px" }}>
-        Danh sách dưới đây hiển thị thành chip ở form <strong>Thu vào</strong>{" "}
-        và <strong>Nhập xe mới</strong>, giúp nhân viên chỉ một chạm là điền
-        đúng. Mỗi hãng một dòng theo khuôn:
+      <h2>Loại xe</h2>
+      <p className="muted small" style={{ marginBottom: "16px" }}>
+        Danh mục này là nguồn duy nhất cho bộ chọn <strong>Loại xe</strong> ở
+        form <strong>Thu vào</strong>, <strong>Nhập xe mới</strong> và bộ lọc
+        kho. Nhân viên chỉ được chọn, không gõ tên tự do; hàng đợi{" "}
+        <strong>{UNCLASSIFIED_TYPE_NAME}</strong> luôn tồn tại để chứa những xe
+        chưa phân loại lại sau khi chuyển đổi dữ liệu.
       </p>
-      <pre
-        className="notice"
-        style={{
-          padding: "10px 12px",
-          marginBottom: "12px",
-          fontFamily:
-            "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
-          fontSize: "12.5px",
-          whiteSpace: "pre-wrap",
-        }}
-      >
-        Honda: SH 125i, SH 160i, Vision
-      </pre>
-      <p className="muted small" style={{ marginBottom: "12px" }}>
-        Dòng trống được bỏ qua. Hãng chưa có dòng xe nào vẫn hiện chip hãng,
-        không hiện chip dòng. Tên không phân biệt hoa/thường khi đối chiếu với
-        ô nhập.
-      </p>
-      <form
-        className="stack"
-        onSubmit={(e) => {
-          e.preventDefault();
-          m.mutate();
-        }}
-      >
-        <Field label="Danh mục chọn nhanh">
-          <textarea
-            rows={10}
-            value={text}
-            onChange={(e) => setText(e.target.value)}
-            spellCheck={false}
-            style={{
-              fontFamily:
-                "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
-              fontSize: "13px",
-              lineHeight: "1.6",
+      {isLoading && !items.length ? (
+        <Loading />
+      ) : (
+        <div className="stack">
+          <div className="vehicle-type-list">
+            {items.map((item) => {
+              const protectedType =
+                normalizeTypeName(item.name) ===
+                normalizeTypeName(UNCLASSIFIED_TYPE_NAME);
+              const draft = drafts[item.id] ?? item.name;
+              const next = draft.trim().replace(/\s+/g, " ");
+              const changed = next !== item.name;
+              const duplicate = changed && clashWith(next, item.id);
+              return (
+                <div className="vehicle-type-row" key={item.id}>
+                  <input
+                    aria-label={`Tên loại xe ${item.name}`}
+                    value={draft}
+                    maxLength={60}
+                    disabled={protectedType || busy}
+                    onChange={(event) =>
+                      setDrafts((prev) => ({
+                        ...prev,
+                        [item.id]: event.target.value,
+                      }))
+                    }
+                  />
+                  <span className="vehicle-type-meta muted small">
+                    {protectedType
+                      ? "Hàng đợi bắt buộc — không đổi tên, không xoá"
+                      : `${item.vehicle_count ?? 0} xe đang thuộc loại này`}
+                  </span>
+                  {!protectedType && (
+                    <span className="vehicle-type-actions">
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        disabled={!changed || duplicate || busy}
+                        onClick={() => saved.mutate({ id: item.id, name: next })}
+                      >
+                        Lưu tên
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="danger"
+                        disabled={busy || (item.vehicle_count ?? 0) > 0}
+                        onClick={() => void askDelete(item.id, item.name)}
+                      >
+                        Xoá
+                      </Button>
+                    </span>
+                  )}
+                  {duplicate && (
+                    <small className="vehicle-type-warn" role="alert">
+                      Trùng tên một loại đã có sau khi bỏ phân biệt hoa/thường và
+                      khoảng trắng.
+                    </small>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+
+          <form
+            className="stack"
+            onSubmit={(event) => {
+              event.preventDefault();
+              if (!candidate || candidate.length < 2 || newClash) return;
+              saved.mutate({ id: null, name: candidate });
             }}
-          />
-        </Field>
-        {m.error && <ErrorState error={m.error} />}
-        <div className="row" style={{ gap: "8px", flexWrap: "wrap" }}>
-          <Button type="submit" disabled={m.isPending}>
-            Lưu danh mục
-          </Button>
-          <Button
-            type="button"
-            variant="ghost"
-            onClick={() => setText(DEFAULT_QUICKPICK_TEXT)}
           >
-            Khôi phục mặc định
-          </Button>
+            <Field label="Thêm loại xe mới">
+              <input
+                value={newName}
+                maxLength={60}
+                placeholder="Ví dụ: Xe số 50cc"
+                onChange={(event) => setNewName(event.target.value)}
+              />
+            </Field>
+            {newClash && (
+              <p className="notice danger" role="alert">
+                Tên này trùng một loại đã có (chỉ khác hoa/thường hoặc khoảng
+                trắng) — hãy đặt tên khác.
+              </p>
+            )}
+            <div>
+              <Button
+                type="submit"
+                disabled={busy || candidate.length < 2 || newClash}
+              >
+                Thêm vào danh mục
+              </Button>
+            </div>
+          </form>
+          {catalogError && <ErrorState error={catalogError} />}
         </div>
-      </form>
+      )}
     </Card>
   );
 }
+
+

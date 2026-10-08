@@ -42,51 +42,12 @@ export function QuickChips({
   );
 }
 
-// Default catalogs tuned for Cà Rem's frequent stock. OWNER can override the
-// whole list from Cài đặt → "Chọn nhanh xe"; the forms read the shop's saved
-// catalog through `useQuickPick` and fall back to these defaults on first run
-// or when the settings row is missing.
-export const BRAND_CHIPS: Array<{ value: string; label: string }> = [
-  { value: "Honda", label: "Honda" },
-  { value: "Piaggio", label: "Piaggio" },
-  { value: "Suzuki", label: "Suzuki" },
-  { value: "Yamaha", label: "Yamaha" },
-];
-
-// Colour quick-pick chips were replaced with an inline `<input type="color">`
-// swatch rendered next to the "Màu sắc" field label (see
-// `src/components/ui/ColorSwatchAction.tsx`). Staff now pick the paint tone
-// visually and the app stores the nearest Vietnamese word via
-// `src/lib/colorWords.ts`.
-
-// Keys are lowercase brand names — always look up via
-// `COMMON_MODELS_BY_BRAND[brand.trim().toLowerCase()]`.
-export const COMMON_MODELS_BY_BRAND: Record<string, string[]> = {
-  honda: [
-    "SH 125i",
-    "SH 150i",
-    "SH 160i",
-    "SH Mode",
-    "Vision",
-    "Air Blade",
-    "Lead",
-    "Wave",
-    "Future",
-    "Dax ST125",
-  ],
-  piaggio: ["Vespa Sprint", "Vespa Primavera"],
-  suzuki: ["Satria", "Raider"],
-  yamaha: ["Exciter"],
-};
-
-/** Canonical plain-text form used by the Settings editor and reset button.
- *  One brand per line: "<Brand>: <model>, <model>, …". */
-export const DEFAULT_QUICKPICK_TEXT = [
-  "Honda: SH 125i, SH 150i, SH 160i, SH Mode, Vision, Air Blade, Lead, Wave, Future, Dax ST125",
-  "Piaggio: Vespa Sprint, Vespa Primavera",
-  "Suzuki: Satria, Raider",
-  "Yamaha: Exciter",
-].join("\n");
+// Màu sắc dùng bộ chọn màu trực tiếp bên nhãn "Màu sắc" (xem
+// `src/components/ui/ColorSwatchAction.tsx`); app lưu từ tiếng Việt gần nhất
+// qua `src/lib/colorWords.ts`.
+// Hãng xe / Dòng xe / Phiên bản đã xoá vĩnh viễn. Bộ chọn "Loại xe" dùng chung
+// thành phần chip này nhưng lấy dữ liệu từ danh mục `vehicle_types`
+// (`src/lib/useVehicleTypes.ts`), giá trị là id loại xe.
 
 export const VEHICLE_EXPENSE_CHIPS = [
   { type: "REPAIR", label: "Sửa chữa", defaultDesc: "Sửa chữa kỹ thuật" },

@@ -7,7 +7,7 @@
 import { describe, expect, it } from "vitest";
 import {
   bestCandidate,
-  parseEngineCandidates,
+  candidatesFromOcr,
   parseFrameCandidates,
   parsePlateCandidates,
 } from "../../src/lib/smartcam/local/candidates";
@@ -47,7 +47,7 @@ describe("plate OCR candidate parsing", () => {
   });
 });
 
-describe("frame/engine OCR candidate parsing", () => {
+describe("frame OCR candidate parsing", () => {
   it("finds VIN-like frame codes across separators", () => {
     expect(parseFrameCandidates("khung RLH160KD12345", 88).map((c) => c.value)).toContain("RLH160KD12345");
     expect(parseFrameCandidates("R1H5-4XAB7-12345", 80).map((c) => c.value)).toContain("R1H54XAB712345");
@@ -55,10 +55,18 @@ describe("frame/engine OCR candidate parsing", () => {
   it("does not mistake a bare plate serial for a frame", () => {
     expect(parseFrameCandidates("59B123456", 90)).toEqual([]);
   });
-  it("parses common engine code shapes", () => {
-    expect(parseEngineCandidates("KF30E-7412345", 85).map((c) => c.value)).toContain("KF30E7412345");
-    expect(parseEngineCandidates(" máy E3T123456 ", 80).map((c) => c.value)).toContain("E3T123456");
-    expect(parseEngineCandidates("45678901", 90)).toEqual([]);
+  it("rejects short engine-style codes: nothing under 11 chars is a frame", () => {
+    // Số máy đã bị xoá khỏi hồ sơ xe (08/10/2026) nên bộ đọc tại máy không còn
+    // nhánh nào cho nó; mã kiểu KF30E chỉ được coi là khung khi đủ dài.
+    expect(parseFrameCandidates("KF30E-74123", 90)).toEqual([]);
+    expect(parseFrameCandidates("E3T123456", 90)).toEqual([]);
+    expect(parseFrameCandidates("KF30E-7412345", 90).map((c) => c.value)).toContain("KF30E7412345");
+  });
+  it("hands the OCR layer exactly two fields: plate and frame", () => {
+    const draft = candidatesFromOcr("bien so 59-B1 234.56 khung RLH160KD12345", 90);
+    // Không còn khoá nào thuộc nhóm trường đã bị xoá vĩnh viễn.
+    expect(Object.keys(draft).sort()).toEqual(["frame_number", "license_plate"]);
+    expect(draft.license_plate).toBe("59-B1 234.56");
   });
 });
 

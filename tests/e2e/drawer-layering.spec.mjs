@@ -15,13 +15,14 @@ const seedVehicle = {
   id: vehicleId,
   internal_code: "XE-LAYER-001",
   frame_number: "LAYER-FRAME-1",
-  brand: "Honda",
-  model: "Vision",
+  vehicle_type_id: "00000000-0000-4000-8000-000000000abc",
+  vehicle_type: "Xe tay ga",
+  vehicle_title: "43A1-99999 · LAYER-FRAME-1",
+  vehicle_subtitle: "Xe tay ga · Đen",
   license_plate: "43A1-99999",
   status: "IN_STOCK",
   purchase_date: today,
   purchase_price: 30000000,
-  asking_price: 35000000,
   total_cost: 30000000,
   cost_pending: false,
   expenses: [],
@@ -86,6 +87,12 @@ async function installMock(page) {
     if (name === "list_active_announcements") return reply([]);
     if (name === "get_settings")
       return reply({ store_name: "Cửa hàng kiểm thử" });
+    if (name === "list_vehicle_types")
+      return reply([
+        { id: "vt-so", name: "Xe số", vehicle_count: 1 },
+        { id: "vt-ga", name: "Xe tay ga", vehicle_count: 39 },
+        { id: "vt-chua", name: "Chưa phân loại", vehicle_count: 0 },
+      ]);
     if (name === "dashboard")
       return reply({
         in_stock: 18,

@@ -23,11 +23,11 @@ export async function runAuthSecurityTests({ engine = 'pglite' } = {}) {
     }
     const day = (await db.query('SELECT private.today()::text AS day')).rows[0].day
     const vehicles = []
-    for (const price of [100, 200]) {
+    for (let index = 0; index < 2; index++) {
       vehicles.push(await call('owner', 'acquire_vehicle', {
         request_id: randomUUID(),
-        frame_number: `AUTH-TEST-${randomUUID()}`, brand: 'Honda', model: 'Test',
-        purchase_price: 50, asking_price: price, acquisition_date: day,
+        frame_number: `AUTH-TEST-${randomUUID()}`, vehicle_type: 'Xe tay ga',
+        purchase_price: 50, acquisition_date: day,
       }))
     }
     await test('Required password users can read their profile and open the change screen, but cannot read business data', async () => {
@@ -180,6 +180,37 @@ export async function runAuthSecurityTests({ engine = 'pglite' } = {}) {
         [ids.owner, '{"deleted_at":"2026-09-30T00:00:00Z"}'])), /LAST_OWNER_REQUIRED/)
       const functions = await db.query("SELECT proname FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace WHERE n.nspname='private' AND proname IN ('delete_auth_user','cleanup_deleted_accounts')")
       assert.equal(functions.rows.length, 0)
+    })
+    await test('Deleting staff removes the account from the system at once but keeps the work they recorded', async () => {
+      const vanish = randomUUID()
+      await db.query('INSERT INTO auth.users(id,email,encrypted_password,raw_user_meta_data) VALUES($1,$2,$3,$4::jsonb)',
+        [vanish, 'vanish@example.test', 'disposable-auth-hash', JSON.stringify({ full_name: 'vanish', username: 'vanish' })])
+      await db.query("UPDATE public.profiles SET role='STAFF', active=true, username='vanish', full_name='Nhân sự bị xóa', must_change_password=false WHERE id=$1", [vanish])
+      const listed = async () => (await run('owner', (client) => rpc(client, 'list_profiles'))).map((p) => p.id)
+      assert.ok((await listed()).includes(vanish))
+      // Tài khoản trắng (chưa ghi nhận gì) là nhánh "xóa sạch": Edge được phép xóa hàng profiles.
+      const pristine = await run('owner', (client) => rpc(client, 'check_user_can_hard_delete', '$1::uuid', [vanish]))
+      assert.equal(pristine.can_delete, true)
+      // Chủ bấm xóa khi đã có nghiệp vụ: Edge giữ hàng profiles làm mộ, chặn đăng nhập và ẩn khỏi Nhân sự.
+      await db.query('UPDATE public.profiles SET active=false, deleted_at=now(), purged_at=now() WHERE id=$1', [vanish])
+      assert.ok(!(await listed()).includes(vanish), 'tài khoản đã xóa phải biến mất khỏi trang Nhân sự')
+      assert.equal((await db.query('SELECT count(*)::int AS n FROM public.profiles WHERE id=$1', [vanish])).rows[0].n, 1)
+      const tombstoneAccess = await asUser(db, vanish, (client) => rpc(client, 'check_user_access'))
+      assert.equal(tombstoneAccess.allowed, false)
+      assert.equal(tombstoneAccess.code, 'ACCOUNT_DELETED')
+      // Dấu vết chỉ ở system_settings cũng đủ để cấm xóa sạch — bản cũ chỉ quét bảy bảng
+      // nên Edge sẽ đụng FK violation giữa chừng khi xóa tài khoản kiểu này.
+      const settingsOwner = (await db.query('SELECT updated_by FROM public.system_settings WHERE id')).rows[0].updated_by
+      await db.query('UPDATE public.system_settings SET updated_by=$1 WHERE id', [ids.finance])
+      try {
+        const traced = await run('owner', (client) => rpc(client, 'check_user_can_hard_delete', '$1::uuid', [ids.finance]))
+        assert.equal(traced.can_delete, false)
+        assert.equal(traced.reason, 'USER_HAS_BUSINESS_HISTORY')
+      } finally {
+        await db.query('UPDATE public.system_settings SET updated_by=$1 WHERE id', [settingsOwner])
+      }
+      // STAFF không được phán quyết xóa.
+      await assert.rejects(run('staff', (client) => rpc(client, 'check_user_can_hard_delete', '$1::uuid', [ids.manager])), /ACCESS_DENIED|permission denied/)
     })
     await test('Ownership transfers atomically and the system keeps exactly one active OWNER', async () => {
       const ghost = randomUUID()

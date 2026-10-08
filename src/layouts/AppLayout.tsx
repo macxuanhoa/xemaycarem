@@ -16,6 +16,7 @@ import {
   ChevronDown,
   ExternalLink,
   House,
+  Inbox,
   LogOut,
   Menu,
   Moon,
@@ -134,6 +135,7 @@ export function AppLayout() {
     if (pathname.startsWith("/expenses")) return "Chi phí";
     if (pathname.startsWith("/settings")) return "Cài đặt";
     if (pathname.startsWith("/audit")) return "Lịch sử thao tác";
+    if (pathname.startsWith("/approvals")) return "Chờ duyệt";
     if (pathname.startsWith("/users")) return "Nhân sự";
     if (pathname.startsWith("/capture")) return "Camera thông minh";
     if (pathname.startsWith("/intake")) return "Thu xe tốc ký";
@@ -261,6 +263,17 @@ export function AppLayout() {
                   <Users size={20} />
                   Nhân sự
                 </NavLink>
+                {isOwner(profile) && (
+                  <NavLink
+                    to="/approvals"
+                    onClick={drawer.close}
+                    onMouseEnter={() => preloadRoute("/approvals")}
+                    onFocus={() => preloadRoute("/approvals")}
+                  >
+                    <Inbox size={20} />
+                    Chờ duyệt
+                  </NavLink>
+                )}
                 {isOwner(profile) && (
                   <NavLink
                     to="/audit"

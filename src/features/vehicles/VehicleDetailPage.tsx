@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
-import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Link, useLocation, useParams } from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
 import {
   ArrowLeft,
   ArrowRight,
@@ -8,30 +8,28 @@ import {
   CirclePlus,
   MoreHorizontal,
   Pencil,
+  SendHorizontal,
   ShoppingBag,
   Copy,
   Trash2,
   TriangleAlert,
-  X,
 } from "lucide-react";
 import { api } from "@/lib/api";
-import { useDialog } from "@/lib/useDialog";
 import { money, dateLabel, daysInStock } from "@/lib/format";
 import {
   canDeleteVehicle,
   canFinance,
   canManage,
   canOperate,
+  canRequestVehicleDelete,
 } from "@/lib/permissions";
 import { useAuth } from "@/features/auth/AuthProvider";
 import { toast } from "@/lib/toast";
 import {
   Badge,
-  Button,
   Card,
   EmptyState,
   ErrorState,
-  Field,
   Loading,
   PageHeader,
 } from "@/components/ui";
@@ -41,14 +39,18 @@ import { vehicleExpenseLabels } from "@/features/expenses/expenseSchema";
 import { VehiclePhotoDisplay } from "./VehiclePhoto";
 import { addRecentVehicle } from "@/lib/recentVehicles";
 import { QuickExpenseModal } from "@/features/expenses/QuickExpenseModal";
+import {
+  DeleteVehicleDialog,
+  RequestDeleteVehicleDialog,
+} from "./VehicleDeleteDialogs";
 import { VehicleImageUpload } from "./VehicleImageUpload";
 import { VehicleQr } from "./VehicleQr";
 import { IdentityDocumentPanel } from "@/components/IdentityDocumentPanel";
+import { vehicleSubtitle, vehicleTitle } from "@/lib/vehicleDisplay";
 
 const identifierLabels = new Set([
   "Biển số",
   "Số khung",
-  "Số máy",
   "SĐT nhà cung cấp",
 ]);
 
@@ -56,9 +58,9 @@ export function VehicleDetailPage() {
   const { id } = useParams();
   const { profile } = useAuth();
   const location = useLocation();
-  const navigate = useNavigate();
   const [expenseOpen, setExpenseOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
+  const [requestOpen, setRequestOpen] = useState(false);
   const [actionsOpen, setActionsOpen] = useState(false);
   const [message, setMessage] = useState("");
 
@@ -120,16 +122,27 @@ export function VehicleDetailPage() {
   const available = ["IN_STOCK", "RESERVED"].includes(vehicle.status);
   const financial = canFinance(profile);
   const hasSales = !!vehicle.sales?.length;
-  const canAddExpense = canManage(profile) && available;
+  // A queued deletion (STAFF request pending OWNER approval) locks the record:
+  // the vehicle is hidden from inventory and only reachable by its detail link.
+  const pending = !!vehicle.pending_deletion;
+  const canAddExpense = canOperate(profile) && available && !pending;
   const canEditVehicle =
+    !pending &&
     canOperate(profile) &&
     vehicle.status !== "SOLD" &&
     (vehicle.status !== "CANCELLED" || canManage(profile));
   const canSellVehicle =
-    canOperate(profile) && available && !vehicle.cost_pending;
-  const canRemoveVehicle = canDeleteVehicle(profile) && !hasSales;
+    canOperate(profile) && available && !vehicle.cost_pending && !pending;
+  // MANAGER/OWNER purge directly; STAFF files a request the OWNER resolves.
+  const canDirectDelete = canDeleteVehicle(profile) && !hasSales && !pending;
+  const canRequestDelete =
+    canRequestVehicleDelete(profile) && available && !hasSales && !pending;
   const hasVehicleActions =
-    canAddExpense || canEditVehicle || canSellVehicle || canRemoveVehicle;
+    canAddExpense ||
+    canEditVehicle ||
+    canSellVehicle ||
+    canDirectDelete ||
+    canRequestDelete;
 
   return (
     <div className="stack vehicle-detail-page">
@@ -142,8 +155,13 @@ export function VehicleDetailPage() {
       </Link>
       <div className="vehicle-identity">
         <PageHeader
-          title={`${vehicle.brand} ${vehicle.model}`}
-          description={`${vehicle.internal_code || "Chưa có mã xe"} · ${vehicle.license_plate || "Chưa có biển số"}`}
+          title={vehicleTitle(vehicle)}
+          description={[
+            vehicle.internal_code || "Chưa có mã xe",
+            vehicleSubtitle(vehicle),
+          ]
+            .filter(Boolean)
+            .join(" · ")}
           actions={
             hasVehicleActions ? (
               <div className="vehicle-actions-menu-wrap">
@@ -198,7 +216,7 @@ export function VehicleDetailPage() {
                             : "Chỉnh sửa"}
                         </Link>
                       )}
-                      {canRemoveVehicle && (
+                      {canDirectDelete && (
                         <button
                           type="button"
                           className="vehicle-actions-menu-item vehicle-actions-menu-danger"
@@ -208,6 +226,18 @@ export function VehicleDetailPage() {
                           }}
                         >
                           <Trash2 size={16} /> Xóa xe khỏi kho
+                        </button>
+                      )}
+                      {canRequestDelete && (
+                        <button
+                          type="button"
+                          className="vehicle-actions-menu-item vehicle-actions-menu-danger"
+                          onClick={() => {
+                            setActionsOpen(false);
+                            setRequestOpen(true);
+                          }}
+                        >
+                          <SendHorizontal size={16} /> Gửi yêu cầu xóa
                         </button>
                       )}
                     </div>
@@ -226,6 +256,13 @@ export function VehicleDetailPage() {
           )}
         </div>
       </div>
+      {pending && (
+        <div className="notice warning" role="status">
+          <TriangleAlert size={16} aria-hidden="true" />{" "}
+          Đang chờ chủ cửa hàng duyệt xóa. Xe đã tạm ẩn khỏi tồn kho và không
+          thể chỉnh sửa, bán hay thêm chi phí cho tới khi yêu cầu được duyệt.
+        </div>
+      )}
       {location.state?.acquisitionConfirmed && (
         <div className="notice" role="status">
           Đã thu xe thành công.{" "}
@@ -245,10 +282,6 @@ export function VehicleDetailPage() {
       <Card>
         <h2 className="section-title">Giá trị xe</h2>
         <div className="value-summary">
-          <div className="value-item highlight">
-            <span>Giá bán dự kiến</span>
-            <strong>{money(vehicle.asking_price)}</strong>
-          </div>
           {financial && (
             <>
               <div className="value-item">
@@ -281,7 +314,7 @@ export function VehicleDetailPage() {
               {vehicle.images?.length ? (
                 <VehiclePhotoDisplay
                   photos={vehicle.images}
-                  vehicleName={`${vehicle.brand} ${vehicle.model}`}
+                  vehicleName={vehicleTitle(vehicle)}
                   removable={canOperate(profile)}
                   addPhotoHref={
                     canOperate(profile) ? `/capture?vehicle=${id}` : undefined
@@ -302,17 +335,11 @@ export function VehicleDetailPage() {
             <h2 className="section-title">Thông tin chi tiết</h2>
             <dl className="details-list">
               {[
-                ["Hãng / Dòng xe", `${vehicle.brand} ${vehicle.model}`],
-                ["Phiên bản", vehicle.variant],
+                ["Loại xe", vehicle.vehicle_type],
                 ["Năm sản xuất", vehicle.year],
                 ["Màu sắc", vehicle.color],
                 ["Biển số", vehicle.license_plate],
-                [
-                  "Số km đã đi",
-                  `${Number(vehicle.odometer ?? 0).toLocaleString("vi-VN")} km`,
-                ],
                 ["Số khung", vehicle.frame_number],
-                ["Số máy", vehicle.engine_number],
                 ["Ngày nhập kho", dateLabel(vehicle.purchase_date)],
                 ["Nhà cung cấp", vehicle.supplier_name],
                 ["SĐT nhà cung cấp", vehicle.supplier_phone],
@@ -493,135 +520,23 @@ export function VehicleDetailPage() {
         <DeleteVehicleDialog
           vehicle={vehicle}
           onClose={() => setDeleteOpen(false)}
-          onDeleted={() => {
-            toast.success("Đã xóa xe khỏi kho.");
-            navigate("/vehicles", { state: { fromInventory: true } });
-          }}
+        />
+      )}
+      {requestOpen && (
+        <RequestDeleteVehicleDialog
+          vehicle={vehicle}
+          onClose={() => setRequestOpen(false)}
         />
       )}
       <QuickExpenseModal
         vehicleId={vehicle.id}
-        vehicleName={`${vehicle.brand} ${vehicle.model}`}
+        vehicleName={vehicleTitle(vehicle)}
         vehicleCode={vehicle.internal_code}
         purchaseDate={vehicle.purchase_date}
         isOpen={expenseOpen}
         onClose={() => setExpenseOpen(false)}
         onSuccess={() => setMessage("Đã lưu chi phí cho xe.")}
       />
-    </div>
-  );
-}
-
-// Xóa cứng xe kho: chỉ OWNER/MANAGER, xe chưa từng có giao dịch bán.
-// Thao tác không thể hoàn tác — toàn bộ chi phí, ảnh, lịch sử xe bị gỡ khỏi
-// hệ thống (vết kiểm toán vẫn giữ trong audit_logs).
-function DeleteVehicleDialog({
-  vehicle,
-  onClose,
-  onDeleted,
-}: {
-  vehicle: Vehicle;
-  onClose: () => void;
-  onDeleted: () => void;
-}) {
-  const client = useQueryClient();
-  const [reason, setReason] = useState("");
-  const remove = useMutation({
-    mutationFn: () => api.deleteVehicle(vehicle.id, reason.trim()),
-    onSuccess: async () => {
-      await client.invalidateQueries({ queryKey: ["vehicles"] });
-      await client.invalidateQueries({ queryKey: ["acquisitions"] });
-      await client.invalidateQueries({ queryKey: ["dashboard"] });
-      onDeleted();
-    },
-  });
-  const close = () => {
-    if (!remove.isPending) onClose();
-  };
-  const panelRef = useDialog(true, close, remove.isPending);
-
-  return (
-    <div className="dialog-backdrop" onClick={close} role="presentation">
-      <div
-        className="dialog-panel delete-dialog"
-        role="alertdialog"
-        aria-modal="true"
-        aria-labelledby="delete-vehicle-title"
-        ref={panelRef}
-        onClick={(event) => event.stopPropagation()}
-      >
-        <div className="delete-dialog-head">
-          <span className="delete-dialog-icon" aria-hidden="true">
-            <TriangleAlert size={20} />
-          </span>
-          <div className="delete-dialog-heading">
-            <h2 id="delete-vehicle-title">Xóa xe khỏi kho</h2>
-            <p>
-              {vehicle.brand} {vehicle.model}
-              {vehicle.frame_number ? ` · ${vehicle.frame_number}` : ""}
-            </p>
-          </div>
-          <button
-            type="button"
-            className="icon-button"
-            onClick={close}
-            disabled={remove.isPending}
-            aria-label="Đóng"
-          >
-            <X size={18} />
-          </button>
-        </div>
-        <p className="delete-dialog-warn">
-          Toàn bộ phiếu thu, chi phí, hình ảnh và lịch sử của xe sẽ bị gỡ vĩnh
-          viễn và không thể hoàn tác. Hãy dùng thao tác hủy nếu muốn giữ lại vết
-          kiểm toán.
-        </p>
-        <form
-          className="stack"
-          onSubmit={(event) => {
-            event.preventDefault();
-            if (reason.trim().length >= 3 && !remove.isPending) remove.mutate();
-          }}
-        >
-          <Field
-            label="Lý do xóa (ít nhất 3 ký tự) *"
-            error={
-              reason.length > 0 && reason.trim().length < 3
-                ? "Lý do xóa cần ít nhất 3 ký tự."
-                : undefined
-            }
-          >
-            <textarea
-              minLength={3}
-              maxLength={1000}
-              required
-              disabled={remove.isPending}
-              value={reason}
-              onChange={(event) => setReason(event.target.value)}
-              placeholder="Ví dụ: Nhập nhầm xe, trùng lặp phiếu, xe không còn giữ…"
-              rows={2}
-            />
-          </Field>
-          {remove.isError && <ErrorState error={remove.error} />}
-          <div className="form-actions">
-            <Button
-              type="button"
-              variant="secondary"
-              onClick={close}
-              disabled={remove.isPending}
-            >
-              Giữ lại
-            </Button>
-            <Button
-              type="submit"
-              variant="danger"
-              disabled={remove.isPending || reason.trim().length < 3}
-            >
-              {remove.isPending ? "Đang xóa…" : "Xác nhận xóa xe"}
-            </Button>
-          </div>
-        </form>
-      </div>
     </div>
   );
 }

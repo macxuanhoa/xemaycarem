@@ -4,6 +4,7 @@ import { api } from "@/lib/api";
 import { dateLabel, money } from "@/lib/format";
 import { paymentLabels } from "@/features/vehicles/vehicleSchema";
 import type { Payment, Sale } from "@/types";
+import { vehicleSubtitle, vehicleTitle } from "@/lib/vehicleDisplay";
 
 type Shop = { store_name: string; phone?: string; address?: string };
 
@@ -61,10 +62,7 @@ export function CustomerReceipt({
               </div>
               <div>
                 <dt>Xe</dt>
-                <dd>
-                  {sale.vehicle_name ||
-                    `${sale.vehicle?.brand || ""} ${sale.vehicle?.model || ""}`}
-                </dd>
+                <dd>{vehicleTitle(sale)}</dd>
               </div>
               <div>
                 <dt>Mã xe</dt>
@@ -80,13 +78,11 @@ export function CustomerReceipt({
               </div>
               <div>
                 <dt>Số khung</dt>
-                <dd>
-                  {sale.frame_number || sale.vehicle?.frame_number || "—"}
-                </dd>
+                <dd>{sale.vehicle?.frame_number || "—"}</dd>
               </div>
               <div>
-                <dt>Số máy</dt>
-                <dd>{sale.vehicle?.engine_number || "—"}</dd>
+                <dt>Loại xe · đời · màu</dt>
+                <dd>{vehicleSubtitle(sale) || "Chưa phân loại"}</dd>
               </div>
               <div>
                 <dt>Giá bán</dt>

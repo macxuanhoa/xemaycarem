@@ -11,18 +11,19 @@ Toàn bộ hàm `public` mà ứng dụng gọi được, lấy từ định ngh
 | acquire_vehicle | p_data jsonb | OWNER, MANAGER, STAFF |
 | add_payment | p_data jsonb | OWNER, MANAGER, STAFF |
 | cancel_acquisition | p_id uuid, p_reason text | OWNER, MANAGER |
-| cancel_expense | p_kind text,p_id uuid,p_reason text | OWNER, MANAGER |
+| cancel_expense | p_kind text, p_id uuid, p_reason text | OWNER, MANAGER, STAFF |
 | cancel_sale | p_id uuid,p_reason text | OWNER, MANAGER |
 | check_user_access | không tham số | kiểm tra quyền riêng trong hàm |
 | check_user_can_hard_delete | p_user_id UUID | OWNER |
 | claim_message | p_message_id uuid,p_provider_mode text | OWNER, MANAGER, STAFF |
 | complete_password_change | không tham số | kiểm tra quyền riêng trong hàm |
 | create_showroom_lead | p_data jsonb | kiểm tra quyền riêng trong hàm |
-| daily_reconciliation | p_date date DEFAULT NULL | OWNER, MANAGER |
+| daily_reconciliation | p_date date DEFAULT NULL::date | OWNER, MANAGER |
 | dashboard | p_from date DEFAULT (date_trunc('month'::text, (now() AT TIME ZONE 'Asia/Ho_Chi_Minh'::text)))::date, p_to date DEFAULT ((now() AT TIME ZONE 'Asia/Ho_Chi_Minh'::text))::date | OWNER, MANAGER, STAFF |
 | delete_acquisition | p_id uuid, p_reason text | OWNER, MANAGER |
 | delete_announcement | p_id uuid | OWNER |
 | delete_vehicle | p_id uuid, p_reason text | OWNER, MANAGER |
+| delete_vehicle_type | p_id uuid | OWNER |
 | fail_message | p_message_id uuid,p_error_code text,p_safe_message text,p_permanent boolean DEFAULT false | OWNER, MANAGER, STAFF |
 | finish_mock_message | p_message_id uuid,p_provider_message_id text | OWNER, MANAGER, STAFF |
 | get_acquisition_for_vehicle | p_vehicle_id uuid | OWNER, MANAGER |
@@ -44,15 +45,17 @@ Toàn bộ hàm `public` mà ứng dụng gọi được, lấy từ định ngh
 | list_copilot_gaps | p_days integer DEFAULT 30 | OWNER |
 | list_customer_communications | p_phone text | OWNER, MANAGER, STAFF |
 | list_customers | p_filters jsonb DEFAULT '{}'::jsonb | OWNER, MANAGER, STAFF |
-| list_expenses | p_filters jsonb default '{}' | OWNER, MANAGER |
+| list_expenses | p_filters jsonb DEFAULT '{}'::jsonb | OWNER, MANAGER |
 | list_knowledge | không tham số | OWNER, MANAGER, STAFF |
 | list_notifications | p_filters jsonb DEFAULT '{}'::jsonb | OWNER, MANAGER, STAFF |
 | list_payment_receipts | p_sale_id uuid | OWNER, MANAGER, STAFF |
+| list_pending_approvals | p_filters jsonb DEFAULT '{}'::jsonb | OWNER |
 | list_profiles | không tham số | OWNER |
 | list_receivables | p_filters jsonb DEFAULT '{}'::jsonb | OWNER, MANAGER, STAFF |
 | list_sales | p_filters jsonb DEFAULT '{}'::jsonb | OWNER, MANAGER, STAFF |
 | list_showroom_leads | p_filters jsonb DEFAULT '{}' | OWNER, MANAGER, STAFF |
-| list_showroom_vehicles | p_filters jsonb DEFAULT '{}' | kiểm tra quyền riêng trong hàm |
+| list_showroom_vehicles | p_filters jsonb DEFAULT '{}'::jsonb | kiểm tra quyền riêng trong hàm |
+| list_vehicle_types | không tham số | kiểm tra quyền riêng trong hàm |
 | list_vehicles | p_filters jsonb DEFAULT '{}'::jsonb | OWNER, MANAGER, STAFF |
 | log_copilot_gap | p_question text | OWNER, MANAGER, STAFF |
 | mark_all_notifications_read | không tham số | OWNER, MANAGER, STAFF |
@@ -65,15 +68,18 @@ Toàn bộ hàm `public` mà ứng dụng gọi được, lấy từ định ngh
 | remove_vehicle_image | p_id uuid | OWNER, MANAGER, STAFF |
 | renew_message_lease | p_message_id uuid,p_lease_token uuid | kiểm tra quyền riêng trong hàm |
 | report | p_kind text, p_filters jsonb DEFAULT '{}' | OWNER, MANAGER |
+| request_delete_vehicle | p_id uuid, p_reason text | OWNER, MANAGER, STAFF |
 | require_password_change | p_user_id uuid, p_reset_pending boolean DEFAULT false | OWNER |
 | resolve_login_email | p_identifier TEXT | kiểm tra quyền riêng trong hàm |
 | resolve_message_delivery | p_message_id uuid,p_resolution text,p_evidence_reference text | OWNER, MANAGER |
+| resolve_vehicle_deletion | p_request_id uuid, p_action text, p_note text DEFAULT NULL | OWNER |
 | retry_sale_thank_you | p_sale_id uuid | OWNER, MANAGER |
 | save_announcement | p_data jsonb | OWNER |
-| save_expense | p_kind text,p_data jsonb,p_id uuid DEFAULT NULL | OWNER, MANAGER |
+| save_expense | p_kind text, p_data jsonb, p_id uuid DEFAULT NULL | OWNER, MANAGER, STAFF |
 | save_identity_document | p_data jsonb | OWNER, MANAGER |
 | save_settings | p_data jsonb | OWNER |
 | save_vehicle | p_data jsonb,p_id uuid DEFAULT NULL | OWNER, MANAGER, STAFF |
+| save_vehicle_type | p_id uuid, p_name text | OWNER |
 | search_knowledge | p_query text, p_limit integer DEFAULT 8 | OWNER, MANAGER, STAFF |
 | sell_vehicle | p_data jsonb | OWNER, MANAGER, STAFF |
 | set_announcement_active | p_id uuid, p_active boolean | OWNER |
@@ -117,6 +123,7 @@ Trích từ cây route trong `src/App.tsx` (thành phần `Protected` kế thừ
 | `/expenses` | MANAGER hoặc OWNER |
 | `/users` | MANAGER hoặc OWNER |
 | `/audit` | chỉ OWNER |
+| `/approvals` | chỉ OWNER |
 | `/*` | công khai (không cần đăng nhập) |
 
 ## Edge Functions

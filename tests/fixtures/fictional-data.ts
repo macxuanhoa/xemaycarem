@@ -78,78 +78,81 @@ export const FICTIONAL_PROFILES = {
 } as const
 
 export const FICTIONAL_VEHICLES = {
-  SH160: {
-    brand: 'Honda',
-    model: 'SH 160i ABS',
-    variant: 'Thể thao',
+  // Sau 08/10/2026 hồ sơ xe không còn Hãng / Dòng / Phiên bản / Số máy / Số km /
+  // Giá bán dự kiến: xe được định danh bằng biển số · số khung và phân loại
+  // bằng `vehicle_type_id` trỏ tới danh mục `vehicle_types`.
+  // ID dưới đây chỉ là hằng số giả cho các test in-memory; test chạy trên DB
+  // phải lấy id thật từ RPC `list_vehicle_types()` vì danh mục do cửa hàng sửa.
+  PREMIUM_SCOOTER: {
+    vehicle_type_id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1',
+    vehicle_type: 'Xe tay ga',
     year: 2024,
     color: 'Xám xi măng',
     frame_number: 'RLH160-FICTIONAL-001',
-    engine_number: 'KF160-FICTIONAL-001',
-    odometer: 1500,
     license_plate: '29B1-999.88',
     purchase_date: '2026-09-01',
     purchase_price: 85_000_000,
-    asking_price: 98_000_000,
     supplier_name: 'Anh Hùng Cầu Giấy (Fictional)',
     supplier_phone: '0900000001',
     status: 'IN_STOCK' as const,
     notes: 'Xe chạy lướt, bảo dưỡng chính hãng.',
   },
-  WAVE_ALPHA: {
-    brand: 'Honda',
-    model: 'Wave Alpha 110',
-    variant: 'Tiêu chuẩn',
+  ECONOMY_CUB: {
+    vehicle_type_id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa2',
+    vehicle_type: 'Xe số',
     year: 2023,
     color: 'Trắng',
     frame_number: 'RLH110-FICTIONAL-002',
-    engine_number: 'JA110-FICTIONAL-002',
-    odometer: 12000,
     license_plate: '30E1-123.45',
     purchase_date: '2026-09-10',
     purchase_price: 12_000_000,
-    asking_price: 15_500_000,
     supplier_name: 'Chị Lan Đống Đa (Fictional)',
     supplier_phone: '0900000002',
     status: 'IN_STOCK' as const,
     notes: 'Xe máy nguyên bản, còn đủ 2 gương.',
   },
-  EXCITER155: {
-    brand: 'Yamaha',
-    model: 'Exciter 155 VVA',
-    variant: 'GP',
+  UNDERCROSS_BIKE: {
+    vehicle_type_id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa3',
+    vehicle_type: 'Xe côn tay',
     year: 2024,
     color: 'Xanh GP',
     frame_number: 'RLY155-FICTIONAL-003',
-    engine_number: 'G3155-FICTIONAL-003',
-    odometer: 5000,
     license_plate: '29X1-567.89',
     purchase_date: '2026-09-15',
     purchase_price: 36_000_000,
-    asking_price: 43_000_000,
     supplier_name: 'Cửa hàng Đức Trọng (Fictional)',
     supplier_phone: '0900000003',
     status: 'IN_STOCK' as const,
     notes: '',
   },
   PENDING_COST: {
-    brand: 'Honda',
-    model: 'Vision Smartkey',
-    variant: 'Cao cấp',
+    vehicle_type_id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa4',
+    vehicle_type: 'Xe tay ga',
     year: 2024,
     color: 'Đỏ đen',
     frame_number: 'RLH110-FICTIONAL-004',
-    engine_number: 'JK110-FICTIONAL-004',
-    odometer: 3200,
     license_plate: '29C1-888.99',
     purchase_date: '2026-09-20',
-    asking_price: 35_000_000,
     supplier_name: 'Nhân viên thu mua (Fictional)',
     supplier_phone: '0900000004',
     status: 'IN_STOCK' as const,
     notes: 'Chờ chủ cửa hàng duyệt giá nhập.',
   },
 } as const
+
+/**
+ * Danh mục loại xe mặc định migration `20261008000300` cài sẵn.
+ * `Chưa phân loại` là hàng đợi: xe cũ sau purge đều rơi vào đây cho tới khi
+ * nhân viên sửa hồ sơ, và bộ tốc ký không bao giờ tự gán tên này.
+ */
+export const FICTIONAL_VEHICLE_TYPE_CATALOG = [
+  'Xe số',
+  'Xe tay ga',
+  'Xe côn tay',
+  'Xe điện',
+  'Ga 50cc',
+  'Chưa phân loại',
+] as const
 
 export const FICTIONAL_EXPENSES = {
   VEHICLE_REPAIR: {

@@ -6,8 +6,8 @@
  *
  * Kiến trúc nhận diện ba tầng, ưu tiên chi phí tăng dần:
  *   1. QR/mã vạch — ZXing giải mã ngay trên máy, miễn phí.
- *   2. OCR trên máy — Tesseract WASM trong worker riêng (biển số, số khung,
- *      số máy), không rời khỏi thiết bị, không tốn tiền, chạy liên tục với
+ *   2. OCR trên máy — Tesseract WASM trong worker riêng (biển số, số khung),
+ *      không rời khỏi thiết bị, không tốn tiền, chạy liên tục với
  *      lấy mẫu thích ứng + bình bỏ qua nhiều khung hình ổn định.
  *   3. AI trên mây (ai-assist `vehicle_scan`) — chỉ khi máy không đọc ra hoặc
  *      người dùng bấm nút, có hạn mức/giờ và sổ theo dõi từng lượt gọi.
@@ -64,6 +64,7 @@ import {
   type TorchMode,
 } from "@/lib/smartcam/capture";
 import { lookupScan } from "@/lib/smartcam/lookup";
+import { vehicleSubtitle, vehicleTitle } from "@/lib/vehicleDisplay";
 import { ensureOcrWorker, localReadFrame, onOcrStageChange, ocrStage, releaseOcrWorker, type OcrStage } from "@/lib/smartcam/local/ocr";
 import { detectCodes } from "@/lib/smartcam/local/barcodes";
 import { motionScore, sceneSignature, sourceCanvas, toGray } from "@/lib/smartcam/local/frames";
@@ -73,13 +74,8 @@ import { cloudAllowed, loadLedger, recordCall, saveLedger, summarize, type Cloud
 const FIELD_LABELS: Record<ScannedKey, string> = {
   license_plate: "Biển số",
   frame_number: "Số khung",
-  engine_number: "Số máy",
-  brand: "Hãng",
-  model: "Dòng xe",
-  variant: "Phiên bản",
   color: "Màu",
   year: "Năm",
-  odometer: "Số km",
 };
 
 const STATUS_LABELS: Record<RecognitionFieldStatus, string> = {
@@ -142,7 +138,7 @@ function ResultChips({ recognition }: { recognition: Recognition }) {
       <dl className="smartcam-fields" aria-label="Các trường nhận diện được">
         {entries.map((key) => {
           const status = recognition.statuses[key];
-          const wide = key === "frame_number" || key === "engine_number";
+          const wide = key === "frame_number";
           return (
             <div key={key} className={`smartcam-field tone-${STATUS_TONE[status]}${wide ? " wide" : ""}`}>
               <dt>{FIELD_LABELS[key]}</dt>
@@ -609,7 +605,7 @@ export default function SmartVehicleScan() {
       if (vote.settled && read) {
         const frame = await captureVideoFrame(video);
         const done = await finishWithFields(
-          { license_plate: read.license_plate, frame_number: read.frame_number, engine_number: read.engine_number },
+          { license_plate: read.license_plate, frame_number: read.frame_number },
           "local",
           frame,
           { ocrMs: read.ocrMs, cloudMs: 0 },
@@ -684,7 +680,7 @@ export default function SmartVehicleScan() {
       setBusy(true);
       try {
         const read = await localReadFrame(video);
-        if (read && (await finishWithFields({ license_plate: read.license_plate, frame_number: read.frame_number, engine_number: read.engine_number }, "local", frame, { ocrMs: read.ocrMs, cloudMs: 0 })))
+        if (read && (await finishWithFields({ license_plate: read.license_plate, frame_number: read.frame_number }, "local", frame, { ocrMs: read.ocrMs, cloudMs: 0 })))
           return;
       } finally {
         busyRef.current = false;
@@ -726,7 +722,7 @@ export default function SmartVehicleScan() {
       try {
         const canvas = await dataUrlToCanvas(frame.dataUrl);
         const read = canvas ? await localReadFrame(canvas) : null;
-        if (read && (await finishWithFields({ license_plate: read.license_plate, frame_number: read.frame_number, engine_number: read.engine_number }, "local", frame, { ocrMs: read.ocrMs, cloudMs: 0 })))
+        if (read && (await finishWithFields({ license_plate: read.license_plate, frame_number: read.frame_number }, "local", frame, { ocrMs: read.ocrMs, cloudMs: 0 })))
           return;
       } finally {
         busyRef.current = false;
@@ -1020,9 +1016,8 @@ export default function SmartVehicleScan() {
             <span className="smartcam-verdict-text">
               {match.state === "unique" && (
                 <>
-                  Đã xác khớp xe trong kho: {match.vehicle.brand}{" "}
-                  {match.vehicle.model}
-                  {match.vehicle.license_plate ? ` · ${match.vehicle.license_plate}` : ""} ·{" "}
+                  Đã xác khớp xe trong kho: <strong>{vehicleTitle(match.vehicle)}</strong>
+                  {vehicleSubtitle(match.vehicle) ? ` · ${vehicleSubtitle(match.vehicle)}` : ""} ·{" "}
                   {VEHICLE_STATUS_LABELS[match.vehicle.status] ?? match.vehicle.status}
                 </>
               )}
@@ -1047,10 +1042,8 @@ export default function SmartVehicleScan() {
                   className="smartcam-candidate"
                   onClick={() => navigate(`/vehicles/${row.id}`)}
                 >
-                  <strong>
-                    {row.brand} {row.model}
-                  </strong>
-                  <span>{row.license_plate || row.internal_code}</span>
+                  <strong>{vehicleTitle(row)}</strong>
+                  <span>{vehicleSubtitle(row) || row.license_plate || row.internal_code}</span>
                   <small>{VEHICLE_STATUS_LABELS[row.status] ?? row.status}</small>
                 </button>
               ))}

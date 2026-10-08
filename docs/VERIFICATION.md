@@ -1,5 +1,33 @@
 # Kết quả kiểm chứng — 02/10/2026
 
+## Xoá vĩnh viễn trường xe + danh mục Loại xe — Giai đoạn 6 (cổng local + replay migration) (08/10/2026, worktree hiện tại)
+
+| Kiểm tra | Kết quả |
+|---|---|
+| npm run check (lint → typecheck → test → knowledge:check → test:db → build) | Đạt toàn bộ, exit 0: ESLint 0 lỗi; `tsc -b` (chỉ `src`) 0 lỗi; vitest 39 file/446 test; knowledge:check khớp seed 212 mục; test:db trên PostgreSQL native (30 kiểm tra tích hợp + toàn suite: notifications 11, field-purge-integrity 10, vehicle-type-catalog, due-date 8, expense-conflict, business-risks 10, mandatory-protocol, operation-receipts, message-leases, inventory-receipts, hard-delete, auth-security); `vite build` 2217 module, PWA generateSW precache 66 mục |
+| node scripts/check-edge-types.mjs | Đạt cho 6 tệp Edge |
+| node scripts/check-edge-native.mjs | Đạt với binary Deno thật (2.9.6, truyền qua `DENO_BINARY` vì Windows gọi `deno` qua shim `.ps1` không spawn trực tiếp): typecheck 4 điểm nhập Edge (manage-users, process-message, ai-assist, reset-owner) + 7 smoke HTTP gồm ai-assist/process-message sửa ở Giai đoạn 4; "retired endpoint remains HTTP 410" |
+| npm run test:pwa (preview 4173) | Đạt: manifest/icons, installability Chromium, service worker, offline shell |
+| node scripts/check-pwa-upgrade.mjs | Đạt (tự mở server vòng lặp riêng, cổng 0) |
+| node scripts/verify-prod-replay.mjs | Đạt, RESULT: PASS, exit 0 — replay toàn bộ chuỗi migration lên PostgreSQL disposable; fingerprint hội tụ (columns/policies/constraints/indexes/table_grants/function_grants) giữa baseline production thật + migration chờ so với build canonical; 0 code-drift hàm; knowledge_base 212 dòng |
+| npm run test:e2e (Playwright, vite + mock) | Đạt 172/172 (4.9 phút) — gồm ba spec mới (`vehicle-form-type`, `showroom-no-price`, `sell-vehicle-no-prefill`), các LIVE spec (business-flows, workflows, sale-due-date-conflict chạy PostgreSQL thật), page-header-cta `/vehicles` 8/8, ux-convenience scroll-restore |
+| Ba chỉnh sửa trong giai đoạn này | (1) `page-header-cta.spec.mjs`: mock thiếu stub `list_vehicle_types` khiến `useVehicleTypes` (kỳ vọng mảng) nhận `{}` và InventoryPage sập trước khi vẽ tiêu đề → thêm stub mảng ba loại xe. (2) `InventoryPage.tsx`: khôi phục cuộn khi quay lại tồn kho chỉ gọi `window.scrollTo` một `requestAnimationFrame`, bị kẹp về 0 khi hàng chưa kịp chiếm độ cao dưới tải → đổi thành vòng thử lại qua nhiều frame (điều kiện `top>0`, chặn `attempts<24`, huỷ bằng `cancelAnimationFrame`); đây là fix bền vững cho thiết bị chậm, không hạ chuẩn cổng. (3) `verify-prod-replay.mjs`: fingerprint grant ACL so theo thứ tự mảng, nhưng ý nghĩa bảo mật là tập grantee→privilege — sắp xếp token ACL (`string_agg(acl … ORDER BY acl)`) để hết dương-tính-cáo do thứ tự, giữ nguyên ngữ nghĩa. |
+| Ghi chú | `check-pwa-release-skew.mjs` cần biến `PWA_PREVIOUS_DIST` (bản build cũ giữ lại), không thuộc phạm vi cổng Giai đoạn 6 của plan nên chưa chạy. Dòng console `WebSocket … ERR_NAME_NOT_RESOLVED` trong e2e là nhiễu realtime mock, xuất hiện cạnh các test đạt. |
+| Còn lại (cần uỷ quyền tường minh của OWNER) | Áp production theo Giai đoạn 6 mục 2–5: `npm run backup:prod` → `db push --dry-run` → `db push` → `functions deploy` → release Vercel → `smoke:prod` → xác minh toàn vẹn sau áp → xoá bản sao backup cũ. CHƯA thực hiện; mọi bước ghi production chờ chủ cửa hàng phê duyệt. |
+
+## Xoá vĩnh viễn trường xe + danh mục Loại xe — Giai đoạn 5 (docs/knowledge/tests) (08/10/2026, worktree hiện tại)
+
+| Kiểm tra | Kết quả |
+|---|---|
+| npm run typecheck (`tsc -b`, chỉ `src`) | Đạt — 0 lỗi sau khi cập nhật `SellVehiclePage` (giữ ô tiền để trống không rò `NaN`) |
+| npm run test:db (PostgreSQL native, DB disposable) | Đạt (exit 0): 30 kiểm tra tích hợp inline + toàn bộ suite thành phần; hai suite mới `vehicle-type-catalog` (9) và `field-purge-integrity` (10) xanh; `mandatory-write-protocol` (12) đã chỉnh mẫu fault sang `frame_number` vì import nay chặn biển số > 30 ký tự |
+| node tests/db/migration.test.mjs | Đạt — chuỗi migration replay sạch, gồm seed tri thức mới tái sinh |
+| node tests/db/knowledge.test.mjs | Đạt — 8 kiểm tra; corpus seed 211 mục khớp reseed |
+| npm run knowledge:system / knowledge:seed / knowledge:check | Đạt — tái sinh `docs/SYSTEM_REFERENCE.md` từ code; seed 211 mục vào `20261006001400_knowledge_reseed.sql` (kênh seed mutable duy nhất); check `up to date` |
+| Playwright e2e (vite + mock) | Đạt: ba spec mới `vehicle-form-type` (2), `showroom-no-price` (1), `sell-vehicle-no-prefill` (1) xanh; chạy lại `uiux-responsive` (20) xanh sau sửa tiền để trống |
+| Phạm vi thay đổi | Tests + docs + seed tái sinh; một chỉnh sửa frontend nhỏ ngoài kế hoạch ở `SellVehiclePage.tsx` (giữ `initial_payment` mount ngay từ đầu để `MoneyInput` không in chuỗi "NaN"), không đổi nghiệp vụ giá |
+| Còn lại | Cổng `npm run check` đầy đủ (lint/build/pwa/edge) và replay + áp production thuộc Giai đoạn 6 |
+
 ## Trợ lý AI — đề xuất bản nháp lưu một chạm (06/10/2026, worktree hiện tại)
 
 | Kiểm tra | Kết quả |

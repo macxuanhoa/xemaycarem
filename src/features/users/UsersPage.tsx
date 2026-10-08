@@ -39,12 +39,12 @@ export default function UsersPage() {
   });
 
   const totalStaff = q.data?.length ?? 0;
+  // `list_profiles` chỉ trả về tài khoản còn dùng được (mộ đã xóa bị ẩn hẳn), nên
+  // "hoạt động" ở đây chỉ còn là cờ active và lệnh cấm chưa hết hạn.
   const activeStaff =
     q.data?.filter(
       (p) =>
-        p.active &&
-        !p.deleted_at &&
-        !(p.disabled_until && new Date(p.disabled_until) > new Date()),
+        p.active && !(p.disabled_until && new Date(p.disabled_until) > new Date()),
     ).length ?? 0;
   const managerCount = q.data?.filter((p) => p.role === "MANAGER").length ?? 0;
   const staffCount = q.data?.filter((p) => p.role === "STAFF").length ?? 0;
@@ -207,9 +207,9 @@ export default function UsersPage() {
                   </div>
 
                   <span
-                    className={`badge ${p.active && !p.deleted_at && !isLocked ? "badge-active" : "badge-cancelled"}`}
+                    className={`badge ${p.active && !isLocked ? "badge-active" : "badge-cancelled"}`}
                   >
-                    {p.active && !p.deleted_at && !isLocked
+                    {p.active && !isLocked
                       ? "Hoạt động"
                       : isLocked
                         ? "Bị cấm"

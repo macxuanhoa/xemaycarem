@@ -14,7 +14,7 @@ test('stale due-date and expense editors reject overwrites; reopening uses the c
     await db.query('UPDATE public.profiles SET role=$1::public.user_role,active=true,must_change_password=false WHERE id=$2', [name === 'owner' ? 'OWNER' : 'STAFF', id])
   }
   const call = (actor, name, args = '', values = []) => asUser(db, ids[actor], c => rpc(c, name, args, values))
-  const vehicleId = await call('owner', 'save_vehicle', '$1::jsonb', [JSON.stringify({ request_id: randomUUID(), brand: 'Honda', model: 'Due-date UI synthetic', purchase_date: day, purchase_price: 80, asking_price: 100 })])
+  const vehicleId = await call('owner', 'save_vehicle', '$1::jsonb', [JSON.stringify({ request_id: randomUUID(), vehicle_type: 'Xe số', purchase_date: day, purchase_price: 80 })])
   const saleId = await call('colleague', 'sell_vehicle', '$1::jsonb', [JSON.stringify({ vehicle_id: vehicleId, customer_name: 'Due-date UI synthetic customer', sale_price: 100, sale_date: day, initial_payment: 20 })])
   const original = await call('owner', 'get_sale', '$1::uuid', [saleId])
   const authUser = { id: ids.owner, aud: 'authenticated', role: 'authenticated', email: `due-${ids.owner}@example.test`, created_at: new Date().toISOString(), app_metadata: {}, user_metadata: {} }

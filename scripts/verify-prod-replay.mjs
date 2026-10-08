@@ -39,9 +39,14 @@ const FINGERPRINTS = {
     FROM pg_constraint con JOIN pg_class c ON c.oid=con.conrelid JOIN pg_namespace n ON n.oid=c.relnamespace
     WHERE n.nspname IN ('public','private') ORDER BY 1`,
   indexes: `SELECT schemaname||'.'||tablename||' '||indexname||' '||indexdef FROM pg_indexes WHERE schemaname IN ('public','private') ORDER BY 1`,
-  table_grants: `SELECT n.nspname||'.'||t.relname||' '||pg_catalog.pg_get_userbyid(t.relowner)||' '||coalesce(array_to_string(t.relacl::text[],';'),'')
+  // Grant ACLs are stored as an ordered array, but the security meaning is the
+  // grantee->privilege SET, not the physical order the GRANTs happened to land in.
+  // A live-dump baseline and a clean build can therefore hold the identical grants
+  // in a different element order. Sort the tokens so this compares semantics, not
+  // insertion order, and only flags a genuine add/remove/change of a grantee.
+  table_grants: `SELECT n.nspname||'.'||t.relname||' '||pg_catalog.pg_get_userbyid(t.relowner)||' '||coalesce((SELECT string_agg(acl, ';' ORDER BY acl) FROM unnest(t.relacl::text[]) AS acl),'')
     FROM pg_class t JOIN pg_namespace n ON n.oid=t.relnamespace WHERE n.nspname IN ('public','private') AND t.relkind='r' ORDER BY 1`,
-  function_grants: `SELECT n.nspname||'.'||p.proname||'('||pg_get_function_arguments(p.oid)||') '||coalesce(array_to_string(p.proacl::text[],';'),'')
+  function_grants: `SELECT n.nspname||'.'||p.proname||'('||pg_get_function_arguments(p.oid)||') '||coalesce((SELECT string_agg(acl, ';' ORDER BY acl) FROM unnest(p.proacl::text[]) AS acl),'')
     FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace WHERE n.nspname IN ('public','private') ORDER BY 1`,
 }
 

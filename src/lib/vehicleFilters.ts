@@ -30,19 +30,22 @@ export type VehicleStatusOption = {
 };
 
 /**
- * Inventory tabs (A6). Labels stay short (contract in
- * tests/unit/inventory-filters.test.ts); `hint` documents the exact SQL
- * semantics so overlapping-sounding tabs are unambiguous on hover/focus.
+ * Inventory tabs (A6). The showroom view defaults to "Tại cửa hàng" and only
+ * exposes the three operational buckets staff act on day to day: at the shop
+ * (AVAILABLE = IN_STOCK + RESERVED), reserved (RESERVED) and sold (SOLD).
+ * Labels stay short (contract in tests/unit/inventory-filters.test.ts); `hint`
+ * documents the exact SQL semantics so overlapping-sounding tabs are
+ * unambiguous on hover/focus.
  */
 export const VEHICLE_STATUS_OPTIONS: readonly VehicleStatusOption[] = [
-  { value: "", label: "Tất cả", hint: "Mọi xe trong kho, gồm cả đã bán và đã hủy." },
   {
     value: "AVAILABLE",
     label: "Tại cửa hàng",
     hint: "Xe đang có tại cửa hàng: chờ bán (IN_STOCK) hoặc đang được giữ chỗ (RESERVED).",
   },
-  { value: "IN_STOCK", label: "Sẵn sàng bán", hint: "Chỉ xe đã nhập kho, chưa ai đặt giữ chỗ." },
   { value: "RESERVED", label: "Giữ chỗ", hint: "Xe đang được khách giữ chỗ tạm thời." },
   { value: "SOLD", label: "Đã bán", hint: "Giao dịch bán đã hoàn tất." },
-  { value: "CANCELLED", label: "Đã hủy", hint: "Hồ sơ xe bị hủy, không còn trong kinh doanh." },
 ];
+
+/** Default inventory tab when no `status` filter is present in the URL. */
+export const DEFAULT_INVENTORY_STATUS = AVAILABLE_VEHICLE_FILTER;

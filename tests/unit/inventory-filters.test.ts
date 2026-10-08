@@ -19,7 +19,6 @@ const statusOptions = VEHICLE_STATUS_OPTIONS;
 /* ── Canonical quick presets (operational shortcuts) ── */
 const quickPresets = [
   { id: "old", label: "Tồn kho lâu > 60 ngày", filters: { sort: "longest_stock", status: "IN_STOCK", min_days: "61" } },
-  { id: "cost_pending", label: "Chờ giá nhập", filters: { cost_pending: "true" } },
 ];
 
 describe("Inventory status tabs (vehicle lifecycle)", () => {
@@ -27,14 +26,15 @@ describe("Inventory status tabs (vehicle lifecycle)", () => {
     expect(statusLabels.IN_STOCK).toBe("Sẵn sàng bán");
   });
 
-  it("includes all required lifecycle states", () => {
+  it("exposes only the three operational showroom buckets as tabs", () => {
     const values = statusOptions.map((o) => o.value);
-    expect(values).toContain("");
-    expect(values).toContain("AVAILABLE");
-    expect(values).toContain("IN_STOCK");
-    expect(values).toContain("RESERVED");
-    expect(values).toContain("SOLD");
-    expect(values).toContain("CANCELLED");
+    expect(values).toEqual(["AVAILABLE", "RESERVED", "SOLD"]);
+    // The default landing tab is "Tại cửa hàng" (AVAILABLE = IN_STOCK + RESERVED).
+    expect(statusOptions[0].value).toBe("AVAILABLE");
+    // "Tất cả", "Sẵn sàng bán" and "Đã hủy" are no longer standalone tabs.
+    expect(values).not.toContain("");
+    expect(values).not.toContain("IN_STOCK");
+    expect(values).not.toContain("CANCELLED");
   });
 
   it("uses concise user-facing labels without parenthetical explanations", () => {
@@ -74,16 +74,23 @@ describe("Inventory status tabs (vehicle lifecycle)", () => {
     }
   });
 
-  it("'Sẵn sàng bán' maps to IN_STOCK", () => {
+  it("'Sẵn sàng bán' (IN_STOCK) is folded into 'Tại cửa hàng', not a standalone tab", () => {
     const ready = statusOptions.find((o) => o.value === "IN_STOCK");
-    expect(ready).toBeDefined();
-    expect(ready!.label).toBe("Sẵn sàng bán");
+    expect(ready).toBeUndefined();
+    // The badge wording still exists for row/status labels.
+    expect(statusLabels.IN_STOCK).toBe("Sẵn sàng bán");
   });
 
   it("'Giữ chỗ' maps to RESERVED status tab", () => {
     const reserved = statusOptions.find((o) => o.value === "RESERVED");
     expect(reserved).toBeDefined();
     expect(reserved!.label).toBe("Giữ chỗ");
+  });
+
+  it("'Đã bán' maps to SOLD status tab", () => {
+    const sold = statusOptions.find((o) => o.value === "SOLD");
+    expect(sold).toBeDefined();
+    expect(sold!.label).toBe("Đã bán");
   });
 });
 
@@ -112,10 +119,11 @@ describe("Quick presets (operational shortcuts)", () => {
     });
   });
 
-  it("'Chờ giá nhập' uses cost_pending flag only", () => {
-    const costPending = quickPresets.find((p) => p.id === "cost_pending");
-    expect(costPending).toBeDefined();
-    expect(costPending!.filters).toEqual({ cost_pending: "true" });
+  it("does NOT contain a 'Chờ giá nhập' quick filter", () => {
+    const labels = quickPresets.map((p) => p.label);
+    expect(labels).not.toContain("Chờ giá nhập");
+    const ids = quickPresets.map((p) => p.id);
+    expect(ids).not.toContain("cost_pending");
   });
 
   it("no quick preset duplicates a single status tab exactly", () => {

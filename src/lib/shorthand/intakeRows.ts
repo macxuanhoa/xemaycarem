@@ -17,6 +17,7 @@ import {
 } from "@/lib/plate";
 import { normalizeVehicleYear } from "@/lib/vehicleInputFormatting";
 import { vehicleTypeKey } from "@/lib/shorthand/vocabulary";
+import { compactFrame, frameKindFromCompact } from "@/lib/frameNumber";
 import type { VehicleTypeItem } from "@/types";
 
 const MAX_PLATE = 30;
@@ -54,6 +55,14 @@ export function validateIntakeEntry(
   // Số khung không còn bắt buộc — server sinh placeholder "GEN-…" khi trống.
   if (f.frame_number && f.frame_number.trim().length > MAX_FRAME)
     errors.push(`Số khung tối đa ${MAX_FRAME} ký tự.`);
+  // Mảnh rút gọn (dưới 11 ký tự chữ+số) phải đủ 5 ký tự để còn so khớp nghi trùng.
+  const frameCompact = compactFrame(f.frame_number ?? "");
+  if (
+    frameCompact &&
+    frameKindFromCompact(frameCompact) === "PARTIAL" &&
+    frameCompact.length < 5
+  )
+    errors.push("Số khung rút gọn cần đủ 5 ký tự (chữ hoặc số).");
   // Biển số không bắt buộc, nhưng nếu có thì phải đúng format xe máy VN —
   // tránh nhập bậy vẫn được nhận. Rỗng/whitespace luôn hợp lệ.
   const plate = (f.license_plate ?? "").trim();
@@ -90,8 +99,10 @@ export function entryToImportRow(
   vehicleTypes: readonly VehicleTypeItem[] = [],
 ): Record<string, unknown> {
   const f = entry.fields;
+  const frame = (f.frame_number ?? "").trim().toUpperCase();
   const row: Record<string, unknown> = {
-    frame_number: (f.frame_number ?? "").trim().toUpperCase(),
+    frame_number: frame,
+    frame_input_kind: frameKindFromCompact(compactFrame(frame)),
     license_plate: canonicalizePlate(f.license_plate ?? ""),
     vehicle_type_id: vehicleTypeIdFor(f.vehicle_type, vehicleTypes),
     color: (f.color ?? "").trim(),
@@ -116,8 +127,10 @@ export function entryToAcquisitionDraft(
   vehicleTypes: readonly VehicleTypeItem[] = [],
 ): Record<string, unknown> {
   const f = entry.fields;
+  const frame = (f.frame_number ?? "").trim().toUpperCase();
   const draft: Record<string, unknown> = {
-    frame_number: (f.frame_number ?? "").trim().toUpperCase(),
+    frame_number: frame,
+    frame_input_kind: frameKindFromCompact(compactFrame(frame)),
     license_plate: canonicalizePlate(f.license_plate ?? ""),
     vehicle_type_id: vehicleTypeIdFor(f.vehicle_type, vehicleTypes),
     color: (f.color ?? "").trim(),

@@ -34,7 +34,7 @@ function glyphVariants(token: string): string[] {
 }
 
 /**
- * License-plate candidates from free text, e.g. "59-B1 234.56", "59B123456",
+ * License-plate candidates from free text, e.g. "59B1-234.56", "59B123456",
  * "59-B1-234.56". Returns canonical forms only (isValidMotorbikePlate gates).
  */
 export function parsePlateCandidates(text: string, confidence: number): Candidate[] {
@@ -42,6 +42,7 @@ export function parsePlateCandidates(text: string, confidence: number): Candidat
   // Province code + 1-2 letters + series digit + 4-5 digit serial, with every
   // separator OCR may eat or invent, including multi-space and newlines on 2-line plates:
   // "59-B1 234.56", "59B123456", "29-A1\n1234", "59-A1 \n 234.56".
+  // All spellings fold to the canonical dash form e.g. "59B1-234.56".
   const pattern = /\d{2}[\s\-._]*[A-Z]{1,2}[\s\-._]*\d[\s\-._]*\d{2,3}[\s\-._]*\d{2}(?!\d)/g;
   const found = new Map<string, Candidate>();
   for (const match of upper.matchAll(pattern)) {

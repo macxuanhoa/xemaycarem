@@ -21,6 +21,8 @@ import { runMessageLeaseTests } from '../tests/db/message-leases.test.mjs'
 import { runInventoryCreationReceiptTests } from '../tests/db/inventory-creation-receipts.test.mjs'
 import { runVehicleTypeCatalogTests } from '../tests/db/vehicle-type-catalog.test.mjs'
 import { runFieldPurgeIntegrityTests } from '../tests/db/field-purge-integrity.test.mjs'
+import { runPlateDisplayFormatTests } from '../tests/db/plate-display-format.test.mjs'
+import { runVehicleDuplicateDetectionTests } from '../tests/db/vehicle-duplicate-detection.test.mjs'
 import { verifiedPayment } from '../tests/db/payment-fixtures.mjs'
 import { runPaymentReceiptSecurityTests } from '../tests/db/payment-receipt-security.test.mjs'
 
@@ -47,6 +49,8 @@ await runMessageLeaseTests(null, { engine })
 await runInventoryCreationReceiptTests(null, { engine })
 await runVehicleTypeCatalogTests(null, { engine })
 await runFieldPurgeIntegrityTests(null, { engine })
+await runPlateDisplayFormatTests(null, { engine })
+await runVehicleDuplicateDetectionTests(null, { engine })
 const db = await createDatabase({ engine })
 let passed = 0
 const users = Object.fromEntries(['owner', 'manager', 'financialManager', 'staff', 'disabled'].map((role) => [role, randomUUID()]))
@@ -60,7 +64,11 @@ async function test(name, operation) {
   console.log(`PASS ${passed}. ${name}`)
 }
 let day, vehicleId, saleId, expenseId
-const vehicle = (overrides = {}) => ({ request_id:randomUUID(), vehicle_type: 'Xe tay ga', license_plate: 'TEST-ONLY', purchase_date: day, purchase_price: 80_000_000, ...overrides })
+let vehicleSeq = 0
+// Each fixture vehicle gets a distinct plate: a repeated plate is intentionally
+// YELLOW in the smart-duplicate engine, and these synthetic rows are unrelated
+// vehicles that must not trip the shared-plate warning.
+const vehicle = (overrides = {}) => ({ request_id:randomUUID(), vehicle_type: 'Xe tay ga', license_plate: `TEST-${(++vehicleSeq).toString().padStart(3, '0')}`, purchase_date: day, purchase_price: 80_000_000, ...overrides })
 const sale = (id, overrides = {}) => ({ vehicle_id: id, customer_name: 'Khách kiểm thử', customer_phone: '0000000000', sale_price: 90_000_000, sale_date: day, initial_payment: 20_000_000, payment_method: 'CASH', ...overrides })
 const expense = (id, amount = 1_200_000) => ({ vehicle_id: id, expense_type: 'REPAIR', description: 'Chi phí kiểm thử', amount, expense_date: day })
 const getVehicle = (user, id) => run(user, (client) => rpc(client, 'get_vehicle', '$1::uuid', [id]))

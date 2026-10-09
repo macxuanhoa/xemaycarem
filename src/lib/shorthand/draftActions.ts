@@ -1,5 +1,5 @@
 // Deterministic, provider-free draft-action detection for the copilot.
-// A typed or dictated command like "chi 500k thay nhớt xe 59-B1 123" is parsed
+// A typed or dictated command like "chi 500k thay nhớt xe 59B1-123" is parsed
 // here into an editable *draft proposal only*: saving still happens through the
 // normal confirmed RPC of the receiving form, exactly like the ai-assist drafts.
 import { normalizeKey } from "./vocabulary";

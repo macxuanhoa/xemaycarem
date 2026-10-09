@@ -24,14 +24,14 @@ begin
   perform set_config('request.jwt.claims',jsonb_build_object('sub',v_owner,'role','authenticated')::text,true);
   -- Columns: vehicle_type, color, year, plate, frame, purchase, sale_price, age, state
   for v_row in select * from (values
-    ('Xe tay ga','Trắng',2025,'59-H1 101.01','RLHKC2025SEED001',79000000::bigint,0::bigint,6,'IN_STOCK'),
-    ('Xe tay ga','Đen',2024,'59-H2 102.02','RLHKC2024SEED002',32000000::bigint,0::bigint,18,'IN_STOCK'),
-    ('Xe tay ga','Xanh',2025,'59-H3 103.03','RLHKC2025SEED003',36500000::bigint,0::bigint,35,'RESERVED'),
-    ('Xe tay ga','Trắng',2023,'59-P1 104.04','RLPIA2023SEED004',34000000::bigint,0::bigint,65,'IN_STOCK'),
-    ('Xe số','Đỏ',2024,'59-H4 105.05','RLHKC2024SEED005',13000000::bigint,0::bigint,95,'IN_STOCK'),
-    ('Xe côn tay','Xanh đen',2025,'59-Y1 106.06','RLHYC2025SEED006',37500000::bigint,0::bigint,3,'IN_STOCK'),
-    ('Ga 50cc','Xám',2024,'59-H5 107.07','RLHKC2024SEED007',26000000::bigint,31000000::bigint,12,'SOLD_TODAY'),
-    ('Xe côn tay','Đen',2023,'59-S1 108.08','RLSUZ2023SEED008',31000000::bigint,36000000::bigint,22,'SOLD_BEFORE')
+    ('Xe tay ga','Trắng',2025,'59H1-101.01','RLHKC2025SEED001',79000000::bigint,0::bigint,6,'IN_STOCK'),
+    ('Xe tay ga','Đen',2024,'59H2-102.02','RLHKC2024SEED002',32000000::bigint,0::bigint,18,'IN_STOCK'),
+    ('Xe tay ga','Xanh',2025,'59H3-103.03','RLHKC2025SEED003',36500000::bigint,0::bigint,35,'RESERVED'),
+    ('Xe tay ga','Trắng',2023,'59P1-104.04','RLPIA2023SEED004',34000000::bigint,0::bigint,65,'IN_STOCK'),
+    ('Xe số','Đỏ',2024,'59H4-105.05','RLHKC2024SEED005',13000000::bigint,0::bigint,95,'IN_STOCK'),
+    ('Xe côn tay','Xanh đen',2025,'59Y1-106.06','RLHYC2025SEED006',37500000::bigint,0::bigint,3,'IN_STOCK'),
+    ('Ga 50cc','Xám',2024,'59H5-107.07','RLHKC2024SEED007',26000000::bigint,31000000::bigint,12,'SOLD_TODAY'),
+    ('Xe côn tay','Đen',2023,'59S1-108.08','RLSUZ2023SEED008',31000000::bigint,36000000::bigint,22,'SOLD_BEFORE')
   ) as d(vehicle_type,color,year,plate,frame,purchase,sale_price,age,state) loop
     v_vehicle:=public.save_vehicle(jsonb_build_object('request_id',gen_random_uuid(),'vehicle_type',v_row.vehicle_type,
       'color',v_row.color,'year',v_row.year,'license_plate',v_row.plate,'frame_number',v_row.frame,

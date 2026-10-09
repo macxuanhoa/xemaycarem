@@ -1,6 +1,9 @@
 import { Link } from "react-router-dom";
 import {
+  Camera,
+  ChevronRight,
   CirclePlus,
+  Eye,
   SendHorizontal,
   ShoppingBag,
   Trash2,
@@ -12,6 +15,7 @@ import {
   canOperate,
   canRequestVehicleDelete,
 } from "@/lib/permissions";
+import { colorWordToHex } from "@/lib/colorWords";
 import { useDialog } from "@/lib/useDialog";
 import {
   vehicleAriaLabel,
@@ -44,8 +48,11 @@ export function VehicleActionsSheet({
   const canRequestDelete =
     !!onRequestDelete && canRequestVehicleDelete(profile) && available && !pending;
   const state = { fromInventory: returnTo };
+  const dotHex = colorWordToHex(vehicle.color);
+  const rowClass = (tone: "neutral" | "primary" | "danger") =>
+    `vas-row vas-row-${tone}`;
   return (
-    <div className="modal-backdrop" onClick={onClose} role="presentation">
+    <div className="modal-backdrop vas-backdrop" onClick={onClose} role="presentation">
       <div
         ref={panelRef}
         tabIndex={-1}
@@ -55,13 +62,17 @@ export function VehicleActionsSheet({
         aria-label={`Thao tác với ${vehicleAriaLabel(vehicle)}`}
         onClick={(event) => event.stopPropagation()}
       >
-        <div className="modal-header">
-          <div>
+        <span className="vas-handle" aria-hidden="true" />
+        <div className="vas-header">
+          <span className="vas-dot" style={{ background: dotHex }} aria-hidden="true" />
+          <div className="vas-heading">
             <h3>{vehicleTitle(vehicle)}</h3>
-            <p className="muted">{vehicleSubtitle(vehicle)}</p>
+            {vehicleSubtitle(vehicle) && (
+              <p className="vas-subtitle">{vehicleSubtitle(vehicle)}</p>
+            )}
           </div>
           <button
-            className="icon-button"
+            className="icon-button vas-close"
             type="button"
             aria-label="Đóng thao tác xe"
             onClick={onClose}
@@ -69,56 +80,68 @@ export function VehicleActionsSheet({
             <X size={18} />
           </button>
         </div>
-        <div className="modal-body stack">
+        <div className="vas-list">
           <Link
-            className="button secondary"
+            className={rowClass("neutral")}
             to={`/vehicles/${vehicle.id}`}
             state={state}
           >
-            Xem chi tiết
+            <span className="vas-tile vas-tile-neutral"><Eye size={17} /></span>
+            <span className="vas-label">Xem chi tiết</span>
+            <ChevronRight className="vas-chevron" size={16} />
           </Link>
           {canOperate(profile) && available && !pending && (
             <button
               type="button"
-              className="button secondary"
+              className={rowClass("neutral")}
               onClick={onExpense}
             >
-              <CirclePlus size={17} /> Chi phí
+              <span className="vas-tile vas-tile-neutral"><CirclePlus size={17} /></span>
+              <span className="vas-label">Chi phí</span>
             </button>
           )}
           {canOperate(profile) && available && !vehicle.cost_pending && !pending && (
             <Link
-              className="button primary"
+              className={rowClass("primary")}
               to={`/vehicles/${vehicle.id}/sell`}
               state={state}
             >
-              <ShoppingBag size={17} /> Bán xe
+              <span className="vas-tile vas-tile-primary"><ShoppingBag size={17} /></span>
+              <span className="vas-label">Bán xe</span>
+              <ChevronRight className="vas-chevron" size={16} />
             </Link>
           )}
           {canOperate(profile) && !pending && (
             <Link
-              className="button secondary"
+              className={rowClass("neutral")}
               to={`/capture?vehicle=${vehicle.id}`}
             >
-              Thêm ảnh
+              <span className="vas-tile vas-tile-neutral"><Camera size={17} /></span>
+              <span className="vas-label">Thêm ảnh</span>
+              <ChevronRight className="vas-chevron" size={16} />
             </Link>
+          )}
+          {(canDirectDelete || canRequestDelete) && (
+            <div className="vas-sep" role="presentation" />
           )}
           {canDirectDelete && (
             <button
               type="button"
-              className="button danger"
+              className={rowClass("danger")}
               onClick={onDelete}
             >
-              <Trash2 size={17} /> Xóa xe khỏi kho
+              <span className="vas-tile vas-tile-danger"><Trash2 size={17} /></span>
+              <span className="vas-label">Xóa xe khỏi kho</span>
             </button>
           )}
           {canRequestDelete && (
             <button
               type="button"
-              className="button danger"
+              className={rowClass("danger")}
               onClick={onRequestDelete}
             >
-              <SendHorizontal size={17} /> Gửi yêu cầu xóa
+              <span className="vas-tile vas-tile-danger"><SendHorizontal size={17} /></span>
+              <span className="vas-label">Gửi yêu cầu xóa</span>
             </button>
           )}
         </div>

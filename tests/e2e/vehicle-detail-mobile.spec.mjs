@@ -20,7 +20,7 @@ const seedVehicle = {
   year: 2024,
   color: "Đen nhám",
   frame_number: "RLHSH35002S012345",
-  license_plate: "59-B1 889.99",
+  license_plate: "59B1-889.99",
   supplier_name: "Nguyễn Văn Thành",
   supplier_phone: "0914929292",
   notes: "Xe chính chủ, đã sang tên. Kèm sẵn 2 mũ bảo hiểm và bộ sạc theo xe.",

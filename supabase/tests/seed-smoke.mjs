@@ -30,7 +30,7 @@ try {
     assert.equal(dashboard.inventory_cost_pending, 0)
     assert.equal(dashboard.aging.reduce((sum, item) => sum + item.count, 0), 6)
     const expensive = await rpc(client, 'list_vehicles', "'{\"sort\":\"highest_cost\",\"limit\":1}'::jsonb")
-    assert.equal(expensive.items[0].vehicle_title, '59-H1 101.01 · RLHKC2025SEED001')
+    assert.equal(expensive.items[0].vehicle_title, '59H1-101.01 · RLHKC2025SEED001')
     assert.equal(expensive.items[0].vehicle_type, 'Xe tay ga')
     const old = await rpc(client, 'list_vehicles', "'{\"sort\":\"longest_stock\",\"status\":\"AVAILABLE\",\"limit\":1}'::jsonb")
     assert.equal(old.items[0].vehicle_subtitle, 'Xe số · 2024 · Đỏ')

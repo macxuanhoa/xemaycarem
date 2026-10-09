@@ -46,6 +46,17 @@ Lưu ý: xóa tài khoản **không** xóa xe/bán/chi phí mà người đó đ
 4. Bấm Lưu. Giao dịch được ghi bằng RPC `acquire_vehicle` — một transaction duy nhất tạo xe + chi phí + hồ sơ; hoặc có thể thêm xe bằng form Tồn kho (`save_vehicle`) rồi bổ sung chi phí sau.
 5. Giá mua chưa xác định được thì để trống: xe ở trạng thái "chờ giá vốn" (`cost_pending`), **chưa bán được** cho tới khi người có quyền tài chính nhập giá mua thật.
 6. Số khung để trống: hệ thống tự sinh mã nội bộ `GEN-<uuid>` để xe vẫn lưu được mà không phá chỉ số UNIQUE. Khi có giấy tờ, mở lại form Tồn kho → điền số khung thật → hệ thống kiểm tra trùng như bình thường.
+7. Chưa đọc được số khung đầy đủ ngoài hiện trường (tem khung mờ, bị sơn phủ, giấy tờ chủ xe giữ): chọn nút gạt **"5 ký tự cuối"** ngay dưới ô Số khung và chỉ gõ **5 ký tự cuối** — hệ thống hiểu đây là dữ liệu **rút gọn** (`PARTIAL`), vẫn giữ đủ 5 ký tự (kể cả số `0` đầu) và **không** bắt phải nhập cả VIN. Chi tiết ở mục **Kiểm tra trùng xe** bên dưới.
+
+## Kiểm tra trùng xe khi nhập hoặc thu (ba mức GREEN/YELLOW/RED)
+
+Mỗi form **Thu vào**, **Nhập/Sửa xe** đều tự chạy một RPC máy chủ (`check_vehicle_duplicates`) ngay khi bạn ngừng gõ số khung/biển số, và **bắt buộc chạy lại đúng bộ máy đó khi bấm Lưu** — nên không có chuyện "lúc gõ thì xanh, lúc lưu lại đỏ". Ba mức:
+
+- **Xanh (GREEN)** — không có tín hiệu trùng. Lưu bình thường, **không** bắt nhập đủ số khung.
+- **Vàng (YELLOW)** — có **một** dấu hiệu giống một xe đang quản lý: **hoặc** trùng biển số, **hoặc** trùng 5 ký tự cuối số khung (kiểu dữ liệu giống nhau). Form hiện **danh sách xe tương tự**; bạn **đối chiếu** rồi tích **"Đã kiểm tra danh sách trên, vẫn lưu xe này"** để mở khóa nút Lưu. Đây là "khóa nghi trùng", không chặn cứng — việc xác nhận được ghi lại để Chủ/Quản lý đối soát sau.
+- **Đỏ (RED)** — chắc chắn nghi cùng một xe, **chặn lưu** tới khi xử lý: (1) **trùng cả biển số lẫn 5 ký tự cuối**; (2) số khung **đầy đủ** đã có trên một xe khác đang quản lý (kể cả xe **đã bán** — hãy mở hồ sơ cũ, đừng tạo mới); (3) một bên lưu số khung đầy đủ, một bên chỉ lưu rút gọn nhưng **khớp 5 ký tự cuối** — máy chủ **không tự cho là hai xe khác nhau**. Cách gỡ: nhập **đủ số khung** để hệ thống phân định, hoặc bấm **Mở hồ sơ** để coi xe đang có.
+
+Quy tắc cần nhớ: **được phép** nhập đúng 5 ký tự cuối khi dữ liệu hiện trường không đọc được VIN đầy đủ; hai xe chỉ trùng 5 ký tự cuối **không** bị chặn cứng như trước (chuyển sang Vàng để người tự xác nhận). Xe **đã hủy** (CANCELLED) **được phép thu/nhập lại** bình thường. Loại xe **không** là căn cứ chống trùng — đừng mong nó tách hai xe cùng biển/cùng khung.
 
 ## Thu xe tốc ký — nhập nhiều xe cùng lúc từ tin nhắn viết tắt (STAFF trở lên)
 

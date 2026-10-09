@@ -110,7 +110,7 @@ test("vehicle form shows no purged spec fields and offers a catalogue type picke
 test("saving a vehicle without a catalogue type is blocked before any request", async ({ page }) => {
   const saveRequests = await installMock(page);
   await page.goto("/vehicles/new");
-  await page.getByLabel("Biển số", { exact: true }).fill("59-A1 234.56");
+  await page.getByLabel("Biển số", { exact: true }).fill("59A1-234.56");
   await page.getByLabel("Giá mua (₫) *", { exact: false }).fill("20000000");
   await page.getByRole("button", { name: "Lưu xe mới", exact: true }).click();
 

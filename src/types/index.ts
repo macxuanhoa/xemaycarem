@@ -127,6 +127,8 @@ export type Vehicle = {
   year: number | null;
   color: string;
   frame_number: string;
+  /** FULL = VIN đầy đủ (danh tính cứng); PARTIAL = mảnh rút gọn, chỉ để phát hiện nghi trùng. */
+  frame_input_kind?: "FULL" | "PARTIAL";
   purchase_date: string;
   purchase_price?: number | null;
   expense_total?: number;

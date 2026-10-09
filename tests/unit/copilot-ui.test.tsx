@@ -14,7 +14,7 @@ const citation: CopilotCitation = {
   id: "v1",
   type: "vehicle",
   label: "Honda Wave",
-  detail: "59-B1 123",
+  detail: "59B1-123",
   route: `/vehicles/11111111-1111-4111-8111-111111111111`,
 };
 
@@ -86,7 +86,7 @@ describe("copilot evidence list", () => {
     expect(html).toContain("Mở nguồn Xe: Honda Wave");
     expect(html).not.toContain("Mở bằng chứng v1");
     expect(html).toContain("Honda Wave");
-    expect(html).toContain("59-B1 123");
+    expect(html).toContain("59B1-123");
     expect(html).toContain("/vehicles/11111111-1111-4111-8111-111111111111");
   });
 

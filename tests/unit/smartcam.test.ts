@@ -53,7 +53,7 @@ describe("normalizeScan", () => {
       variant: "ABS",
       odometer: 99_999_999,
     });
-    expect(scan.license_plate).toBe("59-A1 234.56");
+    expect(scan.license_plate).toBe("59A1-234.56");
     expect(scan.frame_number).toBe("RLH160KD12345");
     expect(scan.color).toBe("Đen");
     // Năm ngoài khoảng 1900..2100 coi như đọc không được, không đoán.
@@ -71,8 +71,8 @@ describe("normalizeScan", () => {
 });
 
 describe("CRM identity resolution", () => {
-  const known = vehicle({ license_plate: "59-A1 234.56", frame_number: "RLH160KD12345" });
-  const scanned = fields({ license_plate: "59-A1 234.56", frame_number: "RLH160KD12345" });
+  const known = vehicle({ license_plate: "59A1-234.56", frame_number: "RLH160KD12345" });
+  const scanned = fields({ license_plate: "59A1-234.56", frame_number: "RLH160KD12345" });
 
   it("A: one exact plate match resolves to the unique existing vehicle", () => {
     const match = matchIdentity(scanned, filterExactMatches([known], "license_plate", scanned.license_plate), []);
@@ -86,16 +86,16 @@ describe("CRM identity resolution", () => {
   });
 
   it("B: neither identifier found is the only path to 'new vehicle'", () => {
-    const unknown = fields({ license_plate: "61-B1 777.77", frame_number: "MH1JC1234KE5" });
+    const unknown = fields({ license_plate: "61B1-777.77", frame_number: "MH1JC1234KE5" });
     const match = matchIdentity(unknown, [], []);
     expect(match.state).toBe("none");
     expect(classifyFields(unknown, match).license_plate).toBe("SUGGESTED");
   });
 
   it("E: plate and frame pointing at different vehicles is a conflict, never auto-identity", () => {
-    const byPlate = vehicle({ license_plate: "59-A1 234.56", frame_number: "OTHER-FRAME" });
-    const byFrame = vehicle({ license_plate: "30-B2 888.88", frame_number: "RLH160KD12345" });
-    const scannedBoth = fields({ license_plate: "59-A1 234.56", frame_number: "RLH160KD12345" });
+    const byPlate = vehicle({ license_plate: "59A1-234.56", frame_number: "OTHER-FRAME" });
+    const byFrame = vehicle({ license_plate: "30B2-888.88", frame_number: "RLH160KD12345" });
+    const scannedBoth = fields({ license_plate: "59A1-234.56", frame_number: "RLH160KD12345" });
     const match = matchIdentity(
       scannedBoth,
       filterExactMatches([byPlate], "license_plate", scannedBoth.license_plate),
@@ -108,19 +108,19 @@ describe("CRM identity resolution", () => {
   });
 
   it("substring rows that are not exact matches do not count as identity", () => {
-    const similar = vehicle({ license_plate: "59-A1 234.57" });
-    expect(filterExactMatches([similar], "license_plate", "59-A1 234.56")).toEqual([]);
+    const similar = vehicle({ license_plate: "59A1-234.57" });
+    expect(filterExactMatches([similar], "license_plate", "59A1-234.56")).toEqual([]);
   });
 
   it("legacy storage without separators still matches the canonical scan", () => {
     const legacy = vehicle({ license_plate: "29A1-1234" });
-    const matches = filterExactMatches([legacy], "license_plate", "29-A1 1234");
+    const matches = filterExactMatches([legacy], "license_plate", "29A1-1234");
     expect(matches.map((row) => row.id)).toEqual([legacy.id]);
   });
 
   it("several plate candidates stay ambiguous for manual verification", () => {
-    const first = vehicle({ license_plate: "59-A1 234.56" });
-    const second = vehicle({ license_plate: "59-A1 234.56" });
+    const first = vehicle({ license_plate: "59A1-234.56" });
+    const second = vehicle({ license_plate: "59A1-234.56" });
     const match = matchIdentity(scanned, [ { id: first.id, internal_code: "", license_plate: first.license_plate!, vehicle_type: "", frame_number: "", status: "IN_STOCK" }, { id: second.id, internal_code: "", license_plate: second.license_plate!, vehicle_type: "", frame_number: "", status: "SOLD" } ], []);
     expect(match.state).toBe("ambiguous");
     if (match.state === "ambiguous") expect(match.candidates).toHaveLength(2);
@@ -152,7 +152,7 @@ describe("intake handoff", () => {
     const entry = recognitionToIntakeEntry(recognition, "entry-1", "2026-10-06");
     expect(entry.sourceLine).toBe("Camera thông minh");
     expect(entry.fields.purchase_date).toBe("2026-10-06");
-    expect(entry.fields.license_plate).toBe("59-A1 234.56");
+    expect(entry.fields.license_plate).toBe("59A1-234.56");
     expect(entry.fields.frame_number).toBe("RLH160KD12345");
     expect(entry.fields.color).toBe("Đen");
     expect(entry.fields.year).toBe("2022");
@@ -177,8 +177,8 @@ describe("intake handoff", () => {
     const unique: VehicleMatch = { state: "unique", vehicle: { id: "abc", internal_code: "", license_plate: "", vehicle_type: "", frame_number: "", status: "IN_STOCK" } };
     expect(scanTargetKey(unique, recognition.fields)).toBe("vehicle:abc");
     expect(scanTargetKey(unique, recognition.fields)).toBe(scanTargetKey(unique, recognition.fields));
-    expect(scanTargetKey({ state: "none" }, fields({ license_plate: "59-A1 234.56" })))
-      .not.toBe(scanTargetKey({ state: "none" }, fields({ license_plate: "30-B2 888.88" })));
+    expect(scanTargetKey({ state: "none" }, fields({ license_plate: "59A1-234.56" })))
+      .not.toBe(scanTargetKey({ state: "none" }, fields({ license_plate: "30B2-888.88" })));
   });
 
   it("router/storage payloads are strictly re-parsed; junk and price fields are dropped", () => {
@@ -208,7 +208,7 @@ describe("intake handoff", () => {
     };
     expect(saveRecognitionDraft("user-1", recognition)).toBe(true);
     const restored = readRecognitionDraft("user-1");
-    expect(restored?.fields.license_plate).toBe("59-A1 234.56");
+    expect(restored?.fields.license_plate).toBe("59A1-234.56");
     // Images deliberately never persist to web storage.
     expect(restored?.photos).toEqual([]);
     expect(readRecognitionDraft("other-user")).toBeNull();

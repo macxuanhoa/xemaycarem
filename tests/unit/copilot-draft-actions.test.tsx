@@ -29,7 +29,7 @@ vi.mock("@/lib/api", () => ({
           id: "22222222-2222-4222-8222-222222222222",
           internal_code: "XE-2026-0007",
           vehicle_type: "Xe tay ga",
-          license_plate: "59-B1 123.45",
+          license_plate: "59B1-123.45",
           frame_number: "RLH1234567890",
         },
       ],
@@ -41,10 +41,10 @@ vi.mock("@/lib/api", () => ({
 
 describe("copilot draft-action detection is deterministic and strict", () => {
   it("reads an expense command with shorthand money and a real plate", () => {
-    const action = detectDraftAction("chi 500k thay nhớt cho xe 59-B1 123.45");
+    const action = detectDraftAction("chi 500k thay nhớt cho xe 59B1-123.45");
     expect(action).toMatchObject({
       kind: "ADD_VEHICLE_EXPENSE",
-      license_plate: "59-B1 123.45",
+      license_plate: "59B1-123.45",
       amount: 500_000,
       expense_type: "REPAIR",
     });
@@ -52,23 +52,23 @@ describe("copilot draft-action detection is deterministic and strict", () => {
   });
 
   it("keeps phone numbers out of the amount pool", () => {
-    const action = detectDraftAction("chi 500k thay nen xe 59-B1 123.45 goi 0905123456");
+    const action = detectDraftAction("chi 500k thay nen xe 59B1-123.45 goi 0905123456");
     expect(action).toMatchObject({ kind: "ADD_VEHICLE_EXPENSE", amount: 500_000 });
   });
 
   it("reads transport and paperwork spending on a plated bike", () => {
     expect(
-      detectDraftAction("chi 2tr5 chuyen xe tu bien hoa ve 59-B1 123.45")?.kind,
+      detectDraftAction("chi 2tr5 chuyen xe tu bien hoa ve 59B1-123.45")?.kind,
     ).toBe("ADD_VEHICLE_EXPENSE");
-    const paperwork = detectDraftAction("nop 300k phi tru ba dang ky 59-B1 123.45");
+    const paperwork = detectDraftAction("nop 300k phi tru ba dang ky 59B1-123.45");
     expect(paperwork).toMatchObject({ kind: "ADD_VEHICLE_EXPENSE", amount: 300_000 });
   });
 
   it("extracts a sale draft with customer and plate, never a price", () => {
-    const action = detectDraftAction("bán cho anh Bình 30tr xe 59-B1 123.45");
+    const action = detectDraftAction("bán cho anh Bình 30tr xe 59B1-123.45");
     expect(action).toMatchObject({
       kind: "PREPARE_SALE",
-      license_plate: "59-B1 123.45",
+      license_plate: "59B1-123.45",
       customer_name: "Bình",
     });
     // Giá bán chỉ sinh ra từ phiếu Bán xe có xác nhận: copilot không được
@@ -106,14 +106,14 @@ describe("copilot draft-action detection is deterministic and strict", () => {
   it("never misreads spare-part spending as buying a bike", () => {
     expect(detectDraftAction("chi 500k mua lop xe")).toBeNull();
     expect(detectDraftAction("thay nhớt 500k")).toBeNull(); // expense verb but no plate to bind
-    expect(detectDraftAction("bán xe 59-B1 123.45")).toBeNull(); // no customer nor price
+    expect(detectDraftAction("bán xe 59B1-123.45")).toBeNull(); // no customer nor price
   });
 });
 
 describe("copilot draft card only prefills the existing confirmed forms", () => {
   const expense: DraftAction = {
     kind: "ADD_VEHICLE_EXPENSE",
-    license_plate: "59-B1 123.45",
+    license_plate: "59B1-123.45",
     amount: 500_000,
     description: "thay nhớt",
     expense_type: "REPAIR",
@@ -131,7 +131,7 @@ describe("copilot draft card only prefills the existing confirmed forms", () => 
   it("shows the reviewed draft fields and the review-first notice", () => {
     const html = renderCard(expense);
     expect(html).toContain("Cà Rem đề xuất thao tác");
-    expect(html).toContain("59-B1 123.45");
+    expect(html).toContain("59B1-123.45");
     expect(html).toContain("500.000");
     expect(html).toContain("Sửa chữa");
     expect(html).toContain("Kiểm tra");

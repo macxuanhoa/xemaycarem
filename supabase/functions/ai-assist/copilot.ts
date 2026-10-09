@@ -501,7 +501,7 @@ export async function buildEvidence(question: string, caller: Caller, profile: A
   const matched = INTENTS.filter((intent) => intent.pattern.test(normalize(question)))
   for (const intent of matched.slice(0, 4)) await intent.run(context)
   // The entity lookup also rescues questions whose intent matched but returned no figure
-  // (e.g. "doanh thu của 59-B1 123") so a plate or phone never dead-ends.
+  // (e.g. "doanh thu của 59B1-123") so a plate or phone never dead-ends.
   if (!facts.length) await entityLookup(context)
 
   const hasData = facts.length > 0

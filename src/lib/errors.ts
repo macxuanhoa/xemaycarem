@@ -6,6 +6,18 @@ export function friendlyError(error: unknown): string {
       : error instanceof Error
         ? error.message
         : "";
+  // Supabase surfaces Postgres/PostgREST failures as a plain object carrying
+  // `code` (the SQLSTATE), `message`, `details` and `hint`. A unique-violation
+  // (23505) on its own does not say WHICH table collided, so we read every
+  // field to tell a duplicated vehicle chassis apart from a duplicated
+  // username before either branch claims the error.
+  const err =
+    error && typeof error === "object"
+      ? (error as Record<string, unknown>)
+      : {};
+  const code = err.code != null ? String(err.code) : "";
+  const signature =
+    `${value} ${code} ${err.details ?? ""} ${err.hint ?? ""}`.toLowerCase();
   // Supabase Auth returns a handful of policy errors verbatim in English (for
   // example the minimum-length rejection from updateUser / createUser). Catch
   // them here, before the AppError short-circuit below, so a raw GoTrue string
@@ -28,7 +40,27 @@ export function friendlyError(error: unknown): string {
     return "Phiên bản đang mở chưa hỗ trợ lưu giao dịch an toàn. Thao tác chưa được ghi nhận; hãy cập nhật ứng dụng, tải lại dữ liệu và đối soát lịch sử trước khi gửi lại.";
   if (/PROFILE_NOT_FOUND|P0002/i.test(value))
     return "Không tìm thấy hồ sơ người dùng trong hệ thống.";
-  if (/USERNAME_EXISTS|23505/i.test(value))
+  // Vehicle chassis identity clash. Two staff can slip past the client-side
+  // pre-check and submit the same frame at the same moment; the loser gets
+  // either the RPC's DUPLICATE_FRAME_NUMBER or a raw 23505 unique-violation on
+  // the vehicles FULL-frame index. Both must read as a vehicle problem, never
+  // the username message below.
+  if (
+    /DUPLICATE_FRAME_NUMBER/i.test(value) ||
+    (code === "23505" && /frame/.test(signature))
+  )
+    return "Số khung đã tồn tại trong hệ thống.";
+  // Smart tri-state detection: RED (biển số + 5 ký tự cuối khung trùng xe đang
+  // quản lý) chặn cứng; YELLOW cần nhân viên xác nhận. Không phải trùng tên đăng
+  // nhập, nên dựng ở đây trước nhánh username.
+  if (/DUPLICATE_VEHICLE_SUSPECTED|PLATE_AND_LAST5|NEED_VERIFY_PARTIAL_FULL/i.test(value))
+    return "Biển số và 5 ký tự cuối số khung trùng với xe đang quản lý. Hãy nhập số khung đầy đủ hoặc mở hồ sơ hiện có để đối chiếu.";
+  if (/DUPLICATE_VEHICLE_NEEDS_CONFIRM|PARTIAL_MATCH/i.test(value))
+    return "Có thể xe này đã tồn tại. Hãy kiểm tra danh sách xe tương tự rồi xác nhận lưu.";
+  if (
+    /USERNAME_EXISTS/i.test(value) ||
+    (code === "23505" && /username|profiles_username|email/.test(signature))
+  )
     return "Tên đăng nhập đã tồn tại trong hệ thống.";
   if (/INVALID_DATE_RANGE/i.test(value))
     return "Khoảng ngày không hợp lệ. Ngày bắt đầu phải trước ngày kết thúc.";

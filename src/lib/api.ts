@@ -351,6 +351,21 @@ export const api = {
   /** Xóa cứng phiếu thu kèm xe đã thu (OWNER/MANAGER). */
   deleteAcquisition: async (id: string, reason: string) =>
     call<void>("delete_acquisition", { p_id: id, p_reason: reason }),
+  /**
+   * Phát hiện nghi trùng THÔNG MINH cho một hồ sơ xe đang soạn (ba mức
+   * GREEN/YELLOW/RED). Server là nguồn chân lý: cùng bộ máy `detect` sẽ chạy
+   * lại khi lưu, nên kết quả xem trước ở đây khớp từng chữ ký với lúc ghi.
+   */
+  checkVehicleDuplicates: async (input: {
+    frame_number: string;
+    license_plate: string;
+    frame_input_kind?: string;
+    exclude_vehicle_id?: string | null;
+  }) =>
+    call<import("./vehicleDuplicateCheck").DuplicateCheckResult>(
+      "check_vehicle_duplicates",
+      { p_data: input },
+    ),
   processMessage: async (messageId: string): Promise<void> => {
     if (!supabase) return;
     const { error } = await supabase.functions.invoke("process-message", { body: { message_id: messageId } });

@@ -16,7 +16,6 @@ import { canFinance, canOperate } from "@/lib/permissions";
 import { dateLabel, money, today } from "@/lib/format";
 import { useAuth } from "@/features/auth/AuthProvider";
 import {
-  Badge,
   Button,
   Card,
   DatePicker,
@@ -285,20 +284,50 @@ function SaleEditor({ vehicle }: { vehicle: Vehicle }) {
         confirmLabel: "Xác nhận bán xe",
         cancelLabel: "Quay lại chỉnh sửa",
         summary: (
-          <dl className="summary-list sale-review-summary">
-            <div><dt>Xe</dt><dd>{vehicleTitle(vehicle)}</dd></div>
-            <div><dt>Loại xe / đời / màu</dt><dd>{vehicleSubtitle(vehicle) || "Chưa phân loại"}</dd></div>
-            <div><dt>Mã xe</dt><dd>{vehicle.internal_code}</dd></div>
-            <div><dt>Khách hàng</dt><dd>{snapshot.customer_name}</dd></div>
-            <div><dt>Số điện thoại</dt><dd>{snapshot.customer_phone || "Chưa cung cấp"}</dd></div>
-            <div><dt>Ngày bán</dt><dd>{dateLabel(snapshot.sale_date)}</dd></div>
-            <div><dt>Hình thức thu</dt><dd>{paymentLabels[snapshot.payment_method]}</dd></div>
-            <div><dt>Giá bán</dt><dd>{money(snapshot.sale_price)}</dd></div>
-            <div><dt>Khách đã trả trước</dt><dd>{money(snapshot.initial_payment)}</dd></div>
-            <div className="summary-total"><dt>Còn phải thu</dt><dd>{money(snapshot.sale_price - snapshot.initial_payment)}</dd></div>
-            <div><dt>Hạn thanh toán</dt><dd>{snapshot.due_date ? dateLabel(snapshot.due_date) : "Chưa hẹn ngày"}</dd></div>
-            {snapshot.notes && <div><dt>Ghi chú</dt><dd>{snapshot.notes}</dd></div>}
-          </dl>
+          <div className="sale-review-stack">
+            {/* Ưu tiên thị giác: Xe – Biển số – Số khung – rồi Giá bán hero,
+                sau đó mới tới các dòng hỗ trợ (khách hàng, ngày, hình thức,
+                trả trước, còn phải thu, hạn). Biển số dùng tile đồng bộ với
+                chi tiết xe để nhận diện nhanh ngay tại quầy. */}
+            {vehicleSubtitle(vehicle) && (
+              <p className="sale-review-vehicle">
+                {vehicleSubtitle(vehicle)}
+                {vehicle.internal_code && (
+                  <span className="muted"> · Mã {vehicle.internal_code}</span>
+                )}
+              </p>
+            )}
+            <div className="vehicle-id-strip">
+              <div className="vehicle-id-tile vehicle-id-plate">
+                <span className="vehicle-id-label">Biển số</span>
+                <span className="vehicle-id-value">
+                  {vehicle.license_plate || "Chưa có biển"}
+                </span>
+              </div>
+              <div className="vehicle-id-tile vehicle-id-frame">
+                <span className="vehicle-id-label">Số khung</span>
+                <span className="vehicle-id-value">
+                  {vehicle.frame_number || "Chưa có"}
+                </span>
+              </div>
+            </div>
+            <div className="sale-review-price-hero">
+              <span className="sale-review-price-label">Giá bán</span>
+              <span className="sale-review-price-value">
+                {money(snapshot.sale_price)}
+              </span>
+            </div>
+            <dl className="summary-list sale-review-summary">
+              <div><dt>Khách hàng</dt><dd>{snapshot.customer_name}</dd></div>
+              <div><dt>Số điện thoại</dt><dd>{snapshot.customer_phone || "Chưa cung cấp"}</dd></div>
+              <div><dt>Ngày bán</dt><dd>{dateLabel(snapshot.sale_date)}</dd></div>
+              <div><dt>Hình thức thu</dt><dd>{paymentLabels[snapshot.payment_method]}</dd></div>
+              <div><dt>Khách đã trả trước</dt><dd>{money(snapshot.initial_payment)}</dd></div>
+              <div className="summary-total"><dt>Còn phải thu</dt><dd>{money(snapshot.sale_price - snapshot.initial_payment)}</dd></div>
+              <div><dt>Hạn thanh toán</dt><dd>{snapshot.due_date ? dateLabel(snapshot.due_date) : "Chưa hẹn ngày"}</dd></div>
+              {snapshot.notes && <div><dt>Ghi chú</dt><dd>{snapshot.notes}</dd></div>}
+            </dl>
+          </div>
         ),
       });
       if (confirmed) mutation.mutate(snapshot);
@@ -433,10 +462,7 @@ function SaleEditor({ vehicle }: { vehicle: Vehicle }) {
                 the literal "NaN"); the toggle only collapses its visibility. */}
             <div
               className="form-grid sale-payment-details"
-              style={{
-                marginTop: "8px",
-                display: showPaymentDetails ? undefined : "none",
-              }}
+              style={{ display: showPaymentDetails ? undefined : "none" }}
             >
                 <Field
                   label="Khách đã trả trước (₫)"
@@ -486,10 +512,7 @@ function SaleEditor({ vehicle }: { vehicle: Vehicle }) {
                     Number.isFinite(paid) &&
                     price > paid &&
                     !form.watch("due_date") && (
-                      <small
-                        className="muted"
-                        style={{ display: "block", marginTop: "4px" }}
-                      >
+                      <small className="muted">
                         Khách còn nợ {money(price - paid)}. Nên hẹn ngày thanh toán để quản lý công nợ.
                       </small>
                     )}
@@ -521,21 +544,8 @@ function SaleEditor({ vehicle }: { vehicle: Vehicle }) {
         </div>
         <aside className="stack">
           <Card>
-            <div className="sale-vehicle-head">
-              <div className="vehicle-icon large">
-                <Bike size={30} />
-              </div>
-              <div className="sale-vehicle-head-text">
-                <h2 className="section-title">
-                  {vehicleTitle(vehicle)}
-                </h2>
-                <p className="muted small">
-                  {vehicleSubtitle(vehicle) || "Chưa phân loại"} ·{" "}
-                  {vehicle.internal_code}
-                </p>
-                <Badge status={vehicle.status} />
-              </div>
-            </div>
+            {/* Không lặp lại danh tính xe ở đây – đã có breadcrumb + dialog
+                kiểm tra hiển thị biển số / số khung nổi bật khi cần đối chiếu. */}
             <dl className="summary-list">
               {canFinance(profile) && (
                 <div>

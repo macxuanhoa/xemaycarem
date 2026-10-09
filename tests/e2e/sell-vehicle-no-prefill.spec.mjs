@@ -13,7 +13,7 @@ const vehicleId = "00000000-0000-4000-8000-0000000000f1";
 const sellableVehicle = {
   id: vehicleId,
   internal_code: "XE-BAN-000001",
-  license_plate: "59-A1 234.56",
+  license_plate: "59A1-234.56",
   frame_number: "RLHTEST0000001",
   year: 2023,
   color: "Đen",
@@ -98,8 +98,11 @@ test("sell form opens with an empty sale price despite a purchase cost on file",
     page.getByRole("heading", { name: "Bán xe", exact: true }),
   ).toBeVisible();
 
-  // The vehicle identity renders (biển · khung), proving the record loaded.
-  await expect(page.getByText(sellableVehicle.license_plate).first()).toBeVisible();
+  // The vehicle record loaded – `SaleEditor` chỉ mount sau khi `get_vehicle`
+  // trả về, và aside tóm tắt tiền nằm trong editor. Danh tính xe (biển · khung)
+  // chủ ý không lặp lại cạnh nút “Xác nhận bán xe” – chỉ hiện trong dialog
+  // kiểm tra, đã được uiux-responsive.spec.mjs assert riêng.
+  await expect(page.locator("aside .summary-total")).toBeVisible();
 
   // Price fields start blank — no asking_price / purchase_price leakage.
   const price = page.getByRole("textbox", { name: "Bán với giá" });

@@ -69,6 +69,20 @@ import {
 import { uploadEntryPhotos } from "@/lib/smartcam/photos";
 import type { Paged, Vehicle } from "@/types";
 import { normalizeVehicleYear } from "@/lib/vehicleInputFormatting";
+import { compactFrame, frameKindFromCompact } from "@/lib/frameNumber";
+
+/**
+ * Nhãn loại dữ liệu số khung cho thẻ tốc ký: mảnh rút gọn (< 11 ký tự chữ+số)
+ * được đánh dấu rõ để nhân viên biết giá trị này chỉ phục vụ phát hiện nghi
+ * trùng, không phải VIN đầy đủ. Khung trống hoặc VIN đủ dài → không gắn nhãn.
+ */
+function frameKindLabelOf(frame: string | undefined): string {
+  const compact = compactFrame(frame ?? "");
+  if (!compact) return "";
+  return frameKindFromCompact(compact) === "PARTIAL"
+    ? "Rút gọn · chưa phải VIN đầy đủ"
+    : "";
+}
 
 type ImportIssue = { index: number; field: string; message: string };
 type ImportCheck = { duplicates: ImportIssue[]; errors: ImportIssue[] };
@@ -633,6 +647,11 @@ export default function ShorthandIntakePage() {
                   autoCapitalize="characters"
                   placeholder="RLH160…"
                 />
+                {frameKindLabelOf(entry.fields.frame_number) && (
+                  <span className="frame-kind-tag">
+                    {frameKindLabelOf(entry.fields.frame_number)}
+                  </span>
+                )}
                 {cameraNote(entry, "frame_number")}
               </Field>
               <Field

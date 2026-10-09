@@ -219,6 +219,15 @@ async function installMock(page) {
       return reply("00000000-0000-4000-8000-000000000003");
     if (name === "global_search")
       return reply({ vehicles: [seedVehicle], customers: [], sales: [] });
+    // Mặc định không nghi trùng, để các kiểm thử khác (điền biểu mẫu, biển số…)
+    // chạy qua mà không bị khóa nút lưu. Kiểm thử nghi trùng sẽ route đè.
+    if (name === "check_vehicle_duplicates")
+      return reply({
+        level: "GREEN",
+        reason: "",
+        candidates: [],
+        candidate_ids: [],
+      });
     return reply({});
   });
   return calls;
@@ -253,7 +262,7 @@ test("Mobile acquisition uses visible save, normalized money and keeps advanced 
   const started = Date.now();
   await page.getByLabel("Số khung", { exact: true }).fill("NEW-UX-FRAME");
   await page.getByLabel("Biển số (nếu có)", { exact: true }).fill("43A1-99999");
-  await page.getByRole("button", { name: "Xe tay ga", exact: true }).click();
+  await page.getByLabel("Loại xe *", { exact: true }).selectOption("vt-ga");
   await page.getByLabel("Giá thu (₫) *", { exact: true }).fill("82tr");
   await action.click();
 
@@ -335,19 +344,47 @@ test("Frame duplicates are reported while typing before the form is submitted", 
   page,
 }) => {
   const calls = await installMock(page);
+  // Server trả về RED (trùng số khung đầy đủ) cho chữ ký này.
+  await page.route(
+    "https://xe-test.supabase.co/rest/v1/rpc/check_vehicle_duplicates",
+    async (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        headers: { "access-control-allow-origin": "*" },
+        body: JSON.stringify({
+          level: "RED",
+          reason: "FULL_FRAME_MATCH",
+          candidates: [
+            {
+              id: vehicleId,
+              internal_code: "XE-UX-001",
+              license_plate: "43A1-12345",
+              frame_number: "DUPLICATE-FRAME",
+              frame_input_kind: "FULL",
+              status: "IN_STOCK",
+              vehicle_title: "43A1-12345 · DUPLICATE-FRAME",
+            },
+          ],
+          candidate_ids: [vehicleId],
+        }),
+      }),
+  );
   await page.goto("/acquisitions/new");
   await page
     .getByLabel("Số khung", { exact: true })
     .fill(seedVehicle.frame_number);
+  // Mức RED hiện ngay khi gõ, kèm lý do và không cho lưu.
+  await expect(page.getByText(/Nghi trùng xe đang quản lý/)).toBeVisible();
   await expect(
-    page.getByText(/Số khung đã tồn tại trong hệ thống/),
+    page.getByText(/Số khung đầy đủ này đã có trên một xe đang quản lý/),
   ).toBeVisible();
   await expect(
-    page.getByRole("button", { name: "Thu xe & tạo phiếu", exact: true }),
+    page.getByRole("button", { name: "Nghi trùng — không lưu được" }),
   ).toBeDisabled();
   expect(calls.some((call) => call.name === "acquire_vehicle")).toBe(false);
   await expect(
-    page.getByRole("link", { name: "Xem chi tiết xe đã có" }),
+    page.getByRole("link", { name: "Mở hồ sơ" }),
   ).toHaveAttribute("href", `/vehicles/${vehicleId}`);
 });
 
@@ -890,26 +927,24 @@ test("A failed chassis lookup never claims the identifier is available", async (
   page,
 }) => {
   const calls = await installMock(page);
+  // Việc kiểm tra nghi trùng lỗi (500): không bao giờ được khẳng định xe là an toàn.
   await page.route(
-    "https://xe-test.supabase.co/rest/v1/rpc/list_vehicles",
-    async (route) => {
-      const body = route.request().postDataJSON();
-      if (body?.p_filters?.search !== "LOOKUP-FAIL") return route.fallback();
-      return route.fulfill({
+    "https://xe-test.supabase.co/rest/v1/rpc/check_vehicle_duplicates",
+    async (route) =>
+      route.fulfill({
         status: 500,
         contentType: "application/json",
-        body: JSON.stringify({ message: "Fixture lookup unavailable" }),
-      });
-    },
+        headers: { "access-control-allow-origin": "*" },
+        body: JSON.stringify({ message: "Fixture check unavailable" }),
+      }),
   );
   await page.goto("/acquisitions/new");
   await page.getByLabel("Số khung", { exact: true }).fill("LOOKUP-FAIL");
   await expect(
-    page.getByText("Chưa kiểm tra được số khung.", { exact: false }),
+    page.getByText("Chưa kiểm tra nghi trùng được.", { exact: false }),
   ).toBeVisible();
-  await expect(
-    page.getByText("Số khung chưa có trong hệ thống", { exact: false }),
-  ).toHaveCount(0);
+  // Một lỗi tra cứu không được biến thành thông báo "chưa phát hiện xe trùng".
+  await expect(page.getByText("Chưa phát hiện xe trùng")).toHaveCount(0);
   await expect(
     page.getByRole("button", { name: "Thử lại", exact: true }),
   ).toBeVisible();

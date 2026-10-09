@@ -38,10 +38,10 @@ describe("User-scoped convenience storage", () => {
       JSON.stringify([{ id: "legacy-secret" }]),
     );
     addRecentVehicle(
-      { id: "a", vehicle_type: "Xe tay ga", license_plate: "59-B1 123.45", status: "IN_STOCK" },
+      { id: "a", vehicle_type: "Xe tay ga", license_plate: "59B1-123.45", status: "IN_STOCK" },
       "owner",
     );
-    addRecentVehicle({ id: "b", vehicle_type: "Xe số", license_plate: "29-C2 555.55" }, "staff2");
+    addRecentVehicle({ id: "b", vehicle_type: "Xe số", license_plate: "29C2-555.55" }, "staff2");
     expect(getRecentVehicles("owner").map((v) => v.id)).toEqual(["a"]);
     expect(getRecentVehicles("staff2").map((v) => v.id)).toEqual(["b"]);
     expect(getRecentVehicles()).toEqual([]);
@@ -124,7 +124,7 @@ describe("User-scoped convenience storage", () => {
   it("restores full business drafts while excluding status, identity numbers and secrets", () => {
     const values = {
       frame_number: "FRAME-1",
-      license_plate: "59-B1 123.45",
+      license_plate: "59B1-123.45",
       vehicle_type_id: "type-ga",
       color: "Đen",
       year: 2024,
@@ -153,7 +153,7 @@ describe("User-scoped convenience storage", () => {
     };
     expect(draftFields(values)).toEqual({
       frame_number: "FRAME-1",
-      license_plate: "59-B1 123.45",
+      license_plate: "59B1-123.45",
       vehicle_type_id: "type-ga",
       color: "Đen",
       year: 2024,

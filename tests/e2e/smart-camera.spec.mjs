@@ -8,7 +8,7 @@ const userId = '11111111-1111-4111-8111-111111111111'
 const vehicleId = '22222222-2222-4222-8222-222222222222'
 const pixel = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aX2sAAAAASUVORK5CYII=', 'base64')
 const known = { id: vehicleId, internal_code: 'XE-TEST-000001', vehicle_type_id: 'vt-ga', vehicle_type: 'Xe tay ga',
-  frame_number: 'RLHTEST000001', license_plate: '59-A1 234.56', status: 'IN_STOCK', purchase_date: '2026-10-01', year: 2022, color: 'Đen' }
+  frame_number: 'RLHTEST000001', license_plate: '59A1-234.56', status: 'IN_STOCK', purchase_date: '2026-10-01', year: 2022, color: 'Đen' }
 function scanDraft(values) {
   // Hợp đồng `vehicle_scan` mới chỉ còn bộ four nhận diện: biển · khung · màu · đời.
   const empty = { license_plate: null, frame_number: null, color: null, year: null }
@@ -44,7 +44,7 @@ async function setup(page, { result } = {}) {
     if (path === '/auth/v1/user') return reply(user)
     if (path === '/rest/v1/profiles') return reply({ id: userId, full_name: 'Fixture Owner', username: 'fixture_owner',
       role: 'OWNER', active: true, can_view_financials: true, must_change_password: false, deleted_at: null })
-    if (path === '/functions/v1/ai-assist') { calls.assist.push(body); return reply(result ?? scanDraft({ license_plate: '59-A1 234.56' })) }
+    if (path === '/functions/v1/ai-assist') { calls.assist.push(body); return reply(result ?? scanDraft({ license_plate: '59A1-234.56' })) }
     if (path.startsWith('/storage/')) { calls.storage.push(path); return reply({ Path: 'fixture/scan.jpg' }) }
     const name = path.split('/').at(-1)
     if (name === 'check_user_access') return reply({ allowed: true, role: 'OWNER', must_change_password: false })
@@ -85,7 +85,7 @@ test('smart camera: known plate scan resolves to the existing vehicle profile', 
   await page.goto('/capture')
   await expect(page.getByRole('heading', { name: 'Camera thông minh' })).toBeVisible()
   await scanFromLibrary(page)
-  await expect(page.getByText(/Đã xác khớp xe trong kho: 59-A1 234\.56 · RLHTEST000001/)).toBeVisible()
+  await expect(page.getByText(/Đã xác khớp xe trong kho: 59A1-234\.56 · RLHTEST000001/)).toBeVisible()
   const assist = calls.assist.find(entry => entry.task === 'vehicle_scan')
   expect(assist).toMatchObject({ consent: true })
   expect(typeof assist.image.base64).toBe('string')
@@ -96,14 +96,14 @@ test('smart camera: known plate scan resolves to the existing vehicle profile', 
 })
 
 test('smart camera: unknown scan prefills the existing shorthand intake and saves only after confirmation', async ({ page }) => {
-  const calls = await setup(page, { result: scanDraft({ license_plate: '61-B1 777.77', color: 'Trắng', year: 2023 }) })
+  const calls = await setup(page, { result: scanDraft({ license_plate: '61B1-777.77', color: 'Trắng', year: 2023 }) })
   await page.goto('/capture')
   await scanFromLibrary(page)
   await expect(page.getByText('Không tìm thấy xe này trong kho. Có thể là xe mới về.')).toBeVisible()
   await page.getByRole('button', { name: 'Thu xe mới', exact: true }).click()
   await expect(page).toHaveURL(/\/intake$/)
   // Structured handoff: fields land in the existing intake cards, marked for review.
-  await expect(page.getByPlaceholder('59-A1 234.56')).toHaveValue('61-B1 777.77')
+  await expect(page.getByPlaceholder('59A1-234.56')).toHaveValue('61B1-777.77')
   await expect(page.getByText('Bản nháp từ Camera thông minh', { exact: false })).toBeVisible()
   await expect(page.locator('.fs-badge.warn').first()).toBeVisible()
   // Camera không còn đọc hãng/dòng xe, nên nhân viên phải chọn Loại xe từ danh
@@ -113,7 +113,7 @@ test('smart camera: unknown scan prefills the existing shorthand intake and save
   await page.getByRole('button', { name: 'Xác nhận thu xe' }).click()
   const imported = calls.writes.find(entry => entry.name === 'import_vehicles')
   const row = imported.body.p_vehicles.rows[0]
-  expect(row).toMatchObject({ license_plate: '61-B1 777.77', vehicle_type_id: 'vt-ga', color: 'Trắng', year: 2023 })
+  expect(row).toMatchObject({ license_plate: '61B1-777.77', vehicle_type_id: 'vt-ga', color: 'Trắng', year: 2023 })
   expect('brand' in row).toBe(false)
   expect('model' in row).toBe(false)
   // The approved scan photo rides the normal secure upload path afterwards —

@@ -8,7 +8,7 @@ export const day = new Intl.DateTimeFormat("en-CA", {
   month: "2-digit",
   day: "2-digit",
 }).format(new Date());
-export const vehicleTitle = "43-A1 123.45 · RLH123456789012345";
+export const vehicleTitle = "43A1-123.45 · RLH123456789012345";
 export const vehicleSubtitle = "Xe tay ga · 2024 · Đen";
 export const vehicle = {
   id: vehicleId,
@@ -21,7 +21,7 @@ export const vehicle = {
   vehicle_subtitle: vehicleSubtitle,
   year: 2024,
   frame_number: "RLH123456789012345",
-  license_plate: "43-A1 123.45",
+  license_plate: "43A1-123.45",
   color: "Đen",
   status: "IN_STOCK",
   purchase_date: day,
@@ -142,7 +142,7 @@ export async function installUiuxMock(
     ? {
         ...vehicle,
         frame_number: "RLH".repeat(33),
-        vehicle_title: `43-A1 123.45 · ${"RLH".repeat(33)}`,
+        vehicle_title: `43A1-123.45 · ${"RLH".repeat(33)}`,
         supplier_name: "Nguyễn Văn ".repeat(15),
         supplier_phone: "",
         notes: "Xe cũ: ".repeat(90),

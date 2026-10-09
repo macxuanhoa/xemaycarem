@@ -5,22 +5,24 @@
  * review cards). Keeping one implementation means a plate typed by hand and a
  * plate parsed from a phone note always converge on the same canonical string.
  *
- * Real-world motorbike plates read `59-A1 234.56`:
+ * Real-world motorbike plates read `59A1-234.56`:
  *   • 2-digit province code (59 = TP.HCM, 29–33 = Hà Nội, 43 = Đà Nẵng…)
  *   • a series of 1–2 letters + a leading digit (A1, B2, X1, LN1…)
  *   • a 4–5 digit serial, dot-grouped as `XXX.XX` (5 digits) or left whole
- *     (legacy 4-digit serials such as `29-A1 1234`).
+ *     (legacy 4-digit serials such as `29A1-1234`).
+ *   The province+series block and the serial are separated by a single dash,
+ *   matching how the plate is stamped (`92D1-746.75`).
  * The database de-duplicates on the alphanumeric-only form, so the separators
  * here are purely for human display — but we standardise them so the placeholder,
  * the stored value and the edit screen all look identical.
  */
 
 /** Example shown in every plate input's placeholder. */
-export const PLATE_EXAMPLE = "59-A1 234.56";
+export const PLATE_EXAMPLE = "59A1-234.56";
 
 /**
- * Fold any reasonable spelling (`59 a1 234.56`, `59A1-234.56`, `59-A123456`)
- * into the canonical `59-A1 234.56`. Returns null when the string is not a
+ * Fold any reasonable spelling (`59 a1 234.56`, `59-A1-234.56`, `59A123456`)
+ * into the canonical `59A1-234.56`. Returns null when the string is not a
  * well-formed Vietnamese plate, so callers can both normalise and validate.
  */
 export function normalizePlate(raw: string): string | null {
@@ -34,7 +36,7 @@ export function normalizePlate(raw: string): string | null {
   const serial = rest.slice(1);
   const serialStr =
     serial.length === 5 ? `${serial.slice(0, 3)}.${serial.slice(3)}` : serial;
-  return `${prov}-${series} ${serialStr}`;
+  return `${prov}${series}-${serialStr}`;
 }
 
 /**

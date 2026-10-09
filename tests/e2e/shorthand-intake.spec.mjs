@@ -58,7 +58,7 @@ test('parses shorthand notes, requires a catalogue type and imports the whole ba
   // Hãng/Dòng xe/Giá bán dự kiến đã bị xoá khỏi hồ sơ — thẻ tốc ký chỉ còn
   // định danh Biển số · Số khung, phân loại bằng Loại xe (danh mục) và Giá thu.
   const first = page.locator('.intake-entry').nth(0)
-  await expect(first.getByLabel('Biển số')).toHaveValue('29-B1 123.45')
+  await expect(first.getByLabel('Biển số')).toHaveValue('29B1-123.45')
   await expect(first.getByLabel('Màu sắc')).toHaveValue('Đen')
   await expect(first.getByLabel('Giá thu')).toHaveValue('18.500.000')
   // The review card must confirm the amount it read, in words under the
@@ -97,7 +97,7 @@ test('parses shorthand notes, requires a catalogue type and imports the whole ba
   const rows = calls.imports[0].p_vehicles.rows
   expect(rows).toHaveLength(2)
   expect(rows[0]).toMatchObject({ vehicle_type_id: 'vt-ga', frame_number: 'RLH-E2E-001',
-    license_plate: '29-B1 123.45', color: 'Đen', purchase_price: 18500000 })
+    license_plate: '29B1-123.45', color: 'Đen', purchase_price: 18500000 })
   expect(rows[1]).toMatchObject({ vehicle_type_id: 'vt-so', frame_number: 'RLH-E2E-002',
     color: 'Trắng', purchase_price: 12000000 })
   for (const row of rows) {
@@ -154,7 +154,7 @@ test('server-side duplicates block the batch before anything is saved', async ({
 test('staff without financial rights never sees or sends the purchase price', async ({ page }) => {
   const calls = await setupFixtures(page, { role: 'STAFF' })
   await page.goto('/intake')
-  await page.locator('textarea.intake-notes').fill('vision den gia 20tr fk MH-01')
+  await page.locator('textarea.intake-notes').fill('vision den gia 20tr fk MH0123')
   await page.getByRole('button', { name: 'Tách thành danh sách' }).click()
   const card = page.locator('.intake-entry').first()
   await expect(card.getByLabel('Giá thu')).toHaveCount(0)
@@ -167,7 +167,7 @@ test('staff without financial rights never sees or sends the purchase price', as
   expect('purchase_price' in row).toBe(false)
   expect('asking_price' in row).toBe(false)
   expect('brand' in row).toBe(false)
-  expect(row).toMatchObject({ vehicle_type_id: 'vt-ga', frame_number: 'MH-01', color: 'Đen' })
+  expect(row).toMatchObject({ vehicle_type_id: 'vt-ga', frame_number: 'MH0123', color: 'Đen' })
 })
 
 test('mobile review cards stay two-up, tappable and free of iOS zoom', async ({ page }) => {

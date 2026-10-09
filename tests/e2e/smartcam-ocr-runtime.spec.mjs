@@ -10,7 +10,7 @@ import { test, expect } from '@playwright/test'
 const userId = '11111111-1111-4111-8111-111111111111'
 const vehicleId = '22222222-2222-4222-8222-222222222222'
 const known = { id: vehicleId, internal_code: 'XE-TEST-000001', vehicle_type_id: 'vt-ga', vehicle_type: 'Xe tay ga',
-  frame_number: 'RLHTEST000001', license_plate: '59-A1 234.56', status: 'IN_STOCK', purchase_date: '2026-10-01', year: 2022, color: 'Đen' }
+  frame_number: 'RLHTEST000001', license_plate: '59A1-234.56', status: 'IN_STOCK', purchase_date: '2026-10-01', year: 2022, color: 'Đen' }
 
 test('smart camera runtime: real WASM OCR reads a rendered plate with zero cloud calls', async ({ page }) => {
   test.setTimeout(240_000)
@@ -69,14 +69,14 @@ test('smart camera runtime: real WASM OCR reads a rendered plate with zero cloud
     ctx.fillStyle = '#000000'
     ctx.font = 'bold 200px Arial, sans-serif'
     ctx.textBaseline = 'middle'
-    ctx.fillText('59-A1 234.56', 60, 210)
+    ctx.fillText('59A1-234.56', 60, 210)
     return canvas.toDataURL('image/png')
   })
   const buffer = Buffer.from(dataUrl.split(',')[1], 'base64')
   await page.getByLabel('Chọn ảnh xe từ thư viện').setInputFiles({ name: 'plate.png', mimeType: 'image/png', buffer })
 
   // Real recognition over the real engine — or an honest environment skip.
-  const matched = page.getByText(/Đã xác khớp xe trong kho: 59-A1 234\.56 · RLHTEST000001/)
+  const matched = page.getByText(/Đã xác khớp xe trong kho: 59A1-234\.56 · RLHTEST000001/)
   const degraded = page.getByText('OCR trên máy không tải được — dùng ảnh thư viện, AI hoặc nhập tay')
   await Promise.race([
     matched.waitFor({ timeout: 200_000 }),

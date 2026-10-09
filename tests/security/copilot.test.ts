@@ -28,13 +28,13 @@ function harness(options: { role?: 'OWNER' | 'STAFF'; enabled?: boolean; result?
       if (name === 'search_knowledge') return { data: [knowledgeRow], error: null }
       if (name === 'dashboard') {
         return { data: { in_stock: 7, reserved: 1, inventory_cost_pending: 0, acquisitions_count: 3, sales_count: 2, revenue: 120_000_000, gross_profit: 9_000_000, old_inventory_count: 2,
-          longest_stock: [{ id: vehicleId, vehicle_title: '59-B1 123 · RLHWAVE', vehicle_subtitle: 'Xe số · 2023 · Đen', license_plate: '59-B1 123', days_in_inventory: 71 }] }, error: null }
+          longest_stock: [{ id: vehicleId, vehicle_title: '59B1-123 · RLHWAVE', vehicle_subtitle: 'Xe số · 2023 · Đen', license_plate: '59B1-123', days_in_inventory: 71 }] }, error: null }
       }
-      if (name === 'list_vehicles') return { data: { items: [{ id: vehicleId, vehicle_title: '59-B1 123 · RLHWAVE', vehicle_subtitle: 'Xe số · 2023 · Đen', vehicle_type: 'Xe số', license_plate: '59-B1 123' }], total: 1 }, error: null }
-      if (name === 'list_sales') return { data: { items: [{ id: vehicleId, customer_name: 'Nguyen Van A', vehicle_title: '59-B1 123 · RLHWAVE', license_plate: '59-B1 123', sale_price: 32_000_000 }], total: 4 }, error: null }
+      if (name === 'list_vehicles') return { data: { items: [{ id: vehicleId, vehicle_title: '59B1-123 · RLHWAVE', vehicle_subtitle: 'Xe số · 2023 · Đen', vehicle_type: 'Xe số', license_plate: '59B1-123' }], total: 1 }, error: null }
+      if (name === 'list_sales') return { data: { items: [{ id: vehicleId, customer_name: 'Nguyen Van A', vehicle_title: '59B1-123 · RLHWAVE', license_plate: '59B1-123', sale_price: 32_000_000 }], total: 4 }, error: null }
       if (name === 'list_customers') return { data: { items: [{ customer_name: 'Nguyen Van A', customer_phone: '0905123456', purchases_count: 2 }], total: 12 }, error: null }
       if (name === 'daily_reconciliation') return { data: { date: '2026-10-05', total_collected: 5_000_000, debt_collected_today: 1_000_000, new_debt_created: 0, total_expenses: 300_000, net_cash_movement: 4_700_000 }, error: null }
-      if (name === 'global_search') return { data: { vehicles: [{ id: vehicleId, vehicle_title: '59-B1 123 · RLHWAVE', vehicle_subtitle: 'Xe số · 2023 · Đen', vehicle_type: 'Xe số', license_plate: '59-B1 123' }], customers: [{ customer_name: 'Nguyen Van A', customer_phone: '0905123456', purchases_count: 2 }], sales: [{ id: vehicleId, customer_name: 'Nguyen Van A', vehicle_title: '59-B1 123 · RLHWAVE', license_plate: '59-B1 123', sale_price: 32_000_000 }] }, error: null }
+      if (name === 'global_search') return { data: { vehicles: [{ id: vehicleId, vehicle_title: '59B1-123 · RLHWAVE', vehicle_subtitle: 'Xe số · 2023 · Đen', vehicle_type: 'Xe số', license_plate: '59B1-123' }], customers: [{ customer_name: 'Nguyen Van A', customer_phone: '0905123456', purchases_count: 2 }], sales: [{ id: vehicleId, customer_name: 'Nguyen Van A', vehicle_title: '59B1-123 · RLHWAVE', license_plate: '59B1-123', sale_price: 32_000_000 }] }, error: null }
       return { data: null, error: { message: `unexpected rpc ${name}` } }
     }),
   }
@@ -123,7 +123,7 @@ describe('AI copilot evidence grounding', () => {
   it('answers overview, recent-sale, cash and customer questions from their own read RPCs', async () => {
     const rpc = vi.fn(async (name: string) => name === 'search_knowledge' ? { data: [], error: null }
       : name === 'dashboard' ? { data: { in_stock: 7, sales_count: 2, total_receivables: 40_000_000 }, error: null }
-        : name === 'list_sales' ? { data: { items: [{ id: vehicleId, customer_name: 'Nguyen Van A', vehicle_title: '59-B1 123 · RLHWAVE', license_plate: '59-B1 123', sale_price: 32_000_000 }], total: 4 }, error: null }
+        : name === 'list_sales' ? { data: { items: [{ id: vehicleId, customer_name: 'Nguyen Van A', vehicle_title: '59B1-123 · RLHWAVE', license_plate: '59B1-123', sale_price: 32_000_000 }], total: 4 }, error: null }
           : name === 'daily_reconciliation' ? { data: { date: '2026-10-05', total_collected: 5_000_000, net_cash_movement: 4_700_000 }, error: null }
             : name === 'list_customers' ? { data: { items: [{ customer_name: 'Nguyen Van A', customer_phone: '0905123456', purchases_count: 2 }], total: 12 }, error: null }
               : { data: null, error: { message: `unexpected rpc ${name}` } })

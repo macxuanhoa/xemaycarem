@@ -48,20 +48,20 @@ begin
   --          saleage(days ago sold), price, initial, method, dueoff(days from today; 0=none), addpay
   for v_row in
     select * from (values
-      ('Xe tay ga','Trắng',2025,'59-B1 234.56','RLHKC2025AA00123', 79000000::bigint, 4,'IN_STOCK','','',0,0::bigint,0::bigint,'',0,0::bigint),
-      ('Ga 50cc','Đen',2025,'59-E1 88.01','RLHKC2025AA00456', 31500000, 0,'IN_STOCK','','',0,0,0,'',0,0),
-      ('Xe số','Đỏ đen',2024,'59-F8 21.36','RLHKC2024AA00789', 12800000, 110,'IN_STOCK','','',0,0,0,'',0,0),
-      ('Xe côn tay','Xám đen',2025,'59-M1 777.77','RLHYC2025AA00321', 38500000, 22,'RESERVED','','',0,0,0,'',0,0),
-      ('Xe tay ga','Xanh ngọc',2024,'61-B1 456.78','RLHYC2024AA00654', 30500000, 48,'IN_STOCK','','',0,0,0,'',0,0),
-      ('Xe tay ga','Trắng',2023,'59-D1 333.33','RLPIA2023AA00987', 30000000, 125,'IN_STOCK','','',0,0,0,'',0,0),
-      ('Xe côn tay','Đen nhám',2024,'59-S1 222.22','RLSUZ2024AA00111', 22500000, 66,'IN_STOCK','','',0,0,0,'',0,0),
-      ('Xe côn tay','Xanh',2024,'59-W1 111.11','RLHKC2024AA00777', 34000000, 30,'IN_STOCK','','',0,0,0,'',0,0),
-      ('Xe điện','Đen',2024,'59-D9 900.90','VFKTE2024AA00333', 24000000, 18,'IN_STOCK','','',0,0,0,'',0,0),
-      ('Xe tay ga','Nâu',2025,'59-G1 456.12','RLHKC2025AA00222', 33000000, 9,'SOLD','Trần Minh Anh','0903123456', 0,39000000,39000000,'BANK_TRANSFER',0,0),
-      ('Xe tay ga','Trắng kem',2024,'59-B2 888.88','RLHKC2024AA00333', 45000000, 16,'SOLD','Nguyễn Thị Hồng','0912345678', 6,53000000,20000000,'CASH',14,10000000),
-      ('Xe tay ga','Hồng',2023,'59-N1 555.55','RLHYC2023AA00444', 25000000, 98,'SOLD','Lê Hoàng Phúc','0978654321', 35,30000000,10000000,'BANK_TRANSFER',-10,0),
-      ('Xe tay ga','Xanh titan',2025,'59-P1 606.06','RLHKC2025AA00555', 41000000, 5,'SOLD','Phạm Thu Hà','0988776655', 0,48000000,48000000,'BANK_TRANSFER',0,0),
-      ('Xe tay ga','Xanh',2023,'59-V1 999.99','RLPIA2023AA00666', 48000000, 150,'SOLD','Đặng Văn Khoa','0905111222', 62,58000000,58000000,'CASH',0,0)
+      ('Xe tay ga','Trắng',2025,'59B1-234.56','RLHKC2025AA00123', 79000000::bigint, 4,'IN_STOCK','','',0,0::bigint,0::bigint,'',0,0::bigint),
+      ('Ga 50cc','Đen',2025,'59E1-8801','RLHKC2025AA00456', 31500000, 0,'IN_STOCK','','',0,0,0,'',0,0),
+      ('Xe số','Đỏ đen',2024,'59F8-2136','RLHKC2024AA00789', 12800000, 110,'IN_STOCK','','',0,0,0,'',0,0),
+      ('Xe côn tay','Xám đen',2025,'59M1-777.77','RLHYC2025AA00321', 38500000, 22,'RESERVED','','',0,0,0,'',0,0),
+      ('Xe tay ga','Xanh ngọc',2024,'61B1-456.78','RLHYC2024AA00654', 30500000, 48,'IN_STOCK','','',0,0,0,'',0,0),
+      ('Xe tay ga','Trắng',2023,'59D1-333.33','RLPIA2023AA00987', 30000000, 125,'IN_STOCK','','',0,0,0,'',0,0),
+      ('Xe côn tay','Đen nhám',2024,'59S1-222.22','RLSUZ2024AA00111', 22500000, 66,'IN_STOCK','','',0,0,0,'',0,0),
+      ('Xe côn tay','Xanh',2024,'59W1-111.11','RLHKC2024AA00777', 34000000, 30,'IN_STOCK','','',0,0,0,'',0,0),
+      ('Xe điện','Đen',2024,'59D9-900.90','VFKTE2024AA00333', 24000000, 18,'IN_STOCK','','',0,0,0,'',0,0),
+      ('Xe tay ga','Nâu',2025,'59G1-456.12','RLHKC2025AA00222', 33000000, 9,'SOLD','Trần Minh Anh','0903123456', 0,39000000,39000000,'BANK_TRANSFER',0,0),
+      ('Xe tay ga','Trắng kem',2024,'59B2-888.88','RLHKC2024AA00333', 45000000, 16,'SOLD','Nguyễn Thị Hồng','0912345678', 6,53000000,20000000,'CASH',14,10000000),
+      ('Xe tay ga','Hồng',2023,'59N1-555.55','RLHYC2023AA00444', 25000000, 98,'SOLD','Lê Hoàng Phúc','0978654321', 35,30000000,10000000,'BANK_TRANSFER',-10,0),
+      ('Xe tay ga','Xanh titan',2025,'59P1-606.06','RLHKC2025AA00555', 41000000, 5,'SOLD','Phạm Thu Hà','0988776655', 0,48000000,48000000,'BANK_TRANSFER',0,0),
+      ('Xe tay ga','Xanh',2023,'59V1-999.99','RLPIA2023AA00666', 48000000, 150,'SOLD','Đặng Văn Khoa','0905111222', 62,58000000,58000000,'CASH',0,0)
     ) as d(vehicle_type,color,year,plate,frame,purchase,age,state,cust,phone,saleage,price,init,method,dueoff,addpay)
   loop
     v_purchase_date := v_today - v_row.age;
@@ -115,7 +115,7 @@ begin
   -- Một thương vụ thu vào đã hủy để màn hình Thu vào có trạng thái CANCELLED.
   v_vehicle := public.acquire_vehicle(jsonb_build_object(
     'request_id', gen_random_uuid(),
-    'frame_number', 'RLSUZ2022AA00888', 'license_plate', '59-A1 313.13',
+    'frame_number', 'RLSUZ2022AA00888', 'license_plate', '59A1-313.13',
     'vehicle_type', 'Xe tay ga', 'color', 'Đen', 'year', 2022,
     'purchase_price', 15000000,
     'acquisition_date', (v_today - 80)::text,

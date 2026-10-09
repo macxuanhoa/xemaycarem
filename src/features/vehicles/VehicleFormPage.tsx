@@ -10,9 +10,16 @@ import { executeOperation } from "@/lib/operationRecovery";
 import { OperationRecoveryNotice } from "@/components/OperationRecoveryNotice";
 import { today } from "@/lib/format";
 import { canonicalizePlate, PLATE_EXAMPLE } from "@/lib/plate";
-import { useDebouncedValue } from "@/lib/useDebouncedValue";
 import { canFinance, canManage, canOperate } from "@/lib/permissions";
 import { useAuth } from "@/features/auth/AuthProvider";
+import {
+  useVehicleDuplicateCheck,
+} from "@/lib/vehicleDuplicateCheck";
+import {
+  FrameKindSegmented,
+  DuplicateInspector,
+} from "@/components/VehicleDuplicateCheck";
+import { compactFrame, frameKindFromCompact, type FrameInputKind } from "@/lib/frameNumber";
 import {
   Button,
   Card,
@@ -28,12 +35,10 @@ import type { Vehicle } from "@/types";
 import { vehicleSchema, type VehicleFormValues } from "./vehicleSchema";
 import { MoneyInput } from "@/components/ui/MoneyInput";
 import { AutocompleteInput } from "@/components/ui/AutocompleteInput";
-import { QuickChips } from "@/components/ui/QuickChips";
 import { saveRecentValue } from "@/lib/recentVehicles";
 import { useFormDraft } from "@/lib/useFormDraft";
 import { vehicleSuggestions } from "@/lib/vehicleSuggestions";
 import { useVehicleTypes } from "@/lib/useVehicleTypes";
-import { vehicleTitle } from "@/lib/vehicleDisplay";
 import { compressImage } from "@/lib/imageCompression";
 import type { Paged } from "@/types";
 
@@ -114,6 +119,8 @@ function VehicleEditor({ vehicle }: { vehicle?: Vehicle }) {
       year: vehicle?.year ?? undefined,
       color: vehicle?.color ?? "",
       frame_number: vehicle?.frame_number ?? "",
+      frame_input_kind: vehicle?.frame_input_kind ?? "FULL",
+      duplicate_ack: false,
       purchase_date: vehicle?.purchase_date ?? today(),
       purchase_price: vehicle?.purchase_price ?? undefined,
       supplier_name: vehicle?.supplier_name ?? "",
@@ -132,24 +139,24 @@ function VehicleEditor({ vehicle }: { vehicle?: Vehicle }) {
     profile?.id,
     form,
   );
-  const rawFrame = form.watch("frame_number").trim();
-  const checkedFrame = useDebouncedValue(rawFrame, 450);
-  const duplicateQuery = useQuery({
-    queryKey: ["vehicle-frame-check", profile?.id, checkedFrame],
-    queryFn: () =>
-      api.call<Paged<Vehicle>>("list_vehicles", {
-        p_filters: { search: checkedFrame, limit: 100 },
-      }),
-    enabled: checkedFrame.length > 0 && checkedFrame === rawFrame,
+  const rawFrame = form.watch("frame_number");
+  const rawPlate = form.watch("license_plate");
+  const frameKind = (form.watch("frame_input_kind") ?? "FULL") as FrameInputKind;
+  const dupCheck = useVehicleDuplicateCheck({
+    frameNumber: rawFrame,
+    licensePlate: rawPlate,
+    frameInputKind: frameKind,
+    excludeVehicleId: vehicle?.id ?? null,
   });
-  const duplicate =
-    checkedFrame === rawFrame && rawFrame.length > 0
-      ? duplicateQuery.data?.items.find(
-          (item) =>
-            item.id !== vehicle?.id &&
-            item.frame_number?.trim().toUpperCase() === rawFrame.toUpperCase(),
-        )
-      : undefined;
+  // Xác nhận YELLOW chỉ có giá trị với đúng chữ ký đang hiển thị; đổi
+  // biển/khung/loại thì hạ ack để bắt đối chiếu lại.
+  const [acknowledged, setAcknowledged] = useState(false);
+  useEffect(() => {
+    setAcknowledged(false);
+  }, [dupCheck.level, rawFrame, rawPlate, frameKind]);
+  const blockSave =
+    dupCheck.settled &&
+    (dupCheck.level === "RED" || (dupCheck.level === "YELLOW" && !acknowledged));
 
   const catalog = useQuery({
     queryKey: ["vehicle-form-suggestions", profile?.id],
@@ -167,23 +174,18 @@ function VehicleEditor({ vehicle }: { vehicle?: Vehicle }) {
       shouldDirty: true,
       shouldValidate: !!form.formState.errors[field],
     });
-  const selectVehicleType = (id: string) =>
-    form.setValue("vehicle_type_id", id, {
-      shouldDirty: true,
-      shouldValidate: !!form.formState.errors.vehicle_type_id,
-    });
 
   const mutation = useMutation({
     mutationFn: async (values: VehicleFormValues) => {
       if (financial && values.purchase_price === undefined)
         throw new AppError("Vui lòng nhập giá mua xe.");
-      if (duplicate)
-        throw new AppError(
-          `Số khung đã tồn tại trên xe khác: ${vehicleTitle(duplicate)} (${duplicate.internal_code}).`,
-        );
       const data: Record<string, unknown> = {
         ...values,
         license_plate: canonicalizePlate(values.license_plate),
+        frame_number: compactFrame(values.frame_number)
+          ? values.frame_number.trim().toUpperCase()
+          : "",
+        duplicate_ack: acknowledged,
         year: values.year ?? null,
         ...(vehicle && expectedRevision ? { expected_updated_at: expectedRevision } : {}),
       };
@@ -343,22 +345,52 @@ function VehicleEditor({ vehicle }: { vehicle?: Vehicle }) {
                 />
               </Field>
               <Field label="Số khung" error={error("frame_number")}>
-                <input {...form.register("frame_number")} />
-                {duplicate && (
-                  <p
-                    className="notice danger"
-                    style={{
-                      marginTop: "6px",
-                      fontSize: "12px",
-                      background: "#fef2f2",
-                      borderColor: "#fecdd3",
-                      color: "#9c493d",
+                <input
+                  {...form.register("frame_number")}
+                  autoCapitalize="characters"
+                  placeholder={
+                    frameKind === "PARTIAL" ? "5 ký tự cuối" : "Số khung đầy đủ (nếu có)"
+                  }
+                  onBlur={(event) => {
+                    if (event.target.value.trim()) {
+                      form.setValue(
+                        "frame_number",
+                        event.target.value.trim().toUpperCase(),
+                        { shouldValidate: true, shouldDirty: true },
+                      );
+                    }
+                  }}
+                />
+                <div className="frame-kind-row">
+                  <span className="muted small">Loại dữ liệu số khung</span>
+                  <FrameKindSegmented
+                    kind={frameKind}
+                    disabled={mutation.isPending || !!savedId}
+                    onChange={(next) => {
+                      form.setValue("frame_input_kind", next, {
+                        shouldDirty: true,
+                        shouldValidate: true,
+                      });
+                      if (next === "FULL") {
+                        const derived = frameKindFromCompact(compactFrame(rawFrame));
+                        if (derived !== "FULL")
+                          form.setError("frame_number", {
+                            message:
+                              "Số khung đang nhập có vẻ là rút gọn. Hãy nhập đủ hoặc giữ ở mục “5 ký tự cuối”.",
+                          });
+                      }
                     }}
-                  >
-                    Số khung này đã tồn tại trên xe: {vehicleTitle(duplicate)} (
-                    {duplicate.internal_code})
-                  </p>
-                )}
+                  />
+                </div>
+                <DuplicateInspector
+                  checking={dupCheck.isChecking}
+                  error={dupCheck.isError}
+                  result={dupCheck.result}
+                  hasSignal={dupCheck.hasSignal}
+                  acknowledged={acknowledged}
+                  onAcknowledge={setAcknowledged}
+                  onRetry={() => void dupCheck.refetch()}
+                />
               </Field>
               <Field label="Trạng thái">
                 <select {...form.register("status")}>
@@ -370,12 +402,6 @@ function VehicleEditor({ vehicle }: { vehicle?: Vehicle }) {
                 </select>
               </Field>
             </div>
-            <QuickChips
-              label="Chọn loại nhanh"
-              options={vehicleTypes.chips}
-              selected={form.watch("vehicle_type_id")}
-              onSelect={selectVehicleType}
-            />
           </Card>
           <Card>
             <div className="section-heading">
@@ -388,10 +414,6 @@ function VehicleEditor({ vehicle }: { vehicle?: Vehicle }) {
                 trước khi bán xe.
               </p>
             )}
-            <p className="notice">
-              Hệ thống không lưu giá bán dự kiến. Giá chỉ được ghi nhận khi lập
-              phiếu Bán xe và không tự điền từ bất kỳ đâu.
-            </p>
             <div className="form-grid">
               <Field label="Ngày nhập kho *" error={error("purchase_date")}>
                 <DatePicker
@@ -519,14 +541,18 @@ function VehicleEditor({ vehicle }: { vehicle?: Vehicle }) {
           >
             Quay lại
           </Link>
-          <Button type="submit" disabled={mutation.isPending}>
+          <Button type="submit" disabled={mutation.isPending || blockSave}>
             {mutation.isPending
               ? "Đang lưu…"
-              : savedId
-                ? "Thử tải ảnh còn lại"
-                : vehicle
-                  ? "Lưu thay đổi"
-                  : "Lưu xe mới"}
+              : blockSave
+                ? dupCheck.level === "RED"
+                  ? "Nghi trùng — không lưu được"
+                  : "Cần xác nhận để lưu"
+                : savedId
+                  ? "Thử tải ảnh còn lại"
+                  : vehicle
+                    ? "Lưu thay đổi"
+                    : "Lưu xe mới"}
           </Button>
         </div>
       </form>

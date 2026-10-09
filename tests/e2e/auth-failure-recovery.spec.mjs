@@ -287,7 +287,7 @@ test("A mutation rejected with expired JWT retains input and never shows saved s
   await page.getByLabel("Loại xe *", { exact: true }).selectOption({ index: 1 });
   await page
     .getByLabel("Biển số", { exact: true })
-    .fill("59-A1 234.56");
+    .fill("59A1-234.56");
   await page.getByRole("button", { name: "Lưu xe mới", exact: true }).click();
   await expect(
     page.getByText("Phiên làm việc đã hết hạn. Vui lòng đăng nhập lại.", {
@@ -297,7 +297,7 @@ test("A mutation rejected with expired JWT retains input and never shows saved s
   await expect(page).toHaveURL(/\/vehicles\/new$/);
   await expect(
     page.getByLabel("Biển số", { exact: true }),
-  ).toHaveValue("59-A1 234.56");
+  ).toHaveValue("59A1-234.56");
   expect(attempts).toBe(1);
 });
 

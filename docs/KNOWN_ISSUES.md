@@ -60,7 +60,7 @@ A fresh local production build shows a 767.00 kB initial JavaScript entry (229.7
 - Native browser Back cannot display the same route-blocking prompt as an internal link. Nonfinancial draft data may be recovered; monetary values are deliberately not stored.
 - Image uploads retry while the current page session remains open; there is no durable offline upload queue.
 - Customer identity is grouped by phone. A phone shared by multiple people is warned about but still needs a human to choose the right sale before collection.
-- Normal acquire_vehicle/save_vehicle frame-number uniqueness follows existing server behavior; import additionally checks chassis and plate case-insensitively while preserving submitted display text. After the 08/10/2026 field purge there is no engine-number column at all, so `validate_import_vehicles` compares only `frame_number` and `license_plate` (migration `20261008000300`, duplicate loop over `ARRAY['frame_number','license_plate']`).
+- Normal `acquire_vehicle`/`save_vehicle` frame handling follows the smart-duplicate engine (see the section below), not a plain `UNIQUE(frame_number)`: FULL VINs stay hard-unique on the compact form, PARTIAL fragments are advisory only. Import keeps its own exact-duplicate check: after the 08/10/2026 field purge there is no engine-number column, so `validate_import_vehicles` compares only `frame_number` and `license_plate` (migration `20261008000300`, duplicate loop over `ARRAY['frame_number','license_plate']`) — this exact-match path is unchanged by the duplicate-detection feature.
 
 ## Vehicle field purge — consequences staff and operators must know (08/10/2026)
 
@@ -73,6 +73,16 @@ A fresh local production build shows a 767.00 kB initial JavaScript entry (229.7
 - Deno is not installed on the current workstation, so `node scripts/check-edge-native.mjs` cannot run locally (it fails with `spawn deno ENOENT`, which is an environment gap, not a code failure). `check-edge-types.mjs` passes with local platform types; native edge resolution must be verified before any function deploy.
 
 Last reviewed: 2026-10-08
+
+## Smart vehicle duplicate detection — operator notes and limits (09/10/2026)
+
+- **Migration `20261009000200` is LOCAL/PENDING — it is NOT applied to production.** It DROPs the plain `UNIQUE(frame_number)` constraint and replaces it with a partial unique index; that operation is hard to reverse, so the release protocol (fresh same-day dump → pre-flight audit → `db push --dry-run` → push → verify) and explicit OWNER authorization are mandatory before applying. The pre-flight block fails closed (`DUPLICATE_DETECTION_PREFLIGHT_FAILED`) if existing non-cancelled FULL frames collide after character-compaction — reconcile those by hand first.
+- **A repeated plate on an otherwise-new vehicle is YELLOW, not GREEN.** Two bikes genuinely cannot share a Vietnamese plate, so the form asks the staff member to confirm the list before saving (recorded in `public.vehicle_duplicate_checks`). This is soft, not a block — but it does mean a batch of synthetic fixtures with a constant placeholder plate now needs a distinct plate or an acknowledgement; the existing DB suites were updated accordingly (`scripts/test-db.mjs` gives each fixture a unique plate; `tests/db/plate-display-format.test.mjs` seeds its intentional same-plate spellings with `duplicate_ack`). Do NOT treat that fixture churn as a product regression.
+- **RED is a hard block by decision, not a bug**: same plate AND same last-5, an existing FULL VIN (including a SOLD bike), or a PARTIAL↔FULL last-5 clash stop the save until the operator enters the full frame or opens the existing record. If a legitimate re-acquire of a SOLD bike must create a new receipt, that is a separate confirmed flow to design — today it routes to the existing file.
+- **`frame_number` for a PARTIAL row is stored verbatim (the 5 typed characters), not padded** — `frame_compact`/`frame_last5` keep leading zeros as text. A future feature that needs the full VIN back must capture it in a later edit; there is no server-side expansion.
+- **Race protection for PARTIAL rows depends entirely on `pg_advisory_xact_lock`**, because PARTIAL has no database uniqueness constraint. The behavior is only exercised on multi-session PostgreSQL (`node scripts/test-db.mjs`); PGlite is single-session and skips that case. Any refactor that removes the advisory lock from the save path silently reintroduces the double-insert window for fragment-only data.
+
+Last reviewed: 2026-10-09
 
 ## Deployment note
 

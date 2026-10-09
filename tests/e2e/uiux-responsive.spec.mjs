@@ -55,7 +55,7 @@ for (const width of [320, 360, 375, 390, 430]) {
     ).toBeGreaterThanOrEqual(16);
     await input.fill("43-A1");
     await expect(
-      dialog.getByRole("button", { name: /43-A1 123\.45 · RLH/ }).first(),
+      dialog.getByRole("button", { name: /43A1-123\.45 · RLH/ }).first(),
     ).toBeVisible();
     await page.setViewportSize({ width, height: 450 });
     await expect
@@ -162,6 +162,18 @@ test("Sale review uses intended values and cancellation preserves form without w
   ).toBeVisible();
   await expect(dialog.getByText("Chuyển khoản", { exact: true })).toBeVisible();
   await expect(dialog.getByText("25.000.000 ₫", { exact: true })).toBeVisible();
+  // Danh tính xe phải hiện rõ trong dialog: biển số và số khung có tile riêng
+  // (giá trị nguyên văn, không bị gộp vào chuỗi tiêu đề), và giá bán nằm ở
+  // hero block tách riêng.
+  await expect(
+    dialog.locator(".vehicle-id-plate .vehicle-id-value"),
+  ).toHaveText("43A1-123.45");
+  await expect(
+    dialog.locator(".vehicle-id-frame .vehicle-id-value"),
+  ).toHaveText("RLH123456789012345");
+  await expect(
+    dialog.locator(".sale-review-price-hero .sale-review-price-value"),
+  ).toHaveText("35.000.000 ₫");
   expect(await dialog.getAttribute("aria-describedby")).toBeTruthy();
   expect(writes).toHaveLength(0);
   await dialog
@@ -214,54 +226,32 @@ test("Collected amount tracks the price until staff adjust it; overpayment stays
   );
 });
 
-test("Sell summary card keeps the vehicle identity inside its frame and the confirm action separated", async ({
+test("Sell summary card drops the duplicated vehicle identity and keeps the confirm action separated", async ({
   page,
 }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await installUiuxMock(page);
   await page.goto(`/vehicles/${vehicleId}/sell`);
-  await expect(
-    page.locator(".sale-vehicle-head .vehicle-icon.large"),
-  ).toBeVisible();
+  // Aside chỉ còn block tóm tắt tiền + hành động: nhân viên đã thấy xe ở
+  // breadcrumb + dialog kiểm tra, không lặp lại danh tính ngay cạnh nút bấm.
+  await expect(page.locator(".sale-vehicle-head")).toHaveCount(0);
+  await expect(page.locator(".vehicle-icon.large")).toHaveCount(0);
   await expect(page.locator(".sale-action-footer button")).toBeVisible();
   const geometry = await page.evaluate(() => {
-    const icon = document.querySelector(
-      ".sale-vehicle-head .vehicle-icon.large",
-    );
-    const glyph = icon?.querySelector("svg");
-    const title = document.querySelector(".sale-vehicle-head-text h2");
-    const head = document.querySelector(".sale-vehicle-head");
+    const summary = document.querySelector("aside .summary-list");
     const footer = document.querySelector(".sale-action-footer");
     const box = (node) => node?.getBoundingClientRect();
-    const iconBox = box(icon);
-    const glyphBox = box(glyph);
     const style = footer ? getComputedStyle(footer) : null;
     return {
-      icon: iconBox && { w: iconBox.width, h: iconBox.height },
-      glyphInsideFrame:
-        !!iconBox &&
-        !!glyphBox &&
-        glyphBox.left >= iconBox.left &&
-        glyphBox.right <= iconBox.right &&
-        glyphBox.top >= iconBox.top &&
-        glyphBox.bottom <= iconBox.bottom,
-      titleBesideIcon:
-        !!box(title) &&
-        !!iconBox &&
-        title.getBoundingClientRect().left >= iconBox.right,
-      footerBelowIdentity:
-        !!box(head) &&
+      footerBelowSummary:
+        !!box(summary) &&
         !!box(footer) &&
-        footer.getBoundingClientRect().top >=
-          head.getBoundingClientRect().bottom,
+        footer.getBoundingClientRect().top >= summary.getBoundingClientRect().bottom,
       footerGap: style ? parseFloat(style.marginTop) : -1,
       footerDivides: style ? parseFloat(style.borderTopWidth) : -1,
     };
   });
-  expect(geometry.icon).toEqual({ w: 56, h: 56 });
-  expect(geometry.glyphInsideFrame).toBe(true);
-  expect(geometry.titleBesideIcon).toBe(true);
-  expect(geometry.footerBelowIdentity).toBe(true);
+  expect(geometry.footerBelowSummary).toBe(true);
   expect(geometry.footerGap).toBeGreaterThanOrEqual(16);
   expect(geometry.footerDivides).toBeGreaterThanOrEqual(1);
   // Only the necessary copy remains: no explanatory paragraph about cost locking.
@@ -424,8 +414,8 @@ test("Sell picker rows stay inside the card and never fake a 0 ₫ price", async
               vehicle_type_id: "vt-so",
               vehicle_type: "Xe số",
               frame_number: "MH3BY31YXPJ0000020",
-              license_plate: "92-D1 728.28",
-              vehicle_title: "92-D1 728.28 · MH3BY31YXPJ0000020",
+              license_plate: "92D1-728.28",
+              vehicle_title: "92D1-728.28 · MH3BY31YXPJ0000020",
               vehicle_subtitle: "Xe số · 2022 · Trắng",
               cost_pending: false,
               status: "IN_STOCK",

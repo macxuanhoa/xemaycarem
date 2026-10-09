@@ -48,11 +48,10 @@ import { VehicleQr } from "./VehicleQr";
 import { IdentityDocumentPanel } from "@/components/IdentityDocumentPanel";
 import { vehicleSubtitle, vehicleTitle } from "@/lib/vehicleDisplay";
 
-const identifierLabels = new Set([
-  "Biển số",
-  "Số khung",
-  "SĐT nhà cung cấp",
-]);
+// The plate and VIN are promoted to the hero tiles at the top of the page,
+// so within the secondary details list only the supplier phone keeps the
+// monospace + copy treatment.
+const identifierLabels = new Set(["SĐT nhà cung cấp"]);
 
 export function VehicleDetailPage() {
   const { id } = useParams();
@@ -156,12 +155,7 @@ export function VehicleDetailPage() {
       <div className="vehicle-identity">
         <PageHeader
           title={vehicleTitle(vehicle)}
-          description={[
-            vehicle.internal_code || "Chưa có mã xe",
-            vehicleSubtitle(vehicle),
-          ]
-            .filter(Boolean)
-            .join(" · ")}
+          description={vehicle.internal_code || "Chưa có mã xe"}
           actions={
             hasVehicleActions ? (
               <div className="vehicle-actions-menu-wrap">
@@ -247,6 +241,56 @@ export function VehicleDetailPage() {
             ) : undefined
           }
         />
+        {/* Priority identity: descriptive vehicle name leads, then biển số and
+            số khung render as large emphasized tiles with their own copy
+            actions — the facts staff verify on every transaction. */}
+        <div className="vehicle-identity-hero">
+          <p className="vehicle-identity-name">
+            {vehicleSubtitle(vehicle) || "Chưa phân loại"}
+          </p>
+          <div className="vehicle-id-strip">
+            <div className="vehicle-id-tile vehicle-id-plate">
+              <span className="vehicle-id-label">Biển số</span>
+              <div className="vehicle-id-value-row">
+                <strong className="vehicle-id-value">
+                  {vehicle.license_plate || "Chưa có biển số"}
+                </strong>
+                {vehicle.license_plate && (
+                  <button
+                    className="icon-button copy-button vehicle-id-copy"
+                    type="button"
+                    aria-label="Sao chép biển số"
+                    onClick={() =>
+                      void copyValue("Biển số", vehicle.license_plate)
+                    }
+                  >
+                    <Copy size={15} />
+                  </button>
+                )}
+              </div>
+            </div>
+            <div className="vehicle-id-tile vehicle-id-frame">
+              <span className="vehicle-id-label">Số khung</span>
+              <div className="vehicle-id-value-row">
+                <code className="vehicle-id-value">
+                  {vehicle.frame_number || "Chưa có số khung"}
+                </code>
+                {vehicle.frame_number && (
+                  <button
+                    className="icon-button copy-button vehicle-id-copy"
+                    type="button"
+                    aria-label="Sao chép số khung"
+                    onClick={() =>
+                      void copyValue("Số khung", vehicle.frame_number)
+                    }
+                  >
+                    <Copy size={15} />
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
         <div className="row vehicle-identity-meta">
           <Badge status={vehicle.status} />
           {available && (
@@ -333,13 +377,13 @@ export function VehicleDetailPage() {
           </section>
           <Card>
             <h2 className="section-title">Thông tin chi tiết</h2>
+            {/* Secondary specs only: biển số and số khung live in the identity
+                hero now, so the list keeps the remaining registration info. */}
             <dl className="details-list">
               {[
                 ["Loại xe", vehicle.vehicle_type],
                 ["Năm sản xuất", vehicle.year],
                 ["Màu sắc", vehicle.color],
-                ["Biển số", vehicle.license_plate],
-                ["Số khung", vehicle.frame_number],
                 ["Ngày nhập kho", dateLabel(vehicle.purchase_date)],
                 ["Nhà cung cấp", vehicle.supplier_name],
                 ["SĐT nhà cung cấp", vehicle.supplier_phone],

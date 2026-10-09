@@ -103,7 +103,7 @@ export function parseShorthandMoney(raw: string): number | null {
   return null;
 }
 
-/** Vietnamese plate: 29b1 123.45 / 51X1-887.65 / 29-A1-1234 → "29-B1 123.45".
+/** Vietnamese plate: 29b1 123.45 / 51X1-887.65 / 29-A1-1234 → "29B1-123.45".
  *  The canonical implementation lives in `@/lib/plate`; re-exported here so the
  *  shorthand parser and its callers keep a single source of truth. */
 export { normalizePlate };

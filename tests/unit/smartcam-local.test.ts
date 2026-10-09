@@ -17,17 +17,18 @@ import { alignCreatedIds, hasTrustedIds } from "../../src/lib/smartcam/correlate
 
 describe("plate OCR candidate parsing", () => {
   it("accepts raw, dashed and glued plate renderings with the validator as gate", () => {
-    expect(parsePlateCandidates("59-B1 234.56", 90).map((c) => c.value)).toContain("59-B1 234.56");
-    expect(parsePlateCandidates("59B123456", 90).map((c) => c.value)).toContain("59-B1 234.56");
-    expect(parsePlateCandidates("59-A1\n234.56", 90).map((c) => c.value)).toContain("59-A1 234.56");
-    expect(parsePlateCandidates("29-B1 \n 1234", 90).map((c) => c.value)).toContain("29-B1 1234");
-    expect(parsePlateCandidates("43-C1\r\n888.88", 90).map((c) => c.value)).toContain("43-C1 888.88");
-    expect(parsePlateCandidates("bien so 30-D2 888.88 trong khung", 80).map((c) => c.value)).toContain("30-D2 888.88");
+    expect(parsePlateCandidates("59-B1 234.56", 90).map((c) => c.value)).toContain("59B1-234.56");
+    expect(parsePlateCandidates("59B123456", 90).map((c) => c.value)).toContain("59B1-234.56");
+    expect(parsePlateCandidates("59-A1\n234.56", 90).map((c) => c.value)).toContain("59A1-234.56");
+    expect(parsePlateCandidates("29-B1 \n 1234", 90).map((c) => c.value)).toContain("29B1-1234");
+    expect(parsePlateCandidates("43-C1\r\n888.88", 90).map((c) => c.value)).toContain("43C1-888.88");
+    expect(parsePlateCandidates("bien so 30-D2 888.88 trong khung", 80).map((c) => c.value)).toContain("30D2-888.88");
+    expect(parsePlateCandidates("59B1-234.56", 90).map((c) => c.value)).toContain("59B1-234.56");
   });
   it("rescues glyph confusions but discounts their confidence", () => {
     const clean = parsePlateCandidates("59-B1 234.56", 90);
     const confused = parsePlateCandidates("59-BI 234.56", 90);
-    expect(confused.map((c) => c.value)).toContain("59-B1 234.56");
+    expect(confused.map((c) => c.value)).toContain("59B1-234.56");
     expect(bestCandidate(confused)!.confidence).toBeLessThanOrEqual(90);
     expect(bestCandidate(clean)!.confidence).toBe(90);
   });
@@ -41,8 +42,18 @@ describe("plate OCR candidate parsing", () => {
   it("accepts legacy and special province codes plate.ts deems canonical", () => {
     // 11/12/14/15–20 are real current-or-legacy prefixes; 80 is government-
     // bound machinery plates; the camera layer only mirrors canonical rules.
-    for (const plate of ["11-B5 123.45", "12-A2 345.67", "14-D1 555.55", "17-A3 111.11", "19-B1 222.33", "20-C2 444.55", "80-A3 999.99", "99-P1 123.45"]) {
-      expect(parsePlateCandidates(plate, 90).map((c) => c.value), plate).toContain(plate);
+    const cases: [string, string][] = [
+      ["11-B5 123.45", "11B5-123.45"],
+      ["12-A2 345.67", "12A2-345.67"],
+      ["14-D1 555.55", "14D1-555.55"],
+      ["17-A3 111.11", "17A3-111.11"],
+      ["19-B1 222.33", "19B1-222.33"],
+      ["20-C2 444.55", "20C2-444.55"],
+      ["80-A3 999.99", "80A3-999.99"],
+      ["99-P1 123.45", "99P1-123.45"],
+    ];
+    for (const [raw, canonical] of cases) {
+      expect(parsePlateCandidates(raw, 90).map((c) => c.value), raw).toContain(canonical);
     }
   });
 });
@@ -66,32 +77,32 @@ describe("frame OCR candidate parsing", () => {
     const draft = candidatesFromOcr("bien so 59-B1 234.56 khung RLH160KD12345", 90);
     // Không còn khoá nào thuộc nhóm trường đã bị xoá vĩnh viễn.
     expect(Object.keys(draft).sort()).toEqual(["frame_number", "license_plate"]);
-    expect(draft.license_plate).toBe("59-B1 234.56");
+    expect(draft.license_plate).toBe("59B1-234.56");
   });
 });
 
 describe("stable-frame voting and adaptive sampling", () => {
   it("only settles after repeated identical reads with enough confidence", () => {
-    let outcome = pushVote(null, "59-B1 234.56", 90);
+    let outcome = pushVote(null, "59B1-234.56", 90);
     expect(outcome.settled).toBe(false);
-    outcome = pushVote(outcome.state, "59-B1 234.56", 85);
+    outcome = pushVote(outcome.state, "59B1-234.56", 85);
     expect(outcome.settled).toBe(true);
     expect(outcome.confidence).toBeCloseTo(87.5);
   });
   it("a high-confidence one-off guess never fires, a changed read restarts", () => {
-    let outcome = pushVote(null, "59-B1 234.56", 99);
+    let outcome = pushVote(null, "59B1-234.56", 99);
     expect(outcome.settled).toBe(false);
-    outcome = pushVote(outcome.state, "59-B1 234.57", 99);
+    outcome = pushVote(outcome.state, "59B1-234.57", 99);
     expect(outcome.state?.count).toBe(1);
     expect(outcome.settled).toBe(false);
   });
   it("low-confidence streaks do not settle even when repeated", () => {
-    let outcome = pushVote(null, "61-B1 777.77", 40);
-    outcome = pushVote(outcome.state, "61-B1 777.77", 40);
+    let outcome = pushVote(null, "61B1-777.77", 40);
+    outcome = pushVote(outcome.state, "61B1-777.77", 40);
     expect(outcome.settled).toBe(false);
   });
   it("an unreadable tick resets the streak (scene moved on)", () => {
-    const half = pushVote(null, "59-B1 234.56", 90);
+    const half = pushVote(null, "59B1-234.56", 90);
     const reset = pushVote(half.state, "", 0);
     expect(reset.state).toBeNull();
     expect(reset.settled).toBe(false);

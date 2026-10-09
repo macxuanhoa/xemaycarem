@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { dateValue, moneyValue } from "@/lib/validation";
 import { isValidMotorbikePlate, PLATE_INVALID_MESSAGE } from "@/lib/plate";
+import { compactFrame } from "@/lib/frameNumber";
 
 // Re-export validation primitives
 export { moneyValue, dateValue };
@@ -32,13 +33,34 @@ export const vehicleSchema = z.object({
     .max(new Date().getFullYear() + 1)
     .optional(),
   color: z.string().trim().max(60),
-  frame_number: z.string().trim().max(100),
+  // Số khung: FULL = VIN đầy đủ (có thể để trống → server sinh GEN placeholder);
+  // PARTIAL = mảnh rút gọn, bắt buộc đủ 5 ký tự chữ+số để phục vụ phát hiện.
+  frame_number: z
+    .string()
+    .trim()
+    .max(100, "Số khung tối đa 100 ký tự."),
+  // Optional: forms always send it; absent ⇒ server derives FULL/PARTIAL from
+  // the compact length (private.frame_kind), so a fragment never gets mis-stored.
+  frame_input_kind: z.enum(["FULL", "PARTIAL"]).optional(),
+  // Bật khi nhân viên đã đối chiếu danh sách xe tương tự ở mức YELLOW.
+  duplicate_ack: z.boolean().optional(),
   purchase_date: dateValue,
   purchase_price: moneyValue.optional(),
   supplier_name: z.string().trim().max(160),
   supplier_phone: z.string().trim().max(30),
   status: z.enum(["IN_STOCK", "RESERVED", "CANCELLED"]),
   notes: z.string().trim().max(5000),
+});
+
+vehicleSchema.superRefine((values, ctx) => {
+  const compact = compactFrame(values.frame_number);
+  if (values.frame_input_kind === "PARTIAL" && compact.length > 0 && compact.length < 5) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["frame_number"],
+      message: "Số khung rút gọn cần đủ 5 ký tự (chữ hoặc số).",
+    });
+  }
 });
 
 export type VehicleFormValues = z.infer<typeof vehicleSchema>;

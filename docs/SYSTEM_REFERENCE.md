@@ -15,6 +15,7 @@ Toàn bộ hàm `public` mà ứng dụng gọi được, lấy từ định ngh
 | cancel_sale | p_id uuid,p_reason text | OWNER, MANAGER |
 | check_user_access | không tham số | kiểm tra quyền riêng trong hàm |
 | check_user_can_hard_delete | p_user_id UUID | OWNER |
+| check_vehicle_duplicates | p_data jsonb | OWNER, MANAGER, STAFF |
 | claim_message | p_message_id uuid,p_provider_mode text | OWNER, MANAGER, STAFF |
 | complete_password_change | không tham số | kiểm tra quyền riêng trong hàm |
 | create_showroom_lead | p_data jsonb | kiểm tra quyền riêng trong hàm |

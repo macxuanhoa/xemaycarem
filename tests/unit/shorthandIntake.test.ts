@@ -65,10 +65,14 @@ describe("parseShorthandMoney", () => {
 
 describe("normalizePlate", () => {
   it("normalizes common phone-note spellings to the real VN format", () => {
-    expect(normalizePlate("29b1-123.45")).toBe("29-B1 123.45");
-    expect(normalizePlate("51X1-887.65")).toBe("51-X1 887.65");
-    expect(normalizePlate("29-A1-1234")).toBe("29-A1 1234");
-    expect(normalizePlate("29b1.123.45")).toBe("29-B1 123.45");
+    expect(normalizePlate("29b1-123.45")).toBe("29B1-123.45");
+    expect(normalizePlate("51X1-887.65")).toBe("51X1-887.65");
+    expect(normalizePlate("29-A1-1234")).toBe("29A1-1234");
+    expect(normalizePlate("29b1.123.45")).toBe("29B1-123.45");
+    // Space-separated input and the pre-overhaul stored canonical form must
+    // keep folding to the dash form (existing rows are only re-saved lazily).
+    expect(normalizePlate("29b1 123.45")).toBe("29B1-123.45");
+    expect(normalizePlate("59-A1 234.56")).toBe("59A1-234.56");
   });
   it("does not treat frames or plain numbers as plates", () => {
     expect(normalizePlate("RLH160-001")).toBeNull();
@@ -81,7 +85,7 @@ describe("parseIntakeNotes", () => {
     const fields = parseFirst("den bs 29b1-123.45 nam 22 gia 18tr5");
     expect(fields).toMatchObject({
       color: "Đen",
-      license_plate: "29-B1 123.45",
+      license_plate: "29B1-123.45",
       year: "2022",
       purchase_price: "18500000",
     });
@@ -208,7 +212,7 @@ describe("parseIntakeNotes", () => {
     // bucket; the odometer field no longer exists at all, so the leak can
     // only ever show up as an unknown token — assert both halves of that.
     const fields = parseFirst("den 29b1 123.45 gia 18tr5");
-    expect(fields.license_plate).toBe("29-B1 123.45");
+    expect(fields.license_plate).toBe("29B1-123.45");
     expect(fields).not.toHaveProperty("odometer");
     expect(fields.purchase_price).toBe("18500000");
   });
@@ -328,7 +332,7 @@ describe("intake payload", () => {
   it("maps supplier fields to the single-vehicle form names", () => {
     const draft = entryToAcquisitionDraft(entry, TYPES);
     expect(draft.frame_number).toBe("RLH160-001");
-    expect(draft.license_plate).toBe("29-B1 123.45");
+    expect(draft.license_plate).toBe("29B1-123.45");
     expect(draft.vehicle_type_id).toBe("t-ga");
     expect(draft.purchase_date).toBeUndefined();
   });

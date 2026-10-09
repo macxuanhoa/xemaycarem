@@ -2918,6 +2918,238 @@ pre {
 [data-theme="dark"] .vehicle-actions-menu-danger:focus-visible {
   background: rgba(244, 63, 94, 0.12);
 }
+/* Xe hành động (VehicleActionsSheet): danh sách thao tác dạng hàng — icon
+   khung màu mềm bên trái, nhãn thẳng hàng, mũi tên cho điều hướng. Desktop
+   là thẻ modal gọn; mobile neo đáy kiểu bottom sheet có tay nắm. */
+.vehicle-actions-sheet {
+  width: min(420px, 100%);
+  padding: 18px;
+}
+.vas-handle {
+  display: none;
+}
+.vas-header {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  margin-bottom: 14px;
+}
+.vas-dot {
+  flex: 0 0 auto;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  border: 1px solid rgba(15, 23, 42, 0.14);
+  box-shadow: inset 0 0 0 1.5px rgba(255, 255, 255, 0.35);
+}
+.vas-heading {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.vas-heading h3 {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 1.3;
+  letter-spacing: -0.2px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.vas-subtitle {
+  margin: 2px 0 0;
+  font-size: 12px;
+  color: #64748b;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.vas-close {
+  flex: 0 0 auto;
+}
+.vas-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.vas-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 9px 10px;
+  border: 1px solid transparent;
+  border-radius: 12px;
+  background: transparent;
+  color: #1e293b;
+  font-size: 14px;
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+.vas-row:hover {
+  background: #f6f7fb;
+  border-color: #e8ebf3;
+}
+.vas-row:active {
+  background: #eef0f7;
+}
+.vas-tile {
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+}
+.vas-tile-neutral {
+  background: #f1f5f9;
+  color: #475569;
+}
+.vas-tile-primary {
+  background: #eef2ff;
+  color: #4f46e5;
+}
+.vas-row-primary {
+  color: #4338ca;
+}
+.vas-row-primary:hover {
+  background: #eef2ff;
+  border-color: #e0e7ff;
+}
+.vas-row-primary:active {
+  background: #e0e7ff;
+}
+.vas-tile-danger {
+  background: #fef2f2;
+  color: #dc2626;
+}
+.vas-row-danger {
+  color: #b91c1c;
+}
+.vas-row-danger:hover {
+  background: #fef2f2;
+  border-color: #fee2e2;
+}
+.vas-row-danger:active {
+  background: #fee2e2;
+}
+.vas-label {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.vas-chevron {
+  flex: 0 0 auto;
+  color: #94a3b8;
+}
+.vas-sep {
+  height: 1px;
+  margin: 5px 8px;
+  background: #e8ebf3;
+}
+[data-theme="dark"] .vas-header {
+  border-color: #262833;
+}
+[data-theme="dark"] .vas-dot {
+  border-color: rgba(255, 255, 255, 0.18);
+}
+[data-theme="dark"] .vas-subtitle {
+  color: #8f96a8;
+}
+[data-theme="dark"] .vas-row {
+  color: #dcdfe9;
+}
+[data-theme="dark"] .vas-row:hover {
+  background: #1c1e28;
+  border-color: #262833;
+}
+[data-theme="dark"] .vas-row:active {
+  background: #22242f;
+}
+[data-theme="dark"] .vas-tile-neutral {
+  background: #23252f;
+  color: #cbd0dd;
+}
+[data-theme="dark"] .vas-tile-primary {
+  background: rgba(99, 102, 241, 0.16);
+  color: #a5b4fc;
+}
+[data-theme="dark"] .vas-row-primary {
+  color: #a5b4fc;
+}
+[data-theme="dark"] .vas-row-primary:hover {
+  background: rgba(99, 102, 241, 0.12);
+  border-color: rgba(99, 102, 241, 0.28);
+}
+[data-theme="dark"] .vas-tile-danger {
+  background: rgba(239, 68, 68, 0.14);
+  color: #f87171;
+}
+[data-theme="dark"] .vas-row-danger {
+  color: #f87171;
+}
+[data-theme="dark"] .vas-row-danger:hover {
+  background: rgba(239, 68, 68, 0.1);
+  border-color: rgba(239, 68, 68, 0.24);
+}
+[data-theme="dark"] .vas-sep {
+  background: #262833;
+}
+[data-theme="dark"] .vas-chevron {
+  color: #6b7280;
+}
+@media (max-width: 768px) {
+  /* Neo đáy đúng chuẩn sheet: chừa dải nền mờ phía trên để chạm đóng. */
+  .vas-backdrop {
+    place-items: end center;
+    padding: 0;
+  }
+  .vehicle-actions-sheet {
+    width: 100%;
+    max-height: min(78dvh, calc(100dvh - 96px));
+    border-radius: 20px 20px 0 0;
+    padding: 8px 16px calc(14px + env(safe-area-inset-bottom));
+    animation: vasSheetUp 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  .vas-handle {
+    display: block;
+    width: 36px;
+    height: 4px;
+    margin: 0 auto 10px;
+    border-radius: 999px;
+    background: #d3d8e2;
+  }
+  .vas-header {
+    margin-bottom: 10px;
+  }
+  .vas-row {
+    padding: 10px;
+    min-height: 52px;
+    font-size: 14px;
+  }
+  [data-theme="dark"] .vas-handle {
+    background: rgba(220, 235, 226, 0.24);
+  }
+}
+@keyframes vasSheetUp {
+  from {
+    transform: translateY(24px);
+    opacity: 0.6;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .vehicle-actions-sheet {
+    animation: none;
+  }
+}
 .value-item {
   background: #f8faf4;
   border: 1px solid #e7eddd;
@@ -7284,6 +7516,138 @@ mark.search-hit {
   gap: 5px;
   font-size: 12px;
   font-weight: 500;
+}
+
+.inline-check-feedback.positive {
+  color: #15803d;
+}
+
+/* Frame kind segmented control (FULL / PARTIAL rút gọn) */
+.frame-kind-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: 8px;
+  flex-wrap: wrap;
+}
+
+.frame-kind-segmented {
+  display: inline-flex;
+  gap: 4px;
+  padding: 3px;
+  background: #eef1ea;
+  border: 1px solid #dce5cf;
+  border-radius: 10px;
+}
+
+.frame-kind-option {
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 550;
+  line-height: 1.2;
+  padding: 6px 12px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: #566944;
+  cursor: pointer;
+  transition: background 160ms ease, color 160ms ease;
+}
+
+.frame-kind-option:hover:not(.active):not(:disabled) {
+  filter: brightness(0.98);
+}
+
+.frame-kind-option.active {
+  background: #fff;
+  color: #1f3d2b;
+  box-shadow: 0 1px 2px rgba(20, 40, 25, 0.12);
+}
+
+.frame-kind-option:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+/* Duplicate tri-state panel */
+.duplicate-panel {
+  margin-top: 8px;
+  display: block;
+}
+
+.duplicate-panel-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+}
+
+.duplicate-panel-reason {
+  margin: 6px 0 0;
+  font-size: 12.5px;
+  line-height: 1.55;
+}
+
+.duplicate-candidate-list {
+  list-style: none;
+  margin: 10px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.duplicate-candidate {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.7);
+  border: 1px solid rgba(0, 0, 0, 0.06);
+}
+
+.duplicate-candidate-main {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.duplicate-candidate-main strong {
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+
+.duplicate-ack {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 10px;
+  font-size: 12.5px;
+  font-weight: 550;
+  cursor: pointer;
+}
+
+.duplicate-ack input {
+  width: 16px;
+  height: 16px;
+  accent-color: #1f7a4d;
+  cursor: pointer;
+}
+
+.frame-kind-tag {
+  display: inline-block;
+  margin-top: 6px;
+  font-size: 11.5px;
+  font-weight: 550;
+  color: #8a6d1f;
+  background: #fff8e9;
+  border: 1px solid #f0dcb0;
+  border-radius: 20px;
+  padding: 3px 10px;
 }
 
 /* Draft Status Pill & Subtle Indicator */
@@ -12936,6 +13300,116 @@ html[data-theme="dark"] .header-theme-toggle {
 .vehicle-detail-page .details-list > div {
   padding-block: 10px;
 }
+/* Identity hero on the vehicle detail page: the descriptive name reads as a
+   clear sub-line under the h1, while biển số and số khung get large
+   emphasized tiles (plate navy / VIN mint) with their own copy actions. */
+.vehicle-identity h1 {
+  font-size: clamp(24px, 2.5vw + 16px, 32px);
+}
+.vehicle-identity-hero {
+  display: grid;
+  gap: var(--space-sm);
+  min-width: 0;
+}
+.vehicle-identity-name {
+  font-size: 16px;
+  font-weight: 650;
+  color: var(--readable-muted);
+  overflow-wrap: anywhere;
+}
+.vehicle-id-strip {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(240px, 100%), 1fr));
+  gap: var(--space-md);
+}
+.vehicle-id-tile {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+  padding: 12px 16px;
+  border-radius: var(--radius);
+  border: 1px solid transparent;
+}
+.vehicle-id-label {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 1.2px;
+  text-transform: uppercase;
+}
+.vehicle-id-value-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-sm);
+  min-width: 0;
+}
+.vehicle-id-value {
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+  min-width: 0;
+}
+/* Biển số: thị giác mô phỏng biển số permanent nền xanh chữ trắng. */
+.vehicle-id-plate {
+  background: #1d2f52;
+  border-color: #16263f;
+}
+.vehicle-id-plate .vehicle-id-label {
+  color: #94a9cf;
+}
+.vehicle-id-plate .vehicle-id-value {
+  color: #ffffff;
+}
+.vehicle-id-plate .vehicle-id-copy {
+  background: rgba(255, 255, 255, 0.12);
+  border-color: rgba(255, 255, 255, 0.22);
+  color: #e6edf9;
+}
+.vehicle-id-plate .vehicle-id-copy:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+/* Số khung: dải nền ngọc mềm theo khung metric của hệ thống. */
+.vehicle-id-frame {
+  background: #eaf3ec;
+  border-color: #d7e6da;
+}
+.vehicle-id-frame .vehicle-id-label {
+  color: #4c6a54;
+}
+.vehicle-id-frame .vehicle-id-value {
+  color: #17301f;
+  font-family: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+  font-size: 19px;
+  letter-spacing: 0.3px;
+}
+.vehicle-id-frame .vehicle-id-copy {
+  background: rgba(255, 255, 255, 0.65);
+  border-color: #cfe0d4;
+  color: #35543f;
+}
+.vehicle-id-frame .vehicle-id-copy:hover {
+  background: #ffffff;
+}
+[data-theme="dark"] .vehicle-id-frame {
+  background: #141c17;
+  border-color: #274132;
+}
+[data-theme="dark"] .vehicle-id-frame .vehicle-id-label {
+  color: #8fd3a8;
+}
+[data-theme="dark"] .vehicle-id-frame .vehicle-id-value {
+  color: #dceadf;
+}
+[data-theme="dark"] .vehicle-id-frame .vehicle-id-copy {
+  background: rgba(220, 235, 226, 0.08);
+  border-color: #2c4636;
+  color: #a9cbb3;
+}
+[data-theme="dark"] .vehicle-id-frame .vehicle-id-copy:hover {
+  background: rgba(220, 235, 226, 0.16);
+}
 .copilot-composer > form {
   gap: var(--space-md);
 }
@@ -13013,53 +13487,69 @@ html[data-theme="dark"] .header-theme-toggle {
 .sale-payment-summary[data-state="invalid"] dd {
   color: #b91c1c;
 }
-/* Nút toggle thêm/ẩn chi tiết thanh toán – nhỏ gọn dưới dạng inline text-link */
+/* Nút mở/đóng khu "chi tiết thanh toán" – tách khỏi hàng giá/ngày bán bên trên
+   bằng khoảng thở + viền đứt nét, để nhân viên nhìn thấy ngay khu tuỳ chọn
+   mà vẫn nhẹ nhàng, không cướp sự chú ý khỏi giá bán. */
 .sale-payment-details-toggle {
-  display: inline-flex;
+  display: flex;
+  width: 100%;
   align-items: center;
-  gap: 5px;
-  padding: 4px 0;
-  min-height: unset;
-  border: none;
-  border-radius: 0;
+  justify-content: center;
+  gap: 6px;
+  margin-top: var(--space-lg);
+  padding: 8px 14px;
+  min-height: 40px;
+  border: 1px dashed var(--line);
+  border-radius: var(--radius);
   background: transparent;
-  font-size: 13px;
+  font-size: 13.5px;
   font-weight: 500;
   color: var(--readable-muted, #475569);
   cursor: pointer;
-  margin-block: 2px;
+  transition: color 120ms ease, border-color 120ms ease, background 120ms ease;
 }
 .sale-payment-details-toggle:hover {
   color: #0f172a;
-  background: transparent;
+  border-color: var(--primary, #4f46e5);
+  background: rgba(79, 70, 229, 0.04);
 }
 [data-theme="dark"] .sale-payment-details-toggle:hover {
   color: #e2e5ee;
+  background: rgba(129, 140, 248, 0.08);
 }
-/* Sell summary card identity: the 30px glyph needs a frame that actually fits
-   it, and the name/code/badge sit beside the icon so long names never wrap
-   under the frame. */
-.vehicle-icon.large {
-  width: 56px;
-  height: 56px;
-  border-radius: 14px;
+/* Trạng thái đang mở: viền đặc + tint nhẹ để phân biệt rõ khu đang thao tác. */
+.sale-payment-details-toggle[aria-expanded="true"] {
+  color: var(--primary, #4f46e5);
+  border-style: solid;
+  border-color: rgba(79, 70, 229, 0.35);
+  background: rgba(79, 70, 229, 0.05);
 }
-.sale-vehicle-head {
-  display: flex;
-  align-items: flex-start;
-  gap: var(--space-lg);
+[data-theme="dark"] .sale-payment-details-toggle[aria-expanded="true"] {
+  color: #c7d2fe;
+  border-color: rgba(129, 140, 248, 0.35);
+  background: rgba(129, 140, 248, 0.08);
+}
+/* Panel chứa các field tuỳ chọn (trả trước / hình thức / hạn thanh toán).
+   Có viền + tint + padding đồng bộ để không bị "dính" với summary bên dưới.
+   Field vẫn mount liên tục (inline display:none khi gập) để MoneyInput
+   không bị late-mount ghi sentinel NaN vào DOM. */
+.sale-payment-details {
+  margin-top: var(--space-sm);
   margin-bottom: var(--space-md);
+  padding: var(--space-md);
+  border: 1px solid rgba(79, 70, 229, 0.18);
+  border-radius: var(--radius);
+  background: rgba(79, 70, 229, 0.03);
 }
-.sale-vehicle-head-text {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: var(--space-xs);
-  min-width: 0;
+[data-theme="dark"] .sale-payment-details {
+  border-color: rgba(129, 140, 248, 0.24);
+  background: rgba(129, 140, 248, 0.06);
 }
-.sale-vehicle-head-text .section-title {
-  margin: 0;
-  overflow-wrap: anywhere;
+/* Hint "Khách còn nợ …" trong panel – hơi tách khỏi DatePicker để dễ đọc. */
+.sale-payment-details .muted {
+  display: block;
+  margin-top: var(--space-sm) !important;
+  line-height: 1.45;
 }
 /* The confirm block keeps a visible gap from the figures above it. */
 .sale-action-footer {
@@ -13070,11 +13560,66 @@ html[data-theme="dark"] .header-theme-toggle {
   padding-top: var(--space-lg);
   border-top: 1px solid var(--line);
 }
+/* Layout dialog kiểm tra bán xe: đưa xe + biển số + số khung + giá bán lên
+   hàng đầu, phần còn lại (khách / ngày / hình thức / trả trước / còn thu /
+   hạn) xuống dạng danh sách compact. Tile biển số & số khung đồng bộ giao
+   diện với trang chi tiết xe để nhân viên nhận diện trong 1 giây. */
+.sale-review-stack {
+  display: grid;
+  gap: var(--space-md);
+}
+.sale-review-vehicle {
+  margin: 0;
+  font-size: 13px;
+  color: var(--readable-muted);
+  overflow-wrap: anywhere;
+}
+.sale-review-vehicle .muted { font-size: 12px; }
+.sale-review-stack .vehicle-id-strip { gap: var(--space-sm); }
+.sale-review-stack .vehicle-id-tile { padding: 8px 12px; }
+.sale-review-stack .vehicle-id-value { font-size: 18px; }
+.sale-review-stack .vehicle-id-frame .vehicle-id-value { font-size: 15px; }
+/* Hero “Giá bán” – chiếm thị giác mạnh nhất trong dialog. */
+.sale-review-price-hero {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-md);
+  padding: 10px 14px;
+  border-radius: var(--radius);
+  border: 1px solid rgba(79, 70, 229, 0.28);
+  background: rgba(79, 70, 229, 0.08);
+}
+[data-theme="dark"] .sale-review-price-hero {
+  border-color: rgba(129, 140, 248, 0.32);
+  background: rgba(129, 140, 248, 0.12);
+}
+.sale-review-price-label {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 1.2px;
+  text-transform: uppercase;
+  color: var(--primary-dark, #3730a3);
+}
+[data-theme="dark"] .sale-review-price-label { color: #c7d2fe; }
+.sale-review-price-value {
+  font-size: 24px;
+  font-weight: 700;
+  color: var(--primary, #4f46e5);
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+  text-align: right;
+}
+[data-theme="dark"] .sale-review-price-value { color: #e0e7ff; }
+/* Dialog bán xe cần nhiều khoảng dọc hơn mặc định để không phải cuộn. */
+.confirm-dialog-summary:has(.sale-review-stack) {
+  max-height: min(58dvh, 480px);
+}
 .sale-review-summary > div {
   display: flex;
   justify-content: space-between;
   gap: var(--space-md);
-  padding-block: 6px;
+  padding-block: 5px;
 }
 .sale-review-summary dt {
   color: var(--readable-muted);

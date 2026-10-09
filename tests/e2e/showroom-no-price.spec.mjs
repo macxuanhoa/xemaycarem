@@ -12,12 +12,12 @@ const bikes = [
   {
     id: "00000000-0000-4000-8000-0000000000b1",
     internal_code: "XE-SR-000001",
-    license_plate: "59-A1 234.56",
+    license_plate: "59A1-234.56",
     frame_number: "RLHTEST0000001",
     year: 2023,
     color: "Đen",
     vehicle_type: "Xe tay ga",
-    vehicle_title: "59-A1 234.56 · RLHTEST0000001",
+    vehicle_title: "59A1-234.56 · RLHTEST0000001",
     vehicle_subtitle: "Xe tay ga · 2023 · Đen",
     created_at: new Date().toISOString(),
   },
@@ -93,7 +93,7 @@ test("public showroom lists real stock by identity and never shows a price", asy
 
   // Opening a bike's detail dialog keeps the identity specs only.
   await grid.getByRole("button", { name: "Chi tiết" }).first().click();
-  const dialog = page.getByRole("dialog", { name: /59-A1 234\.56/ });
+  const dialog = page.getByRole("dialog", { name: /59A1-234\.56/ });
   await expect(dialog).toBeVisible();
   for (const kept of ["Biển số:", "Số khung:", "Màu sơn:", "Loại xe:"])
     await expect(dialog.getByText(kept)).toBeVisible();

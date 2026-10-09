@@ -20,7 +20,7 @@ const baseVehicle = {
   year: 2023,
   color: "Trắng",
   frame_number: "MH3BY31YXPJ000123",
-  license_plate: "59-X1 123.45",
+  license_plate: "59X1-123.45",
   supplier_name: "Lê Văn Bán",
   supplier_phone: "0900000000",
   notes: "",
@@ -119,7 +119,7 @@ async function installMock(page, { role = "OWNER", vehicle = baseVehicle } = {})
             requester_name: "Nhân viên A",
             created_at: new Date().toISOString(),
             vehicle_code: vehicle.internal_code,
-            vehicle_title: "59-X1 123.45 · MH3BY31YXPJ000123",
+            vehicle_title: "59X1-123.45 · MH3BY31YXPJ000123",
             vehicle_subtitle: "Xe tay ga · 2023 · Trắng",
             license_plate: vehicle.license_plate,
             vehicle_status: vehicle.status,
@@ -188,7 +188,7 @@ test("delete button is hidden once the vehicle has sale history", async ({
     },
   });
   await page.goto(`/vehicles/${vehicleId}`);
-  await expect(page.getByRole("heading", { name: /59-X1 123\.45/ })).toBeVisible();
+  await expect(page.getByRole("heading", { name: /59X1-123\.45/ })).toBeVisible();
   const trigger = page.getByRole("button", { name: "Thao tác trên xe" });
   if (await trigger.count()) await trigger.click();
   await expect(
@@ -241,7 +241,7 @@ test("OWNER reviews the approval queue and resolves a deletion", async ({
   await expect(
     page.getByRole("heading", { name: "Chờ duyệt" }),
   ).toBeVisible();
-  await expect(page.getByText("59-X1 123.45 · MH3BY31YXPJ000123")).toBeVisible();
+  await expect(page.getByText("59X1-123.45 · MH3BY31YXPJ000123")).toBeVisible();
 
   await page.getByRole("button", { name: "Duyệt xóa" }).click();
   const confirm = page.getByRole("alertdialog");

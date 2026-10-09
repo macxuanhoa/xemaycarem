@@ -112,7 +112,7 @@ export default function CapturePage() {
             <input
               type="search"
               value={code}
-              placeholder="VD: 59-A1 234.56 hoặc số khung..."
+              placeholder="VD: 59A1-234.56 hoặc số khung..."
               onChange={(event) => setCode(event.target.value)}
               enterKeyHint="search"
             />

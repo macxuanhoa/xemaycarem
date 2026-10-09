@@ -65,9 +65,9 @@ describe('AI drafts and read tools preserve authority outside the model', () => 
     expect(() => validateOutput('vehicle_scan', draft('vehicle_scan', { year: 1850 }), staff)).toThrow('INVALID_AI_RESULT')
     expect(() => validateOutput('vehicle_scan', draft('vehicle_scan', { license_plate: 'X'.repeat(31) }), staff)).toThrow('INVALID_AI_RESULT')
     expect(validateOutput('vehicle_scan', draft('vehicle_scan', {
-      license_plate: '59-A1 234.56', frame_number: 'RLH160KD12345', color: 'Đen', year: 2022,
+      license_plate: '59A1-234.56', frame_number: 'RLH160KD12345', color: 'Đen', year: 2022,
     }), staff))
-      .toMatchObject({ license_plate: '59-A1 234.56', frame_number: 'RLH160KD12345', color: 'Đen', year: 2022 })
+      .toMatchObject({ license_plate: '59A1-234.56', frame_number: 'RLH160KD12345', color: 'Đen', year: 2022 })
   })
   it('executes only allowlisted read RPCs and uses database facts, preserving known vehicle context', async () => {
     const caller = { rpc: vi.fn(async (name: string) => { void name; return { data: { gross_profit: 123, expenses: [] }, error: null } }) }

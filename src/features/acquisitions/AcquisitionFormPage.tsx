@@ -1,14 +1,12 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
   ArrowLeft,
-  AlertTriangle,
   CheckCircle2,
   Clock,
-  LoaderCircle,
   X,
 } from "lucide-react";
 import { api } from "@/lib/api";
@@ -32,12 +30,21 @@ import {
 } from "@/components/ui";
 import { MoneyInput } from "@/components/ui/MoneyInput";
 import { AutocompleteInput } from "@/components/ui/AutocompleteInput";
-import { QuickChips } from "@/components/ui/QuickChips";
 import { saveRecentValue } from "@/lib/recentVehicles";
-import { useDebouncedValue } from "@/lib/useDebouncedValue";
 import { vehicleSuggestions } from "@/lib/vehicleSuggestions";
 import { useVehicleTypes } from "@/lib/useVehicleTypes";
-import { vehicleTitle } from "@/lib/vehicleDisplay";
+import {
+  useVehicleDuplicateCheck,
+} from "@/lib/vehicleDuplicateCheck";
+import {
+  FrameKindSegmented,
+  DuplicateInspector,
+} from "@/components/VehicleDuplicateCheck";
+import {
+  compactFrame,
+  frameKindFromCompact,
+  type FrameInputKind,
+} from "@/lib/frameNumber";
 import { useFormDraft } from "@/lib/useFormDraft";
 import { draftFields } from "@/lib/formDrafts";
 import { normalizeVehicleYear } from "@/lib/vehicleInputFormatting";
@@ -70,6 +77,8 @@ function AcquisitionEditor() {
     mode: "onBlur",
     defaultValues: {
       frame_number: "",
+      frame_input_kind: "FULL",
+      duplicate_ack: false,
       license_plate: "",
       vehicle_type_id: "",
       year: undefined,
@@ -89,8 +98,8 @@ function AcquisitionEditor() {
 
   const draft = useFormDraft("acquisition", profile?.id, form);
   const rawFrame = form.watch("frame_number");
-  const frame = (rawFrame || "").trim().toUpperCase();
-  const checkedFrame = useDebouncedValue(frame, 450);
+  const rawPlate = form.watch("license_plate");
+  const frameKind = (form.watch("frame_input_kind") ?? "FULL") as FrameInputKind;
 
   const catalog = useQuery({
     queryKey: ["vehicle-form-suggestions", profile?.id],
@@ -103,22 +112,19 @@ function AcquisitionEditor() {
 
   const vehicleTypes = useVehicleTypes();
 
-  const duplicateQuery = useQuery({
-    queryKey: ["vehicle-frame-check", profile?.id, checkedFrame],
-    queryFn: () =>
-      api.call<Paged<Vehicle>>("list_vehicles", {
-        p_filters: { search: checkedFrame, limit: 100 },
-      }),
-    enabled: checkedFrame.length > 0 && checkedFrame === frame,
+  const dupCheck = useVehicleDuplicateCheck({
+    frameNumber: rawFrame,
+    licensePlate: rawPlate,
+    frameInputKind: frameKind,
   });
-
-  const duplicate =
-    checkedFrame === frame
-      ? duplicateQuery.data?.items.find(
-          (vehicle) =>
-            vehicle.frame_number?.trim().toUpperCase() === frame.toUpperCase(),
-        )
-      : undefined;
+  // Xác nhận YELLOW gắn với đúng chữ ký đang hiện; đổi nội dung thì hạ ack.
+  const [acknowledged, setAcknowledged] = useState(false);
+  useEffect(() => {
+    setAcknowledged(false);
+  }, [dupCheck.level, rawFrame, rawPlate, frameKind]);
+  const blockSave =
+    dupCheck.settled &&
+    (dupCheck.level === "RED" || (dupCheck.level === "YELLOW" && !acknowledged));
 
   const suggestions = (field: "color") =>
     vehicleSuggestions(catalog.data?.items ?? [], field, profile?.id);
@@ -129,12 +135,6 @@ function AcquisitionEditor() {
       shouldValidate: !!form.formState.errors[field],
     });
 
-  const selectVehicleType = (id: string) =>
-    form.setValue("vehicle_type_id", id, {
-      shouldDirty: true,
-      shouldValidate: !!form.formState.errors.vehicle_type_id,
-    });
-
   const mutation = useMutation({
     mutationFn: async (values: AcquisitionFormValues) => {
       if (
@@ -142,9 +142,6 @@ function AcquisitionEditor() {
         (values.purchase_price === undefined || values.purchase_price === null)
       ) {
         throw new AppError("Vui lòng nhập giá thu xe.");
-      }
-      if (duplicate) {
-        throw new AppError("Số khung đã tồn tại. Hãy mở xe đã có để tiếp tục.");
       }
       const data: Record<string, unknown> = {
         ...values,
@@ -188,7 +185,11 @@ function AcquisitionEditor() {
   const handleValidSubmit = (values: AcquisitionFormValues) => {
     const normalized: AcquisitionFormValues = {
       ...values,
-      frame_number: values.frame_number.trim().toUpperCase(),
+      frame_number: compactFrame(values.frame_number)
+        ? values.frame_number.trim().toUpperCase()
+        : "",
+      frame_input_kind: frameKind,
+      duplicate_ack: acknowledged,
       license_plate: canonicalizePlate(values.license_plate),
       year: normalizeVehicleYear(values.year) ?? values.year,
       color: values.color.trim(),
@@ -314,67 +315,42 @@ function AcquisitionEditor() {
                       shouldTouch: true,
                     });
                   }}
-                  placeholder="Nhập số khung (nếu có)"
+                  placeholder={
+                    frameKind === "PARTIAL"
+                      ? "5 ký tự cuối số khung"
+                      : "Nhập số khung đầy đủ (nếu có)"
+                  }
                 />
-                {checkedFrame.length >= 3 &&
-                  checkedFrame === frame &&
-                  duplicateQuery.isSuccess &&
-                  !duplicateQuery.isFetching &&
-                  !duplicate && (
-                    <span className="inline-check-feedback positive">
-                      <CheckCircle2 size={13} /> Số khung chưa có trong hệ thống
-                    </span>
-                  )}
-                {duplicateQuery.isFetching && (
-                  <span className="inline-check-feedback muted">
-                    <LoaderCircle size={13} className="spin" /> Đang kiểm tra số
-                    khung…
-                  </span>
-                )}
-                {checkedFrame === frame && duplicateQuery.isError && (
-                  <span className="inline-check-feedback" role="status">
-                    Chưa kiểm tra được số khung.
-                    <button
-                      type="button"
-                      className="text-link"
-                      onClick={() => void duplicateQuery.refetch()}
-                    >
-                      Thử lại
-                    </button>
-                  </span>
-                )}
-                {duplicate && (
-                  <div
-                    className="notice danger"
-                    role="alert"
-                    style={{
-                      background: "#fef2f2",
-                      borderColor: "#fecdd3",
-                      color: "#9c493d",
-                      marginTop: "8px",
+                <div className="frame-kind-row">
+                  <span className="muted small">Loại dữ liệu số khung</span>
+                  <FrameKindSegmented
+                    kind={frameKind}
+                    disabled={mutation.isPending}
+                    onChange={(next) => {
+                      form.setValue("frame_input_kind", next, {
+                        shouldDirty: true,
+                        shouldValidate: true,
+                      });
+                      if (next === "FULL") {
+                        const derived = frameKindFromCompact(compactFrame(rawFrame));
+                        if (derived !== "FULL")
+                          form.setError("frame_number", {
+                            message:
+                              "Số khung đang nhập có vẻ là rút gọn. Hãy nhập đủ hoặc giữ ở mục “5 ký tự cuối”.",
+                          });
+                      }
                     }}
-                  >
-                    <div
-                      className="row"
-                      style={{ gap: "8px", alignItems: "center" }}
-                    >
-                      <AlertTriangle size={18} />
-                      <strong>Số khung đã tồn tại trong hệ thống</strong>
-                    </div>
-                    <div style={{ marginTop: "6px" }}>
-                      <strong>{vehicleTitle(duplicate)}</strong>{" "}
-                      · {duplicate.license_plate || duplicate.internal_code}
-                    </div>
-                    <div style={{ marginTop: "6px" }}>
-                      <Link
-                        to={`/vehicles/${duplicate.id}`}
-                        className="text-link"
-                      >
-                        Xem chi tiết xe đã có →
-                      </Link>
-                    </div>
-                  </div>
-                )}
+                  />
+                </div>
+                <DuplicateInspector
+                  checking={dupCheck.isChecking}
+                  error={dupCheck.isError}
+                  result={dupCheck.result}
+                  hasSignal={dupCheck.hasSignal}
+                  acknowledged={acknowledged}
+                  onAcknowledge={setAcknowledged}
+                  onRetry={() => void dupCheck.refetch()}
+                />
               </Field>
 
               <Field label="Biển số (nếu có)" error={error("license_plate")}>
@@ -488,13 +464,6 @@ function AcquisitionEditor() {
               </Field>
             </div>
 
-            <QuickChips
-              label="Chọn nhanh loại xe"
-              options={vehicleTypes.chips}
-              selected={form.watch("vehicle_type_id")}
-              onSelect={selectVehicleType}
-            />
-
             <Field label="Ghi chú" error={error("notes")}>
               <textarea
                 rows={3}
@@ -585,14 +554,14 @@ function AcquisitionEditor() {
             </Link>
             <Button
               type="submit"
-              disabled={
-                mutation.isPending || !!duplicate || duplicateQuery.isFetching
-              }
+              disabled={mutation.isPending || blockSave}
             >
               {mutation.isPending
                 ? "Đang lưu…"
-                : duplicateQuery.isFetching
-                  ? "Đang kiểm tra số khung…"
+                : blockSave
+                  ? dupCheck.level === "RED"
+                    ? "Nghi trùng — không lưu được"
+                    : "Cần xác nhận để thu xe"
                   : "Thu xe & tạo phiếu"}
             </Button>
           </div>

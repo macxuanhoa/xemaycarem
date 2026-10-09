@@ -57,7 +57,7 @@ it("customer receipts exclude all internal financial data and notes", () => {
     purchase_cost_snapshot: 12345678,
     gross_profit: 87654321,
     vehicle: {
-      vehicle_title: "59-B1 123 · RLHWAVE",
+      vehicle_title: "59B1-123 · RLHWAVE",
       vehicle_subtitle: "Xe số · 2023 · Đen",
       vehicle_type: "Xe số",
       notes: "SECRET-VEHICLE-NOTE",

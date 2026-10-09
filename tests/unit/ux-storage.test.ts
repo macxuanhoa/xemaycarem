@@ -125,7 +125,7 @@ describe("User-scoped convenience storage", () => {
     const values = {
       frame_number: "FRAME-1",
       license_plate: "59B1-123.45",
-      vehicle_type_id: "type-ga",
+      vehicle_type: "Xe tay ga",
       color: "Đen",
       year: 2024,
       notes: "Giấy tờ đầy đủ",
@@ -154,7 +154,7 @@ describe("User-scoped convenience storage", () => {
     expect(draftFields(values)).toEqual({
       frame_number: "FRAME-1",
       license_plate: "59B1-123.45",
-      vehicle_type_id: "type-ga",
+      vehicle_type: "Xe tay ga",
       color: "Đen",
       year: 2024,
       notes: "Giấy tờ đầy đủ",

@@ -19,8 +19,6 @@ import {
   entryToImportRow,
   validateIntakeEntry,
 } from "@/lib/shorthand/intakeRows";
-import { UNCLASSIFIED_VEHICLE_TYPE } from "@/lib/vehicleDisplay";
-import type { VehicleTypeItem } from "@/types";
 
 function parseFirst(
   line: string,
@@ -291,49 +289,46 @@ describe("learnedDictionary", () => {
 });
 
 describe("intake payload", () => {
-  const TYPES: VehicleTypeItem[] = [
-    { id: "t-ga", name: "Xe tay ga" },
-    { id: "t-so", name: "Xe số" },
-    { id: "t-unclassified", name: UNCLASSIFIED_VEHICLE_TYPE },
-  ];
   const entry = parseIntakeNotes(
     "tay ga den 29b1-123.45 gia 18tr5 fk RLH160-001",
   )[0];
 
-  it("requires a catalogue type and keeps optional fields optional", () => {
-    expect(validateIntakeEntry(entry, true, TYPES)).toEqual([]);
-    expect(validateIntakeEntry(entry, false, TYPES)).toEqual([]);
-    // Số khung, biển số, năm, giá thu đều có thể bổ sung sau khi thu.
-    const sparse = { ...entry, fields: { vehicle_type: "Xe tay ga" } };
-    expect(validateIntakeEntry(sparse, true, TYPES)).toEqual([]);
-  });
-  it("blocks a row whose type is missing or outside the catalogue", () => {
-    const none = { ...entry, fields: {} };
-    expect(validateIntakeEntry(none, true, TYPES).join(" ")).toMatch(/loại xe/);
+  it("accepts any non-empty type name and keeps optional fields optional", () => {
+    expect(validateIntakeEntry(entry, true)).toEqual([]);
+    expect(validateIntakeEntry(entry, false)).toEqual([]);
+    // Loại xe là tên tự do — một tên mới ngoài danh mục vẫn hợp lệ.
     const invented = {
       ...entry,
       fields: { ...entry.fields, vehicle_type: "Honda SH 160i" },
     };
-    expect(validateIntakeEntry(invented, true, TYPES).join(" ")).toMatch(/loại xe/);
-    // Danh mục chưa tải về (mảng rỗng) cũng không cho ghi tắt.
-    expect(validateIntakeEntry(entry, true).join(" ")).toMatch(/loại xe/);
+    expect(validateIntakeEntry(invented, true)).toEqual([]);
+    // Số khung, biển số, năm, giá thu đều có thể bổ sung sau khi thu.
+    const sparse = { ...entry, fields: { vehicle_type: "Honda Vision" } };
+    expect(validateIntakeEntry(sparse, true)).toEqual([]);
+  });
+  it("blocks a row whose type name is empty", () => {
+    const none = { ...entry, fields: {} };
+    expect(validateIntakeEntry(none, true).join(" ")).toMatch(/dòng xe/);
+    const blank = { ...entry, fields: { vehicle_type: "   " } };
+    expect(validateIntakeEntry(blank, true).join(" ")).toMatch(/dòng xe/);
   });
   it("never sends purchase_price for users without financial rights", () => {
-    const row = entryToImportRow(entry, false, TYPES);
+    const row = entryToImportRow(entry, false);
     expect("purchase_price" in row).toBe(false);
-    expect(row.vehicle_type_id).toBe("t-ga");
+    expect(row.vehicle_type).toBe("Xe tay ga");
+    expect(row).not.toHaveProperty("vehicle_type_id");
     expect(row.supplier_name).toBe("");
     for (const purged of ["brand", "model", "variant", "engine_number", "odometer", "asking_price"]) {
       expect(row).not.toHaveProperty(purged);
     }
-    const finRow = entryToImportRow(entry, true, TYPES);
+    const finRow = entryToImportRow(entry, true);
     expect(finRow.purchase_price).toBe(18_500_000);
   });
   it("maps supplier fields to the single-vehicle form names", () => {
-    const draft = entryToAcquisitionDraft(entry, TYPES);
+    const draft = entryToAcquisitionDraft(entry);
     expect(draft.frame_number).toBe("RLH160-001");
     expect(draft.license_plate).toBe("29B1-123.45");
-    expect(draft.vehicle_type_id).toBe("t-ga");
+    expect(draft.vehicle_type).toBe("Xe tay ga");
     expect(draft.purchase_date).toBeUndefined();
   });
   it("rejects a garbage plate but keeps the field optional", () => {
@@ -341,12 +336,12 @@ describe("intake payload", () => {
       ...entry,
       fields: { ...entry.fields, license_plate: "abc xyz" },
     };
-    expect(validateIntakeEntry(garbage, true, TYPES).join(" ")).toMatch(/Biển số/);
+    expect(validateIntakeEntry(garbage, true).join(" ")).toMatch(/Biển số/);
     const blank = {
       ...entry,
       fields: { ...entry.fields, license_plate: "   " },
     };
-    expect(validateIntakeEntry(blank, true, TYPES)).toEqual([]);
+    expect(validateIntakeEntry(blank, true)).toEqual([]);
   });
   it("INTAKE_FIELDS covers exactly the editable fields that survive the purge", () => {
     expect(INTAKE_FIELDS.map((f) => f.key)).toEqual([

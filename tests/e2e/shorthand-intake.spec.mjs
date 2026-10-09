@@ -47,7 +47,7 @@ async function setupFixtures(page, { role = 'OWNER', validate = { duplicates: []
   return calls
 }
 
-test('parses shorthand notes, requires a catalogue type and imports the whole batch in one call', async ({ page }) => {
+test('parses shorthand notes, requires a free-text type and imports the whole batch in one call', async ({ page }) => {
   const calls = await setupFixtures(page)
   await page.goto('/intake')
   await expect(page.getByRole('heading', { name: 'Thu xe tốc ký' })).toBeVisible()
@@ -56,7 +56,7 @@ test('parses shorthand notes, requires a catalogue type and imports the whole ba
   await page.getByRole('button', { name: 'Tách thành danh sách' }).click()
 
   // Hãng/Dòng xe/Giá bán dự kiến đã bị xoá khỏi hồ sơ — thẻ tốc ký chỉ còn
-  // định danh Biển số · Số khung, phân loại bằng Loại xe (danh mục) và Giá thu.
+  // định danh Biển số · Số khung, phân loại bằng Loại xe (tên nhập tự do) và Giá thu.
   const first = page.locator('.intake-entry').nth(0)
   await expect(first.getByLabel('Biển số')).toHaveValue('29B1-123.45')
   await expect(first.getByLabel('Màu sắc')).toHaveValue('Đen')
@@ -75,11 +75,11 @@ test('parses shorthand notes, requires a catalogue type and imports the whole ba
   await expect(second.getByLabel('Màu sắc')).toHaveValue('Trắng')
   await expect(second.getByLabel('Giá thu')).toHaveValue('12.000.000')
 
-  // Loại xe bắt buộc khi tạo hồ sơ, nên nút thu chưa mở được khi chưa chọn.
+  // Loại xe bắt buộc khi tạo hồ sơ, nên nút thu chưa mở được khi chưa nhập.
   const importButton = page.getByRole('button', { name: /Thu 2 xe vào kho/ })
   await expect(importButton).toBeDisabled()
-  await first.getByLabel('Loại xe *').selectOption({ label: 'Xe tay ga' })
-  await second.getByLabel('Loại xe *').selectOption({ label: 'Xe số' })
+  await first.getByLabel('Loại xe *').fill('Xe tay ga')
+  await second.getByLabel('Loại xe *').fill('Xe số')
   await first.getByLabel('Số khung').fill('RLH-E2E-001')
   await second.getByLabel('Số khung').fill('RLH-E2E-002')
   await expect(importButton).toBeEnabled()
@@ -96,9 +96,9 @@ test('parses shorthand notes, requires a catalogue type and imports the whole ba
   expect(calls.imports[0].p_vehicles.request_id).toMatch(/^[0-9a-f-]{36}$/)
   const rows = calls.imports[0].p_vehicles.rows
   expect(rows).toHaveLength(2)
-  expect(rows[0]).toMatchObject({ vehicle_type_id: 'vt-ga', frame_number: 'RLH-E2E-001',
+  expect(rows[0]).toMatchObject({ vehicle_type: 'Xe tay ga', frame_number: 'RLH-E2E-001',
     license_plate: '29B1-123.45', color: 'Đen', purchase_price: 18500000 })
-  expect(rows[1]).toMatchObject({ vehicle_type_id: 'vt-so', frame_number: 'RLH-E2E-002',
+  expect(rows[1]).toMatchObject({ vehicle_type: 'Xe số', frame_number: 'RLH-E2E-002',
     color: 'Trắng', purchase_price: 12000000 })
   for (const row of rows) {
     expect('brand' in row).toBe(false)
@@ -121,14 +121,14 @@ test('learns a new abbreviation from an unrecognized token and reuses it on the 
   await expect(lesson).toBeVisible()
   await lesson.getByLabel('Viết tắt').fill('hg')
   // Hãng/Dòng xe đã bị xoá nên "Trường điền" chỉ còn loại xe/màu/năm; dạy 'hg'
-  // = một mặt hàng có thật trong danh mục loại xe.
+  // = một tên loại xe ("Thành" là ô nhập tự do có gợi ý học từ Kho).
   await lesson.getByLabel('Trường điền').selectOption('vehicle_type')
-  await lesson.getByLabel('Thành').selectOption({ label: 'Xe tay ga' })
+  await lesson.getByLabel('Thành').fill('Xe tay ga')
   await lesson.getByRole('button', { name: 'Lưu quy tắc' }).click()
   await expect(page.getByText(/Đã học: "hg"/)).toBeVisible()
 
   await page.getByRole('button', { name: 'Tách lại danh sách' }).click()
-  await expect(page.locator('.intake-entry').first().getByLabel('Loại xe *')).toHaveValue('vt-ga')
+  await expect(page.locator('.intake-entry').first().getByLabel('Loại xe *')).toHaveValue('Xe tay ga')
 
   // The rule is persisted for this account and visible in the memory panel.
   await page.reload()
@@ -143,7 +143,7 @@ test('server-side duplicates block the batch before anything is saved', async ({
   await page.locator('textarea.intake-notes').fill('sh den gia 18tr fk RLH-DUP')
   await page.getByRole('button', { name: 'Tách thành danh sách' }).click()
   const card = page.locator('.intake-entry').first()
-  await card.getByLabel('Loại xe *').selectOption({ label: 'Xe tay ga' })
+  await card.getByLabel('Loại xe *').fill('Xe tay ga')
   await page.getByRole('button', { name: /Thu 1 xe vào kho/ }).click()
   await expect(page.locator('.intake-entry-issues li').first())
     .toContainText('Số khung đã tồn tại')
@@ -158,7 +158,7 @@ test('staff without financial rights never sees or sends the purchase price', as
   await page.getByRole('button', { name: 'Tách thành danh sách' }).click()
   const card = page.locator('.intake-entry').first()
   await expect(card.getByLabel('Giá thu')).toHaveCount(0)
-  await card.getByLabel('Loại xe *').selectOption({ label: 'Xe tay ga' })
+  await card.getByLabel('Loại xe *').fill('Xe tay ga')
   await page.getByRole('button', { name: /Thu 1 xe vào kho/ }).click()
   const dialog = page.getByRole('alertdialog')
   await dialog.getByRole('button', { name: 'Xác nhận thu xe' }).click()
@@ -167,7 +167,7 @@ test('staff without financial rights never sees or sends the purchase price', as
   expect('purchase_price' in row).toBe(false)
   expect('asking_price' in row).toBe(false)
   expect('brand' in row).toBe(false)
-  expect(row).toMatchObject({ vehicle_type_id: 'vt-ga', frame_number: 'MH0123', color: 'Đen' })
+  expect(row).toMatchObject({ vehicle_type: 'Xe tay ga', frame_number: 'MH0123', color: 'Đen' })
 })
 
 test('mobile review cards stay two-up, tappable and free of iOS zoom', async ({ page }) => {

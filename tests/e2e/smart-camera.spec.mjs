@@ -106,14 +106,14 @@ test('smart camera: unknown scan prefills the existing shorthand intake and save
   await expect(page.getByPlaceholder('59A1-234.56')).toHaveValue('61B1-777.77')
   await expect(page.getByText('Bản nháp từ Camera thông minh', { exact: false })).toBeVisible()
   await expect(page.locator('.fs-badge.warn').first()).toBeVisible()
-  // Camera không còn đọc hãng/dòng xe, nên nhân viên phải chọn Loại xe từ danh
-  // mục ngay trên thẻ thì nút thu mới mở.
-  await page.getByLabel('Loại xe *').selectOption({ label: 'Xe tay ga' })
+  // Camera không còn đọc hãng/dòng xe, nên nhân viên phải nhập Loại xe
+  // (ô tên tự do) ngay trên thẻ thì nút thu mới mở.
+  await page.getByLabel('Loại xe *').fill('Xe tay ga')
   await page.getByRole('button', { name: /Thu 1 xe vào kho/ }).click()
   await page.getByRole('button', { name: 'Xác nhận thu xe' }).click()
   const imported = calls.writes.find(entry => entry.name === 'import_vehicles')
   const row = imported.body.p_vehicles.rows[0]
-  expect(row).toMatchObject({ license_plate: '61B1-777.77', vehicle_type_id: 'vt-ga', color: 'Trắng', year: 2023 })
+  expect(row).toMatchObject({ license_plate: '61B1-777.77', vehicle_type: 'Xe tay ga', color: 'Trắng', year: 2023 })
   expect('brand' in row).toBe(false)
   expect('model' in row).toBe(false)
   // The approved scan photo rides the normal secure upload path afterwards —

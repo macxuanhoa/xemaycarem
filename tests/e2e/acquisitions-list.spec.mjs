@@ -142,20 +142,18 @@ test("Thu vào list page preserves UX, simplifies date presets, enhances table r
   await expect(page.locator(".date-inputs-pill")).toHaveCount(0);
 
   // 7. Table readability:
-  // - Distinct semantic labels: Khung: and BS:
+  // - Biển số & số khung dựng thành chip nổi bật (navy/mint) trong bảng.
   await expect(page.locator(".data-table")).toBeVisible();
-  await expect(page.locator(".data-table").getByText("Khung:")).toBeVisible();
   await expect(
-    page.locator(".data-table").getByText("RLH123456", { exact: true }),
-  ).toBeVisible();
-  await expect(page.locator(".data-table").getByText("BS:")).toBeVisible();
+    page.locator(".data-table").getByTestId("plate-chip"),
+  ).toContainText("43A1-99999");
   await expect(
-    page.locator(".data-table").getByText("43A1-99999", { exact: true }),
-  ).toBeVisible();
+    page.locator(".data-table").getByTestId("frame-chip"),
+  ).toContainText("RLH123456");
 
-  // - Primary vehicle identity (biển số · số khung) + muted internal code
+  // - Tên loại xe đứng đầu cột Xe, mã xe nằm ở dòng phụ.
   await expect(
-    page.locator(".data-table").getByText("43A1-99999 · RLH123456").first(),
+    page.locator(".data-table").getByText("Xe tay ga").first(),
   ).toBeVisible();
   await expect(page.locator(".data-table").getByText("XE-UX-001").first()).toBeVisible();
 
@@ -194,13 +192,11 @@ test("Thu vào list mobile responsive view has accessible cards, distinct chassi
   const card = page.locator(".mobile-cards .mobile-record").first();
   await expect(card).toBeVisible();
 
-  // Distinct chassis & plate subline (title already shows biển · khung)
-  await expect(card.getByText("Khung:")).toBeVisible();
-  await expect(card.locator(".mobile-code")).toHaveText("RLH123456");
-  await expect(card.getByText("BS:")).toBeVisible();
-  await expect(
-    card.locator(".mobile-meta-subline").getByText("43A1-99999", { exact: true }),
-  ).toBeVisible();
+  // Leading title is the vehicle type name; biển số & số khung render as
+  // highlighted chips right below it.
+  await expect(card.locator("strong").first()).toHaveText("Xe tay ga");
+  await expect(card.getByTestId("plate-chip")).toContainText("43A1-99999");
+  await expect(card.getByTestId("frame-chip")).toContainText("RLH123456");
 
   // Primary action Thu xe mới visible
   await expect(

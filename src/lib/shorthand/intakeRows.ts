@@ -4,8 +4,8 @@
  * the user sees problems per card before anything is sent to the server.
  *
  * Hãng / Dòng xe / Phiên bản / Số máy / Số km / Giá bán dự kiến không còn trong
- * hợp đồng nữa; đổi lại mọi dòng phải có `vehicle_type_id` — một phần tử của
- * danh mục `vehicle_types`, không phải tên tự gõ.
+ * hợp đồng nữa. "Loại xe" nay là TÊN MẪU XE nhập tự do: mọi dòng chỉ cần có
+ * `vehicle_type` (tên thô); server chuẩn hoá và get-or-create khi lưu.
  */
 import type { IntakeEntry, IntakeFieldKey } from "./parseIntakeNotes";
 import { parseShorthandMoney } from "./parseIntakeNotes";
@@ -16,22 +16,10 @@ import {
   PLATE_INVALID_MESSAGE,
 } from "@/lib/plate";
 import { normalizeVehicleYear } from "@/lib/vehicleInputFormatting";
-import { vehicleTypeKey } from "@/lib/shorthand/vocabulary";
 import { compactFrame, frameKindFromCompact } from "@/lib/frameNumber";
-import type { VehicleTypeItem } from "@/types";
 
 const MAX_PLATE = 30;
 const MAX_FRAME = 100;
-
-/** Tên loại xe (do tốc ký nhận ra) → id trong danh mục đang dùng. */
-export function vehicleTypeIdFor(
-  name: string | undefined,
-  vehicleTypes: readonly VehicleTypeItem[],
-): string {
-  const key = vehicleTypeKey(name ?? "");
-  if (!key) return "";
-  return vehicleTypes.find((item) => vehicleTypeKey(item.name) === key)?.id ?? "";
-}
 
 function moneyOf(entry: IntakeEntry, field: IntakeFieldKey): number | null | "invalid" {
   const raw = entry.fields[field];
@@ -44,14 +32,12 @@ function moneyOf(entry: IntakeEntry, field: IntakeFieldKey): number | null | "in
 export function validateIntakeEntry(
   entry: IntakeEntry,
   financial: boolean,
-  vehicleTypes: readonly VehicleTypeItem[] = [],
 ): string[] {
   const errors: string[] = [];
   const f = entry.fields;
-  // Loại xe là bắt buộc khi tạo hồ sơ (server cũng chặn VEHICLE_TYPE_REQUIRED),
-  // nên nhân viên phải chọn từ danh mục ngay trên thẻ tốc ký.
-  if (!vehicleTypeIdFor(f.vehicle_type, vehicleTypes))
-    errors.push("Chọn loại xe từ danh mục.");
+  // Loại xe là tên tự do, bắt buộc có; server sẽ tạo loại mới khi lưu nên
+  // không còn đối chiếu danh mục ở bước validate tốc ký.
+  if (!(f.vehicle_type ?? "").trim()) errors.push("Nhập loại / dòng xe.");
   // Số khung không còn bắt buộc — server sinh placeholder "GEN-…" khi trống.
   if (f.frame_number && f.frame_number.trim().length > MAX_FRAME)
     errors.push(`Số khung tối đa ${MAX_FRAME} ký tự.`);
@@ -96,7 +82,6 @@ export function validateIntakeEntry(
 export function entryToImportRow(
   entry: IntakeEntry,
   financial: boolean,
-  vehicleTypes: readonly VehicleTypeItem[] = [],
 ): Record<string, unknown> {
   const f = entry.fields;
   const frame = (f.frame_number ?? "").trim().toUpperCase();
@@ -104,7 +89,7 @@ export function entryToImportRow(
     frame_number: frame,
     frame_input_kind: frameKindFromCompact(compactFrame(frame)),
     license_plate: canonicalizePlate(f.license_plate ?? ""),
-    vehicle_type_id: vehicleTypeIdFor(f.vehicle_type, vehicleTypes),
+    vehicle_type: (f.vehicle_type ?? "").trim(),
     color: (f.color ?? "").trim(),
     notes: (f.notes ?? "").trim(),
     supplier_name: (f.supplier_name ?? "").trim(),
@@ -124,7 +109,6 @@ export function entryToImportRow(
 /** Draft for /acquisitions/new (single-vehicle form uses seller_* field names). */
 export function entryToAcquisitionDraft(
   entry: IntakeEntry,
-  vehicleTypes: readonly VehicleTypeItem[] = [],
 ): Record<string, unknown> {
   const f = entry.fields;
   const frame = (f.frame_number ?? "").trim().toUpperCase();
@@ -132,7 +116,7 @@ export function entryToAcquisitionDraft(
     frame_number: frame,
     frame_input_kind: frameKindFromCompact(compactFrame(frame)),
     license_plate: canonicalizePlate(f.license_plate ?? ""),
-    vehicle_type_id: vehicleTypeIdFor(f.vehicle_type, vehicleTypes),
+    vehicle_type: (f.vehicle_type ?? "").trim(),
     color: (f.color ?? "").trim(),
     seller_name: (f.supplier_name ?? "").trim(),
     seller_phone: (f.supplier_phone ?? "").trim(),

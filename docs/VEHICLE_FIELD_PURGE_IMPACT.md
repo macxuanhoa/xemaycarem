@@ -128,3 +128,20 @@ không liên quan); không có cột sinh tự động trên `vehicles`; 7 FK t�
 
 Tài liệu này được cập nhật sau mỗi giai đoạn; mục 5 là phần chủ quán cần đọc để biết
  điều gì còn sót lại ở phía nhà cung cấp.
+
+## Bổ sung 10/10/2026 — "Loại xe" đổi từ danh mục chọn sang tên nhập tự do
+
+- Mục 4 ở trên ("thiếu `vehicle_type_id` → `VEHICLE_TYPE_REQUIRED`") **vẫn đúng cho ô tên**
+  (`vehicle_type`) và ô id: đường ghi vẫn yêu cầu **một trong hai** có giá trị hợp lệ sau
+  chuẩn hoá; nhưng **không còn** bắt tên phải đã có trong danh mục. `20261010000100_
+  vehicle_type_free_text_autocomplete.sql` cho server **tự get-or-create** tên chuẩn hoá
+  (`private.ensure_vehicle_type`), nên nhân viên gõ "Honda Vision" mới là lưu được, không
+  cần OWNER thêm loại trước.
+- **Không đổi tác động purge**: 6 cột `brand`/`model`/`variant`/`engine_number`/`odometer`/
+  `asking_price` vẫn đã DROP, vẫn **không khôi phục**; vẫn **MỘT** trường `vehicle_type`.
+  Bảng `public.vehicle_types` + FK `vehicles.vehicle_type_id` **giữ nguyên** để bảo toàn dữ
+  liệu; `list_vehicle_types` **giữ nguyên** hành vi (mọi loại + count) vì bộ lọc Kho/Showroom,
+  màn Cài đặt OWNER và 3 suite DB vẫn dựa vào bề mặt danh mục đầy đủ.
+- Xe hiện hữu **không bị map lại hay xoá**: vẫn mang `vehicle_type_id` cũ (`Chưa phân loại`
+  còn nguyên). Tên mới chỉ được tạo thêm dòng `vehicle_types` khi có xe lưu với tên đó.
+

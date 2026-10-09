@@ -2,13 +2,15 @@ import type { Vehicle } from "@/types";
 import { getRecentValues } from "./recentVehicles";
 
 /**
- * Gợi ý giá trị đã dùng gần đây cho ô Màu sắc. Hãng/Dòng xe/Phiên bản đã bị
- * xoá vĩnh viễn nên không còn loại gợi ý nào khác; loại xe lấy từ danh mục
- * `vehicle_types` (bộ chọn riêng), không suy ra từ dữ liệu cũ.
+ * Gợi ý giá trị đã dùng gần đây, tính trực tiếp từ danh sách xe đã lưu trong
+ * Kho: DISTINCT theo `field`, bỏ trùng không phân biệt hoa/thường (giữ cách
+ * viết gặp đầu tiên), sắp theo số lần dùng. Dùng cho ô Màu sắc và ô Loại xe
+ * (tên mẫu xe nhập tự do — yêu cầu: gợi ý học từ xe thật, không phải danh mục
+ * seed). Giá trị mới nhập sẽ nổi lên sau khi danh sách xe được refresh.
  */
 export function vehicleSuggestions(
   vehicles: Vehicle[],
-  field: "color",
+  field: "color" | "vehicle_type",
   userId?: string,
 ) {
   const recent = getRecentValues(field, userId);

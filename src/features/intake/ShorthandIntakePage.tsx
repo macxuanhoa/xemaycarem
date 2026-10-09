@@ -56,10 +56,8 @@ import {
   entryToAcquisitionDraft,
   entryToImportRow,
   validateIntakeEntry,
-  vehicleTypeIdFor,
 } from "@/lib/shorthand/intakeRows";
 import { vehicleSuggestions } from "@/lib/vehicleSuggestions";
-import { useVehicleTypes } from "@/lib/useVehicleTypes";
 import {
   parseRecognition,
   readRecognitionDraft,
@@ -213,15 +211,20 @@ export default function ShorthandIntakePage() {
     staleTime: 5 * 60 * 1000,
   });
 
-  const suggestions = (field: "color") =>
+  const suggestions = (field: "color" | "vehicle_type") =>
     vehicleSuggestions(catalog.data?.items ?? [], field, profile?.id);
 
-  // Danh mục loại xe là nguồn duy nhất cho bộ chọn "Loại xe" của từng thẻ:
-  // nhân viên chỉ CHỌN, không gõ tên tự do (kể cả khi dạy một từ viết tắt).
-  const vehicleTypes = useVehicleTypes();
-  const typeItems = vehicleTypes.items;
-  const typeNames = useMemo(() => typeItems.map((item) => item.name), [typeItems]);
-  const typeIdOf = (name?: string) => vehicleTypeIdFor(name ?? "", typeItems);
+  // Gợi ý "Loại xe" lấy từ tên xe THẬT đã lưu trong Kho (DISTINCT), không phải
+  // danh mục seed. parser tốc ký cũng dùng chính danh sách tên này để nhận token.
+  const typeNames = useMemo(() => {
+    const seen = new Map<string, string>();
+    for (const vehicle of catalog.data?.items ?? []) {
+      const name = vehicle.vehicle_type?.trim();
+      if (name && !seen.has(name.toLowerCase()))
+        seen.set(name.toLowerCase(), name);
+    }
+    return [...seen.values()];
+  }, [catalog.data]);
 
   const handleParse = async () => {
     if (
@@ -362,9 +365,7 @@ export default function ShorthandIntakePage() {
           photos: recovered,
         };
       }
-      const rows = entries.map((entry) =>
-        entryToImportRow(entry, financial, typeItems),
-      );
+      const rows = entries.map((entry) => entryToImportRow(entry, financial));
       const check = await api.call<ImportCheck>("validate_import_vehicles", {
         p_vehicles: rows,
       });
@@ -418,8 +419,8 @@ export default function ShorthandIntakePage() {
   });
 
   const clientErrorsByEntry = useMemo(
-    () => entries.map((entry) => validateIntakeEntry(entry, financial, typeItems)),
-    [entries, financial, typeItems],
+    () => entries.map((entry) => validateIntakeEntry(entry, financial)),
+    [entries, financial],
   );
   // Smart Camera provenance badges: only camera entries carry fieldStatus,
   // so parsed notes render exactly as before.
@@ -608,28 +609,16 @@ export default function ShorthandIntakePage() {
                 label="Loại xe *"
                 className={cameraClass(entry, "vehicle_type", "intake-span2")}
               >
-                <select
+                <AutocompleteInput
                   aria-label="Loại xe *"
-                  value={typeIdOf(entry.fields.vehicle_type)}
-                  onChange={(event) =>
-                    updateField(
-                      entry.id,
-                      "vehicle_type",
-                      vehicleTypes.nameOf(event.target.value),
-                    )
+                  value={entry.fields.vehicle_type ?? ""}
+                  onChange={(value) =>
+                    updateField(entry.id, "vehicle_type", value)
                   }
-                >
-                  <option value="">
-                    {vehicleTypes.isLoading
-                      ? "Đang tải danh mục…"
-                      : "— Chọn loại xe —"}
-                  </option>
-                  {typeItems.map((type) => (
-                    <option key={type.id} value={type.id}>
-                      {type.name}
-                    </option>
-                  ))}
-                </select>
+                  suggestions={suggestions("vehicle_type")}
+                  maxSuggestions={10}
+                  placeholder="VD: Honda Vision, Wave Alpha…"
+                />
               </Field>
               <Field
                 label="Số khung"
@@ -834,12 +823,12 @@ export default function ShorthandIntakePage() {
                 variant="secondary"
                 disabled={
                   !entry.fields.frame_number ||
-                  !typeIdOf(entry.fields.vehicle_type)
+                  !(entry.fields.vehicle_type ?? "").trim()
                 }
                 onClick={() =>
                   navigate("/acquisitions/new", {
                     state: {
-                      aiDraft: entryToAcquisitionDraft(entry, typeItems),
+                      aiDraft: entryToAcquisitionDraft(entry),
                     },
                   })
                 }
@@ -920,13 +909,9 @@ export default function ShorthandIntakePage() {
                     setLesson({
                       ...lesson,
                       field,
-                      // Loại xe bắt buộc là một tên có trong danh mục, nên
-                      // không được giữ lại giá trị gõ tay của trường khác.
-                      value:
-                        field === "vehicle_type" &&
-                        !typeNames.includes(lesson.value)
-                          ? ""
-                          : lesson.value,
+                      // Loại xe là tên tự do nên giữ nguyên giá trị đã gõ
+                      // khi chuyển sang trường này (không bắt khớp danh mục).
+                      value: lesson.value,
                     });
                   }}
                 >
@@ -941,23 +926,14 @@ export default function ShorthandIntakePage() {
               </Field>
               <Field label="Thành">
                 {lesson.field === "vehicle_type" ? (
-                  <select
+                  <AutocompleteInput
+                    aria-label="Thành"
                     value={lesson.value}
-                    onChange={(event) =>
-                      setLesson({ ...lesson, value: event.target.value })
-                    }
-                  >
-                    <option value="">
-                      {vehicleTypes.isLoading
-                        ? "Đang tải danh mục…"
-                        : "— Chọn loại xe —"}
-                    </option>
-                    {typeItems.map((type) => (
-                      <option key={type.id} value={type.name}>
-                        {type.name}
-                      </option>
-                    ))}
-                  </select>
+                    onChange={(value) => setLesson({ ...lesson, value })}
+                    suggestions={typeNames}
+                    maxSuggestions={10}
+                    placeholder="VD: Honda Vision"
+                  />
                 ) : (
                   <input
                     value={lesson.value}

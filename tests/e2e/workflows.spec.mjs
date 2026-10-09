@@ -226,7 +226,7 @@ test("Inventory creation: lost committed response survives reload and reconciles
   page.on("request", request => {
     if (request.url().endsWith("/rest/v1/rpc/save_vehicle")) requests.push(request.postDataJSON());
   });
-  await page.getByLabel("Loại xe *", { exact: true }).selectOption({ label: "Xe số" });
+  await page.getByLabel("Loại xe *", { exact: true }).fill("Xe số");
   await page.getByLabel("Biển số", { exact: true }).fill("59B1-111.11");
   await page.getByLabel("Số khung", { exact: true }).fill(frame);
   await page.getByLabel("Giá mua (₫) *", { exact: false }).fill("18000000");
@@ -260,7 +260,7 @@ test("Owner: login, persistent session, add/edit vehicle, expense, sale, payment
     fullPage: true,
   });
   await page.goto("/vehicles/new");
-  await page.getByLabel("Loại xe *", { exact: true }).selectOption({ label: "Xe số" });
+  await page.getByLabel("Loại xe *", { exact: true }).fill("Xe số");
   await page.getByLabel("Biển số", { exact: true }).fill("61C1-222.22");
   await page.getByLabel("Giá mua (₫) *", { exact: false }).fill("80000000");
   await page.getByRole("button", { name: "Lưu xe mới", exact: true }).click();

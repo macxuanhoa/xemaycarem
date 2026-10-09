@@ -54,7 +54,7 @@ describe('Calendar and dateValue validation', () => {
 
 describe('Vehicle form input validation (vehicleSchema)', () => {
   const baseVehicle = {
-    vehicle_type_id: '8f07a3c1-4c0e-4f57-8f0f-4f7bd0d3ab12',
+    vehicle_type: 'Honda Vision',
     license_plate: '29B1-123.45',
     year: 2024,
     color: 'Trắng',
@@ -69,7 +69,7 @@ describe('Vehicle form input validation (vehicleSchema)', () => {
 
   it('validates a complete, valid vehicle object', () => {
     const parsed = vehicleSchema.parse(baseVehicle)
-    expect(parsed.vehicle_type_id).toBe(baseVehicle.vehicle_type_id)
+    expect(parsed.vehicle_type).toBe(baseVehicle.vehicle_type)
     expect(parsed.purchase_price).toBe(80_000_000)
     expect(parsed.status).toBe('IN_STOCK')
   })
@@ -95,14 +95,15 @@ describe('Vehicle form input validation (vehicleSchema)', () => {
     expect(parsed.purchase_price).toBeUndefined()
   })
 
-  it('requires a vehicle type from the catalogue and rejects a blank one', () => {
-    // Danh mục loại xe là bảng DB: hồ sơ xe không còn dòng nào để gõ tay,
-    // nên thiếu/chọn rỗng là chặn ngay ở client (server trả VEHICLE_TYPE_REQUIRED).
+  it('requires a vehicle type name and rejects a blank or too-short one', () => {
+    // "Loại xe" là tên mẫu xe nhập tự do; thiếu hoặc dưới 2 ký tự bị chặn ở client
+    // (server sẽ chuẩn hoá + get-or-create khi lưu).
     const withoutType: Partial<typeof baseVehicle> = { ...baseVehicle }
-    delete withoutType.vehicle_type_id
+    delete withoutType.vehicle_type
     expect(vehicleSchema.safeParse(withoutType).success).toBe(false)
-    expect(vehicleSchema.safeParse({ ...baseVehicle, vehicle_type_id: '' }).success).toBe(false)
-    expect(vehicleSchema.safeParse({ ...baseVehicle, vehicle_type_id: '   ' }).success).toBe(false)
+    expect(vehicleSchema.safeParse({ ...baseVehicle, vehicle_type: '' }).success).toBe(false)
+    expect(vehicleSchema.safeParse({ ...baseVehicle, vehicle_type: '   ' }).success).toBe(false)
+    expect(vehicleSchema.safeParse({ ...baseVehicle, vehicle_type: 'A' }).success).toBe(false)
     expect(vehicleSchema.safeParse(baseVehicle).success).toBe(true)
   })
 
@@ -146,7 +147,7 @@ describe('Acquisition form input validation (acquisitionSchema)', () => {
   const baseAcquisition = {
     frame_number: 'RLH160-001',
     license_plate: '29B1-123.45',
-    vehicle_type_id: '8f07a3c1-4c0e-4f57-8f0f-4f7bd0d3ab12',
+    vehicle_type: 'Honda Vision',
     year: 2024,
     color: 'Trắng',
     acquisition_date: '2026-09-30',
@@ -159,7 +160,7 @@ describe('Acquisition form input validation (acquisitionSchema)', () => {
   it('validates a complete acquisition record', () => {
     const parsed = acquisitionSchema.parse(baseAcquisition)
     expect(parsed.frame_number).toBe('RLH160-001')
-    expect(parsed.vehicle_type_id).toBe(baseAcquisition.vehicle_type_id)
+    expect(parsed.vehicle_type).toBe(baseAcquisition.vehicle_type)
     expect(parsed.purchase_price).toBe(80_000_000)
   })
 
@@ -176,9 +177,9 @@ describe('Acquisition form input validation (acquisitionSchema)', () => {
 
   it('requires a vehicle type and strips purged legacy keys', () => {
     const withoutType: Partial<typeof baseAcquisition> = { ...baseAcquisition }
-    delete withoutType.vehicle_type_id
+    delete withoutType.vehicle_type
     expect(acquisitionSchema.safeParse(withoutType).success).toBe(false)
-    expect(acquisitionSchema.safeParse({ ...baseAcquisition, vehicle_type_id: '' }).success).toBe(false)
+    expect(acquisitionSchema.safeParse({ ...baseAcquisition, vehicle_type: '' }).success).toBe(false)
 
     const parsed = acquisitionSchema.parse({
       ...baseAcquisition,

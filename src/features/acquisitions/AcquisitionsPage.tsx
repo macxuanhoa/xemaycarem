@@ -35,7 +35,11 @@ import {
 import { RowDeleteAction, RowViewAction } from "@/components/ui/RowActions";
 import { Highlight } from "@/components/search/Highlight";
 import type { Acquisition, Paged } from "@/types";
-import { vehicleSubtitle, vehicleTitle } from "@/lib/vehicleDisplay";
+import { vehicleTitle } from "@/lib/vehicleDisplay";
+import {
+  VehicleIdentityChips,
+  vehicleTypeName,
+} from "@/components/ui/VehicleIdentityChips";
 
 const pageSize = 6;
 
@@ -177,24 +181,18 @@ export function AcquisitionsPage() {
                         className="text-link"
                         to={`/vehicles/${acq.vehicle_id}`}
                       >
-                        <strong>
-                          <Highlight text={vehicleTitle(acq)} query={debouncedSearch} />
+                        <strong className="record-title">
+                          <Highlight text={vehicleTypeName(acq)} query={debouncedSearch} />
                         </strong>
                       </Link>
                       <small className="muted">
-                        {vehicleSubtitle(acq) || "Chưa phân loại"} ·{" "}
-                        {acq.internal_code ? <Highlight text={acq.internal_code} query={debouncedSearch} /> : "—"}
+                        {acq.year ? `Đời ${acq.year} · ` : ""}
+                        {acq.color ? `${acq.color} · ` : ""}
+                        Mã {acq.internal_code ? <Highlight text={acq.internal_code} query={debouncedSearch} /> : "—"}
                       </small>
                     </td>
                     <td>
-                      <div className="table-meta-row">
-                        <span className="table-sublabel">Khung:</span>
-                        <code><Highlight text={acq.frame_number} query={debouncedSearch} /></code>
-                      </div>
-                      <small className="table-meta-row">
-                        <span className="table-sublabel">BS:</span>
-                        <span>{acq.license_plate ? <Highlight text={acq.license_plate} query={debouncedSearch} /> : "Chưa có biển số"}</span>
-                      </small>
+                      <VehicleIdentityChips vehicle={acq} query={debouncedSearch} />
                     </td>
                     <td>{dateLabel(acq.acquisition_date)}</td>
                     <td>
@@ -240,20 +238,17 @@ export function AcquisitionsPage() {
                 to={`/vehicles/${acq.vehicle_id}`}
               >
                 <div className="row between">
-                  <strong>
-                    <Highlight text={vehicleTitle(acq)} query={debouncedSearch} />
+                  <strong className="record-title">
+                    <Highlight text={vehicleTypeName(acq)} query={debouncedSearch} />
                   </strong>
                   <Badge status={acq.status} />
                 </div>
-                <div className="mobile-meta-subline">
-                  <span className="table-sublabel">Khung:</span>
-                  <code className="mobile-code"><Highlight text={acq.frame_number} query={debouncedSearch} /></code>
-                  <span className="bullet-sep" aria-hidden="true">
-                    ·
-                  </span>
-                  <span className="table-sublabel">BS:</span>
-                  <span>{acq.license_plate ? <Highlight text={acq.license_plate} query={debouncedSearch} /> : "Chưa có biển số"}</span>
-                </div>
+                <VehicleIdentityChips vehicle={acq} query={debouncedSearch} />
+                <span className="muted">
+                  {acq.year ? `Đời ${acq.year} · ` : ""}
+                  {acq.color ? `${acq.color} · ` : ""}
+                  Mã {acq.internal_code || "—"}
+                </span>
                 <div className="row between">
                   <span>{dateLabel(acq.acquisition_date)}</span>
                   {canFinance(profile) && acq.purchase_price != null && (

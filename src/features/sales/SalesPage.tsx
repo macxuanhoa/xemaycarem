@@ -19,7 +19,10 @@ import {
 } from "@/components/ui";
 import { Highlight } from "@/components/search/Highlight";
 import type { Paged, ReceivablesSummary, Sale } from "@/types";
-import { vehicleSubtitle, vehicleTitle } from "@/lib/vehicleDisplay";
+import {
+  VehicleIdentityChips,
+  vehicleTypeName,
+} from "@/components/ui/VehicleIdentityChips";
 import { ReceivablesPage } from "./ReceivablesPage";
 
 const pageSize = 6;
@@ -221,11 +224,12 @@ export function SalesPage({
                           <small>{dateLabel(sale.sale_date)}</small>
                         </td>
                         <td>
-                          <strong>
-                            <Highlight text={vehicleTitle(sale)} query={deferredSearch} />
+                          <strong className="record-title">
+                            <Highlight text={vehicleTypeName(sale)} query={deferredSearch} />
                           </strong>
-                          <small>
-                            <Highlight text={vehicleSubtitle(sale) || sale.vehicle_code || sale.vehicle?.internal_code || ""} query={deferredSearch} />
+                          <VehicleIdentityChips vehicle={sale} query={deferredSearch} />
+                          <small className="vehicle-code">
+                            <Highlight text={sale.vehicle_code || sale.internal_code || ""} query={deferredSearch} />
                           </small>
                         </td>
                         <td>
@@ -268,7 +272,10 @@ export function SalesPage({
                       <strong><Highlight text={sale.sale_code} query={deferredSearch} /></strong>
                       <Badge status={sale.status} />
                     </div>
-                    <span><Highlight text={vehicleTitle(sale)} query={deferredSearch} /></span>
+                    <div className="record-title">
+                      <Highlight text={vehicleTypeName(sale)} query={deferredSearch} />
+                    </div>
+                    <VehicleIdentityChips vehicle={sale} query={deferredSearch} />
                     <span className="muted">
                       <Highlight text={sale.customer_name} query={deferredSearch} /> · {dateLabel(sale.sale_date)}
                     </span>

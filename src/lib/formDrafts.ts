@@ -14,8 +14,8 @@ const MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
 const TEXT_FIELDS = [
   "frame_number",
   "license_plate",
-  // id loại xe trong danh mục vehicle_types
-  "vehicle_type_id",
+  // tên loại xe (mẫu xe) nhập tự do, server get-or-create khi lưu
+  "vehicle_type",
   "color",
   "acquisition_date",
   "purchase_date",

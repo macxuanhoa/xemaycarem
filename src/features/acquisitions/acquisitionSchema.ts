@@ -21,8 +21,12 @@ export const acquisitionSchema = z
       .trim()
       .max(30)
       .refine(isValidMotorbikePlate, PLATE_INVALID_MESSAGE),
-    // Danh mục loại xe: nhân viên chỉ chọn, không gõ tên hãng/tên xe.
-    vehicle_type_id: z.string().trim().min(1, "Chọn loại xe."),
+    // Tên loại xe (mẫu xe) nhập tự do; gợi ý học từ xe đã lưu, server get-or-create.
+    vehicle_type: z
+      .string()
+      .trim()
+      .min(2, "Nhập loại / dòng xe (tối thiểu 2 ký tự).")
+      .max(60, "Tên xe tối đa 60 ký tự."),
     year: z
       .number({ error: "Nhập năm sản xuất hợp lệ." })
       .int("Năm sản xuất phải là số nguyên.")

@@ -32,12 +32,11 @@ import { MoneyInput } from "@/components/ui/MoneyInput";
 import { AutocompleteInput } from "@/components/ui/AutocompleteInput";
 import { saveRecentValue } from "@/lib/recentVehicles";
 import { vehicleSuggestions } from "@/lib/vehicleSuggestions";
-import { useVehicleTypes } from "@/lib/useVehicleTypes";
 import {
   useVehicleDuplicateCheck,
 } from "@/lib/vehicleDuplicateCheck";
 import {
-  FrameKindSegmented,
+  FrameKindAdvanced,
   DuplicateInspector,
 } from "@/components/VehicleDuplicateCheck";
 import {
@@ -80,7 +79,7 @@ function AcquisitionEditor() {
       frame_input_kind: "FULL",
       duplicate_ack: false,
       license_plate: "",
-      vehicle_type_id: "",
+      vehicle_type: "",
       year: undefined,
       color: "",
       acquisition_date: today(),
@@ -99,7 +98,22 @@ function AcquisitionEditor() {
   const draft = useFormDraft("acquisition", profile?.id, form);
   const rawFrame = form.watch("frame_number");
   const rawPlate = form.watch("license_plate");
-  const frameKind = (form.watch("frame_input_kind") ?? "FULL") as FrameInputKind;
+  // Một ô số khung duy nhất: hệ thống tự nhận FULL/PARTIAL theo độ dài; nhân
+  // viên chỉ ghi đè tay ở "Nâng cao" khi gặp ngoại lệ (số khung ngắn nhưng hợp lệ).
+  const [frameKindOverride, setFrameKindOverride] = useState<
+    FrameInputKind | null
+  >(() => {
+    const stored = form.getValues("frame_input_kind");
+    const auto = frameKindFromCompact(
+      compactFrame(form.getValues("frame_number")),
+    );
+    return stored && stored !== auto ? stored : null;
+  });
+  const frameKind: FrameInputKind =
+    frameKindOverride ?? frameKindFromCompact(compactFrame(rawFrame));
+  useEffect(() => {
+    form.setValue("frame_input_kind", frameKind, { shouldDirty: true });
+  }, [frameKind, form]);
 
   const catalog = useQuery({
     queryKey: ["vehicle-form-suggestions", profile?.id],
@@ -109,8 +123,6 @@ function AcquisitionEditor() {
       }),
     staleTime: 5 * 60 * 1000,
   });
-
-  const vehicleTypes = useVehicleTypes();
 
   const dupCheck = useVehicleDuplicateCheck({
     frameNumber: rawFrame,
@@ -126,10 +138,10 @@ function AcquisitionEditor() {
     dupCheck.settled &&
     (dupCheck.level === "RED" || (dupCheck.level === "YELLOW" && !acknowledged));
 
-  const suggestions = (field: "color") =>
+  const suggestions = (field: "color" | "vehicle_type") =>
     vehicleSuggestions(catalog.data?.items ?? [], field, profile?.id);
 
-  const setText = (field: "color", value: string) =>
+  const setText = (field: "color" | "vehicle_type", value: string) =>
     form.setValue(field, value, {
       shouldDirty: true,
       shouldValidate: !!form.formState.errors[field],
@@ -164,6 +176,7 @@ function AcquisitionEditor() {
       setPendingConfirmation(null);
       draft.complete();
       saveRecentValue("color", values.color, profile?.id);
+      saveRecentValue("vehicle_type", values.vehicle_type, profile?.id);
       await client.invalidateQueries();
       navigate(`/vehicles/${vehicleId}`, {
         state: { acquisitionConfirmed: true },
@@ -315,33 +328,16 @@ function AcquisitionEditor() {
                       shouldTouch: true,
                     });
                   }}
-                  placeholder={
-                    frameKind === "PARTIAL"
-                      ? "5 ký tự cuối số khung"
-                      : "Nhập số khung đầy đủ (nếu có)"
+                  placeholder="Nhập số khung đầy đủ, hoặc 5 ký tự cuối"
+                />
+                <FrameKindAdvanced
+                  kind={frameKind}
+                  selection={frameKindOverride ?? "AUTO"}
+                  disabled={mutation.isPending}
+                  onSelect={(value) =>
+                    setFrameKindOverride(value === "AUTO" ? null : value)
                   }
                 />
-                <div className="frame-kind-row">
-                  <span className="muted small">Loại dữ liệu số khung</span>
-                  <FrameKindSegmented
-                    kind={frameKind}
-                    disabled={mutation.isPending}
-                    onChange={(next) => {
-                      form.setValue("frame_input_kind", next, {
-                        shouldDirty: true,
-                        shouldValidate: true,
-                      });
-                      if (next === "FULL") {
-                        const derived = frameKindFromCompact(compactFrame(rawFrame));
-                        if (derived !== "FULL")
-                          form.setError("frame_number", {
-                            message:
-                              "Số khung đang nhập có vẻ là rút gọn. Hãy nhập đủ hoặc giữ ở mục “5 ký tự cuối”.",
-                          });
-                      }
-                    }}
-                  />
-                </div>
                 <DuplicateInspector
                   checking={dupCheck.isChecking}
                   error={dupCheck.isError}
@@ -369,22 +365,16 @@ function AcquisitionEditor() {
                 />
               </Field>
 
-              <Field label="Loại xe *" error={error("vehicle_type_id")}>
-                <select
+              <Field label="Loại xe *" error={error("vehicle_type")}>
+                <AutocompleteInput
                   aria-label="Loại xe *"
-                  {...form.register("vehicle_type_id")}
-                >
-                  <option value="">
-                    {vehicleTypes.isLoading
-                      ? "Đang tải danh mục…"
-                      : "— Chọn loại xe —"}
-                  </option>
-                  {vehicleTypes.items.map((type) => (
-                    <option key={type.id} value={type.id}>
-                      {type.name}
-                    </option>
-                  ))}
-                </select>
+                  value={form.watch("vehicle_type")}
+                  onChange={(value) => setText("vehicle_type", value)}
+                  onBlur={() => void form.trigger("vehicle_type")}
+                  suggestions={suggestions("vehicle_type")}
+                  maxSuggestions={10}
+                  placeholder="VD: Honda Vision, Wave Alpha…"
+                />
               </Field>
 
               <Field label="Năm sản xuất" error={error("year")}>
@@ -607,9 +597,7 @@ function AcquisitionEditor() {
               <div className="confirm-summary-row">
                 <span className="confirm-label">Loại xe:</span>
                 <strong className="confirm-value">
-                  {vehicleTypes.nameOf(pendingConfirmation.vehicle_type_id) ||
-                    pendingConfirmation.vehicle_type_id ||
-                    "—"}
+                  {pendingConfirmation.vehicle_type || "—"}
                 </strong>
               </div>
               <div className="confirm-summary-row">

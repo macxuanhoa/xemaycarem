@@ -37,10 +37,10 @@ describe('Input Fuzzing and Malicious Payload Handling', () => {
   ]
 
   describe('Vehicle Schema Resilience', () => {
-    // Khuôn hồ sơ xe sau 08/10/2026: loại xe lấy từ danh mục, không còn
+    // Khuôn hồ sơ xe sau 10/10/2026: "Loại xe" là tên mẫu xe nhập tự do, không còn
     // Hãng / Dòng / Phiên bản / Số máy / Số km / Giá bán dự kiến.
     const validVehicle = {
-      vehicle_type_id: 'type-xe-tay-ga',
+      vehicle_type: 'Xe tay ga',
       purchase_date: '2026-09-30',
       status: 'IN_STOCK' as const,
       license_plate: '',
@@ -81,7 +81,7 @@ describe('Input Fuzzing and Malicious Payload Handling', () => {
         expect(parsed.success, key).toBe(true)
         if (parsed.success) expect(parsed.data, key).not.toHaveProperty(key)
       }
-      expect(vehicleSchema.safeParse({ ...validVehicle, vehicle_type_id: '' }).success).toBe(false)
+      expect(vehicleSchema.safeParse({ ...validVehicle, vehicle_type: '' }).success).toBe(false)
     })
 
     it('rejects strings exceeding database column limits (e.g. color > 60 chars, frame > 100 chars)', () => {

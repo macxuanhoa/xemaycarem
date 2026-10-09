@@ -284,7 +284,7 @@ test("A mutation rejected with expired JWT retains input and never shows saved s
   await enterLogin(page);
   await expect(page).toHaveURL(/\/$/);
   await page.goto("/vehicles/new");
-  await page.getByLabel("Loại xe *", { exact: true }).selectOption({ index: 1 });
+  await page.getByLabel("Loại xe *", { exact: true }).fill("Xe tay ga");
   await page
     .getByLabel("Biển số", { exact: true })
     .fill("59A1-234.56");

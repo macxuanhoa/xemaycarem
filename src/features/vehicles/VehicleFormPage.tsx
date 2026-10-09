@@ -16,7 +16,7 @@ import {
   useVehicleDuplicateCheck,
 } from "@/lib/vehicleDuplicateCheck";
 import {
-  FrameKindSegmented,
+  FrameKindAdvanced,
   DuplicateInspector,
 } from "@/components/VehicleDuplicateCheck";
 import { compactFrame, frameKindFromCompact, type FrameInputKind } from "@/lib/frameNumber";
@@ -38,7 +38,6 @@ import { AutocompleteInput } from "@/components/ui/AutocompleteInput";
 import { saveRecentValue } from "@/lib/recentVehicles";
 import { useFormDraft } from "@/lib/useFormDraft";
 import { vehicleSuggestions } from "@/lib/vehicleSuggestions";
-import { useVehicleTypes } from "@/lib/useVehicleTypes";
 import { compressImage } from "@/lib/imageCompression";
 import type { Paged } from "@/types";
 
@@ -114,7 +113,7 @@ function VehicleEditor({ vehicle }: { vehicle?: Vehicle }) {
     resolver: zodResolver(vehicleSchema),
     mode: "onBlur",
     defaultValues: {
-      vehicle_type_id: vehicle?.vehicle_type_id ?? "",
+      vehicle_type: vehicle?.vehicle_type ?? "",
       license_plate: vehicle?.license_plate ?? "",
       year: vehicle?.year ?? undefined,
       color: vehicle?.color ?? "",
@@ -141,7 +140,22 @@ function VehicleEditor({ vehicle }: { vehicle?: Vehicle }) {
   );
   const rawFrame = form.watch("frame_number");
   const rawPlate = form.watch("license_plate");
-  const frameKind = (form.watch("frame_input_kind") ?? "FULL") as FrameInputKind;
+  // Một ô số khung duy nhất: tự nhận FULL/PARTIAL theo độ dài; chỉ ghi đè tay
+  // ở "Nâng cao" cho ngoại lệ (số khung hợp lệ nhưng ngắn, hoặc mảnh dài).
+  const [frameKindOverride, setFrameKindOverride] = useState<
+    FrameInputKind | null
+  >(() => {
+    const stored = form.getValues("frame_input_kind");
+    const auto = frameKindFromCompact(
+      compactFrame(form.getValues("frame_number")),
+    );
+    return stored && stored !== auto ? stored : null;
+  });
+  const frameKind: FrameInputKind =
+    frameKindOverride ?? frameKindFromCompact(compactFrame(rawFrame));
+  useEffect(() => {
+    form.setValue("frame_input_kind", frameKind, { shouldDirty: true });
+  }, [frameKind, form]);
   const dupCheck = useVehicleDuplicateCheck({
     frameNumber: rawFrame,
     licensePlate: rawPlate,
@@ -166,10 +180,9 @@ function VehicleEditor({ vehicle }: { vehicle?: Vehicle }) {
       }),
     staleTime: 5 * 60 * 1000,
   });
-  const vehicleTypes = useVehicleTypes();
-  const suggestions = (field: "color") =>
+  const suggestions = (field: "color" | "vehicle_type") =>
     vehicleSuggestions(catalog.data?.items ?? [], field, profile?.id);
-  const setText = (field: "color", value: string) =>
+  const setText = (field: "color" | "vehicle_type", value: string) =>
     form.setValue(field, value, {
       shouldDirty: true,
       shouldValidate: !!form.formState.errors[field],
@@ -201,6 +214,7 @@ function VehicleEditor({ vehicle }: { vehicle?: Vehicle }) {
       setSavedId(resultId);
       draft.complete();
       saveRecentValue("color", values.color, profile?.id);
+      saveRecentValue("vehicle_type", values.vehicle_type, profile?.id);
       await client.invalidateQueries();
       if (files.length) {
         const remaining = [...files];
@@ -285,20 +299,16 @@ function VehicleEditor({ vehicle }: { vehicle?: Vehicle }) {
               <span className="muted small">Bắt buộc: Loại xe</span>
             </div>
             <div className="form-grid">
-              <Field label="Loại xe *" error={error("vehicle_type_id")}>
-                <select
+              <Field label="Loại xe *" error={error("vehicle_type")}>
+                <AutocompleteInput
                   aria-label="Loại xe *"
-                  {...form.register("vehicle_type_id")}
-                >
-                  <option value="">
-                    {vehicleTypes.isLoading ? "Đang tải danh mục…" : "— Chọn loại xe —"}
-                  </option>
-                  {vehicleTypes.items.map((type) => (
-                    <option key={type.id} value={type.id}>
-                      {type.name}
-                    </option>
-                  ))}
-                </select>
+                  value={form.watch("vehicle_type")}
+                  onChange={(value) => setText("vehicle_type", value)}
+                  onBlur={() => void form.trigger("vehicle_type")}
+                  suggestions={suggestions("vehicle_type")}
+                  maxSuggestions={10}
+                  placeholder="VD: Honda Vision, Wave Alpha…"
+                />
               </Field>
               <Field label="Biển số" error={error("license_plate")}>
                 <input
@@ -348,9 +358,7 @@ function VehicleEditor({ vehicle }: { vehicle?: Vehicle }) {
                 <input
                   {...form.register("frame_number")}
                   autoCapitalize="characters"
-                  placeholder={
-                    frameKind === "PARTIAL" ? "5 ký tự cuối" : "Số khung đầy đủ (nếu có)"
-                  }
+                  placeholder="Nhập số khung đầy đủ, hoặc 5 ký tự cuối"
                   onBlur={(event) => {
                     if (event.target.value.trim()) {
                       form.setValue(
@@ -361,27 +369,14 @@ function VehicleEditor({ vehicle }: { vehicle?: Vehicle }) {
                     }
                   }}
                 />
-                <div className="frame-kind-row">
-                  <span className="muted small">Loại dữ liệu số khung</span>
-                  <FrameKindSegmented
-                    kind={frameKind}
-                    disabled={mutation.isPending || !!savedId}
-                    onChange={(next) => {
-                      form.setValue("frame_input_kind", next, {
-                        shouldDirty: true,
-                        shouldValidate: true,
-                      });
-                      if (next === "FULL") {
-                        const derived = frameKindFromCompact(compactFrame(rawFrame));
-                        if (derived !== "FULL")
-                          form.setError("frame_number", {
-                            message:
-                              "Số khung đang nhập có vẻ là rút gọn. Hãy nhập đủ hoặc giữ ở mục “5 ký tự cuối”.",
-                          });
-                      }
-                    }}
-                  />
-                </div>
+                <FrameKindAdvanced
+                  kind={frameKind}
+                  selection={frameKindOverride ?? "AUTO"}
+                  disabled={mutation.isPending || !!savedId}
+                  onSelect={(value) =>
+                    setFrameKindOverride(value === "AUTO" ? null : value)
+                  }
+                />
                 <DuplicateInspector
                   checking={dupCheck.isChecking}
                   error={dupCheck.isError}

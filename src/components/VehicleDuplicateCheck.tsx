@@ -9,43 +9,64 @@ import { vehicleTitle } from "@/lib/vehicleDisplay";
 import { duplicateReasonCopy, type FrameInputKind } from "@/lib/frameNumber";
 import type { DuplicateCheckResult } from "@/lib/vehicleDuplicateCheck";
 
+/** Cách chọn loại dữ liệu số khung: "AUTO" để hệ thống tự nhận theo độ dài. */
+export type FrameKindSelection = "AUTO" | FrameInputKind;
+
 /**
- * Nút chọn loại dữ liệu số khung. "Đầy đủ" giữ danh tính cứng (UNIQUE nén);
- * "5 ký tự cuối" cho phép nhập nhanh mảnh rút gọn, không chặn cứng mà chỉ
- * kích hoạt phát hiện nghi trùng. Chuản hoá giữ nguyên số 0 đầu (text).
+ * Ô số khung CHỈ có một; hệ thống TỰ nhận FULL (VIN đầy đủ ≥ 11 ký tự, giữ
+ * danh tính cứng UNIQUE) hay PARTIAL (mảnh 5 ký tự cuối, chỉ nghi trùng). Nút
+ * chọn tay được ẩn vào "Nâng cao", dùng cho ngoại lệ — ví dụ số khung hợp lệ
+ * nhưng ngắn hơn 11 ký tự mà nhân viên muốn ép về "Đầy đủ" để chặn trùng cứng.
  */
-export function FrameKindSegmented({
+export function FrameKindAdvanced({
   kind,
-  onChange,
+  selection,
+  onSelect,
   disabled,
 }: {
   kind: FrameInputKind;
-  onChange: (kind: FrameInputKind) => void;
+  selection: FrameKindSelection;
+  onSelect: (value: FrameKindSelection) => void;
   disabled?: boolean;
 }) {
-  const options: { value: FrameInputKind; label: string }[] = [
+  const options: { value: FrameKindSelection; label: string }[] = [
+    { value: "AUTO", label: "Tự động" },
     { value: "FULL", label: "Đầy đủ" },
-    { value: "PARTIAL", label: "5 ký tự cuối" },
+    { value: "PARTIAL", label: "Rút gọn" },
   ];
   return (
-    <div
-      className="frame-kind-segmented"
-      role="radiogroup"
-      aria-label="Loại dữ liệu số khung"
-    >
-      {options.map((option) => (
-        <button
-          key={option.value}
-          type="button"
-          role="radio"
-          aria-checked={kind === option.value}
-          disabled={disabled}
-          className={`frame-kind-option${kind === option.value ? " active" : ""}`}
-          onClick={() => onChange(option.value)}
+    <div className="frame-kind-advanced">
+      <span className="frame-kind-detected muted small">
+        Nhận diện:{" "}
+        {kind === "FULL" ? "số khung đầy đủ" : "5 ký tự cuối (rút gọn)"}
+        {selection !== "AUTO" ? " · chọn thủ công" : ""}
+      </span>
+      <details className="frame-kind-details">
+        <summary>Loại số khung (nâng cao)</summary>
+        <div
+          className="frame-kind-segmented"
+          role="radiogroup"
+          aria-label="Loại dữ liệu số khung"
         >
-          {option.label}
-        </button>
-      ))}
+          {options.map((option) => (
+            <button
+              key={option.value}
+              type="button"
+              role="radio"
+              aria-checked={selection === option.value}
+              disabled={disabled}
+              className={`frame-kind-option${selection === option.value ? " active" : ""}`}
+              onClick={() => onSelect(option.value)}
+            >
+              {option.label}
+            </button>
+          ))}
+        </div>
+        <p className="frame-kind-hint muted small">
+          Hệ thống tự nhận số khung từ 11 ký tự là đầy đủ. Chọn "Đầy đủ" nếu đây
+          là số khung hợp lệ nhưng ngắn hơn, để áp dụng chặn trùng tuyệt đối.
+        </p>
+      </details>
     </div>
   );
 }

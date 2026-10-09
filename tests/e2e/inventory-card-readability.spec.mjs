@@ -161,14 +161,18 @@ for (const width of [320, 375, 390, 430]) {
     expect(identity.radius).toBeGreaterThanOrEqual(10);
     expect(identity.hasShadow).toBe(true);
 
-    // C. Internal hierarchy: header, meta, grouped detail lines, financials, cost.
+    // C. Internal hierarchy: type name leads, plate/chassis render as
+    //    emphasized chips, then a grouped detail box, financials and cost.
     const card = cards.first();
-    await expect(card.locator(".row").first().locator("strong")).toHaveText("43A1-99999 · RLH2023XYZ000001");
+    await expect(card.locator(".row").first().locator("strong")).toHaveText("Xe tay ga");
     await expect(card.getByText("Sẵn sàng bán", { exact: true })).toBeVisible();
+    // Biển số & số khung nổi bật trong chip riêng (data-testid ổn định).
+    await expect(card.getByTestId("plate-chip")).toContainText("43A1-99999");
+    await expect(card.getByTestId("frame-chip")).toContainText("RLH2023XYZ000001");
     await expect(card.locator(".record-details")).toBeVisible();
     await expect(card.getByText("Mã xe: XE-RD-001", { exact: true })).toBeVisible();
-    await expect(card.getByText("Số khung: RLH2023XYZ000001", { exact: true })).toBeVisible();
-    await expect(card.getByText("Biển số: 43A1-99999", { exact: true })).toBeVisible();
+    await expect(card.getByText("Đời xe: 2023", { exact: true })).toBeVisible();
+    await expect(card.getByText("Màu sắc: Đen", { exact: true })).toBeVisible();
     await expect(card.locator(".record-cost")).toContainText("Giá vốn:");
 
     // D. Actions are a compact ••• pinned to the card's top-right corner.

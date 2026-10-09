@@ -19,8 +19,12 @@ export {
 } from "@/features/expenses/expenseSchema";
 
 export const vehicleSchema = z.object({
-  // Danh mục loại xe (bảng vehicle_types): chỉ chọn, không gõ tay.
-  vehicle_type_id: z.string().trim().min(1, "Chọn loại xe."),
+  // Tên loại xe (mẫu xe) nhập tự do; server chuẩn hoá + get-or-create khi lưu.
+  vehicle_type: z
+    .string()
+    .trim()
+    .min(2, "Nhập loại / dòng xe (tối thiểu 2 ký tự).")
+    .max(60, "Tên xe tối đa 60 ký tự."),
   license_plate: z
     .string()
     .trim()

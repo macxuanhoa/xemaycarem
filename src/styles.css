@@ -1707,6 +1707,18 @@ pre {
   font-weight: 600;
   color: #475569;
 }
+.result-count strong {
+  font-weight: 700;
+  color: #1e293b;
+}
+/* Qualifier that follows the count ("với từ khóa …"). The span text carries no
+   leading space, so the gap comes from CSS instead of JSX whitespace. */
+.result-count-qual {
+  margin-left: 6px;
+  font-size: 12.5px;
+  font-weight: 500;
+  color: #64748b;
+}
 
 /* Dashboard Grids */
 .dashboard-main-grid {
@@ -2213,6 +2225,21 @@ pre {
    press the vehicle icon and the action button against the card border. */
 .table-card > .compact-row {
   padding-inline: var(--table-inset);
+}
+/* List summary band inside a flush table card: the count and the active sort
+   sit on the card's own inset, so they line up with the rows above and the
+   footer divider below instead of floating between two cards. */
+.table-list-head {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 5px 18px;
+  padding: 15px var(--table-inset, 22px) 13px;
+}
+.table-list-sort {
+  font-size: 11.5px;
+  color: #64748b;
 }
 .table-card > .pagination {
   border-top: 0;
@@ -4100,6 +4127,12 @@ pre {
     min-height: 0;
     padding: 0;
   }
+  /* The summary band sits directly on the mobile card list, which already
+     carries its own 14px top padding, so the band drops its bottom padding. */
+  .table-list-head {
+    padding: 13px var(--table-inset) 0;
+    gap: 3px 14px;
+  }
   .section-heading {
     gap: 12px;
     flex-wrap: wrap;
@@ -4195,6 +4228,17 @@ pre {
   }
   .record-cost {
     margin-top: -2px;
+  }
+  /* Danh tính ưu tiên trên thẻ mobile: tên loại xe to đậm, hai chip
+     biển số / số khung đứng ngay dưới và tự trải khi hẹp. */
+  .mobile-record .record-title {
+    font-size: 15px;
+  }
+  .mobile-record .vehicle-title-chips {
+    gap: 6px;
+  }
+  .mobile-record .title-chip {
+    padding: 3px 9px;
   }
   /* Actions live as a compact ••• pinned to the card's top-right corner
      (the usual convention), not a full-width bar anchored to the bottom. */
@@ -7522,14 +7566,43 @@ mark.search-hit {
   color: #15803d;
 }
 
-/* Frame kind segmented control (FULL / PARTIAL rút gọn) */
-.frame-kind-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
+/* Frame kind: single input auto-detect + advanced override */
+.frame-kind-advanced {
   margin-top: 8px;
-  flex-wrap: wrap;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.frame-kind-detected {
+  font-variant-numeric: tabular-nums;
+}
+
+.frame-kind-details > summary {
+  list-style: none;
+  cursor: pointer;
+  font-size: 12.5px;
+  font-weight: 550;
+  color: #566944;
+  width: fit-content;
+  padding: 2px 0;
+}
+
+.frame-kind-details > summary::-webkit-details-marker {
+  display: none;
+}
+
+.frame-kind-details > summary:hover {
+  color: #1f3d2b;
+}
+
+.frame-kind-details[open] > summary {
+  color: #1f3d2b;
+}
+
+.frame-kind-hint {
+  margin: 8px 0 0;
+  line-height: 1.5;
 }
 
 .frame-kind-segmented {
@@ -10604,6 +10677,16 @@ html[data-theme="dark"] .header-theme-toggle {
 [data-theme="dark"] .table-card > .pagination::before {
   background: #232531;
 }
+[data-theme="dark"] .result-count {
+  color: #9aa3b5;
+}
+[data-theme="dark"] .result-count strong {
+  color: #e7e9f0;
+}
+[data-theme="dark"] .result-count-qual,
+[data-theme="dark"] .table-list-sort {
+  color: #8f96a8;
+}
 [data-theme="dark"] .pagination-page {
   color: #9aa3b5;
 }
@@ -13409,6 +13492,107 @@ html[data-theme="dark"] .header-theme-toggle {
 }
 [data-theme="dark"] .vehicle-id-frame .vehicle-id-copy:hover {
   background: rgba(220, 235, 226, 0.16);
+}
+/* Dòng tên loại xe đứng đầu mỗi thẻ/dòng xe — ưu tiên đọc đầu tiên,
+   kế đến mới tới chip biển số / số khung nổi bật bên dưới. */
+.record-title {
+  font-weight: 700;
+  font-size: 14px;
+  letter-spacing: 0.1px;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+/* Compact identity chips for the list cards (Thu vào · Tồn kho · Đơn bán).
+   Thu gọn hai tile "Danh tính xe" của trang chi tiết thành pill vừa hàng:
+   biển số vẫn là viên navy mô phỏng đăng ký, số khung vẫn là viên mint nền
+   monospace — nổi bật nhưng tinh tế, luôn đi kèm tên loại xe đứng đầu thẻ. */
+.vehicle-title-chips {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 8px;
+  min-width: 0;
+}
+.title-chip {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+  max-width: 100%;
+  padding: 3px 11px;
+  border-radius: 999px;
+  border: 1px solid transparent;
+  font-weight: 650;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+.title-chip-label {
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
+  flex-shrink: 0;
+}
+.title-chip-plate {
+  background: #1d2f52;
+  border-color: #16263f;
+  color: #ffffff;
+  font-family: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+  font-size: 13px;
+  letter-spacing: 0.4px;
+}
+.title-chip-plate .title-chip-label {
+  color: #a7bad9;
+}
+.title-chip-frame {
+  background: #eaf3ec;
+  border-color: #d3e5d7;
+  color: #17301f;
+  font-family: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+  font-size: 12.5px;
+  letter-spacing: 0.3px;
+}
+.title-chip-frame .title-chip-label {
+  color: #4c6a54;
+}
+.title-chip-empty {
+  background: #f1f4ee;
+  border-color: #dfe7d3;
+  border-style: dashed;
+  color: #879776;
+  font-weight: 500;
+  font-size: 11.5px;
+}
+.title-chip-empty .title-chip-label {
+  color: #a7b39a;
+}
+/* Gạch chân vàng tìm kiếm phải đọc được trên nền biển số tối. */
+.title-chip-plate mark.search-hit {
+  background: rgba(250, 204, 21, 0.55);
+  color: #ffffff;
+}
+[data-theme="dark"] .title-chip-plate {
+  background: #223458;
+  border-color: #3a4f78;
+  color: #eaf0fb;
+}
+[data-theme="dark"] .title-chip-plate .title-chip-label {
+  color: #9fb3d8;
+}
+[data-theme="dark"] .title-chip-frame {
+  background: #141c17;
+  border-color: #2c4636;
+  color: #dceadf;
+}
+[data-theme="dark"] .title-chip-frame .title-chip-label {
+  color: #8fd3a8;
+}
+[data-theme="dark"] .title-chip-empty {
+  background: #101117;
+  border-color: #2c2f3a;
+  color: #8f96a8;
+}
+[data-theme="dark"] .title-chip-empty .title-chip-label {
+  color: #6f7689;
 }
 .copilot-composer > form {
   gap: var(--space-md);

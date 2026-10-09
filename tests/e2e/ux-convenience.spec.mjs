@@ -254,7 +254,7 @@ test("Mobile acquisition uses visible save, normalized money and keeps advanced 
   );
   expect(position).not.toBe("fixed");
   expect(position).not.toBe("sticky");
-  await expect(page.getByText("Chọn loại xe.")).toHaveCount(0);
+  await expect(page.getByText("Nhập loại / dòng xe")).toHaveCount(0);
   await action.scrollIntoViewIfNeeded();
   await expect(action).toBeVisible();
   const bounds = await action.boundingBox();
@@ -262,7 +262,8 @@ test("Mobile acquisition uses visible save, normalized money and keeps advanced 
   const started = Date.now();
   await page.getByLabel("Số khung", { exact: true }).fill("NEW-UX-FRAME");
   await page.getByLabel("Biển số (nếu có)", { exact: true }).fill("43A1-99999");
-  await page.getByLabel("Loại xe *", { exact: true }).selectOption("vt-ga");
+  // "Loại xe" là ô nhập tự do có autocomplete (không còn <select> danh mục).
+  await page.getByLabel("Loại xe *", { exact: true }).fill("Honda Vision");
   await page.getByLabel("Giá thu (₫) *", { exact: true }).fill("82tr");
   await action.click();
 
@@ -321,8 +322,8 @@ test("Acquisition submit validates on demand and focuses the first error", async
   await installMock(page);
   await page.goto("/acquisitions/new");
   // No required-field error before interaction. Số khung and Biển số are now
-  // optional; only Loại xe (the catalogue) still blocks a bare submit.
-  await expect(page.getByText("Chọn loại xe.")).toHaveCount(0);
+  // optional; only Loại xe (the free-text name) still blocks a bare submit.
+  await expect(page.getByText("Nhập loại / dòng xe")).toHaveCount(0);
   const action = page.getByRole("button", {
     name: "Thu xe & tạo phiếu",
     exact: true,
@@ -330,7 +331,7 @@ test("Acquisition submit validates on demand and focuses the first error", async
   await action.scrollIntoViewIfNeeded();
   await action.click();
   // Submission is blocked and the first invalid field reports inline.
-  await expect(page.getByText("Chọn loại xe.")).toBeVisible();
+  await expect(page.getByText("Nhập loại / dòng xe")).toBeVisible();
   const focusedIsType = await page.evaluate(
     () =>
       document.activeElement
@@ -949,4 +950,42 @@ test("A failed chassis lookup never claims the identifier is available", async (
     page.getByRole("button", { name: "Thử lại", exact: true }),
   ).toBeVisible();
   expect(calls.some((call) => call.name === "acquire_vehicle")).toBe(false);
+});
+
+test("Single frame input auto-classifies a short frame as rút gọn when saving", async ({
+  page,
+}) => {
+  const calls = await installMock(page);
+  await page.goto("/acquisitions/new");
+  // 9 ký tự (< 11) → hệ thống TỰ nhận là mảnh rút gọn, không cần chọn nút.
+  await page.getByLabel("Số khung", { exact: true }).fill("ABCDE1234");
+  await expect(page.getByText("Nhận diện: 5 ký tự cuối (rút gọn)")).toBeVisible();
+  await page.getByLabel("Biển số (nếu có)", { exact: true }).fill("43A1-99999");
+  await page.getByLabel("Loại xe *", { exact: true }).fill("Honda Vision");
+  await page.getByLabel("Giá thu (₫) *", { exact: true }).fill("82tr");
+  await page.getByRole("button", { name: "Thu xe & tạo phiếu", exact: true }).click();
+  await page.getByRole("button", { name: "Xác nhận thu xe", exact: true }).click();
+  const request = calls.find((call) => call.name === "acquire_vehicle");
+  expect(request.body.p_data.frame_input_kind).toBe("PARTIAL");
+});
+
+test("Advanced override forces a short-but-confirmed frame to FULL on save", async ({
+  page,
+}) => {
+  const calls = await installMock(page);
+  await page.goto("/acquisitions/new");
+  await page.getByLabel("Số khung", { exact: true }).fill("ABCDE1234");
+  await page.getByLabel("Biển số (nếu có)", { exact: true }).fill("43A1-99999");
+  await page.getByLabel("Loại xe *", { exact: true }).fill("Honda Vision");
+  await page.getByLabel("Giá thu (₫) *", { exact: true }).fill("82tr");
+  // Mở "Nâng cao" rồi ép về Đầy đủ dù số khung ngắn hơn 11 ký tự.
+  await page.locator(".frame-kind-details > summary").click();
+  await page.getByRole("radio", { name: "Đầy đủ", exact: true }).click();
+  await expect(
+    page.getByText(/Nhận diện: số khung đầy đủ.*chọn thủ công/),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "Thu xe & tạo phiếu", exact: true }).click();
+  await page.getByRole("button", { name: "Xác nhận thu xe", exact: true }).click();
+  const request = calls.find((call) => call.name === "acquire_vehicle");
+  expect(request.body.p_data.frame_input_kind).toBe("FULL");
 });

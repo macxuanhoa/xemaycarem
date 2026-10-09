@@ -22,12 +22,13 @@ export type RecognitionFieldStatus =
 
 /**
  * Identifier fields whose CRM match decides VERIFIED/CONFLICT.
- * Số máy, Hãng, Dòng, Phiên bản và ảnh chụp đồng hồ km đã bị gỡ khỏi hợp đồng
- * `vehicle_scan`/`odometer` — đọc chúng cũng không còn chỗ nào để lưu.
+ * Số máy, Hãng, Dòng, Phiên bản và ảnh chụp đồng hồ km đã bị gỡ khỏi hợp đồng.
+ * Tên xe đọc từ ảnh được gợi ý trong trường vehicle_type hiện có.
  */
 export const SCANNED_KEYS = [
   "license_plate",
   "frame_number",
+  "vehicle_type",
   "color",
   "year",
 ] as const;
@@ -39,6 +40,7 @@ export type ScannedFields = Record<ScannedKey, string>;
 export const emptyScannedFields = (): ScannedFields => ({
   license_plate: "",
   frame_number: "",
+  vehicle_type: "",
   color: "",
   year: "",
 });
@@ -59,6 +61,9 @@ export type VehicleMatch =
   | { state: "ambiguous"; candidates: ScannedVehicleBrief[] }
   | { state: "conflict"; candidates: ScannedVehicleBrief[] };
 
+/** Character positions in the normalized, displayed identifier text. */
+export type RecognitionRisks = Partial<Record<"license_plate" | "frame_number", number[]>>;
+
 export type Recognition = {
   version: 1;
   scannedAt: string;
@@ -69,11 +74,14 @@ export type Recognition = {
   photos: string[];
   /** Which engine produced the read: free on-device OCR or the paid provider. */
   source?: "local" | "cloud";
+  /** Unclear OCR characters stay red even when a candidate exists in the CRM. */
+  riskCharacters?: RecognitionRisks;
 };
 
 const LIMITS: Partial<Record<ScannedKey, number>> = {
   license_plate: 30,
   frame_number: 100,
+  vehicle_type: 160,
   color: 80,
   year: 4,
 };
@@ -105,12 +113,47 @@ export function normalizeScan(draft: Record<string, unknown>): ScannedFields {
     fields.license_plate = (normalizePlate(plateRaw) ?? plateRaw.toUpperCase()).slice(0, 30);
   }
   fields.frame_number = textOf(draft.frame_number, "frame_number").toUpperCase().replace(CODE_SAFE, "").slice(0, LIMITS.frame_number);
+  const vehicleType = textOf(draft.vehicle_type, "vehicle_type").replace(/\s+/g, " ");
+  fields.vehicle_type = /^\d+$/.test(vehicleType) ? "" : vehicleType.slice(0, LIMITS.vehicle_type);
   const color = textOf(draft.color, "color").replace(/\s+/g, " ");
   // A pure digit can never be a colour name — treat it as an OCR artifact.
   fields.color = /^\d+$/.test(color) ? "" : color.slice(0, LIMITS.color);
   const year = typeof draft.year === "number" ? draft.year : Number(textOf(draft.year, "year")) || null;
   fields.year = year != null && Number.isInteger(year) && year >= 1900 && year <= 2100 ? String(year) : "";
   return fields;
+}
+
+/**
+ * Provider positions count alphanumerics only, so separators added when a
+ * plate is canonicalized cannot move a warning onto the wrong character.
+ * Device OCR may instead supply final display positions in riskCharacters.
+ * Invalid plates and short/distracting frame text remain visible but risky.
+ */
+export function normalizeScanRisks(draft: Record<string, unknown>, fields: ScannedFields): RecognitionRisks {
+  const provider = draft.uncertain_characters && typeof draft.uncertain_characters === "object"
+    ? draft.uncertain_characters as Record<string, unknown> : {};
+  const device = draft.riskCharacters && typeof draft.riskCharacters === "object"
+    ? draft.riskCharacters as Record<string, unknown> : {};
+  const risks: RecognitionRisks = {};
+  for (const key of ["license_plate", "frame_number"] as const) {
+    const value = fields[key];
+    if (!value) continue;
+    const displayPositions = [...value].flatMap((char, index) => /[A-Z0-9]/i.test(char) ? [index] : []);
+    const flagged = new Set<number>();
+    if (Array.isArray(provider[key])) for (const index of provider[key]) {
+      if (typeof index === "number" && Number.isInteger(index) && index >= 0 && index < displayPositions.length)
+        flagged.add(displayPositions[index]);
+    }
+    if (Array.isArray(device[key])) for (const index of device[key]) {
+      if (typeof index === "number" && Number.isInteger(index) && displayPositions.includes(index)) flagged.add(index);
+    }
+    if ((key === "license_plate" && !normalizePlate(value))
+      || (key === "frame_number" && (value.length < 8 || /^\d+$/.test(value)))) {
+      for (const index of displayPositions) flagged.add(index);
+    }
+    if (flagged.size) risks[key] = [...flagged].sort((a, b) => a - b);
+  }
+  return risks;
 }
 
 const compact = (value: string) => value.toUpperCase().replace(CODE_SAFE, "");
@@ -173,13 +216,13 @@ export function matchIdentity(
  * CRM record are VERIFIED, contradictions are CONFLICT, everything the model
  * read stays SUGGESTED and empty values are UNREADABLE.
  */
-export function classifyFields(fields: ScannedFields, match: VehicleMatch): Record<ScannedKey, RecognitionFieldStatus> {
+export function classifyFields(fields: ScannedFields, match: VehicleMatch, riskCharacters: RecognitionRisks = {}): Record<ScannedKey, RecognitionFieldStatus> {
   const statuses = {} as Record<ScannedKey, RecognitionFieldStatus>;
   for (const key of SCANNED_KEYS) statuses[key] = fields[key] ? "SUGGESTED" : "UNREADABLE";
   if (match.state === "unique") {
-    if (fields.license_plate && compact(canonicalizePlate(match.vehicle.license_plate)) === compact(canonicalizePlate(fields.license_plate)))
+    if (fields.license_plate && !riskCharacters.license_plate?.length && compact(canonicalizePlate(match.vehicle.license_plate)) === compact(canonicalizePlate(fields.license_plate)))
       statuses.license_plate = "VERIFIED";
-    if (fields.frame_number && compact(match.vehicle.frame_number) === compact(fields.frame_number))
+    if (fields.frame_number && !riskCharacters.frame_number?.length && compact(match.vehicle.frame_number) === compact(fields.frame_number))
       statuses.frame_number = "VERIFIED";
   }
   if (match.state === "conflict") {
@@ -208,6 +251,7 @@ export function scanTargetKey(match: VehicleMatch, fields: ScannedFields): strin
 const INTAKE_KEY: Record<ScannedKey, IntakeFieldKey> = {
   license_plate: "license_plate",
   frame_number: "frame_number",
+  vehicle_type: "vehicle_type",
   color: "color",
   year: "year",
 };
@@ -298,6 +342,7 @@ export function parseRecognition(value: unknown): Recognition | null {
   const source = raw.fields;
   if (!source || typeof source !== "object") return null;
   const fields = normalizeScan(source as Record<string, unknown>);
+  const riskCharacters = normalizeScanRisks({ riskCharacters: raw.riskCharacters }, fields);
   const match = raw.match as VehicleMatch | undefined;
   const states = ["unique", "none", "ambiguous", "conflict"];
   if (!match || !states.includes(match.state)) return null;
@@ -312,10 +357,12 @@ export function parseRecognition(value: unknown): Recognition | null {
       : fields[key]
         ? "SUGGESTED"
         : "UNREADABLE";
+    if ((key === "license_plate" || key === "frame_number") && riskCharacters[key]?.length && statuses[key] === "VERIFIED")
+      statuses[key] = "SUGGESTED";
   }
   const photos = Array.isArray(raw.photos)
     ? raw.photos.filter((photo): photo is string => typeof photo === "string" && photo.startsWith("data:image/")).slice(0, 4)
     : [];
   const engine = raw.source === "local" || raw.source === "cloud" ? raw.source : undefined;
-  return { version: 1, scannedAt: raw.scannedAt, fields, statuses, match, photos, ...(engine ? { source: engine } : {}) };
+  return { version: 1, scannedAt: raw.scannedAt, fields, statuses, match, photos, riskCharacters, ...(engine ? { source: engine } : {}) };
 }

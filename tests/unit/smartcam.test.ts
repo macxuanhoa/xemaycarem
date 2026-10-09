@@ -218,7 +218,6 @@ describe("intake handoff", () => {
 describe("intakeRows compatibility", () => {
   it("camera entries flow through the existing validation unchanged", async () => {
     const { validateIntakeEntry } = await import("@/lib/shorthand/intakeRows");
-    const TYPES = [{ id: "t-ga", name: "Xe tay ga" }];
     const scanned = normalizeScan({
       license_plate: "59-a1 234.56",
       color: "Đen",
@@ -236,12 +235,12 @@ describe("intakeRows compatibility", () => {
     };
     recognition.statuses = classifyFields(recognition.fields, recognition.match);
     const entry = recognitionToIntakeEntry(recognition, "entry-2", "2026-10-06");
-    // Ảnh không đọc được loại xe -> thẻ bắt buộc nhân viên chọn từ danh mục,
+    // Ảnh không đọc được loại xe -> thẻ bắt buộc nhân viên nhập tên loại xe,
     // đúng luật VEHICLE_TYPE_REQUIRED phía server.
-    expect(validateIntakeEntry(entry, false, TYPES).join(" ")).toMatch(/loại xe/);
+    expect(validateIntakeEntry(entry, false).join(" ")).toMatch(/dòng xe/);
     const typed = { ...entry, fields: { ...entry.fields, vehicle_type: "Xe tay ga" } };
-    expect(validateIntakeEntry(typed, false, TYPES)).toEqual([]);
+    expect(validateIntakeEntry(typed, false)).toEqual([]);
     const bad = { ...typed, fields: { ...typed.fields, license_plate: "XYZ" } };
-    expect(validateIntakeEntry(bad, false, TYPES).length).toBeGreaterThan(0);
+    expect(validateIntakeEntry(bad, false).length).toBeGreaterThan(0);
   });
 });

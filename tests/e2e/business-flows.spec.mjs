@@ -263,7 +263,7 @@ test("FLOW A: OWNER full lifecycle (create vehicle -> inventory -> expense -> se
 
   // 1. Add vehicle
   await page.goto("/vehicles/new");
-  await page.getByLabel("Loại xe *", { exact: true }).selectOption({ label: "Xe côn tay" });
+  await page.getByLabel("Loại xe *", { exact: true }).fill("Xe côn tay");
   await page.getByLabel("Số khung", { exact: true }).fill("FLOWA0001");
   await page.getByLabel("Giá mua (₫) *", { exact: false }).fill("40000000");
   await page.getByRole("button", { name: "Lưu xe mới", exact: true }).click();
@@ -311,7 +311,7 @@ test("FLOW B: Partial payment -> second payment -> fully paid", async ({ page })
 
   // Create vehicle with price 50M
   await page.goto("/vehicles/new");
-  await page.getByLabel("Loại xe *", { exact: true }).selectOption({ label: "Xe tay ga" });
+  await page.getByLabel("Loại xe *", { exact: true }).fill("Xe tay ga");
   await page.getByLabel("Số khung", { exact: true }).fill("FLOWB0001");
   await page.getByLabel("Giá mua (₫) *", { exact: false }).fill("28000000");
   await page.getByRole("button", { name: "Lưu xe mới", exact: true }).click();
@@ -541,7 +541,7 @@ test("Recovery: canonical receipt alias survives lost response and reload withou
 test("Recovery: intake without chassis reconciles a lost response after reload without a second acquisition", async ({ page }) => {
   await loginAs(page, "owner");
   await page.goto("/acquisitions/new");
-  await page.getByLabel("Loại xe *", { exact: true }).selectOption({ label: "Xe số" });
+  await page.getByLabel("Loại xe *", { exact: true }).fill("Xe số");
   await page.getByLabel("Giá thu (₫) *", { exact: false }).fill("18000000");
   const requests = [];
   page.on("request", request => { if (request.url().endsWith("/rest/v1/rpc/acquire_vehicle")) requests.push(request.postDataJSON()); });

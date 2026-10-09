@@ -1,12 +1,16 @@
 import { test, expect } from "@playwright/test";
 
-// The field purge turned the free-text "Dòng xe" (model) column into a mandatory
-// catalogue "Loại xe" picker and dropped brand/variant/engine_number/odometer/
-// asking_price from the vehicle form entirely. This spec guards that contract on
-// the very screen staff create vehicles from: none of the six old inputs may
-// reappear, the type must come from the catalogue, and it must be required.
+// 10/10/2026: "Loại xe" từ bỏ danh mục <select> để thành ô NHẬP TỰ DO có
+// autocomplete. Gợi ý lấy từ DISTINCT vehicle_type của xe ĐÃ LƯU trong Kho
+// (list_vehicles), không phải danh mục seed. Nhân viên gõ được tên mới chưa từng
+// có; server chuẩn hoá + get-or-create khi lưu. Spec này giữ hợp đồng đó trên
+// màn hình tạo xe: sáu trường cũ không được quay lại, "Loại xe" là combobox tự
+// do (không còn là <select> danh mục), và nó vẫn bắt buộc phải có.
 
 const ownerId = "00000000-0000-4000-8000-000000000001";
+
+// Danh mục cũ: vẫn stub cho list_vehicle_types (bộ lọc Kho dùng), nhưng Ô NHẬP
+// không còn đọc nó nữa — nên input không phụ thuộc danh mục này.
 const catalogue = [
   { id: "vt-ga", name: "Xe tay ga", vehicle_count: 0 },
   { id: "vt-so", name: "Xe số", vehicle_count: 0 },
@@ -14,6 +18,13 @@ const catalogue = [
   { id: "vt-dien", name: "Xe điện", vehicle_count: 0 },
   { id: "vt-50", name: "Ga 50cc", vehicle_count: 0 },
   { id: "vt-chua", name: "Chưa phân loại", vehicle_count: 0 },
+];
+
+// Xe đã lưu trong Kho — nguồn gợi ý "Loại xe" (DISTINCT vehicle_type).
+const storedVehicles = [
+  { id: "v1", vehicle_type: "Honda Vision", color: "Đen" },
+  { id: "v2", vehicle_type: "Honda Vision", color: "Trắng" },
+  { id: "v3", vehicle_type: "Wave Alpha", color: "Xám" },
 ];
 
 async function installMock(page) {
@@ -72,7 +83,9 @@ async function installMock(page) {
     if (name === "list_notifications") return reply({ items: [], unread_count: 0 });
     if (name === "get_settings") return reply({ store_name: "Cửa hàng kiểm thử" });
     if (name === "list_vehicle_types") return reply(catalogue);
-    if (name === "list_vehicles") return reply({ items: [], total: 0 });
+    if (name === "list_vehicles") return reply({ items: storedVehicles, total: storedVehicles.length });
+    if (name === "check_vehicle_duplicates")
+      return reply({ level: "GREEN", reason: "", candidates: [], candidate_ids: [] });
     if (name === "save_vehicle") {
       saveRequests.push(request.postDataJSON());
       return reply({ error: "unexpected save" }, 400);
@@ -82,7 +95,7 @@ async function installMock(page) {
   return saveRequests;
 }
 
-test("vehicle form shows no purged spec fields and offers a catalogue type picker", async ({ page }) => {
+test("vehicle form shows no purged spec fields and offers a free-text autocomplete type", async ({ page }) => {
   await installMock(page);
   await page.goto("/vehicles/new");
   await expect(page.getByRole("heading", { name: "Nhập xe mới", exact: true })).toBeVisible();
@@ -98,22 +111,31 @@ test("vehicle form shows no purged spec fields and offers a catalogue type picke
   ])
     await expect(page.getByLabel(label, { exact: false })).toHaveCount(0);
 
-  // "Loại xe" is now a select fed by the catalogue, not a free-text field.
-  const typeSelect = page.getByLabel("Loại xe *", { exact: true });
-  await expect(typeSelect).toBeVisible();
-  const options = await typeSelect.locator("option").allTextContents();
-  for (const type of catalogue)
-    expect(options).toContain(type.name);
-  expect(options).toContain("Chưa phân loại");
+  // "Loại xe" là ô nhập tự do (input[role=combobox]), KHÔNG còn là <select>.
+  const typeField = page.getByLabel("Loại xe *", { exact: true });
+  await expect(typeField).toBeVisible();
+  await expect(typeField).toHaveAttribute("role", "combobox");
+  await expect(page.getByRole("listbox")).toHaveCount(0); // chưa mở khi trống
+
+  // Gợi ý học từ xe đã lưu: gõ "Honda" thì "Honda Vision" (DISTINCT) hiện ra.
+  await typeField.click();
+  await typeField.fill("Honda");
+  await expect(page.getByRole("option", { name: "Honda Vision" })).toBeVisible();
+  // Wave Alpha không khớp "Honda" nên bị lọc ra khỏi danh sách gợi ý.
+  await expect(page.getByRole("option", { name: "Wave Alpha" })).toHaveCount(0);
+
+  // Một tên hoàn toàn mới vẫn gõ được (không khớp gợi ý nào) — không bị chặn.
+  await typeField.fill("Honda Winner X 2026");
+  await expect(typeField).toHaveValue("Honda Winner X 2026");
 });
 
-test("saving a vehicle without a catalogue type is blocked before any request", async ({ page }) => {
+test("saving a vehicle without a type name is blocked before any request", async ({ page }) => {
   const saveRequests = await installMock(page);
   await page.goto("/vehicles/new");
   await page.getByLabel("Biển số", { exact: true }).fill("59A1-234.56");
   await page.getByLabel("Giá mua (₫) *", { exact: false }).fill("20000000");
   await page.getByRole("button", { name: "Lưu xe mới", exact: true }).click();
 
-  await expect(page.getByText("Chọn loại xe.")).toBeVisible();
+  await expect(page.getByText("Nhập loại / dòng xe")).toBeVisible();
   expect(saveRequests).toHaveLength(0);
 });

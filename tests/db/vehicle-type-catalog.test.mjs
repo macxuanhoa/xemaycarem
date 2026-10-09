@@ -11,9 +11,11 @@
  * 4. "Chưa phân loại" cannot be renamed or deleted (VEHICLE_TYPE_PROTECTED)
  * 5. delete_vehicle_type is blocked while any vehicle references the type
  *    (VEHICLE_TYPE_IN_USE) and succeeds once it is free
- * 6. save_vehicle requires a catalogue type on create (VEHICLE_TYPE_REQUIRED) and
- *    accepts it either by id or by name
- * 7. the purged spec columns are gone and the history tables were emptied
+ * 6. save_vehicle/acquire_vehicle take a free-text vehicle_type and get-or-create
+ *    the normalised, case-insensitive catalogue row (an id is still honoured)
+ * 7. private.ensure_vehicle_type creates / reuses / keeps distinct versions; a
+ *    brand-new name is never rejected, and an empty name falls back to the queue
+ * 8. the purged spec columns are gone and the history tables were emptied
  */
 
 import assert from 'node:assert/strict'
@@ -108,22 +110,58 @@ export async function runVehicleTypeCatalogTests(externalDb, { engine = 'postgre
     await deleteType('owner', created.id)
     assert.ok(!(await listTypes('owner')).some((item) => item.id === created.id))
 
-    await pass('save_vehicle requires a catalogue type on create and accepts id or name')
-    await deny(() => call('owner', 'save_vehicle', {
-      request_id: randomUUID(), purchase_date: day, purchase_price: 1,
-    }), /VEHICLE_TYPE_REQUIRED/)
-    await deny(() => call('owner', 'save_vehicle', {
-      request_id: randomUUID(), vehicle_type: 'Loại không tồn tại', purchase_date: day, purchase_price: 1,
-    }), /INVALID_VEHICLE_TYPE/)
-    // Name lookup folds case only (lower(btrim)), not diacritics: "xe số" matches
-    // "Xe số", but a stripped "xe so" (frontend alias) is not a valid DB name.
-    await deny(() => call('owner', 'save_vehicle', {
-      request_id: randomUUID(), vehicle_type: 'xe so', purchase_date: day, purchase_price: 1,
-    }), /INVALID_VEHICLE_TYPE/)
-    const byName = await call('owner', 'save_vehicle', {
-      request_id: randomUUID(), vehicle_type: 'xe số', purchase_date: day, purchase_price: 1,
+    await pass('save_vehicle get-or-creates a brand-new free-text type instead of rejecting it')
+    // 10/10/2026: "Loại xe" là tên nhập tự do. Một tên chưa từng có trong danh mục
+    // không còn bị INVALID_VEHICLE_TYPE; server chuẩn hoá rồi tạo loại mới.
+    const fresh = await call('owner', 'save_vehicle', {
+      request_id: randomUUID(), vehicle_type: 'Honda SH 125i   Mới', purchase_date: day, purchase_price: 1,
     })
-    assert.equal((await run('owner', (c) => rpc(c, 'get_vehicle', '$1::uuid', [byName]))).vehicle_type, 'Xe số')
+    assert.equal(
+      (await run('owner', (c) => rpc(c, 'get_vehicle', '$1::uuid', [fresh]))).vehicle_type,
+      'Honda SH 125i Mới', // khoảng trắng thừa được nén về một dấu cách
+    )
+
+    await pass('save_vehicle reuses the existing type case-insensitively, preserving first-entered casing')
+    // 'GA 50CC' (chỉ khác hoa/thường ASCII + khoảng trắng) fold-join vào 'Ga 50cc'
+    // đã seed — không tạo bản sao, giữ cách viết gốc. Tránh capital có dấu vì
+    // lower() của collation này không gập 'Ố'→'ố' (xem ghi chú đầu file).
+    const byName = await call('owner', 'save_vehicle', {
+      request_id: randomUUID(), vehicle_type: 'GA   50CC', purchase_date: day, purchase_price: 1,
+    })
+    assert.equal((await run('owner', (c) => rpc(c, 'get_vehicle', '$1::uuid', [byName]))).vehicle_type, 'Ga 50cc')
+
+    await pass('an empty type on create falls back to the intake queue, never a rejected row')
+    const fallbackId = await call('owner', 'save_vehicle', {
+      request_id: randomUUID(), purchase_date: day, purchase_price: 1,
+    })
+    assert.equal((await run('owner', (c) => rpc(c, 'get_vehicle', '$1::uuid', [fallbackId]))).vehicle_type, 'Chưa phân loại')
+
+    await pass('private.ensure_vehicle_type creates / reuses / keeps distinct versions')
+    const abcId = (await row("SELECT private.ensure_vehicle_type('ABC') AS id")).id
+    assert.ok(abcId, 'ensure_vehicle_type returns an id for a new name')
+    // Cùng tên, khác hoa/thường + khoảng trắng → tái dùng đúng một dòng, giữ casing lần đầu.
+    const abcReuseId = (await row("SELECT private.ensure_vehicle_type('  aBc   ') AS id")).id
+    assert.equal(abcReuseId, abcId)
+    assert.equal((await row('SELECT name FROM public.vehicle_types WHERE id=$1', [abcId])).name, 'ABC')
+    // Hai phiên bản khác chuỗi nén → KHÁC tên, không bị gộp (SH 125i vs SH125i).
+    const shA = (await row("SELECT private.ensure_vehicle_type('SH 125i') AS id")).id
+    const shB = (await row("SELECT private.ensure_vehicle_type('SH125i') AS id")).id
+    assert.notEqual(shA, shB)
+    // Tên chỉ 1 ký tự bị chặn độ dài.
+    await deny(() => row("SELECT private.ensure_vehicle_type('X') AS id"), /INVALID_VEHICLE_TYPE_NAME/)
+
+    await pass('STAFF can introduce a new type through acquire_vehicle')
+    const staffBike = await call('staff', 'acquire_vehicle', {
+      request_id: randomUUID(), vehicle_type: 'Yamaha Exciter 155', frame_number: '',
+      license_plate: '', acquisition_date: day,
+    })
+    assert.equal((await run('owner', (c) => rpc(c, 'get_vehicle', '$1::uuid', [staffBike]))).vehicle_type, 'Yamaha Exciter 155')
+
+    await pass('validate_import_vehicles accepts a brand-new type name (no catalogue membership)')
+    const check = await call('owner', 'validate_import_vehicles', [
+      { vehicle_type: 'Honda Winner X', license_plate: '', frame_number: '', purchase_date: day },
+    ])
+    assert.ok(!check.errors.some((e) => e.field === 'vehicle_type'), 'new name must not be a validate error')
 
     await pass('a created vehicle always lands on a valid catalogue type (never null)')
     const orphan = await row('SELECT count(*)::int AS n FROM public.vehicles WHERE vehicle_type_id IS NULL')

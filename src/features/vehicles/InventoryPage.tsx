@@ -36,6 +36,10 @@ import {
   Pagination,
 } from "@/components/ui";
 import { RowViewAction } from "@/components/ui/RowActions";
+import {
+  VehicleIdentityChips,
+  vehicleTypeName,
+} from "@/components/ui/VehicleIdentityChips";
 import type { Paged, Vehicle, VehicleStatusFilter } from "@/types";
 import {
   DEFAULT_INVENTORY_STATUS,
@@ -53,6 +57,11 @@ import {
 } from "./VehicleDeleteDialogs";
 
 const pageSize = 6;
+const sortOptions = [
+  { value: "newest", label: "Mới nhất" },
+  { value: "oldest", label: "Cũ nhất" },
+  { value: "longest_stock", label: "Tồn kho lâu nhất" },
+];
 const quickPresets: Array<{ id: string; label: string; filters: Record<string, string> }> = [
   { id: "old", label: "Tồn kho lâu > 60 ngày", filters: { sort: "longest_stock", status: "IN_STOCK", min_days: "61" } },
 ];
@@ -115,6 +124,7 @@ export function InventoryPage() {
   const setStatus = (value: VehicleStatusFilter | "") =>
     updateParams({ status: value });
   const sort = params.get("sort") ?? "newest";
+  const sortLabel = sortOptions.find((option) => option.value === sort)?.label ?? sortOptions[0].label;
   const setSort = (value: string) => updateParams({ sort: value });
   const parsedPage = Number(params.get("page") ?? "1");
   const page =
@@ -311,9 +321,11 @@ export function InventoryPage() {
               setSort(e.target.value);
             }}
           >
-            <option value="newest">Mới nhất</option>
-            <option value="oldest">Cũ nhất</option>
-            <option value="longest_stock">Tồn kho lâu nhất</option>
+            {sortOptions.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
           </select>
         </div>
         {/* Quick Presets — high-value operational shortcuts only */}
@@ -487,169 +499,175 @@ export function InventoryPage() {
           )}
         </Card>
       ) : (
-        <>
-          <p className="result-count" role="status" aria-live="polite">
-            Tìm thấy {total} xe
-          </p>
-          <Card className="table-card">
-            {query.isFetching && !query.isPending && (
-              <div className="table-updating-bar" role="progressbar" aria-label="Đang cập nhật danh sách" />
-            )}
-            <div className={`table-wrap desktop-table ${query.isFetching && !query.isPending ? "is-updating" : ""}`}>
-              <table className="data-table">
-                <thead>
-                  <tr>
-                    <th>Xe</th>
-                    <th>Loại xe</th>
-                    <th>Trạng thái</th>
-                    <th>Ngày thu</th>
-                    {canFinance(profile) && (
-                      <th className="numeric">Giá vốn</th>
-                    )}
-                    <th />
-                  </tr>
-                </thead>
-                <tbody>
-                  {vehicles.map((vehicle) => (
-                    <tr key={vehicle.id}>
-                      <td>
-                        <Link
-                          className="vehicle-cell"
-                          to={`/vehicles/${vehicle.id}`}
-                          state={{ fromInventory: returnTo }}
-                          onClick={rememberPosition}
-                          onMouseEnter={() => prefetch(vehicle.id)}
-                          onFocus={() => prefetch(vehicle.id)}
-                        >
-                          <span className="vehicle-icon">
-                            <Bike size={24} />
-                          </span>
-                          <span>
-                            <strong>
-                              <Highlight text={vehicleTitle(vehicle)} query={deferredSearch} />
-                            </strong>
-                            {vehicleSubtitle(vehicle) && (
-                              <small>
-                                <Highlight
-                                  text={vehicleSubtitle(vehicle)}
-                                  query={deferredSearch}
-                                />
-                              </small>
-                            )}
-                            <small className="vehicle-code"><Highlight text={vehicle.internal_code} query={deferredSearch} /></small>
-                          </span>
-                        </Link>
-                      </td>
-                      <td>{vehicle.vehicle_type || "Chưa phân loại"}</td>
-                      <td>
-                        <Badge status={vehicle.status} />
-                      </td>
-                      <td>
-                        {dateLabel(vehicle.purchase_date)}
-                        {["IN_STOCK", "RESERVED"].includes(vehicle.status) && (
-                          <small>
-                            {(vehicle.days_in_inventory ?? daysInStock(vehicle.purchase_date)) === 0
-                              ? "Hôm nay"
-                              : `${vehicle.days_in_inventory ?? daysInStock(vehicle.purchase_date)} ngày`}
-                          </small>
-                        )}
-                      </td>
-                      {canFinance(profile) && (
-                        <td className="numeric">
-                          {vehicle.cost_pending ? (
-                            <span className="muted">Chờ giá nhập</span>
-                          ) : (
-                            money(vehicle.total_cost)
+        <Card className="table-card">
+          {query.isFetching && !query.isPending && (
+            <div className="table-updating-bar" role="progressbar" aria-label="Đang cập nhật danh sách" />
+          )}
+          {/* Kết quả tìm kiếm nằm trong thẻ danh sách để thẳng hàng với các
+              dòng xe và vạch phân cách ở footer, thay vì lơ lửng giữa hai thẻ. */}
+          <div className="table-list-head">
+            <p className="result-count" role="status" aria-live="polite">
+              Tìm thấy <strong>{total}</strong> xe
+              {deferredSearch && (
+                <span className="result-count-qual">
+                  với từ khóa “{deferredSearch}”
+                </span>
+              )}
+            </p>
+            <span className="table-list-sort">Sắp xếp: {sortLabel}</span>
+          </div>
+          <div className={`table-wrap desktop-table ${query.isFetching && !query.isPending ? "is-updating" : ""}`}>
+            <table className="data-table">
+              <thead>
+                <tr>
+                  <th>Xe</th>
+                  <th>Loại xe</th>
+                  <th>Trạng thái</th>
+                  <th>Ngày thu</th>
+                  {canFinance(profile) && (
+                    <th className="numeric">Giá vốn</th>
+                  )}
+                  <th />
+                </tr>
+              </thead>
+              <tbody>
+                {vehicles.map((vehicle) => (
+                  <tr key={vehicle.id}>
+                    <td>
+                      <Link
+                        className="vehicle-cell"
+                        to={`/vehicles/${vehicle.id}`}
+                        state={{ fromInventory: returnTo }}
+                        onClick={rememberPosition}
+                        onMouseEnter={() => prefetch(vehicle.id)}
+                        onFocus={() => prefetch(vehicle.id)}
+                      >
+                        <span className="vehicle-icon">
+                          <Bike size={24} />
+                        </span>
+                        {/* Danh tính ưu tiên: biển số + số khung nổi bật thành
+                            chip (navy/mint), tên loại xe·đời·màu là dòng phụ. */}
+                        <span>
+                          <VehicleIdentityChips
+                            vehicle={vehicle}
+                            query={deferredSearch}
+                          />
+                          {vehicleSubtitle(vehicle) && (
+                            <small>
+                              <Highlight
+                                text={vehicleSubtitle(vehicle)}
+                                query={deferredSearch}
+                              />
+                            </small>
                           )}
-                        </td>
-                      )}
-                      <td>
-                        <RowViewAction
-                          to={`/vehicles/${vehicle.id}`}
-                          state={{ fromInventory: returnTo }}
-                          onClick={rememberPosition}
-                          label={`xe ${vehicleTitle(vehicle)}`}
-                        />
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-            <div className="mobile-cards">
-              {vehicles.map((vehicle) => (
-                <article className="mobile-record inventory-record" key={vehicle.id}>
-                  <Link
-                    className="vehicle-record-link"
-                    to={`/vehicles/${vehicle.id}`}
-                    state={{ fromInventory: returnTo }}
-                    onClick={rememberPosition}
-                    onPointerDown={() => prefetch(vehicle.id)}
-                  >
-                    <div className="row between">
-                      <strong>
-                        <Highlight text={vehicleTitle(vehicle)} query={deferredSearch} />
-                      </strong>
+                          <small className="vehicle-code"><Highlight text={vehicle.internal_code} query={deferredSearch} /></small>
+                        </span>
+                      </Link>
+                    </td>
+                    <td>{vehicle.vehicle_type || "Chưa phân loại"}</td>
+                    <td>
                       <Badge status={vehicle.status} />
-                    </div>
-                    {vehicleSubtitle(vehicle) && (
-                      <span className="muted">
-                        <Highlight
-                          text={vehicleSubtitle(vehicle)}
-                          query={deferredSearch}
-                        />
-                      </span>
-                    )}
-                    <div className="record-details muted">
-                      <span>Mã xe: <Highlight text={vehicle.internal_code} query={deferredSearch} /></span>
-                      <span>Số khung: {vehicle.frame_number ? <Highlight text={vehicle.frame_number} query={deferredSearch} /> : "—"}</span>
-                      <span>Biển số: {vehicle.license_plate ? <Highlight text={vehicle.license_plate} query={deferredSearch} /> : "—"}</span>
-                    </div>
-                    <div className="row between">
-                      <span className="record-date">
-                        {dateLabel(vehicle.purchase_date)}
-                        {["IN_STOCK", "RESERVED"].includes(vehicle.status) && (
-                          <small className="record-age">
-                            {(vehicle.days_in_inventory ?? daysInStock(vehicle.purchase_date)) === 0
-                              ? "Hôm nay"
-                              : `${vehicle.days_in_inventory ?? daysInStock(vehicle.purchase_date)} ngày`}
-                          </small>
-                        )}
-                      </span>
-                    </div>
+                    </td>
+                    <td>
+                      {dateLabel(vehicle.purchase_date)}
+                      {["IN_STOCK", "RESERVED"].includes(vehicle.status) && (
+                        <small>
+                          {(vehicle.days_in_inventory ?? daysInStock(vehicle.purchase_date)) === 0
+                            ? "Hôm nay"
+                            : `${vehicle.days_in_inventory ?? daysInStock(vehicle.purchase_date)} ngày`}
+                        </small>
+                      )}
+                    </td>
                     {canFinance(profile) && (
-                      <small className="record-cost">
-                        Giá vốn:{" "}
-                        {vehicle.cost_pending
-                          ? "Chờ giá nhập"
-                          : money(vehicle.total_cost)}
-                      </small>
+                      <td className="numeric">
+                        {vehicle.cost_pending ? (
+                          <span className="muted">Chờ giá nhập</span>
+                        ) : (
+                          money(vehicle.total_cost)
+                        )}
+                      </td>
                     )}
-                  </Link>
-                  <div className="record-actions">
-                    <button
-                      type="button"
-                      className="record-more-btn"
-                      aria-label={`Thao tác với ${vehicleTitle(vehicle)}`}
-                      onClick={() => {
-                        rememberPosition();
-                        setActionVehicle(vehicle);
-                      }}
-                    >
-                      <MoreHorizontal size={20} />
-                    </button>
+                    <td>
+                      <RowViewAction
+                        to={`/vehicles/${vehicle.id}`}
+                        state={{ fromInventory: returnTo }}
+                        onClick={rememberPosition}
+                        label={`xe ${vehicleTitle(vehicle)}`}
+                      />
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <div className="mobile-cards">
+            {vehicles.map((vehicle) => (
+              <article className="mobile-record inventory-record" key={vehicle.id}>
+                <Link
+                  className="vehicle-record-link"
+                  to={`/vehicles/${vehicle.id}`}
+                  state={{ fromInventory: returnTo }}
+                  onClick={rememberPosition}
+                  onPointerDown={() => prefetch(vehicle.id)}
+                >
+                  <div className="row between">
+                    <strong className="record-title">
+                      <Highlight text={vehicleTypeName(vehicle)} query={deferredSearch} />
+                    </strong>
+                    <Badge status={vehicle.status} />
                   </div>
-                </article>
-              ))}
-            </div>
-            <Pagination
-              page={page}
-              total={query.data?.total ?? 0}
-              pageSize={pageSize}
-              onChange={setPage}
-            />
-          </Card>
-        </>
+                  {/* Ưu tiên thị giác: biển số & số khung dựng thành chip
+                      nền màu nổi bật nhưng vẫn nhẹ nhàng, đúng như trang chi tiết. */}
+                  <VehicleIdentityChips vehicle={vehicle} query={deferredSearch} />
+                  <div className="record-details muted">
+                    <span>Mã xe: <Highlight text={vehicle.internal_code} query={deferredSearch} /></span>
+                    <span>Đời xe: {vehicle.year ?? "—"}</span>
+                    <span>Màu sắc: {vehicle.color ? <Highlight text={vehicle.color} query={deferredSearch} /> : "—"}</span>
+                  </div>
+                  <div className="row between">
+                    <span className="record-date">
+                      {dateLabel(vehicle.purchase_date)}
+                      {["IN_STOCK", "RESERVED"].includes(vehicle.status) && (
+                        <small className="record-age">
+                          {(vehicle.days_in_inventory ?? daysInStock(vehicle.purchase_date)) === 0
+                            ? "Hôm nay"
+                            : `${vehicle.days_in_inventory ?? daysInStock(vehicle.purchase_date)} ngày`}
+                        </small>
+                      )}
+                    </span>
+                  </div>
+                  {canFinance(profile) && (
+                    <small className="record-cost">
+                      Giá vốn:{" "}
+                      {vehicle.cost_pending
+                        ? "Chờ giá nhập"
+                        : money(vehicle.total_cost)}
+                    </small>
+                  )}
+                </Link>
+                <div className="record-actions">
+                  <button
+                    type="button"
+                    className="record-more-btn"
+                    aria-label={`Thao tác với ${vehicleTitle(vehicle)}`}
+                    onClick={() => {
+                      rememberPosition();
+                      setActionVehicle(vehicle);
+                    }}
+                  >
+                    <MoreHorizontal size={20} />
+                  </button>
+                </div>
+              </article>
+            ))}
+          </div>
+          <Pagination
+            page={page}
+            total={query.data?.total ?? 0}
+            pageSize={pageSize}
+            onChange={setPage}
+          />
+        </Card>
       )}
       {actionVehicle && (
         <VehicleActionsSheet

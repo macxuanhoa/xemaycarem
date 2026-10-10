@@ -10,7 +10,7 @@ import { test, expect } from "@playwright/test";
 import { randomUUID } from "node:crypto";
 import { createDatabase, asUser, rpc } from "../../scripts/db-harness.mjs";
 
-let db, day, ids, createdVehicles, failNextPaymentResponse, failNextOperationResponse, failBeforeCommit, slowMutation;
+let db, day, ids, createdVehicles, staffVehicleId, failNextPaymentResponse, failNextOperationResponse, failBeforeCommit, slowMutation;
 
 test.beforeAll(async () => {
   db = await createDatabase({ engine: "postgres" });
@@ -28,6 +28,7 @@ test.beforeEach(async ({ page }) => {
     STAFF: randomUUID(),
   };
   createdVehicles = [];
+  staffVehicleId = null;
   failNextPaymentResponse = false;
   failNextOperationResponse = null;
   failBeforeCommit = null;
@@ -66,6 +67,29 @@ test.beforeEach(async ({ page }) => {
     createdVehicles.push(seeded);
   } finally {
     await connection.close();
+  }
+
+  // Pre-seed a STAFF-entered (public-cost) vehicle: a staff-initiated sale above this
+  // cost is a normal business sale (visible to staff for the payment/receivable flows).
+  // OWNER-priced bikes are sold only under OWNER authority (anti-oracle provenance gate).
+  {
+    const connection = await db.connection();
+    try {
+      staffVehicleId = await asUser(connection, ids.STAFF, (c) =>
+        rpc(c, "save_vehicle", "$1::jsonb", [
+          JSON.stringify({
+            request_id: randomUUID(),
+            vehicle_type: "Xe tay ga",
+            purchase_date: day,
+            purchase_price: 15000000,
+            license_plate: `29B-${ids.STAFF.slice(0, 4)}`,
+            year: 2023,
+          }),
+        ])
+      );
+    } finally {
+      await connection.close();
+    }
   }
 
   // Route Supabase requests to our disposable database
@@ -388,7 +412,7 @@ async function seedSale(overrides = {}) {
   const connection = await db.connection();
   try {
     return await asUser(connection, ids.STAFF, client => rpc(client, "sell_vehicle", "$1::jsonb", [JSON.stringify({
-      vehicle_id: createdVehicles[0], customer_name: `Khách công nợ ${ids.OWNER.slice(0, 6)}`,
+      vehicle_id: staffVehicleId, customer_name: `Khách công nợ ${ids.OWNER.slice(0, 6)}`,
       customer_phone: "0900001234", sale_price: 18000000, sale_date: day,
       initial_payment: 5000000, payment_method: "CASH", ...overrides,
     })]));

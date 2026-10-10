@@ -131,6 +131,10 @@ export type Vehicle = {
   frame_input_kind?: "FULL" | "PARTIAL";
   purchase_date: string;
   purchase_price?: number | null;
+  /** True when the purchase price exists but is OWNER-private/legacy and withheld
+   *  from the current role. Sale UI must then require OWNER confirmation, never
+   *  infer below-cost from the (absent) value. */
+  purchase_price_hidden?: boolean;
   expense_total?: number;
   total_cost?: number | null;
   status: VehicleStatus;
@@ -217,7 +221,10 @@ export type Sale = {
   license_plate?: string;
   customer_name: string;
   customer_phone: string;
-  sale_price: number;
+  sale_price: number | null;
+  /** True when the sale price exists but is OWNER-private/legacy and withheld from
+   *  the current role; the server also omits paid/remaining/debt for such rows. */
+  sale_price_hidden?: boolean;
   sale_date: string;
   due_date?: string | null;
   debt_status?: DebtStatus;
@@ -357,8 +364,8 @@ export type GlobalSearchResult = {
     internal_code: string;
     license_plate: string;
     sale_date: string;
-    sale_price: number;
-    remaining_amount: number;
+    sale_price: number | null;
+    remaining_amount: number | null;
     status: "COMPLETED" | "CANCELLED";
   }>;
 };

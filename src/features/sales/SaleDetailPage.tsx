@@ -242,7 +242,7 @@ export function SaleDetailPage() {
             <h2 className="section-title">Thanh toán</h2>
             <div className="price-hero">
               <span className="muted">Giá bán</span>
-              <strong>{money(sale.sale_price)}</strong>
+              <strong>{sale.sale_price_hidden ? "Đã ẩn" : money(sale.sale_price)}</strong>
             </div>
             <dl className="summary-list">
               <div>

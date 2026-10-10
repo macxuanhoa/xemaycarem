@@ -266,11 +266,14 @@ function SaleEditor({ vehicle }: { vehicle: Vehicle }) {
   // duyệt — server cũng giữ đúng quy tắc này, không chỉ giao diện.
   const owner = isOwner(profile);
   const purchaseCost = vehicle.purchase_price ?? null;
+  // Giá thu bị ẩn với role hiện tại (chủ nhập / dữ liệu cũ): nhân viên không được
+  // suy ra mức lời/lỗ, nên MỌI giao dịch bán đều phải chủ xác nhận — server giữ chốt.
+  const costHidden = !!vehicle.purchase_price_hidden;
   const belowCost = (value: number) =>
     purchaseCost != null && Number.isFinite(value) && value < purchaseCost;
   const isBelowCost = belowCost(price);
   const shortfall = isBelowCost ? purchaseCost! - price : 0;
-  const needsApproval = isBelowCost && !owner;
+  const needsApproval = !owner && (isBelowCost || costHidden);
   const awaitingApproval = !!vehicle.pending_sale_approval;
 
   type Submission = { kind: "sale" | "approval"; id: string };
@@ -278,9 +281,10 @@ function SaleEditor({ vehicle }: { vehicle: Vehicle }) {
   const mutation = useMutation({
     mutationFn: (values: SaleFormValues): Promise<Submission> => {
       if (!profile) throw new AppError("Vui lòng đăng nhập lại trước khi bán xe.");
-      if (!owner && belowCost(values.sale_price)) {
-        // Dưới giá thu: KHÔNG ghi giao dịch. Đề xuất đi vào hàng đợi "Chờ duyệt"
-        // sẵn có của OWNER; xe vẫn trong kho và chưa có doanh thu.
+      if (!owner && (belowCost(values.sale_price) || vehicle.purchase_price_hidden)) {
+        // Dưới giá thu, hoặc giá thu bị ẩn (chủ nhập/dữ liệu cũ): KHÔNG ghi giao
+        // dịch. Đề xuất đi vào hàng đợi "Chờ duyệt" của OWNER; xe vẫn trong kho và
+        // chưa có doanh thu. Server chặn lại nếu thực chất cần chủ xác nhận.
         return executeOperation<string>(
           profile.id,
           "request_sale_below_cost",
@@ -317,6 +321,47 @@ function SaleEditor({ vehicle }: { vehicle: Vehicle }) {
       // Giao dịch đã chốt – chúc mừng một burst pháo hoa trước khi sang phiếu bán.
       celebrateSale({ detail: vehicleTitle(vehicle) });
       navigate(`/sales/${result.id}`);
+    },
+    onError: async (error, values) => {
+      // Server là nơi chốt quyền. Nếu từ chối vì cần xác nhận của chủ (giá thu riêng
+      // tư của OWNER/dữ liệu cũ, hoặc bán dưới giá), tự động chuyển sang hàng đợi duyệt
+      // mà không để lộ con số giá thu.
+      const msg = String((error as { message?: string })?.message ?? error);
+      const needsOwner =
+        !owner &&
+        !!profile &&
+        (msg.includes("SALE_OWNER_CONFIRMATION_REQUIRED") ||
+          msg.includes("SALE_BELOW_COST_APPROVAL_REQUIRED"));
+      if (needsOwner) {
+        try {
+          await executeOperation<string>(
+            profile!.id,
+            "request_sale_below_cost",
+            vehicle.id,
+            (requestId) =>
+              api.requestSaleBelowCost(
+                { ...values, vehicle_id: vehicle.id },
+                requestId,
+              ),
+          );
+          draftState.complete();
+          await client.invalidateQueries();
+          toast.success("Cần chủ cửa hàng xác nhận giá bán.", {
+            description:
+              "Đã gửi yêu cầu duyệt. Xe vẫn nằm trong kho, chưa ghi nhận doanh thu cho tới khi chủ duyệt.",
+          });
+          navigate(`/vehicles/${vehicle.id}`);
+        } catch (submitError) {
+          toast.error("Không gửi được yêu cầu duyệt.", {
+            description: String(
+              (submitError as { message?: string })?.message ?? submitError,
+            ),
+          });
+        }
+        return;
+      }
+      // Other failures already surface inline via the form's error state; do not
+      // raise a competing toast (keeps offline/network messages single-sourced).
     },
   });
 
@@ -371,7 +416,9 @@ function SaleEditor({ vehicle }: { vehicle: Vehicle }) {
     try {
       const confirmed = await confirmAction({
         title: needsApproval
-          ? "Gửi yêu cầu bán dưới giá thu"
+          ? costHidden
+            ? "Gửi yêu cầu bán — cần chủ duyệt"
+            : "Gửi yêu cầu bán dưới giá thu"
           : "Kiểm tra giao dịch bán xe",
         description: needsApproval
           ? "Chủ cửa hàng sẽ nhận yêu cầu ở mục Chờ duyệt. Xe chưa bị bán và chưa ghi nhận doanh thu."

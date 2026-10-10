@@ -1,4 +1,4 @@
-import { createClient } from 'npm:@supabase/supabase-js@2.117.2';
+import { createClient, type SupabaseClient } from 'npm:@supabase/supabase-js@2.117.2';
 import { corsHeaders } from 'npm:@supabase/supabase-js@2.117.2/cors';
 import {
   PostAiError,
@@ -132,7 +132,7 @@ Deno.serve(async (request: Request) => {
   let model = '';
   let tokens = { input: 0, output: 0 };
   let outcome = 'OK';
-  let metered: ReturnType<typeof createClient> | null = null;
+  let metered: SupabaseClient | null = null;
   try {
     const url = Deno.env.get('SUPABASE_URL');
     const anon = Deno.env.get('SUPABASE_ANON_KEY') ?? Deno.env.get('SUPABASE_PUBLISHABLE_KEY');

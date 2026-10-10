@@ -45,6 +45,8 @@ export async function runStaffDeleteApprovalTests(externalDb, { engine = 'postgr
       request_id: randomUUID(),
       vehicle_type: 'Xe tay ga', license_plate: `SP-${randomUUID().slice(0, 6).toUpperCase()}`,
       frame_number: `FRAME${randomUUID().slice(0, 8)}`, purchase_date: day,
+      // Giá thu bắt buộc > 0 ngay khi vào kho, và STAFF là người nhập nó.
+      purchase_price: 50_000_000,
       ...overrides,
     })
     const saveVehicle = (user, data, id) => run(user, (client) => rpc(client, 'save_vehicle', '$1::jsonb,$2::uuid', [JSON.stringify(data), id ?? null]))

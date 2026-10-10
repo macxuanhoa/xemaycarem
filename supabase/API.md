@@ -6,6 +6,8 @@ All operations require a verified Supabase session and an active profile. Functi
 | --- | --- | --- |
 | list_vehicles | p_filters jsonb = {} | {items,total} |
 | get_vehicle | p_id uuid | Vehicle with images, expenses, sales, activity |
+| lookup_vehicle_identifiers | p_license_plate text = null, p_frame_number text = null | `{plate_matches,frame_matches}` across the entire eligible inventory, exact compact identifiers only; active STAFF/MANAGER/OWNER, no financial/customer/document fields; partial frame fragments never establish identity, duplicates retained, pending deletion/purged records excluded |
+| lookup_identity_document_vehicles | p_id_number text (exact 12 digits; spaces, dots and hyphens accepted) | Vehicle identity array `[{id,internal_code,license_plate,frame_number,vehicle_type,status}]`; OWNER/MANAGER only; exact CCCD links from completed acquisitions or stored sale documents, IN_STOCK/RESERVED only, deduplicated, pending deletion excluded; no document PII |
 | save_vehicle | p_data jsonb, p_id uuid = null | UUID |
 | sell_vehicle | p_data jsonb | sale UUID |
 | cancel_sale | p_id uuid, p_reason text | void |
@@ -29,6 +31,8 @@ All operations require a verified Supabase session and an active profile. Functi
 | get_knowledge_article | p_slug text | Article with body_md,audience,source_path,updated_at |
 | log_copilot_gap | p_question text | void; ai-assist records unanswered questions under the caller's JWT |
 | list_copilot_gaps | p_days int = 30 (max 365) | {items:[id,question,hits,last_role,asked_first_at,last_seen_at],total,days}; OWNER only |
+| report_client_issue | p_data jsonb: closed source/code/operation/route/release/environment fields | `{recorded,reason?}`; active accounts only, no raw messages or business identifiers; actor rate limits, daily aggregate capacity and 90-day retention |
+| list_client_issues | p_days int = 7 (1–90) | `{items,total_occurrences,days}`; OWNER only, up to 50 aggregate groups containing safe diagnostics and first/last times, no actor identities |
 | list_vehicle_types | none | JSON array `[{id,name,vehicle_count}]` ordered by name; anonymous callers get only the types that currently have IN_STOCK vehicles, without `vehicle_count` |
 | save_vehicle_type | p_id uuid (null to create), p_name text | {id,name}; OWNER only; rejects `INVALID_VEHICLE_TYPE_NAME` (2–60 chars), `DUPLICATE_VEHICLE_TYPE`, `VEHICLE_TYPE_NOT_FOUND`, `VEHICLE_TYPE_PROTECTED` (renaming the fallback) |
 | delete_vehicle_type | p_id uuid | void; OWNER only; refuses `VEHICLE_TYPE_IN_USE` and `VEHICLE_TYPE_PROTECTED` (the `Chưa phân loại` fallback) |

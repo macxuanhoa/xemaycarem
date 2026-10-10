@@ -22,7 +22,7 @@ export async function runIdentityDocumentTests(externalDb, { engine = 'postgres'
       const role = name === 'disabled' ? 'STAFF' : name.toUpperCase()
       await db.query('UPDATE public.profiles SET role=$1::public.user_role,active=$2,can_view_financials=$3,must_change_password=false WHERE id=$4', [role, name !== 'disabled', name === 'owner', id])
     }
-    const day = (await row('SELECT private.today()::text AS d')).day
+    const day = (await row('SELECT private.today()::text AS d')).d
     const tomorrow = (await row('SELECT (private.today()+1)::text AS d')).d
 
     const acquisitionVehicle = await run('owner', (client) => rpc(client, 'acquire_vehicle', '$1::jsonb', [JSON.stringify({ request_id: randomUUID(), frame_number: `ID-FRAME-${randomUUID().slice(0, 8)}`, vehicle_type: 'Xe tay ga', purchase_price: 50_000_000, acquisition_date: day, seller_name: 'Người bán thử' })]))
@@ -94,6 +94,56 @@ export async function runIdentityDocumentTests(externalDb, { engine = 'postgres'
     await test('removing a CCCD photo detaches the path but retains the stored object', async () => {
       await run('owner', (client) => rpc(client, 'remove_identity_document_image', '$1::text,$2::uuid,$3::text', ['sale', saleId, 'front']))
       assert.equal((await get('owner', 'sale', saleId)).front_image_path, null)
+    })
+
+    const lookup = (name, number) => run(name, (client) => rpc(client, 'lookup_identity_document_vehicles', '$1::text', [number]))
+
+    await test('camera CCCD lookup is exact, read-only and emits vehicle identity without document PII', async () => {
+      const before = await row('SELECT (SELECT count(*) FROM public.audit_logs) AS audits, (SELECT count(*) FROM public.identity_documents) AS documents, (SELECT count(*) FROM public.vehicles) AS vehicles')
+      const matches = await lookup('owner', '079 123.456.789')
+      assert.equal(matches.length, 1)
+      assert.equal(matches[0].id, acquisitionVehicle)
+      assert.equal(matches[0].status, 'IN_STOCK')
+      assert.equal(matches[0].vehicle_type, 'Xe tay ga')
+      assert.deepEqual(Object.keys(matches[0]).sort(), ['frame_number', 'id', 'internal_code', 'license_plate', 'status', 'vehicle_type'])
+      assert.deepEqual(await lookup('manager', '079123456780'), [])
+      assert.deepEqual(await lookup('owner', '079000111222'), [], 'sold vehicles are outside inventory')
+      assert.deepEqual(await row('SELECT (SELECT count(*) FROM public.audit_logs) AS audits, (SELECT count(*) FROM public.identity_documents) AS documents, (SELECT count(*) FROM public.vehicles) AS vehicles'), before)
+    })
+
+    await test('camera CCCD lookup rejects partial numbers and OCR letter substitutions', async () => {
+      for (const number of ['', '07912345678', '0791234567890', 'O79123456789', 'CCCD079123456789', null]) {
+        await deny(() => lookup('owner', number), /INVALID_ID_NUMBER/)
+      }
+    })
+
+    await test('camera CCCD lookup preserves the document role and anonymous restrictions', async () => {
+      await deny(() => lookup('staff', '079123456789'))
+      await deny(() => lookup('disabled', '079123456789'))
+      await deny(() => asUser(db, null, (client) => rpc(client, 'lookup_identity_document_vehicles', '$1::text', ['079123456789']), 'anon'))
+    })
+
+    await test('camera CCCD lookup returns every at-store link once, including returned and reserved vehicles', async () => {
+      await run('owner', (client) => rpc(client, 'cancel_sale', '$1::uuid,$2::text', [saleId, 'Khách trả xe thử']))
+      await db.query("UPDATE public.vehicles SET status='RESERVED' WHERE id=$1", [vehicleId])
+      await save('owner', { subject_type: 'sale', subject_id: saleId, id_number: '079123456789' })
+      const extraAcquisition = await db.query('INSERT INTO public.acquisitions(vehicle_id,acquisition_date,purchase_price,seller_name,created_by) VALUES($1,$2,30000000,$3,$4) RETURNING id', [vehicleId, day, 'Người bán thử', users.owner])
+      await save('owner', { subject_type: 'acquisition', subject_id: extraAcquisition.rows[0].id, id_number: '079123456789' })
+      const matches = await lookup('manager', '079123456789')
+      assert.equal(matches.length, 2, 'the same vehicle linked through sale and acquisition is deduplicated')
+      assert.deepEqual(matches.map((match) => match.id).sort(), [acquisitionVehicle, vehicleId].sort())
+      assert.equal(matches.find((match) => match.id === vehicleId).status, 'RESERVED')
+    })
+
+    await test('camera CCCD lookup excludes cancelled acquisitions, cancelled vehicles and pending deletion', async () => {
+      await db.query("UPDATE public.acquisitions SET status='CANCELLED' WHERE id=$1", [acquisitionId])
+      assert.deepEqual((await lookup('owner', '079123456789')).map((match) => match.id), [vehicleId])
+      await db.query("UPDATE public.vehicles SET status='CANCELLED' WHERE id=$1", [vehicleId])
+      assert.deepEqual(await lookup('owner', '079123456789'), [])
+      await db.query("UPDATE public.acquisitions SET status='COMPLETED' WHERE id=$1", [acquisitionId])
+      assert.deepEqual((await lookup('owner', '079123456789')).map((match) => match.id), [acquisitionVehicle])
+      await run('staff', (client) => rpc(client, 'request_delete_vehicle', '$1::uuid,$2::text', [acquisitionVehicle, 'Xe nhập nhầm thử']))
+      assert.deepEqual(await lookup('owner', '079123456789'), [])
     })
 
     console.log(`CCCD identity-document checks passed: ${passed}`)

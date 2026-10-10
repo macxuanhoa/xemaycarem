@@ -70,7 +70,7 @@ export async function runHardDeleteTests(externalDb, { engine = 'postgres' } = {
     pass('delete_vehicle purges financials, expenses, images and activity while auditing the full snapshot')
 
     // 2. Role gating: MANAGER allowed, STAFF and anon denied.
-    const staffVehicle = await call('staff', 'save_vehicle', vehicleData({ purchase_price: undefined }))
+    const staffVehicle = await call('staff', 'save_vehicle', vehicleData())
     await deny(() => run('staff', (client) => rpc(client, 'delete_vehicle', '$1::uuid,$2::text', [staffVehicle, 'Nhân viên không được xóa'])))
     await deny(() => asUser(db, null, (client) => rpc(client, 'delete_vehicle', '$1::uuid,$2::text', [staffVehicle, 'khach la']), 'anon'))
     await run('manager', (client) => rpc(client, 'delete_vehicle', '$1::uuid,$2::text', [staffVehicle, 'Quản lý dọn dữ liệu nhập nhầm']))
@@ -96,7 +96,7 @@ export async function runHardDeleteTests(externalDb, { engine = 'postgres' } = {
     pass('Sold-then-cancelled vehicles are protected: SALE_HISTORY_EXISTS blocks the purge')
 
     // 5. delete_acquisition purges the phiếu thu together with its xe.
-    const acquiredVehicle = await call('staff', 'acquire_vehicle', vehicleData({ request_id: randomUUID(), purchase_price: undefined, seller_name: 'Người bán test' }))
+    const acquiredVehicle = await call('staff', 'acquire_vehicle', vehicleData({ request_id: randomUUID(), purchase_price: 60_000_000, seller_name: 'Người bán test' }))
     const acquisitionId = await run('owner', (client) => rpc(client, 'get_acquisition_for_vehicle', '$1::uuid', [acquiredVehicle]))
     assert.ok(acquisitionId)
     await deny(() => run('staff', (client) => rpc(client, 'delete_acquisition', '$1::uuid,$2::text', [acquisitionId, 'staff không quyền'])))

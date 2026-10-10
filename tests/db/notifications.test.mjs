@@ -61,8 +61,8 @@ export async function runNotificationsTests(externalDb, { engine = 'postgres' } 
       frame_number: `NFRAME${randomUUID().slice(0, 8)}`, purchase_date: day,
       purchase_price: 80_000_000, ...overrides,
     })
-    // STAFF cannot store prices, so the inventory entry starts cost-pending.
-    const carA = await call('staff', 'save_vehicle', vehicleData({ purchase_price: undefined }))
+    // Nhân viên nhập giá thu khi thêm xe, nên hồ sơ không còn ở trạng thái chờ giá.
+    const carA = await call('staff', 'save_vehicle', vehicleData())
     let created = await notifs('CREATE_VEHICLE', carA)
     assert.deepEqual(
       created.map((n) => n.user_id).sort(),
@@ -80,19 +80,21 @@ export async function runNotificationsTests(externalDb, { engine = 'postgres' } 
     assert.equal((await row('SELECT private.money_text(NULL) AS t')).t, null)
     pass('private.money_text groups digits with dots without locale drift')
 
-    // 3. acquire_vehicle (STAFF flow, price unknown): one notice per recipient;
-    //    the paired CREATE_VEHICLE is deduped. Then the financial MANAGER completes
-    //    the cost, which reaches the acquiring STAFF as an UPDATE_VEHICLE notice.
+    // 3. acquire_vehicle (STAFF nhập giá thu): một thông báo cho mỗi người nhận;
+    //    CREATE_VEHICLE song sinh bị dedup. MANAGER không có quyền tiền nhận bản
+    //    không con số, còn chủ cửa hàng và chính người thao tác nhận bản có giá.
     const acquired = await call('staff2', 'acquire_vehicle', {
       request_id: randomUUID(),
-      ...vehicleData({ seller_name: 'Người bán A', purchase_price: undefined }), initial_payment: 0,
+      ...vehicleData({ seller_name: 'Người bán A', purchase_price: 70_000_000 }), initial_payment: 0,
     })
     created = await notifs('CREATE_ACQUISITION', (await row(
       'SELECT id FROM public.acquisitions WHERE vehicle_id=$1', [acquired],
     )).id)
     assert.equal(created.length, 4) // owner + 2 managers + actor staff2
     assert.equal(await count("SELECT count(*) AS count FROM public.notifications WHERE action='CREATE_VEHICLE' AND entity_id=$1", [acquired]), 0)
-    assert.equal(created.every((n) => !/giá vốn/.test(n.body)), true) // cost pending, no price to reveal
+    assert.match(created.find((n) => n.user_id === users.owner).body, /giá vốn 70\.000\.000 đ/)
+    assert.match(created.find((n) => n.user_id === users.staff2).body, /giá vốn/)
+    assert.equal(created.find((n) => n.user_id === users.manager).body.includes('giá vốn'), false)
     assert.match(created[0].body, /thu vào xe/)
     assert.equal(created[0].deep_link, '/acquisitions')
     await run('financialManager', (client) => rpc(client, 'save_vehicle', '$1::jsonb,$2::uuid', [JSON.stringify({ purchase_price: 80_000_000 }), acquired]))

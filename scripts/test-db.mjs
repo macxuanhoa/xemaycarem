@@ -11,6 +11,7 @@ import { runIdentityDocumentTests } from '../tests/db/identity-documents.test.mj
 import { runShowroomTests } from '../tests/db/showroom.test.mjs'
 import { runHardDeleteTests } from '../tests/db/hard-delete.test.mjs'
 import { runStaffDeleteApprovalTests } from '../tests/db/staff-parity-delete-approval.test.mjs'
+import { runBelowCostSaleApprovalTests } from '../tests/db/below-cost-sale-approval.test.mjs'
 import { runNotificationsTests } from '../tests/db/notifications.test.mjs'
 import { runSaleDueDateConflictTests } from '../tests/db/sale-due-date-conflict.test.mjs'
 import { runOperationReceiptTests } from '../tests/db/operation-receipts.test.mjs'
@@ -23,8 +24,12 @@ import { runVehicleTypeCatalogTests } from '../tests/db/vehicle-type-catalog.tes
 import { runFieldPurgeIntegrityTests } from '../tests/db/field-purge-integrity.test.mjs'
 import { runPlateDisplayFormatTests } from '../tests/db/plate-display-format.test.mjs'
 import { runVehicleDuplicateDetectionTests } from '../tests/db/vehicle-duplicate-detection.test.mjs'
+import { runVehicleIdentifierLookupTests } from '../tests/db/vehicle-identifier-lookup.test.mjs'
+import { runRuntimeMonitoringTests } from '../tests/db/runtime-monitoring.test.mjs'
+import { runPostStudioAiTests } from '../tests/db/post-studio-ai.test.mjs'
 import { verifiedPayment } from '../tests/db/payment-fixtures.mjs'
 import { runPaymentReceiptSecurityTests } from '../tests/db/payment-receipt-security.test.mjs'
+import { runVietQrPaymentTests } from '../tests/db/vietqr-payment.test.mjs'
 
 const engine = process.argv.includes('--pglite') ? 'pglite' : 'postgres'
 console.log(`Database integration suite: ${engine} (disposable database; no cloud credentials)`)
@@ -38,6 +43,7 @@ await runIdentityDocumentTests(null, { engine })
 await runShowroomTests(null, { engine })
 await runHardDeleteTests(null, { engine })
 await runStaffDeleteApprovalTests(null, { engine })
+await runBelowCostSaleApprovalTests(null, { engine })
 await runNotificationsTests(null, { engine })
 await runSaleDueDateConflictTests(null, { engine })
 await runOperationReceiptTests(null, { engine })
@@ -51,11 +57,17 @@ await runVehicleTypeCatalogTests(null, { engine })
 await runFieldPurgeIntegrityTests(null, { engine })
 await runPlateDisplayFormatTests(null, { engine })
 await runVehicleDuplicateDetectionTests(null, { engine })
+await runVehicleIdentifierLookupTests(null, { engine })
+await runRuntimeMonitoringTests(null, { engine })
+await runPostStudioAiTests(null, { engine })
+await runVietQrPaymentTests(null, { engine })
 const db = await createDatabase({ engine })
 let passed = 0
 const users = Object.fromEntries(['owner', 'manager', 'financialManager', 'staff', 'disabled'].map((role) => [role, randomUUID()]))
 const run = (user, fn) => asUser(db, users[user], fn)
-const call = (user, name, data) => name==='add_payment' ? verifiedPayment(db,users[user],users.owner,data) : run(user, (client) => rpc(client, name, '$1::jsonb', [JSON.stringify(data)]))
+const call = (user, name, data, id) => name === 'add_payment' && id === undefined
+  ? verifiedPayment(db, users[user], users.owner, data)
+  : run(user, (client) => rpc(client, name, id ? '$1::jsonb,$2::uuid' : '$1::jsonb', id ? [JSON.stringify(data), id] : [JSON.stringify(data)]))
 const row = async (sql, args = []) => (await db.query(sql, args)).rows[0]
 const deny = (operation, expression = /ACCESS_DENIED|permission denied|row-level security/i) => assert.rejects(operation, expression)
 async function test(name, operation) {
@@ -113,14 +125,18 @@ try {
       await deny(() => run(user, (client) => client.query("UPDATE public.profiles SET role='OWNER'")))
     }
   })
-  await test('Sensitive costs are absent in RPCs and filtered by table RLS for STAFF and ordinary MANAGER', async () => {
+  await test('Acquisition cost is shared with the people who handle vehicles; aggregate cost stays financial', async () => {
+    // STAFF/MANAGER now type the purchase price at intake, so get_vehicle returns
+    // purchase_price for them. Aggregates built from it (total_cost, expense_total)
+    // remain restricted to financial roles.
     for (const user of ['staff', 'manager']) {
       const actual = await getVehicle(user, vehicleId)
-      assert.equal(Object.hasOwn(actual, 'purchase_price'), false)
+      assert.equal(actual.purchase_price, 80_000_000)
       assert.equal(Object.hasOwn(actual, 'total_cost'), false)
+      assert.equal(Object.hasOwn(actual, 'expense_total'), false)
       const direct = await run(user, (client) => client.query('SELECT * FROM public.vehicle_financials'))
       assert.equal(direct.rows.length, 0)
-      await deny(() => call(user, 'save_vehicle', vehicle()))
+      await call(user, 'save_vehicle', { purchase_price: 80_000_000 }, vehicleId)
     }
     assert.equal((await getVehicle('financialManager', vehicleId)).purchase_price, 80_000_000)
     assert.equal((await getVehicle('owner', vehicleId)).purchase_price, 80_000_000)
@@ -143,11 +159,15 @@ try {
     await deny(() => call('staff', 'list_audit', {}))
     await deny(() => call('manager', 'save_settings', { store_name: 'Unauthorized' }))
   })
-  await test('Operational vehicle entry with unknown purchase cost blocks a sale', async () => {
-    const pending = await call('staff', 'save_vehicle', vehicle({ purchase_price: undefined }))
-    assert.equal((await getVehicle('staff', pending)).cost_pending, true)
-    await deny(() => call('staff', 'sell_vehicle', sale(pending)), /PURCHASE_COST_REQUIRED/)
-    assert.equal((await getVehicle('owner', pending)).purchase_price, null)
+  await test('Intake demands a purchase cost; only legacy rows without one block a sale', async () => {
+    // Không còn hồ sơ "chờ bổ sung giá vốn": tạo xe thiếu giá là bị chặn ngay.
+    await deny(() => call('staff', 'save_vehicle', vehicle({ purchase_price: undefined })), /PURCHASE_PRICE_REQUIRED/)
+    const legacy = await call('staff', 'save_vehicle', vehicle({ purchase_price: 60_000_000 }))
+    // Mô phỏng xe thu trước migration: giá vốn NULL.
+    await db.query('UPDATE public.vehicle_financials SET purchase_price=NULL WHERE vehicle_id=$1', [legacy])
+    assert.equal((await getVehicle('staff', legacy)).cost_pending, true)
+    await deny(() => call('staff', 'sell_vehicle', sale(legacy)), /PURCHASE_COST_REQUIRED/)
+    assert.equal((await getVehicle('owner', legacy)).purchase_price, null)
   })
   await test('Total cost derives only from ACTIVE vehicle expenses; business expenses remain separate', async () => {
     expenseId = await addExpense('manager', vehicleId, 1_200_000)

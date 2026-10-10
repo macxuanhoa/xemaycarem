@@ -145,12 +145,15 @@ export async function runAuthSecurityTests({ engine = 'pglite' } = {}) {
       }
       await assert.rejects(asUser(db, null, (client) => rpc(client, 'complete_password_change'), 'anon'), /permission denied/)
     })
-    await test('Acquisition table costs are private while operational acquisition lists remain masked', async () => {
+    await test('Acquisition rows stay RLS-private while every active role reads the intake price', async () => {
       for (const name of ['manager', 'staff']) {
+        // Không có đường đọc trực tiếp: RLS trên bảng acquisitions vẫn chặn.
         assert.equal((await run(name, (client) => client.query('SELECT purchase_price FROM public.acquisitions'))).rows.length, 0)
+        // RPC danh sách thu là đường đọc duy nhất, và từ 20261010000300 nó trả lại
+        // đúng giá thu mà chính nhân viên thao tác xe đã nhập (không còn che).
         const list = await run(name, (client) => rpc(client, 'list_acquisitions'))
         assert.equal(list.total, 2)
-        assert.ok(list.items.every((item) => item.purchase_price === null))
+        assert.ok(list.items.every((item) => Number(item.purchase_price) === 50))
       }
       assert.equal((await run('finance', (client) => client.query('SELECT purchase_price FROM public.acquisitions'))).rows.length, 2)
     })

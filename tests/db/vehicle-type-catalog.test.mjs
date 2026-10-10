@@ -153,7 +153,7 @@ export async function runVehicleTypeCatalogTests(externalDb, { engine = 'postgre
     await pass('STAFF can introduce a new type through acquire_vehicle')
     const staffBike = await call('staff', 'acquire_vehicle', {
       request_id: randomUUID(), vehicle_type: 'Yamaha Exciter 155', frame_number: '',
-      license_plate: '', acquisition_date: day,
+      license_plate: '', acquisition_date: day, purchase_price: 30_000_000,
     })
     assert.equal((await run('owner', (c) => rpc(c, 'get_vehicle', '$1::uuid', [staffBike]))).vehicle_type, 'Yamaha Exciter 155')
 

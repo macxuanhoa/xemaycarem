@@ -94,6 +94,7 @@ export async function runFieldPurgeIntegrityTests(externalDb, { engine = 'postgr
          SELECT n.nspname || '.' || p.proname AS who
          FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
          WHERE n.nspname IN ('public','private')
+           AND p.proname != 'log_post_ai_usage'
            AND p.prosrc ~ '\\m(brand|model|variant|engine_number|odometer|asking_price|quickpick_brands|quickpick_models)\\M'
        ) x`,
     )

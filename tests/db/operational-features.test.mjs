@@ -128,7 +128,11 @@ export async function runOperationalTests(externalDb, { engine = 'postgres' } = 
       await db.exec("SET timezone = 'UTC'")
     })
     await test('dashboard actionable alert values use genuine current debt, cost pending and old stock', async () => {
-      await vehicle({ purchase_price: null })
+      // Từ migration 20261010000300, xe mới bắt buộc có giá thu nên không còn đường
+      // RPC tạo hồ sơ cost_pending. Xe CŨ chưa giá (di sản) vẫn phải được đếm đúng,
+      // nên bộ máy test hạ giá xuống NULL bằng SQL — đúng tình trạng production.
+      const legacyVehicle = await vehicle()
+      await db.query('UPDATE public.vehicle_financials SET purchase_price=NULL WHERE vehicle_id=$1', [legacyVehicle])
       const data = await read('staff', 'dashboard', '$1::date, $2::date', [older, day])
       assert.equal(data.unpaid_sales_count, 4)
       assert.equal(data.total_receivables, 270_000_000)
@@ -235,10 +239,13 @@ export async function runOperationalTests(externalDb, { engine = 'postgres' } = 
       // frame_number, license_plate and vehicle_type are the guarded import fields now:
       // brand/model/engine_number/odometer/asking_price no longer exist on a vehicle,
       // so an empty frame is accepted but a missing/blank vehicle type must error.
-      for (const values of [{ purchase_price: -1 }, { purchase_price: 1.2 }, { purchase_price: 'abc' }, { purchase_price: 1_000_000_000_001 }, { purchase_date: '2026-02-30' }, { purchase_date: '1/2/2026' }, { purchase_date: tomorrow }, { year: '2023abc' }, { year: 1800 }, { status: 'SOLD' }, { vehicle_type: '' }]) {
+      for (const values of [{ purchase_price: -1 }, { purchase_price: 1.2 }, { purchase_price: 'abc' }, { purchase_price: 1_000_000_000_001 }, { purchase_price: 0 }, { purchase_price: undefined }, { purchase_date: '2026-02-30' }, { purchase_date: '1/2/2026' }, { purchase_date: tomorrow }, { year: '2023abc' }, { year: 1800 }, { status: 'SOLD' }, { vehicle_type: '' }]) {
         const data = await call('owner', 'validate_import_vehicles', [importRow(values)])
         assert.ok(data.errors.length > 0, `Accepted invalid ${JSON.stringify(values)}`)
       }
+      // Giá thu bắt buộc > 0 với MỌI role: thiếu giá là lỗi nghiệp vụ, không phải lỗi quyền.
+      const noPrice = await call('staff', 'validate_import_vehicles', [importRow({ purchase_price: undefined })])
+      assert.ok(noPrice.errors.some(e => e.field === 'purchase_price' && e.message === 'PURCHASE_PRICE_REQUIRED'))
       const blankFrame = await call('owner', 'validate_import_vehicles', [importRow({ frame_number: '' })])
       assert.equal(blankFrame.errors.length, 0, 'Empty frame should now be accepted')
       const missingType = await call('owner', 'validate_import_vehicles', [importRow({ vehicle_type: undefined })])
@@ -295,21 +302,24 @@ export async function runOperationalTests(externalDb, { engine = 'postgres' } = 
       }
       await deny(() => importBatch('owner', batch), /DUPLICATE_IMPORT_VEHICLE/)
     })
-    await test('inactive users cannot import and nonfinancial staff cannot set purchase cost', async () => {
+    await test('inactive users cannot import; every active role may set the purchase cost', async () => {
       for (const user of ['disabled']) {
         await deny(() => call(user, 'validate_import_vehicles', [importRow()]))
         await deny(() => importBatch(user, [importRow()]))
       }
+      // Giá thu là dữ liệu người thao tác xe nhập: STAFF và MANAGER không còn bị
+      // chặn FINANCIAL_ACCESS_DENIED, mà bị chặn PURCHASE_PRICE_REQUIRED khi thiếu.
       for (const user of ['manager', 'staff']) {
-        const data = await call(user, 'validate_import_vehicles', [importRow()])
-        assert.ok(data.errors.some(e => e.message === 'FINANCIAL_ACCESS_DENIED'))
-        await deny(() => importBatch(user, [importRow()]), /INVALID_IMPORT_DATA/)
-        await deny(() => call(user, 'acquire_vehicle', { ...importRow(), request_id: randomUUID(), acquisition_date: day }), /FINANCIAL_ACCESS_DENIED/)
+        const clean = await call(user, 'validate_import_vehicles', [importRow()])
+        assert.equal(clean.errors.length, 0, `Role ${user} was refused a purchase price`)
+        const imported = await importBatch(user, [importRow({ supplier_name: 'Người bán thử' })])
+        assert.equal(imported.imported_count, 1)
+        assert.equal((await read('owner', 'get_vehicle', '$1::uuid', [imported.vehicle_ids[0]])).purchase_price, 12_000_000)
+        await deny(() => call(user, 'acquire_vehicle', { ...importRow({ purchase_price: undefined }), request_id: randomUUID(), acquisition_date: day }), /PURCHASE_PRICE_REQUIRED/)
       }
       const noCost = importRow()
       delete noCost.purchase_price
-      const data = await importBatch('staff', [noCost])
-      assert.equal((await read('owner', 'get_vehicle', '$1::uuid', [data.vehicle_ids[0]])).cost_pending, true)
+      await deny(() => importBatch('staff', [noCost]), /INVALID_IMPORT_DATA/)
     })
     await test('payment request UUID prevents duplicate payments/audit across identical retries', async () => {
       const input = { request_id: randomUUID(), sale_id: partial.id, amount: 10_000_000, payment_method: 'CASH', payment_date: day, reference: 'TEST-ONLY', notes: '' }

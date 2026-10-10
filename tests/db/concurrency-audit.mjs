@@ -138,10 +138,14 @@ try {
       await lock.close(); await waiting.close()
     }
   })
-  await check('blank plate/unknown acquisition price reaches actual backend safely', async () => {
+  await check('biển trống + xe di sản chưa giá vốn đi tới đúng chốt backend', async () => {
     const payload = { ...vehicle({ license_plate: '' }), acquisition_date: day }
     delete payload.purchase_price
-    const id = await call(db, 'owner', 'acquire_vehicle', payload)
+    // Thu xe bắt buộc giá thu > 0 với mọi role: thiếu giá là fail closed ngay ở ghi.
+    await assert.rejects(() => call(db, 'owner', 'acquire_vehicle', payload), /PURCHASE_PRICE_REQUIRED/)
+    const id = await call(db, 'owner', 'acquire_vehicle', { ...payload, request_id: randomUUID(), purchase_price: 100 })
+    // Xe CŨ chưa có giá vốn (di sản trước migration) vẫn phải bị chặn khi bán.
+    await db.query('UPDATE public.vehicle_financials SET purchase_price=NULL WHERE vehicle_id=$1', [id])
     await assert.rejects(() => call(db, 'a', 'sell_vehicle', sale(id)), /PURCHASE_COST_REQUIRED/)
     assert.equal(await count('acquisitions', 'vehicle_id', id), 1)
   })

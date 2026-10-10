@@ -5162,11 +5162,9 @@ mark.search-hit {
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
-/* --- Smart Camera (Capture Page) — mobile & desktop polished ------------- */
-@media (max-width: 640px) {
-  .capture-page {
-    padding-bottom: 96px; /* Avoid mobile bottom navigation overlay */
-  }
+/* --- Smart Camera (Capture Page) --------------------------------------- */
+.capture-page {
+  gap: 18px;
 }
 
 .capture-fallback-card {
@@ -5215,7 +5213,7 @@ mark.search-hit {
   overflow: hidden;
 }
 .smartcam-card-header {
-  margin-bottom: 12px;
+  margin-bottom: 18px;
 }
 .smartcam-title-wrap {
   display: flex;
@@ -5223,6 +5221,53 @@ mark.search-hit {
   justify-content: space-between;
   gap: 8px;
   margin-bottom: 4px;
+}
+.smartcam-title-wrap .section-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+}
+.smartcam-card-header > p {
+  margin: 6px 0 0;
+}
+.smartcam-workspace {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(270px, 300px);
+  grid-template-rows: auto 1fr;
+  grid-template-areas:
+    "viewport modes"
+    "viewport ai";
+  column-gap: 24px;
+  row-gap: 18px;
+  align-items: start;
+}
+.smartcam-viewport-column {
+  grid-area: viewport;
+  min-width: 0;
+}
+.smartcam-viewport-column > .notice {
+  margin: 0 0 10px;
+}
+.smartcam-mode-panel {
+  grid-area: modes;
+  min-width: 0;
+}
+.smartcam-panel-title {
+  margin: 0 0 10px;
+  font-size: 12px;
+  font-weight: 650;
+  color: var(--muted);
+}
+.smartcam-workspace > .smartcam-footer {
+  grid-area: ai;
+  margin: 0;
+  padding-top: 14px;
+}
+.smartcam-control-panel {
+  display: grid;
+  gap: 8px;
+  margin-top: 12px;
 }
 .smartcam-status-pill {
   display: inline-flex;
@@ -5248,7 +5293,7 @@ mark.search-hit {
   background: currentColor;
 }
 .smartcam-status-pill.active .smartcam-status-dot {
-  animation: smartcam-pulse 1.8s ease-in-out infinite;
+  animation: none;
 }
 @keyframes smartcam-pulse {
   0%, 100% { opacity: 1; transform: scale(1); }
@@ -5258,27 +5303,23 @@ mark.search-hit {
 /* Camera Stage Viewport */
 .smartcam-stage {
   position: relative;
+  width: 100%;
   border-radius: 14px;
   overflow: hidden;
   background: #090d16;
   border: 1px solid rgba(255, 255, 255, 0.1);
   box-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.25);
   aspect-ratio: 16 / 10;
-  min-height: 240px;
-  max-height: 480px;
+  min-height: 280px;
+  max-height: 460px;
   display: flex;
   align-items: center;
   justify-content: center;
 }
-@media (max-width: 640px) {
-  .smartcam-stage {
-    aspect-ratio: 4 / 3;
-    min-height: 220px;
-  }
-}
 
 /* Standby State */
 .smartcam-standby {
+  border: 0;
   width: 100%;
   height: 100%;
   min-height: inherit;
@@ -5374,23 +5415,27 @@ mark.search-hit {
   display: none !important;
 }
 
-/* Overlay Tools */
-.smartcam-overlay-tools {
-  position: absolute;
-  top: 10px;
-  right: 10px;
-  display: flex;
+/* Camera hardware controls stay visible beside the scan actions. */
+.smartcam-device-controls {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
   gap: 8px;
-  z-index: 3;
 }
-/* Mode selector: two clearly distinct interaction styles, one choice at a time */
+.smartcam-device-help {
+  margin: 0;
+  line-height: 1.4;
+  font-size: 11px;
+}
+/* Four camera workflows share one preview and one stream. */
 .smartcam-mode-toggle {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: minmax(0, 1fr);
   gap: 8px;
-  margin-bottom: 12px;
+  margin: 0;
 }
 .smartcam-mode-btn {
+  min-width: 0;
+  min-height: 66px;
   display: flex;
   align-items: center;
   gap: 9px;
@@ -5408,6 +5453,64 @@ mark.search-hit {
   flex-direction: column;
   min-width: 0;
 }
+.smartcam-mode-btn > svg {
+  flex-shrink: 0;
+}
+.smartcam-mode-btn:disabled {
+  cursor: default;
+  opacity: 0.55;
+}
+.smartcam-risk-char {
+  color: #b91c1c;
+  background: #fee2e2;
+  border-radius: 3px;
+  padding: 1px;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.smartcam-followup {
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: rgba(34, 197, 94, 0.06);
+}
+.smartcam-followup p {
+  margin: 0 0 10px;
+  font-weight: 600;
+}
+.smartcam-result-photos {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+}
+.smartcam-result-photos img {
+  width: 100px;
+  height: 70px;
+  border-radius: 8px;
+  object-fit: contain;
+  background: var(--surface);
+}
+.smartcam-result-photos button {
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  cursor: zoom-in;
+  background: transparent;
+}
+.smartcam-photo-dialog {
+  width: min(1000px, 94vw);
+  display: grid;
+  gap: 12px;
+}
+.smartcam-photo-dialog img {
+  width: 100%;
+  max-height: 75vh;
+  object-fit: contain;
+}
+[data-theme="dark"] .smartcam-risk-char {
+  color: #fecaca;
+  background: #7f1d1d;
+}
 .smartcam-mode-btn strong {
   font-size: 13px;
   font-weight: 600;
@@ -5417,8 +5520,12 @@ mark.search-hit {
   color: var(--muted, #64748b);
   line-height: 1.3;
 }
-.smartcam-mode-btn:hover {
+.smartcam-mode-btn:hover:not(:disabled) {
   border-color: rgba(34, 197, 94, 0.45);
+}
+.smartcam-mode-btn:focus-visible {
+  outline: 2px solid #16a34a;
+  outline-offset: 2px;
 }
 .smartcam-mode-btn.active {
   border-color: #22c55e;
@@ -5438,23 +5545,36 @@ mark.search-hit {
   z-index: 2;
 }
 .smartcam-tool-btn {
-  background: rgba(15, 23, 42, 0.72);
-  color: #f8fafc;
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  border-radius: 20px;
-  padding: 6px 12px;
+  background: var(--card, #fff);
+  color: var(--text, #0f172a);
+  border: 1px solid var(--line, #e2e8f0);
+  border-radius: 10px;
+  min-width: 0;
+  min-height: 44px;
+  padding: 9px 10px;
   font-size: 12.5px;
   font-weight: 500;
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 6px;
   cursor: pointer;
-  backdrop-filter: blur(8px);
   transition: background-color 150ms ease, border-color 150ms ease;
 }
-.smartcam-tool-btn:hover {
-  background: rgba(15, 23, 42, 0.9);
-  border-color: rgba(255, 255, 255, 0.4);
+.smartcam-tool-btn > svg {
+  flex-shrink: 0;
+}
+.smartcam-tool-btn:hover:not(:disabled) {
+  background: rgba(34, 197, 94, 0.06);
+  border-color: rgba(34, 197, 94, 0.45);
+}
+.smartcam-tool-btn:focus-visible {
+  outline: 2px solid #16a34a;
+  outline-offset: 2px;
+}
+.smartcam-tool-btn:disabled {
+  cursor: default;
+  opacity: 0.5;
 }
 .smartcam-tool-btn.active {
   background: #16a34a;
@@ -5470,7 +5590,7 @@ mark.search-hit {
   border-radius: 12px;
   pointer-events: none;
   box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.3);
-  overflow: hidden;
+  overflow: visible;
 }
 .smartcam-guide-label {
   position: absolute;
@@ -5483,10 +5603,48 @@ mark.search-hit {
   font-weight: 500;
   padding: 3px 12px;
   border-radius: 6px;
-  white-space: nowrap;
+  width: max-content;
+  max-width: 100%;
+  text-align: center;
   pointer-events: none;
   backdrop-filter: blur(4px);
   border: 1px solid rgba(255, 255, 255, 0.15);
+}
+.smartcam-tool-btn.active:hover:not(:disabled) {
+  background: #15803d;
+}
+.smartcam-guide.photo {
+  inset: 8%;
+}
+.smartcam-guide.full-preview {
+  inset: 12% 6%;
+  box-shadow: none;
+}
+.smartcam-focus-region {
+  position: absolute;
+  border: 2px solid #86efac;
+  border-radius: 4px;
+  pointer-events: none;
+  z-index: 1;
+}
+.smartcam-focus-region > span {
+  position: absolute;
+  bottom: 100%;
+  margin-bottom: 3px;
+  left: 0;
+  padding: 2px 6px;
+  background: #14532d;
+  color: white;
+  font-size: 10px;
+  line-height: 1.4;
+}
+.staging-banner {
+  padding: 8px 16px;
+  background: #fef3c7;
+  color: #78350f;
+  text-align: center;
+  font-size: 12px;
+  line-height: 1.4;
 }
 .smartcam-guide::before,
 .smartcam-guide::after {
@@ -5545,6 +5703,62 @@ mark.search-hit {
   border: 1px solid rgba(255, 255, 255, 0.15);
 }
 
+/* Live tap to focus animation */
+.smartcam-tap-reticle {
+  position: absolute;
+  width: 48px;
+  height: 48px;
+  margin-left: -24px;
+  margin-top: -24px;
+  border: 2px solid #22c55e;
+  border-radius: 8px;
+  pointer-events: none;
+  z-index: 5;
+  animation: smartcam-focus-ping 900ms cubic-bezier(0, 0, 0.2, 1) forwards;
+  box-shadow: 0 0 14px rgba(34, 197, 94, 0.7);
+}
+@keyframes smartcam-focus-ping {
+  0% { transform: scale(1.35); opacity: 0; }
+  20% { transform: scale(1); opacity: 1; }
+  75% { transform: scale(1); opacity: 0.9; }
+  100% { transform: scale(0.9); opacity: 0; }
+}
+
+/* On-viewfinder floating zoom pill */
+.smartcam-zoom-pill {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  background: rgba(15, 23, 42, 0.85);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  backdrop-filter: blur(8px);
+  border-radius: 20px;
+  padding: 3px 6px;
+  z-index: 3;
+}
+.smartcam-zoom-btn {
+  background: transparent;
+  border: 0;
+  color: #94a3b8;
+  font-size: 11.5px;
+  font-weight: 700;
+  padding: 3px 8px;
+  border-radius: 12px;
+  cursor: pointer;
+  transition: all 150ms ease;
+  line-height: 1.2;
+}
+.smartcam-zoom-btn:hover:not(:disabled) {
+  color: #f8fafc;
+}
+.smartcam-zoom-btn.active {
+  background: #22c55e;
+  color: #052e16;
+}
+
 /* Idle Paused Overlay */
 .smartcam-idle-overlay {
   position: absolute;
@@ -5568,18 +5782,20 @@ mark.search-hit {
 
 /* Camera Action Controls (Fixed Desktop & Mobile Alignment) */
 .smartcam-controls {
-  margin-top: 14px;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  flex-wrap: wrap;
+  margin: 0;
+  display: grid;
+  gap: 8px;
 }
 
 .smartcam-idle-actions {
-  display: flex;
-  align-items: center;
-  gap: 10px;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
   width: 100%;
+}
+.smartcam-idle-actions > * {
+  min-width: 0;
+  justify-content: center;
 }
 
 .smartcam-sub-actions {
@@ -5615,6 +5831,7 @@ mark.search-hit {
   min-height: 44px;
   padding: 0 16px;
   box-sizing: border-box;
+  border-radius: 10px;
 }
 
 .smartcam-btn-upload {
@@ -5630,6 +5847,10 @@ mark.search-hit {
   cursor: pointer;
   pointer-events: none;
 }
+.smartcam-btn-upload:focus-within {
+  outline: 2px solid #16a34a;
+  outline-offset: 2px;
+}
 .smartcam-btn-upload svg,
 .smartcam-controls svg {
   width: 16px;
@@ -5639,12 +5860,128 @@ mark.search-hit {
   flex-shrink: 0;
 }
 
-/* Mobile Controls Layout */
+/* Tablet and phone keep mode selection above the preview. */
+@media (max-width: 999px) {
+  .smartcam-workspace {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto;
+    grid-template-areas: "modes" "viewport" "ai";
+    gap: 12px;
+  }
+  .smartcam-panel-title {
+    display: none;
+  }
+  .smartcam-mode-toggle {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+  .smartcam-mode-btn {
+    min-height: 54px;
+    padding: 9px 10px;
+  }
+  .smartcam-mode-btn small {
+    display: none;
+  }
+  .smartcam-stage {
+    aspect-ratio: 16 / 9;
+    max-height: 400px;
+  }
+}
 @media (max-width: 640px) {
+  .capture-page {
+    gap: 12px;
+    padding-bottom: 12px;
+  }
+  .capture-page > .page-heading p {
+    display: none;
+  }
+  .capture-page > .page-heading h1 {
+    font-size: 21px;
+    line-height: 1.3;
+  }
+  .smartcam-card {
+    padding: 12px;
+  }
+  .smartcam-card-header {
+    margin-bottom: 10px;
+  }
+  .smartcam-card-header > p {
+    display: none;
+  }
+  .smartcam-title-wrap {
+    margin: 0;
+  }
+  .smartcam-title-wrap .section-title {
+    font-size: 14px;
+    gap: 6px;
+  }
+  .smartcam-status-pill {
+    font-size: 10.5px;
+    white-space: nowrap;
+  }
+  .smartcam-workspace {
+    gap: 10px;
+  }
+  .smartcam-mode-toggle {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 6px;
+  }
+  .smartcam-mode-btn {
+    min-height: 44px;
+    padding: 7px 9px;
+    gap: 7px;
+    border-radius: 9px;
+  }
+  .smartcam-mode-btn strong {
+    font-size: 12px;
+    line-height: 1.3;
+  }
+  .smartcam-mode-btn > svg {
+    width: 16px;
+    height: 16px;
+  }
+  .smartcam-stage {
+    aspect-ratio: auto;
+    height: clamp(180px, 30svh, 240px);
+    min-height: 0;
+    border-radius: 11px;
+  }
+  .smartcam-standby-reticle {
+    width: 100px;
+    height: 100px;
+    margin-bottom: 12px;
+  }
+  .smartcam-standby-title {
+    font-size: 14px;
+  }
+  .smartcam-standby-sub {
+    font-size: 11px;
+    padding: 0 10px;
+  }
+  .smartcam-control-panel {
+    margin-top: 10px;
+    gap: 6px;
+  }
+  .smartcam-controls .button,
+  .smartcam-controls .smartcam-btn-upload,
+  .smartcam-tool-btn {
+    padding-left: 8px;
+    padding-right: 8px;
+    font-size: 12px;
+    gap: 6px;
+  }
+  .smartcam-workspace > .smartcam-footer {
+    padding-top: 10px;
+    gap: 4px;
+  }
+  .smartcam-consent {
+    font-size: 11px;
+  }
+  .smartcam-engine {
+    font-size: 10px;
+  }
   .smartcam-controls {
-    flex-direction: column;
     align-items: stretch;
-    gap: 8px;
+    gap: 6px;
   }
   .smartcam-btn-shutter {
     width: 100%;
@@ -5675,15 +6012,11 @@ mark.search-hit {
     white-space: nowrap;
   }
   .smartcam-idle-actions {
-    display: flex;
-    align-items: stretch;
-    gap: 8px;
+    gap: 6px;
     width: 100%;
   }
   .smartcam-idle-actions > * {
-    flex: 1 1 0;
     min-width: 0;
-    padding: 0 12px;
     height: 44px;
     min-height: 44px;
     justify-content: center;
@@ -14166,4 +14499,104 @@ html[data-theme="dark"] .header-theme-toggle {
 [data-theme="dark"] .audit-diff-new {
   background: rgba(22, 163, 74, 0.16);
   color: #6ee7b7;
+}
+
+/* ============================================================
+   Celebration – pháo hoa chúc mừng bán xe (src/lib/celebrate.ts)
+   Overlay tự dựng/xóa bằng JS, không chặn tương tác, nằm trên
+   toàn bộ layer shell (modal 100, dialog 120).
+   ============================================================ */
+.sale-celebrate {
+  position: fixed;
+  inset: 0;
+  z-index: 130;
+  pointer-events: none;
+  opacity: 1;
+  transition: opacity 0.45s ease;
+}
+.sale-celebrate.leaving {
+  opacity: 0;
+}
+.sale-celebrate-canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+.sale-celebrate-banner {
+  position: absolute;
+  top: 18vh;
+  left: 50%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 16px 30px;
+  border-radius: 18px;
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  background: rgba(255, 251, 235, 0.92);
+  box-shadow: 0 18px 48px -18px rgba(120, 53, 15, 0.45);
+  text-align: center;
+  animation: celebrate-banner-pop 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+.sale-celebrate-banner strong {
+  font-size: 1.3rem;
+  color: #b45309;
+}
+.sale-celebrate-banner span {
+  font-size: 0.92rem;
+  color: #7c4a03;
+}
+.sale-celebrate-banner.leaving {
+  animation: celebrate-banner-out 0.4s ease both;
+}
+[data-theme="dark"] .sale-celebrate-banner {
+  background: rgba(41, 30, 12, 0.9);
+  border-color: rgba(251, 191, 36, 0.35);
+}
+[data-theme="dark"] .sale-celebrate-banner strong {
+  color: #fcd34d;
+}
+[data-theme="dark"] .sale-celebrate-banner span {
+  color: #fbbf24;
+}
+@keyframes celebrate-banner-pop {
+  from {
+    opacity: 0;
+    transform: translateX(-50%) scale(0.7);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(-50%) scale(1);
+  }
+}
+@keyframes celebrate-banner-out {
+  from {
+    opacity: 1;
+    transform: translateX(-50%) scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: translateX(-50%) translateY(-14px) scale(0.94);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .sale-celebrate-banner,
+  .sale-celebrate-banner.leaving {
+    animation: none;
+    transform: translateX(-50%);
+    opacity: 1;
+  }
+  .sale-celebrate-banner.leaving {
+    opacity: 0;
+  }
+}
+@media (max-width: 640px) {
+  .sale-celebrate-banner {
+    top: 14vh;
+    padding: 14px 22px;
+  }
+  .sale-celebrate-banner strong {
+    font-size: 1.12rem;
+  }
 }

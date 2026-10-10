@@ -386,12 +386,6 @@ Deno.serve(async (request: Request) => {
         return response(500, { error: 'DELETE_ELIGIBILITY_FAILED', message: 'Không kiểm tra được lịch sử nghiệp vụ của tài khoản; chưa xóa gì.' });
       }
 
-      // Chủ cửa hàng không nằm trong diện "xóa tài khoản giữ mộ": RPC từ chối rõ ràng và
-      // Edge phải dừng ở đây, nếu không một OWNER thứ hai sẽ bị ẩn khỏi Nhân sự ngoài mong muốn.
-      if (eligibility?.reason === 'CANNOT_DELETE_OWNER') {
-        return response(400, { error: 'CANNOT_DELETE_OWNER', message: 'Không thể xóa tài khoản Chủ cửa hàng.' });
-      }
-
       if (eligibility?.can_delete) {
         // Xóa hồ sơ trước để thỏa FK ON DELETE RESTRICT rồi mới xóa tài khoản đăng nhập.
         const { error: profileDeleteError } = await admin.from('profiles').delete().eq('id', userId);

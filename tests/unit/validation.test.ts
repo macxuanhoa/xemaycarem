@@ -89,7 +89,9 @@ describe('Vehicle form input validation (vehicleSchema)', () => {
     expect(parsed.notes).toBe('Ghi chú có khoảng trắng')
   })
 
-  it('supports operational creation with pending cost (purchase_price optional)', () => {
+  it('keeps purchase_price optional in the schema because edits may omit it', () => {
+    // Xe mới vào kho bắt buộc có giá thu (form chặn + server PURCHASE_PRICE_REQUIRED);
+    // schema vẫn để trống được vì sửa xe có thể không động tới giá.
     const withoutCost = { ...baseVehicle, purchase_price: undefined }
     const parsed = vehicleSchema.parse(withoutCost)
     expect(parsed.purchase_price).toBeUndefined()
@@ -195,9 +197,10 @@ describe('Acquisition form input validation (acquisitionSchema)', () => {
     }
   })
 
-  it('allows optional purchase_price', () => {
-    const parsed = acquisitionSchema.parse({ ...baseAcquisition, purchase_price: undefined })
-    expect(parsed.purchase_price).toBeUndefined()
+  it('requires purchase_price so every intake record starts with a cost', () => {
+    expect(acquisitionSchema.safeParse({ ...baseAcquisition, purchase_price: undefined }).success).toBe(false)
+    expect(acquisitionSchema.safeParse({ ...baseAcquisition, purchase_price: 0 }).success).toBe(false)
+    expect(acquisitionSchema.safeParse(baseAcquisition).success).toBe(true)
   })
 
   it('still rejects acquisition_date and plate garbage', () => {

@@ -4,6 +4,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { MemoryRouter } from "react-router-dom";
 import { detectDraftAction } from "@/lib/shorthand/draftActions";
 import { DraftActionCard } from "@/features/copilot/DraftActionCard";
+import { ExpensesPage } from "@/features/expenses/ExpensePages";
 import type { DraftAction } from "@/lib/shorthand/draftActions";
 
 let testRole = "OWNER";
@@ -148,3 +149,30 @@ describe("copilot draft card only prefills the existing confirmed forms", () => 
     }
   });
 });
+
+describe("expenses page consumes aiDraft from copilot navigation", () => {
+  it("opens the editor and prefills fields when aiDraft is present in location state", () => {
+    const action = {
+      kind: "ADD_VEHICLE_EXPENSE",
+      license_plate: "59B1-999.99",
+      amount: 450_000,
+      description: "Thay lốp Michelin",
+      expense_type: "PARTS",
+      date: "2026-10-10",
+    };
+    const html = renderToStaticMarkup(
+      <MemoryRouter
+        initialEntries={[{ pathname: "/expenses", state: { aiDraft: action } }]}
+      >
+        <QueryClientProvider client={new QueryClient()}>
+          <ExpensesPage />
+        </QueryClientProvider>
+      </MemoryRouter>,
+    );
+    expect(html).toContain("Bản nháp gợi ý từ Cà Rem AI Copilot");
+    expect(html).toContain("59B1-999.99");
+    expect(html).toContain("Thay lốp Michelin");
+    expect(html).toContain("450.000");
+  });
+});
+

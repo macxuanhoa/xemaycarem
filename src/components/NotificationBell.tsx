@@ -8,8 +8,10 @@ import {
   Bell,
   BellOff,
   Bike,
+  Check,
   CircleSlash,
   Inbox,
+  Send,
   Undo2,
   X,
 } from "lucide-react";
@@ -35,6 +37,10 @@ const ACTION_ICON: Record<NotificationAction, typeof Bell> = {
   CREATE_VEHICLE: Bike,
   UPDATE_VEHICLE: Bike,
   REQUEST_DELETE_VEHICLE: Inbox,
+  REQUEST_SALE_BELOW_COST: Send,
+  APPROVE_SALE_BELOW_COST: Check,
+  REJECT_SALE_BELOW_COST: CircleSlash,
+  CANCEL_SALE_BELOW_COST: Undo2,
 };
 
 // Facebook-style buckets: acquisitions and payments read as gains, cancels as
@@ -49,6 +55,10 @@ const ACTION_TONE: Record<NotificationAction, "success" | "warning" | "neutral">
   CREATE_VEHICLE: "neutral",
   UPDATE_VEHICLE: "neutral",
   REQUEST_DELETE_VEHICLE: "warning",
+  REQUEST_SALE_BELOW_COST: "warning",
+  APPROVE_SALE_BELOW_COST: "success",
+  REJECT_SALE_BELOW_COST: "warning",
+  CANCEL_SALE_BELOW_COST: "neutral",
 };
 
 // Keep a trailing currency unit from being orphaned on its own line when the

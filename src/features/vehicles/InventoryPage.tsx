@@ -546,7 +546,9 @@ export function InventoryPage() {
                           <Bike size={24} />
                         </span>
                         {/* Danh tính ưu tiên: biển số + số khung nổi bật thành
-                            chip (navy/mint), tên loại xe·đời·màu là dòng phụ. */}
+                            chip (navy/mint), tên loại xe·đời·màu là dòng phụ.
+                            Mã nội bộ (internal_code) được ẩn khỏi thẻ danh sách;
+                            vẫn tìm được xe bằng mã qua ô tìm kiếm. */}
                         <span>
                           <VehicleIdentityChips
                             vehicle={vehicle}
@@ -560,11 +562,10 @@ export function InventoryPage() {
                               />
                             </small>
                           )}
-                          <small className="vehicle-code"><Highlight text={vehicle.internal_code} query={deferredSearch} /></small>
                         </span>
                       </Link>
                     </td>
-                    <td>{vehicle.vehicle_type || "Chưa phân loại"}</td>
+                    <td><strong>{vehicle.vehicle_type || "Chưa phân loại"}</strong></td>
                     <td>
                       <Badge status={vehicle.status} />
                     </td>
@@ -619,8 +620,9 @@ export function InventoryPage() {
                   {/* Ưu tiên thị giác: biển số & số khung dựng thành chip
                       nền màu nổi bật nhưng vẫn nhẹ nhàng, đúng như trang chi tiết. */}
                   <VehicleIdentityChips vehicle={vehicle} query={deferredSearch} />
+                  {/* Dòng phụ chỉ giữ thông tin cần đối chiếu nhanh; mã nội bộ
+                      đã ẩn khỏi thẻ, vẫn tìm xe bằng mã qua ô tìm kiếm. */}
                   <div className="record-details muted">
-                    <span>Mã xe: <Highlight text={vehicle.internal_code} query={deferredSearch} /></span>
                     <span>Đời xe: {vehicle.year ?? "—"}</span>
                     <span>Màu sắc: {vehicle.color ? <Highlight text={vehicle.color} query={deferredSearch} /> : "—"}</span>
                   </div>

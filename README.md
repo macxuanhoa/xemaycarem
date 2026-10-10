@@ -72,13 +72,13 @@ React PWA → Supabase Auth → PostgreSQL RPC + RLS
                             └─ private Supabase Storage
 ```
 
-- `vehicles` chỉ chứa dữ liệu vận hành. Giá mua nằm ở `vehicle_financials`; snapshot lợi nhuận nằm ở `sale_financials`. RLS chặn dữ liệu nhạy cảm ngay cả khi gọi bảng trực tiếp. Các RPC bỏ các trường nhạy cảm khỏi JSON của người không đủ quyền.
+- `vehicles` chỉ chứa dữ liệu vận hành. Giá thu (`purchase_price`) nằm ở `vehicle_financials`; snapshot lợi nhuận nằm ở `sale_financials`. RLS chặn dữ liệu nhạy cảm ngay cả khi gọi bảng trực tiếp. **Giá thu là dữ liệu nghiệp vụ nên mọi role active đều đọc được** (chính họ gõ lúc thu xe); các cột **tổng hợp** `total_cost`/`expense_total` vẫn chỉ dành cho người có `can_view_financials`.
 - Browser role không được INSERT/UPDATE/DELETE trực tiếp các bảng nghiệp vụ. RPC `SECURITY DEFINER` có `search_path=''`, kiểm tra `auth.uid()`, active và quyền; không dùng role do client tự truyền.
 - Tiền là số nguyên VND, PostgreSQL BIGINT, một khoản tối đa 1.000.000.000.000 ₫. Tổng được kiểm tra trong giới hạn số nguyên an toàn của JavaScript, không làm tròn sai âm thầm.
-- `sell_vehicle` khóa xe, kiểm tra trạng thái, tính và chốt giá mua/chi phí, tạo sale/thanh toán, chuyển SOLD và ghi audit trong một transaction. Partial unique index bảo đảm tối đa một sale COMPLETED trên mỗi xe.
-- Sửa chi phí và giá mua cùng khóa hàng xe với thao tác bán. Thu thêm tiền khóa sale và ngăn vượt số còn phải thu. Không tự retry mutation khi lỗi mạng.
-- Xe do nhân viên nhập chưa có giá mua được đánh dấu `cost_pending`; chủ cửa hàng/quản lý được cấp quyền phải bổ sung trước khi bán. Tổng vốn tồn kho hiện `—` nếu còn xe chưa xác nhận giá mua.
-- Giá vốn = giá mua + chi phí xe ACTIVE. Lợi nhuận gộp = giá bán − snapshot giá vốn. Chi phí cửa hàng được báo riêng, không cộng vào giá vốn xe.
+- `sell_vehicle` khóa xe, kiểm tra trạng thái, tính và chốt giá thu/chi phí, tạo sale/thanh toán, chuyển SOLD và ghi audit trong một transaction. Partial unique index bảo đảm tối đa một sale COMPLETED trên mỗi xe. **Bán thấp hơn giá thu chỉ OWNER làm được**: STAFF/MANAGER gặp `SALE_BELOW_COST_APPROVAL_REQUIRED` và đi qua hàng đợi **Chờ duyệt** (`approval_requests` loại `SALE_BELOW_COST`); khi chưa được duyệt, xe vẫn IN_STOCK và chưa ghi doanh thu.
+- Sửa chi phí và giá thu cùng khóa hàng xe với thao tác bán. Thu thêm tiền khóa sale và ngăn vượt số còn phải thu. Không tự retry mutation khi lỗi mạng.
+- Xe đưa vào kho **bắt buộc có giá thu lớn hơn 0** ngay từ đầu (mọi role đều nhập được); `cost_pending` chỉ còn ở hồ sơ đời trước chưa kịp có giá và những xe đó chưa bán được. Tổng vốn tồn kho hiện `—` nếu còn xe chưa xác nhận giá thu.
+- Giá vốn = giá thu + chi phí xe ACTIVE. Lợi nhuận gộp = giá bán − snapshot giá vốn. Chi phí cửa hàng được báo riêng, không cộng vào giá vốn xe.
 - Hủy sale giữ lịch sử, vô hiệu khoản thu (`VOIDED`), đưa xe về IN_STOCK; hoàn tiền ngân hàng/tiền mặt thực tế cần đối chiếu bên ngoài hệ thống.
 - Ngày nghiệp vụ dùng `Asia/Ho_Chi_Minh`. Trang tồn kho hiển thị tồn kho **hiện tại**, có lọc ngày nhập, không phải tái dựng số dư lịch sử.
 - Ảnh lưu trong bucket private, đường dẫn theo UUID xe; trình duyệt dùng signed URL ngắn hạn. Gỡ ảnh soft-delete metadata, không hard-delete lịch sử.
@@ -89,9 +89,9 @@ Chi tiết hợp đồng API: [supabase/API.md](supabase/API.md). Mô hình bả
 
 | Vai trò | Quyền chính |
 |---|---|
-| OWNER | Toàn bộ nghiệp vụ, giá mua/lợi nhuận, nhân sự, audit, cài đặt |
-| MANAGER | Nhập/sửa/bán xe, thu tiền, chi phí, doanh thu; giá mua và lợi nhuận cần `can_view_financials` |
-| STAFF | Xem kho, nhập/cập nhật thông tin vận hành, bán xe đủ giá vốn, ghi nhận thanh toán; không quản trị/chi phí nhạy cảm |
+| OWNER | Toàn bộ nghiệp vụ, tổng giá vốn/lợi nhuận, **quyết bán dưới giá thu**, nhân sự, audit, cài đặt |
+| MANAGER | Nhập/sửa/bán xe (giá bán thấp hơn giá thu phải gửi Chủ), thu tiền, chi phí, doanh thu; tổng giá vốn và lợi nhuận cần `can_view_financials` |
+| STAFF | Xem kho, nhập/cập nhật thông tin vận hành **kèm giá thu xe**, bán xe đủ giá thu (bán thấp hơn thì gửi Chủ), ghi nhận thanh toán; không quyết định tài chính, không quản trị/chi phí chung |
 
 Tài khoản `active=false` bị từ chối tại database dù session Auth còn tồn tại. Frontend làm mới quyền định kỳ và khi quay lại cửa sổ. Không cho vô hiệu hóa hoặc hạ vai trò OWNER hoạt động cuối cùng.
 
@@ -100,7 +100,8 @@ Tài khoản `active=false` bị từ chối tại database dù session Auth cò
 - Đăng nhập, duy trì phiên theo lựa chọn; đăng xuất; đổi mật khẩu; khôi phục mật khẩu khi đã cấu hình.
 - Tổng quan: tồn kho, giữ chỗ, bán hôm nay/tháng này, doanh thu/lợi nhuận theo quyền, vốn tồn, tuổi tồn, xe mới/xe lợi nhuận cao.
 - Kho xe: tìm mã xe/biển số/số khung/màu/loại xe/SĐT khách; lọc trạng thái/loại xe/năm/ngày; phân trang/sắp xếp; nhập/sửa/chi tiết/ảnh/lịch sử. Hồ sơ xe chỉ định danh bằng **biển số · số khung**, dòng phụ hiển thị **loại xe · đời xe · màu sắc**; không còn hãng, dòng xe, phiên bản, số máy, số km hay giá bán dự kiến.
-- Bán hàng: bán xe trong một biểu mẫu, giá bán và khoản thu đầu tiên do người bán gõ trực tiếp (hệ thống không có giá dự kiến để tự điền), trả nhiều lần, chi tiết giao dịch và hủy có lý do.
+- Bán hàng: bán xe trong một biểu mẫu, giá bán và khoản thu đầu tiên do người bán gõ trực tiếp (hệ thống không có giá dự kiến để tự điền), trả nhiều lần, chi tiết giao dịch và hủy có lý do. Giá bán **thấp hơn giá thu** không hoàn tất ngay với STAFF/MANAGER: hệ thống hiện cảnh báo chênh lệch và đổi nút thành **Gửi yêu cầu duyệt** — chỉ OWNER phê duyệt (xem `docs/INTERNAL_SOPS.md`).
+- Chờ duyệt (`/approvals`, chỉ OWNER): một hàng đợi duy nhất cho **hai loại** — yêu cầu xóa xe và yêu cầu bán dưới giá thu; người gửi được thông báo khi có quyết định.
 - Chi phí xe và cửa hàng: thêm, sửa, hủy có lịch sử.
 - Nhân sự, audit trước/sau thay đổi, hồ sơ và cài đặt cửa hàng (OWNER quản lý **danh mục loại xe** ở tab **Loại xe**).
 - Trợ lý AI (`/copilot`) hỏi đáp có bằng chứng bấm được, và tài liệu cửa hàng (`/docs`) xem ngay trong app.

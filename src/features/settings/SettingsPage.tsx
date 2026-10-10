@@ -23,6 +23,8 @@ import {
   VEHICLE_TYPES_QUERY_KEY,
 } from "@/lib/useVehicleTypes";
 import { AnnouncementManager } from "./AnnouncementManager";
+import { RuntimeHealthCard } from "./RuntimeHealthCard";
+import { PaymentSettingsCard } from "./PaymentSettingsCard";
 interface InstallPrompt extends Event {
   prompt: () => Promise<void>;
   userChoice: Promise<{ outcome: string }>;
@@ -46,7 +48,7 @@ export default function SettingsPage() {
     [currentPassword, setCurrentPassword] = useState(""),
     [prompt, setPrompt] = useState<InstallPrompt | null>(null);
   const [activeTab, setActiveTab] = useState<
-    "PROFILE" | "STORE" | "SCHEDULE" | "MESSAGES" | "VEHICLE_TYPES" | "DEVICE"
+    "PROFILE" | "STORE" | "PAYMENT" | "SCHEDULE" | "MESSAGES" | "VEHICLE_TYPES" | "DEVICE"
   >("PROFILE");
 
   const client = useQueryClient();
@@ -98,6 +100,7 @@ export default function SettingsPage() {
   });
 
   const showStore = isOwner(profile) && activeTab === "STORE";
+  const showPayment = isOwner(profile) && activeTab === "PAYMENT";
   const showSchedule = isOwner(profile) && activeTab === "SCHEDULE";
   const showMessages = isOwner(profile) && activeTab === "MESSAGES";
   const showVehicleTypes = isOwner(profile) && activeTab === "VEHICLE_TYPES";
@@ -123,6 +126,16 @@ export default function SettingsPage() {
         >
           <span>Hồ sơ &amp; Đổi mật khẩu</span>
         </button>
+        {isOwner(profile) && (
+          <button
+            type="button"
+            aria-pressed={activeTab === "PAYMENT"}
+            className={`settings-nav-item ${activeTab === "PAYMENT" ? "active" : ""}`}
+            onClick={() => setActiveTab("PAYMENT")}
+          >
+            <span>Tài khoản nhận tiền</span>
+          </button>
+        )}
         {isOwner(profile) && (
           <button
             type="button"
@@ -210,8 +223,8 @@ export default function SettingsPage() {
           <Card>
             <h2>Đổi mật khẩu</h2>
             <p className="muted small" style={{ marginBottom: "16px" }}>
-              Đặt mật khẩu an toàn với tối thiểu 6 ký tự để bảo vệ tài khoản
-              cửa hàng.
+              Đặt mật khẩu an toàn với tối thiểu 6 ký tự để bảo vệ tài khoản cửa
+              hàng.
             </p>
             <form
               className="stack"
@@ -270,10 +283,10 @@ export default function SettingsPage() {
           )
         ))}
 
+      {showPayment && <PaymentSettingsCard />}
+
       {showSchedule && (
-        <SharedScheduleCard
-          onSaved={(msg) => toast.success(msg)}
-        />
+        <SharedScheduleCard onSaved={(msg) => toast.success(msg)} />
       )}
 
       {showMessages && <AnnouncementManager />}
@@ -282,6 +295,7 @@ export default function SettingsPage() {
 
       {activeTab === "DEVICE" && (
         <div className="settings-balance-grid">
+          {isOwner(profile) && <RuntimeHealthCard />}
           <Card className="install-card">
             <span className="install-icon">
               <Download size={24} />
@@ -608,7 +622,8 @@ function VehicleTypeCatalogEditor() {
   const clashWith = (name: string, exceptId?: string) =>
     items.some(
       (item) =>
-        item.id !== exceptId && normalizeTypeName(item.name) === normalizeTypeName(name),
+        item.id !== exceptId &&
+        normalizeTypeName(item.name) === normalizeTypeName(name),
     );
 
   const askDelete = async (id: string, name: string) => {
@@ -673,7 +688,9 @@ function VehicleTypeCatalogEditor() {
                         type="button"
                         variant="ghost"
                         disabled={!changed || duplicate || busy}
-                        onClick={() => saved.mutate({ id: item.id, name: next })}
+                        onClick={() =>
+                          saved.mutate({ id: item.id, name: next })
+                        }
                       >
                         Lưu tên
                       </Button>
@@ -689,8 +706,8 @@ function VehicleTypeCatalogEditor() {
                   )}
                   {duplicate && (
                     <small className="vehicle-type-warn" role="alert">
-                      Trùng tên một loại đã có sau khi bỏ phân biệt hoa/thường và
-                      khoảng trắng.
+                      Trùng tên một loại đã có sau khi bỏ phân biệt hoa/thường
+                      và khoảng trắng.
                     </small>
                   )}
                 </div>
@@ -735,5 +752,3 @@ function VehicleTypeCatalogEditor() {
     </Card>
   );
 }
-
-

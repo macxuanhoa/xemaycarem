@@ -228,9 +228,6 @@ export function SalesPage({
                             <Highlight text={vehicleTypeName(sale)} query={deferredSearch} />
                           </strong>
                           <VehicleIdentityChips vehicle={sale} query={deferredSearch} />
-                          <small className="vehicle-code">
-                            <Highlight text={sale.vehicle_code || sale.internal_code || ""} query={deferredSearch} />
-                          </small>
                         </td>
                         <td>
                           <strong><Highlight text={sale.customer_name} query={deferredSearch} /></strong>

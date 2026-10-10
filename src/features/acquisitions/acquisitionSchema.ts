@@ -35,12 +35,25 @@ export const acquisitionSchema = z
       .optional(),
     color: z.string().trim().max(60),
     acquisition_date: dateValue,
+    // Giá thu là thông tin bắt buộc khi đưa xe vào kho, với mọi role đang thao
+    // tác xe (server chặn PURCHASE_PRICE_REQUIRED). Ô tiền để trống = NaN.
     purchase_price: moneyValue.optional(),
     seller_name: z.string().trim().max(160),
     seller_phone: z.string().trim().max(30),
     notes: z.string().trim().max(5000),
   })
   .superRefine((values, ctx) => {
+    if (
+      values.purchase_price == null ||
+      !Number.isFinite(values.purchase_price) ||
+      values.purchase_price <= 0
+    ) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["purchase_price"],
+        message: "Nhập giá thu xe (lớn hơn 0) để hồ sơ xe có giá vốn ngay từ đầu.",
+      });
+    }
     const compact = compactFrame(values.frame_number);
     if (
       values.frame_input_kind === "PARTIAL" &&

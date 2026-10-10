@@ -7,13 +7,16 @@ import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { ArrowLeft, ArrowRight, Bike, ChevronDown, ChevronUp, Search, ShoppingBag } from "lucide-react";
+import { AlertTriangle, ArrowLeft, ArrowRight, Bike, ChevronDown, ChevronUp, Clock, QrCode, Search, Send, ShoppingBag } from "lucide-react";
+import { VietQrPaymentModal } from "./VietQrPaymentModal";
 import { api } from "@/lib/api";
 import { AppError } from "@/lib/errors";
+import { celebrateSale } from "@/lib/celebrate";
 import { executeOperation } from "@/lib/operationRecovery";
 import { OperationRecoveryNotice } from "@/components/OperationRecoveryNotice";
-import { canFinance, canOperate } from "@/lib/permissions";
+import { canFinance, canOperate, isOwner } from "@/lib/permissions";
 import { dateLabel, money, today } from "@/lib/format";
+import { toast } from "@/lib/toast";
 import { useAuth } from "@/features/auth/AuthProvider";
 import {
   Button,
@@ -91,8 +94,8 @@ export function SellVehiclePage() {
         </Card>
         {inventory.data?.items.some((item) => item.cost_pending) && (
           <p className="notice">
-            <strong>Lưu ý:</strong> Một số xe chưa có giá nhập và không thể bán.
-            Liên hệ người có quyền tài chính để cập nhật giá nhập.
+            <strong>Lưu ý:</strong> Một số xe chưa có giá thu và không thể bán.
+            Mở hồ sơ xe và bổ sung giá thu trước khi tạo giao dịch.
           </p>
         )}
         {inventory.isPending ? (
@@ -122,21 +125,27 @@ export function SellVehiclePage() {
                     <strong title={vehicleTitle(item)}>
                       <Highlight text={vehicleTitle(item)} query={deferredSearch} />
                     </strong>
-                    <small>
-                      <Highlight text={vehicleSubtitle(item)} query={deferredSearch} /> ·{" "}
-                      <Highlight text={item.internal_code} query={deferredSearch} />
-                    </small>
+                    {vehicleSubtitle(item) && (
+                      <small>
+                        <Highlight text={vehicleSubtitle(item)} query={deferredSearch} />
+                      </small>
+                    )}
                   </div>
                 </div>
                 <div className="row">
+                  {item.pending_sale_approval && (
+                    <span className="badge badge-reserved">
+                      <span /> Chờ chủ duyệt bán
+                    </span>
+                  )}
                   {item.cost_pending ? (
                     <button
                       type="button"
                       className="button secondary"
                       disabled
-                      title="Xe này chưa có giá nhập, không thể bán"
+                      title="Xe này chưa có giá thu, không thể bán"
                     >
-                      Chờ giá nhập
+                      Chờ giá thu
                     </button>
                   ) : (
                     <Link
@@ -176,11 +185,14 @@ export function SellVehiclePage() {
       <div className="stack">
         <OperationRecoveryNotice<string>
           userId={profile?.id} operation="sell_vehicle" scope={id}
-          onConfirmed={saleId => navigate(`/sales/${saleId}`)}
+          onConfirmed={saleId => {
+            celebrateSale();
+            navigate(`/sales/${saleId}`);
+          }}
         />
         <EmptyState
           title="Xe chưa sẵn sàng để bán"
-          description="Xe phải đang tồn kho hoặc được giữ chỗ, có đủ giá nhập và chưa được bán."
+          description="Xe phải đang tồn kho hoặc được giữ chỗ, có giá thu và chưa được bán."
         />
         <Link className="button secondary" to={`/vehicles/${id}`}>
           Về chi tiết xe
@@ -238,28 +250,107 @@ function SaleEditor({ vehicle }: { vehicle: Vehicle }) {
   const priceField = form.register("sale_price");
   const paidField = form.register("initial_payment");
   const [showPaymentDetails, setShowPaymentDetails] = useState(false);
+  const [showVietQrModal, setShowVietQrModal] = useState(false);
+  const handleOpenVietQr = () => {
+    const targetAmount = Number.isFinite(paid) && paid > 0 ? paid : (Number.isFinite(price) ? price : 0);
+    if (!targetAmount || targetAmount <= 0) {
+      toast.warning("Vui lòng nhập giá bán hoặc số tiền khách trả trước để tạo mã VietQR.");
+      return;
+    }
+    setShowVietQrModal(true);
+  };
   const reviewPending = useRef(false);
   const [reviewing, setReviewing] = useState(false);
+  // Giá thu là con số người thao tác xe được thấy và được nhập. Bán dưới giá thu
+  // là quyết định của chủ cửa hàng: OWNER chốt ngay, STAFF/MANAGER gửi đơn chờ
+  // duyệt — server cũng giữ đúng quy tắc này, không chỉ giao diện.
+  const owner = isOwner(profile);
+  const purchaseCost = vehicle.purchase_price ?? null;
+  const belowCost = (value: number) =>
+    purchaseCost != null && Number.isFinite(value) && value < purchaseCost;
+  const isBelowCost = belowCost(price);
+  const shortfall = isBelowCost ? purchaseCost! - price : 0;
+  const needsApproval = isBelowCost && !owner;
+  const awaitingApproval = !!vehicle.pending_sale_approval;
+
+  type Submission = { kind: "sale" | "approval"; id: string };
 
   const mutation = useMutation({
-    mutationFn: (values: SaleFormValues) => {
+    mutationFn: (values: SaleFormValues): Promise<Submission> => {
       if (!profile) throw new AppError("Vui lòng đăng nhập lại trước khi bán xe.");
+      if (!owner && belowCost(values.sale_price)) {
+        // Dưới giá thu: KHÔNG ghi giao dịch. Đề xuất đi vào hàng đợi "Chờ duyệt"
+        // sẵn có của OWNER; xe vẫn trong kho và chưa có doanh thu.
+        return executeOperation<string>(
+          profile.id,
+          "request_sale_below_cost",
+          vehicle.id,
+          (requestId) =>
+            api.requestSaleBelowCost(
+              { ...values, vehicle_id: vehicle.id },
+              requestId,
+            ),
+        ).then((approvalId): Submission => ({ kind: "approval", id: approvalId }));
+      }
       return executeOperation<string>(profile.id, "sell_vehicle", vehicle.id, requestId =>
         api.call<string>("sell_vehicle", {
           p_data: { ...values, vehicle_id: vehicle.id, request_id: requestId },
         }),
-      );
+      ).then((saleId): Submission => ({ kind: "sale", id: saleId }));
     },
-    onSuccess: async (saleId) => {
+    onSuccess: async (result) => {
       draftState.complete();
+      if (result.kind === "approval") {
+        await client.invalidateQueries();
+        toast.success("Đã gửi yêu cầu duyệt lên chủ cửa hàng.", {
+          description:
+            "Xe vẫn nằm trong kho, chưa ghi nhận doanh thu. Giao dịch bán hoàn tất khi chủ duyệt.",
+        });
+        navigate(`/vehicles/${vehicle.id}`);
+        return;
+      }
       // The sale is already committed. Messaging runs in the background and can never fail the sale UX.
-      void api.call<{ id?: string; status?: string }>("get_sale_communication", { p_sale_id: saleId })
+      void api.call<{ id?: string; status?: string }>("get_sale_communication", { p_sale_id: result.id })
         .then((job) => job.id && job.status === "QUEUED" ? api.processMessage(job.id) : undefined)
         .catch(() => undefined);
       await client.invalidateQueries();
-      navigate(`/sales/${saleId}`);
+      // Giao dịch đã chốt – chúc mừng một burst pháo hoa trước khi sang phiếu bán.
+      celebrateSale({ detail: vehicleTitle(vehicle) });
+      navigate(`/sales/${result.id}`);
     },
   });
+
+  // Số liệu đổi (giá bán, khách, chi phí) thì phải rút đơn cũ rồi gửi lại, vì
+  // chủ duyệt đúng bản đề xuất đã đóng dấu lúc gửi.
+  const withdrawal = useMutation({
+    mutationFn: () => {
+      if (!vehicle.sale_approval_id)
+        throw new AppError("Không xác định được yêu cầu đang chờ để rút.");
+      return api.cancelSaleApproval(vehicle.sale_approval_id);
+    },
+    onSuccess: async () => {
+      await client.invalidateQueries();
+      toast.success("Đã rút yêu cầu duyệt.", {
+        description: "Chỉnh lại số liệu rồi bấm Gửi yêu cầu duyệt lần nữa.",
+      });
+    },
+    onError: (error) =>
+      toast.error("Không rút được yêu cầu.", {
+        description: String((error as Error).message ?? error),
+      }),
+  });
+
+  async function withdrawRequest() {
+    const ok = await confirmAction({
+      title: "Rút yêu cầu duyệt bán?",
+      description:
+        "Yêu cầu đang chờ được đánh dấu đã rút. Xe vẫn còn trong kho và bạn gửi lại bản đề xuất mới sau khi sửa số liệu.",
+      confirmLabel: "Rút yêu cầu",
+      cancelLabel: "Giữ lại",
+      tone: "danger",
+    });
+    if (ok) withdrawal.mutate();
+  }
 
   const error = (key: keyof SaleFormValues) =>
     form.formState.errors[key]?.message;
@@ -279,9 +370,13 @@ function SaleEditor({ vehicle }: { vehicle: Vehicle }) {
     const snapshot = Object.freeze({ ...values });
     try {
       const confirmed = await confirmAction({
-        title: "Kiểm tra giao dịch bán xe",
-        description: "Đối chiếu khách hàng và số tiền thực tế trước khi ghi nhận.",
-        confirmLabel: "Xác nhận bán xe",
+        title: needsApproval
+          ? "Gửi yêu cầu bán dưới giá thu"
+          : "Kiểm tra giao dịch bán xe",
+        description: needsApproval
+          ? "Chủ cửa hàng sẽ nhận yêu cầu ở mục Chờ duyệt. Xe chưa bị bán và chưa ghi nhận doanh thu."
+          : "Đối chiếu khách hàng và số tiền thực tế trước khi ghi nhận.",
+        confirmLabel: needsApproval ? "Gửi yêu cầu duyệt" : "Xác nhận bán xe",
         cancelLabel: "Quay lại chỉnh sửa",
         summary: (
           <div className="sale-review-stack">
@@ -318,6 +413,9 @@ function SaleEditor({ vehicle }: { vehicle: Vehicle }) {
               </span>
             </div>
             <dl className="summary-list sale-review-summary">
+              {purchaseCost != null && (
+                <div><dt>Giá thu vào</dt><dd>{money(purchaseCost)}</dd></div>
+              )}
               <div><dt>Khách hàng</dt><dd>{snapshot.customer_name}</dd></div>
               <div><dt>Số điện thoại</dt><dd>{snapshot.customer_phone || "Chưa cung cấp"}</dd></div>
               <div><dt>Ngày bán</dt><dd>{dateLabel(snapshot.sale_date)}</dd></div>
@@ -327,6 +425,21 @@ function SaleEditor({ vehicle }: { vehicle: Vehicle }) {
               <div><dt>Hạn thanh toán</dt><dd>{snapshot.due_date ? dateLabel(snapshot.due_date) : "Chưa hẹn ngày"}</dd></div>
               {snapshot.notes && <div><dt>Ghi chú</dt><dd>{snapshot.notes}</dd></div>}
             </dl>
+            {belowCost(snapshot.sale_price) && (
+              <p className="notice warning">
+                <AlertTriangle size={15} />
+                <span>
+                  Bán dưới giá thu, thiếu{" "}
+                  <strong className="danger">
+                    {money(purchaseCost! - snapshot.sale_price)}
+                  </strong>
+                  .{" "}
+                  {owner
+                    ? "Bạn là chủ cửa hàng nên giao dịch sẽ hoàn tất ngay."
+                    : "Yêu cầu sẽ chờ chủ cửa hàng phê duyệt."}
+                </span>
+              </p>
+            )}
           </div>
         ),
       });
@@ -357,9 +470,20 @@ function SaleEditor({ vehicle }: { vehicle: Vehicle }) {
         onConfirmed={async saleId => {
           draftState.complete();
           await client.invalidateQueries();
+          celebrateSale();
           navigate(`/sales/${saleId}`);
         }}
       />
+      {!owner && (
+        <OperationRecoveryNotice<string>
+          userId={profile?.id} operation="request_sale_below_cost" scope={vehicle.id}
+          onConfirmed={async () => {
+            draftState.complete();
+            await client.invalidateQueries();
+            navigate(`/vehicles/${vehicle.id}`);
+          }}
+        />
+      )}
       {draft && (
         <div className="notice draft-notice">
           <span>
@@ -484,13 +608,23 @@ function SaleEditor({ vehicle }: { vehicle: Vehicle }) {
                   />
                 </Field>
                 <Field label="Hình thức thanh toán">
-                  <select {...form.register("payment_method")}>
-                    {Object.entries(paymentLabels).map(([value, label]) => (
-                      <option value={value} key={value}>
-                        {label}
-                      </option>
-                    ))}
-                  </select>
+                  <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+                    <select style={{ flex: 1 }} {...form.register("payment_method")}>
+                      {Object.entries(paymentLabels).map(([value, label]) => (
+                        <option value={value} key={value}>
+                          {label}
+                        </option>
+                      ))}
+                    </select>
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      onClick={handleOpenVietQr}
+                      style={{ whiteSpace: "nowrap", display: "inline-flex", alignItems: "center", gap: 5 }}
+                    >
+                      <QrCode size={15} /> Tạo VietQR
+                    </Button>
+                  </div>
                 </Field>
                 <Field
                   label="Hạn thanh toán (nếu còn nợ)"
@@ -531,14 +665,44 @@ function SaleEditor({ vehicle }: { vehicle: Vehicle }) {
               />
             </Field>
           </Card>
+          {awaitingApproval && (
+            <div className="notice warning">
+              <Clock size={15} />
+              <span>
+                Xe này đang có yêu cầu bán dưới giá thu chờ chủ duyệt. Chưa bán
+                được và cũng chưa gửi thêm yêu cầu khác cho tới khi chủ quyết
+                định. Cần đổi giá bán hay thông tin khách thì rút yêu cầu rồi gửi
+                lại bản mới.
+              </span>
+              <Button
+                variant="secondary"
+                disabled={withdrawal.isPending}
+                onClick={() => void withdrawRequest()}
+              >
+                {withdrawal.isPending ? "Đang rút…" : "Rút yêu cầu"}
+              </Button>
+            </div>
+          )}
           {mutation.isError && <ErrorState error={mutation.error} />}
+          {isBelowCost && (
+            <p className="notice warning">
+              <AlertTriangle size={15} />
+              <span>
+                Giá bán thấp hơn giá thu vào. Chênh lệch{" "}
+                <strong className="danger">{money(shortfall)}</strong>.{" "}
+                {owner
+                  ? "Bạn là chủ cửa hàng: xác nhận là giao dịch hoàn tất ngay, không cần gửi yêu cầu."
+                  : "Nhân viên không tự chốt giao dịch dưới giá thu. Bấm «Gửi yêu cầu duyệt» để chuyển sang mục Chờ duyệt của chủ cửa hàng."}
+              </span>
+            </p>
+          )}
           {canFinance(profile) &&
             Number.isFinite(price) &&
             vehicle.total_cost != null &&
             price < vehicle.total_cost && (
               <p className="notice">
-                Giá bán thấp hơn giá vốn {money(vehicle.total_cost - price)}.
-                Kiểm tra trước khi xác nhận bán xe.
+                Giá bán thấp hơn giá vốn {money(vehicle.total_cost - price)} (đã
+                gồm chi phí làm xe). Kiểm tra trước khi xác nhận bán xe.
               </p>
             )}
         </div>
@@ -547,10 +711,20 @@ function SaleEditor({ vehicle }: { vehicle: Vehicle }) {
             {/* Không lặp lại danh tính xe ở đây – đã có breadcrumb + dialog
                 kiểm tra hiển thị biển số / số khung nổi bật khi cần đối chiếu. */}
             <dl className="summary-list">
+              <div>
+                <dt>Giá thu vào</dt>
+                <dd>{purchaseCost != null ? money(purchaseCost) : "Chưa có"}</dd>
+              </div>
               {canFinance(profile) && (
                 <div>
                   <dt>Giá vốn hiện tại</dt>
                   <dd>{money(vehicle.total_cost)}</dd>
+                </div>
+              )}
+              {isBelowCost && (
+                <div>
+                  <dt>Thấp hơn giá thu</dt>
+                  <dd className="danger">−{money(shortfall)}</dd>
                 </div>
               )}
               <div className="summary-total">
@@ -564,10 +738,21 @@ function SaleEditor({ vehicle }: { vehicle: Vehicle }) {
               <Button
                 type="submit"
                 className="full-width"
-                disabled={mutation.isPending || reviewing}
+                disabled={mutation.isPending || reviewing || awaitingApproval}
+                title={
+                  awaitingApproval
+                    ? "Đang có yêu cầu chờ chủ duyệt nên chưa bán được"
+                    : undefined
+                }
               >
-                <ShoppingBag size={17} />
-                {mutation.isPending ? "Đang hoàn tất…" : "Xác nhận bán xe"}
+                {needsApproval ? <Send size={17} /> : <ShoppingBag size={17} />}
+                {mutation.isPending
+                  ? needsApproval
+                    ? "Đang gửi yêu cầu…"
+                    : "Đang hoàn tất…"
+                  : needsApproval
+                    ? "Gửi yêu cầu duyệt"
+                    : "Xác nhận bán xe"}
               </Button>
               <Link
                 className="button ghost full-width"
@@ -579,6 +764,24 @@ function SaleEditor({ vehicle }: { vehicle: Vehicle }) {
           </Card>
         </aside>
       </form>
+      {showVietQrModal && (
+        <VietQrPaymentModal
+          vehicle={vehicle}
+          amount={Number.isFinite(paid) && paid > 0 ? paid : (Number.isFinite(price) ? price : 0)}
+          onClose={() => setShowVietQrModal(false)}
+          onPaymentConfirmed={() => {
+            setShowVietQrModal(false);
+            form.setValue("payment_method", "BANK_TRANSFER", { shouldDirty: true });
+            const currentPaid = form.getValues("initial_payment");
+            if (!Number.isFinite(currentPaid) || currentPaid <= 0) {
+              const currentPrice = form.getValues("sale_price");
+              if (Number.isFinite(currentPrice)) {
+                form.setValue("initial_payment", currentPrice, { shouldDirty: true, shouldValidate: true });
+              }
+            }
+          }}
+        />
+      )}
     </div>
   );
 }

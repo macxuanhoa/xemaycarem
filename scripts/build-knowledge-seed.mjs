@@ -45,6 +45,8 @@ const SOURCES = [
   { path: 'docs/SYSTEM_REFERENCE.md', audience: 'STAFF', title: 'Tham chiếu hệ thống (sinh tự động)' },
   { path: 'docs/PROJECT_STATE.md', audience: 'STAFF', title: 'Hiện trạng dự án' },
   { path: 'docs/OPERATIONS.md', audience: 'MANAGER', title: 'Vận hành và sao lưu' },
+  { path: 'docs/OPERATIONS_UPGRADE.md', audience: 'OWNER', title: 'Môi trường thử và sức khỏe sao lưu' },
+  { path: 'docs/CAMERA_UPGRADE.md', audience: 'STAFF', title: 'Quét camera và mã QR xe' },
   { path: 'docs/DECISIONS.md', audience: 'MANAGER', title: 'Quyết kiến trúc và nghiệp vụ' },
   { path: 'docs/KNOWN_ISSUES.md', audience: 'MANAGER', title: 'Lỗi đã biết và giới hạn' },
   { path: 'docs/VERIFICATION.md', audience: 'MANAGER', title: 'Quy trình kiểm chứng' },

@@ -3,7 +3,8 @@ import { Link, useParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { ArrowLeft, ArrowRight, CreditCard, MoreVertical } from "lucide-react";
+import { ArrowLeft, ArrowRight, CreditCard, MoreVertical, QrCode } from "lucide-react";
+import { VietQrPaymentModal } from "./VietQrPaymentModal";
 import { api } from "@/lib/api";
 import { confirmPayment, pendingPayment, retainPayment } from "@/lib/paymentRecovery";
 import { AppError } from "@/lib/errors";
@@ -45,6 +46,7 @@ export function SaleDetailPage() {
   const [showAdjust, setShowAdjust] = useState(false);
   const [reason, setReason] = useState("");
   const [receipt, setReceipt] = useState<Payment | "sale" | null>(null);
+  const [showVietQr, setShowVietQr] = useState(false);
 
   const query = useQuery({
     queryKey: ["sale", id],
@@ -276,12 +278,20 @@ export function SaleDetailPage() {
               {canOperate(profile) &&
                 sale.status === "COMPLETED" &&
                 sale.remaining_amount > 0 && (
-                  <Button
-                    variant="secondary"
-                    onClick={() => setShowPayment(!showPayment)}
-                  >
-                    <CreditCard size={16} /> Thu tiền
-                  </Button>
+                  <div style={{ display: "flex", gap: "8px" }}>
+                    <Button
+                      variant="secondary"
+                      onClick={() => setShowVietQr(true)}
+                    >
+                      <QrCode size={16} /> Tạo mã VietQR
+                    </Button>
+                    <Button
+                      variant="secondary"
+                      onClick={() => setShowPayment(!showPayment)}
+                    >
+                      <CreditCard size={16} /> Thu tiền
+                    </Button>
+                  </div>
                 )}
             </div>
             {sale.payments?.length ? (
@@ -359,6 +369,24 @@ export function SaleDetailPage() {
           </aside>
         )}
       </div>
+      {showVietQr && (
+        <VietQrPaymentModal
+          vehicle={{
+            id: sale.vehicle_id,
+            license_plate: sale.license_plate || sale.vehicle?.license_plate,
+            internal_code: sale.vehicle_code || sale.vehicle?.internal_code,
+            vehicle_title: vehicleTitle(sale),
+          }}
+          saleId={sale.id}
+          saleCode={sale.sale_code}
+          amount={sale.remaining_amount}
+          onClose={() => setShowVietQr(false)}
+          onPaymentConfirmed={async () => {
+            setShowVietQr(false);
+            await client.invalidateQueries();
+          }}
+        />
+      )}
     </div>
   );
 }

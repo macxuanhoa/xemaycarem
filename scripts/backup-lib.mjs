@@ -4,16 +4,43 @@
 // stamp, e.g. carem-prod-2026-10-03-124513 with files -schema.sql, -data.sql,
 // -migration-history.txt, -MANIFEST.md and an optional -storage/<bucket>/<path> tree.
 import { createHash } from 'node:crypto'
-import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs'
-import { dirname, join, relative, sep } from 'node:path'
+import { existsSync, lstatSync, mkdirSync, readdirSync, readFileSync, realpathSync, renameSync, statSync, writeFileSync } from 'node:fs'
+import { basename, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path'
 
-export const BACKUP_DIR = 'backups'
+export const BACKUP_DIR = process.env.CAREM_BACKUP_DIR || 'backups'
 export const SET_PREFIX = 'carem-prod-'
 export const HEALTH_FILE = join(BACKUP_DIR, 'LATEST.json')
 export const MIRROR_MARKER = '.carem-backup-mirror'
 
 export const sha256 = (file) => createHash('sha256').update(readFileSync(file)).digest('hex')
 export const sha256_16 = (file) => sha256(file).slice(0, 16).toUpperCase()
+
+// CLI banners can appear before AND after JSON, and Storage metadata contains nested
+// arrays/string brackets. New CLI versions wrap rows in an object with an untrusted-
+// data warning. Accept both shapes without printing or acting on row contents.
+export function parseQueryRows(stdout) {
+  const start = /^[ \t]*(?:\[|{)/m.exec(stdout)?.index
+  if (start === undefined) throw new Error('Database query returned no JSON rows')
+  let depth = 0
+  let quoted = false
+  let escaped = false
+  for (let i = start; i < stdout.length; i++) {
+    const ch = stdout[i]
+    if (quoted) {
+      if (escaped) escaped = false
+      else if (ch === '\\') escaped = true
+      else if (ch === '"') quoted = false
+    } else if (ch === '"') quoted = true
+    else if (ch === '[' || ch === '{') depth++
+    else if ((ch === ']' || ch === '}') && --depth === 0) {
+      const payload = JSON.parse(stdout.slice(start, i + 1))
+      const rows = Array.isArray(payload) ? payload : payload.rows
+      if (!Array.isArray(rows)) throw new Error('Database query returned invalid rows')
+      return rows
+    }
+  }
+  throw new Error('Database query returned incomplete JSON rows')
+}
 
 // Two stamp layouts exist in backups/: the dashed one this tooling writes
 // (2026-10-03-160938) and an older compact one from earlier manual runs
@@ -94,10 +121,92 @@ export function readManifestCounts(manifestPath) {
 export function readManifestHashes(manifestPath) {
   const out = []
   for (const l of readFileSync(manifestPath, 'utf8').split('\n')) {
-    const m = /^(\S+) \| (\d+) bytes \| sha256:([0-9A-Fa-f]{16,64})/.exec(l.trim())
+    const m = /^(.+?) \| (\d+) bytes \| sha256:([0-9A-Fa-f]{64}|[0-9A-Fa-f]{16})(?:\s|$)/.exec(l.trim())
     if (m) out.push({ path: m[1], size: Number(m[2]), sha: m[3].toLowerCase() })
   }
   return out
+}
+
+// Object names and manifest paths are data from outside this machine. Resolve them
+// under one explicit root before reading/writing; reject symlinks and traversal too.
+export function containedPath(root, portablePath) {
+  if (!portablePath || isAbsolute(portablePath) || /[\\:\0]/.test(portablePath)) throw new Error('Unsafe backup path')
+  const parts = portablePath.split('/')
+  if (parts.some((p) => !p || p === '.' || p === '..')) throw new Error('Unsafe backup path')
+  const base = resolve(root)
+  const target = resolve(base, ...parts)
+  const rel = relative(base, target)
+  if (!rel || rel.startsWith(`..${sep}`) || rel === '..' || isAbsolute(rel)) throw new Error('Unsafe backup path')
+  let current = base
+  for (const part of parts) {
+    current = join(current, part)
+    if (existsSync(current) && lstatSync(current).isSymbolicLink()) throw new Error('Backup paths must not use symlinks')
+  }
+  if (existsSync(base)) {
+    const realBase = realpathSync(base)
+    const ancestor = existsSync(target) ? target : dirname(target)
+    if (existsSync(ancestor)) {
+      const realRel = relative(realBase, realpathSync(ancestor))
+      if (realRel === '..' || realRel.startsWith(`..${sep}`) || isAbsolute(realRel)) throw new Error('Backup path leaves its root')
+    }
+  }
+  return target
+}
+
+export function checkSetIntegrity(manifestPath, root = BACKUP_DIR) {
+  const hashes = readManifestHashes(manifestPath)
+  const failures = []
+  const paths = new Set()
+  if (!hashes.length) failures.push('Manifest contains no checksums')
+  for (const item of hashes) {
+    if (paths.has(item.path)) { failures.push('Duplicate manifest path'); continue }
+    paths.add(item.path)
+    try {
+      const file = containedPath(root, item.path)
+      if (!existsSync(file) || !statSync(file).isFile()) { failures.push(`${item.path}: missing file`); continue }
+      if (statSync(file).size !== item.size) { failures.push(`${item.path}: size mismatch`); continue }
+      if (!sha256(file).startsWith(item.sha)) failures.push(`${item.path}: SHA-256 mismatch`)
+    } catch { failures.push(`${item.path}: unsafe path`) }
+  }
+  const prefix = basename(manifestPath).replace(/-MANIFEST\.md$/, '')
+  if (prefix.startsWith(SET_PREFIX)) {
+    for (const suffix of ['schema.sql', 'data.sql', 'migration-history.txt']) {
+      if (!paths.has(`${prefix}-${suffix}`)) failures.push(`Required ${suffix} has no checksum in manifest`)
+    }
+  }
+  return { ok: failures.length === 0, files: hashes.length, fullHashes: hashes.every((h) => h.sha.length === 64), failures }
+}
+
+export function needsRestoreDrill(health, now = new Date()) {
+  const last = health?.lastVerify
+  const age = last?.at ? now.getTime() - new Date(last.at).getTime() : Infinity
+  return !last?.ok || !Number.isFinite(age) || age < 0 || age >= 7 * 86400000
+}
+
+// Count the rows in the dump itself, not a second later production SELECT. Otherwise
+// a sale entered between pg_dump and the count probe creates a false restore mismatch.
+export function dumpPublicCounts(sql) {
+  const counts = {}
+  for (const statement of splitStatements(sql)) {
+    if (/^COPY\b/i.test(statement)) throw new Error('COPY-formatted dump is not supported by this restore verifier')
+    const match = /^INSERT\s+INTO\s+"?public"?\."?([a-z_][a-z0-9_]*)"?[\s\S]*?\bVALUES\s+([\s\S]*)$/i.exec(statement)
+    if (!match) continue
+    let depth = 0
+    let quoted = false
+    let rows = 0
+    for (let i = 0; i < match[2].length; i++) {
+      const ch = match[2][i]
+      if (quoted) {
+        if (ch === "'" && match[2][i + 1] === "'") i++
+        else if (ch === "'") quoted = false
+      } else if (ch === "'") quoted = true
+      else if (ch === '(') { if (depth === 0) rows++; depth++ }
+      else if (ch === ')') depth--
+    }
+    if (depth !== 0 || quoted || rows === 0) throw new Error('Cannot count rows in dump INSERT')
+    counts[match[1]] = (counts[match[1]] ?? 0) + rows
+  }
+  return counts
 }
 
 // Grandfather-father-son retention: newest 7 days, then one per week for 4 weeks, then
@@ -176,7 +285,8 @@ export function readHealth() {
 
 export function writeHealth(patch) {
   const current = { ...readHealth(), ...patch, updatedAt: new Date().toISOString() }
-  writeFileSyncSafe(HEALTH_FILE, JSON.stringify(current, null, 2) + '\n')
+  writeFileSyncSafe(`${HEALTH_FILE}.tmp`, JSON.stringify(current, null, 2) + '\n')
+  renameSync(`${HEALTH_FILE}.tmp`, HEALTH_FILE)
   return current
 }
 

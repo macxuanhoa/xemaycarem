@@ -62,9 +62,11 @@ Câu trả lời của `/copilot` và `/docs` lấy từ `public.knowledge_base`
 | Chưa kết nối cửa hàng | URL/public key frontend và khởi động/build lại |
 | Đăng nhập được nhưng chưa có quyền | `profiles.active`, role và profile UUID trùng Auth user |
 | Tạo nhân viên lỗi | Edge Function đã deploy, OWNER active, `ALLOWED_ORIGINS`, Edge logs |
-| Không thấy giá mua | OWNER hoặc MANAGER có `can_view_financials=true` |
-| Không bán được xe | Trạng thái không SOLD/CANCELLED, `cost_pending=false`, ngày bán hợp lệ |
-| Số vốn tồn là `—` | Có xe chờ bổ sung giá mua; kiểm tra kho |
+| Không thấy **tổng** giá vốn/lợi nhuận | Cần OWNER hoặc MANAGER có `can_view_financials=true`. **Giá thu** thì mọi role active đều thấy vì chính họ nhập lúc thu xe |
+| Không bán được xe | Trạng thái không SOLD/CANCELLED; xe **đời cũ** còn `cost_pending`; ngày bán hợp lệ; hoặc đang có **đơn chờ duyệt bán dưới giá thu** (`SALE_APPROVAL_PENDING`) / đơn xóa chờ (`DELETE_PENDING`) |
+| Bấm bán mà chỉ thấy nút **Gửi yêu cầu duyệt** | Đúng thiết kế: giá bán thấp hơn giá thu và tài khoản không phải OWNER. Chủ quyết trong **Chờ duyệt** (`/approvals`); OWNER bán dưới giá thu vẫn thấy **Xác nhận bán** |
+| Duyệt đơn báo `APPROVAL_STALE_DATA` | Giá thu hoặc chi phí xe đã đổi sau khi nhân viên gửi đơn — không cho duyệt số cũ. Bắt người gửi **Rút yêu cầu** rồi gửi lại giá mới |
+| Số vốn tồn là `—` | Còn xe **đời cũ** chờ bổ sung giá thu; kiểm tra kho và nhập giá thu vào hồ sơ xe |
 | Mất mạng khi lưu | Không bấm lặp liên tục; tải lại danh sách kiểm tra giao dịch đã ghi chưa |
 | Hủy sale đã thu tiền | Khoản thu được VOIDED trên sổ; hoàn tiền thực tế và đối chiếu riêng |
 | Ảnh không tải | Bucket private/policies, metadata path, signed URL mới, CSP custom domain |
@@ -74,7 +76,7 @@ Câu trả lời của `/copilot` và `/docs` lấy từ `public.knowledge_base`
 | Không có nút cài PWA | HTTPS/localhost, manifest/service worker, Chrome/Edge hỗ trợ, app đã cài chưa |
 | Chuông báo không hiện số mới | Người nhận có `active`? Tài khoản có `user_id` khớp `auth.uid()`? Mở DevTools → Network, tìm WS `realtime/v1/websocket`; nếu socket fail thì fallback poll 60s sẽ bù — chờ 1 nhịp và reload |
 | Chuông hiện nhưng danh sách trống | `list_notifications` chỉ trả dòng `user_id = auth.uid()`. Nếu trigger `notify_after_audit` chưa ghi dòng nào, kiểm `audit_logs` có sự kiện tương ứng và `notifications` có hàng cùng `entity_id`. Actor null chỉ fan OWNER/MANAGER, STAFF không nhận |
-| STAFF thấy giá vốn/giá bán trong thông báo | Sai. `can_view_financials` đã bị bỏ qua khi trigger ghi — kiểm tra `private.can_financials()` và profile `MANAGER`/`OWNER`; nếu thấy, đây là bug cần điều tra ngay |
+| STAFF thấy **tổng** giá vốn/lợi nhuận, hoặc thấy số tiền trong thông báo **của giao dịch người khác** | Sai. `can_view_financials` đã bị bỏ qua khi trigger ghi — kiểm tra `private.can_financials()` và profile `MANAGER`/`OWNER`; nếu thấy, đây là bug cần điều tra ngay. Ngoại lệ đúng thiết kế: **giá thu của chính xe mình vừa thu** thì nhân viên được thấy, vì đó là số họ nhập. |
 | Xóa/đổi role nhân viên mà thông báo cũ vẫn hiện tên | `actor_id ON DELETE SET NULL` giữ dòng nhưng mất tên; dòng sẽ hiển thị "Hệ thống". Đây là hành vi chấp nhận được — không xóa lịch sử thông báo để "làm sạch" |
 | Realtime publication thiếu `notifications` | Supabase local `db push` có guard `IF EXISTS(pg_publication 'supabase_realtime')`; chạy `ALTER PUBLICATION supabase_realtime ADD TABLE public.notifications;` thủ công nếu CLI bỏ sót |
 

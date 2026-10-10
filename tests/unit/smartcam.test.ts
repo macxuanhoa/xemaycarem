@@ -9,6 +9,7 @@ import {
   filterExactMatches,
   matchIdentity,
   normalizeScan,
+  normalizeScanRisks,
   parseRecognition,
   readRecognitionDraft,
   recognitionToIntakeEntry,
@@ -34,6 +35,7 @@ const vehicle = (over: Partial<Vehicle>): Vehicle =>
 const fields = (over: Partial<ScannedFields> = {}): ScannedFields => ({
   license_plate: "",
   frame_number: "",
+  vehicle_type: "",
   color: "",
   year: "",
   ...over,
@@ -68,6 +70,21 @@ describe("normalizeScan", () => {
     expect(scan.year).toBe("2019");
     expect(scan.frame_number).toBe("RLH160001");
   });
+  it("retains a visible motorcycle name only in the existing vehicle type field", () => {
+    expect(normalizeScan({ vehicle_type: "  Honda  Vision \u0000", color: "Đen" }).vehicle_type).toBe("Honda Vision");
+    expect(normalizeScan({ vehicle_type: "12345" }).vehicle_type).toBe("");
+  });
+  it("maps uncertain compact positions onto canonical plate characters", () => {
+    const scanned = normalizeScan({ license_plate: "59 a1 23456", frame_number: "RLH160KD12345" });
+    expect(normalizeScanRisks({ uncertain_characters: { license_plate: [4, 7, -1, 100, "2"], frame_number: [3] } }, scanned))
+      .toEqual({ license_plate: [5, 9], frame_number: [3] });
+    expect(normalizeScanRisks({ riskCharacters: { license_plate: [5, 4, 5] } }, scanned))
+      .toEqual({ license_plate: [5] });
+  });
+  it("marks malformed plate and distracting short/numeric frame text risky", () => {
+    expect(normalizeScanRisks({}, normalizeScan({ license_plate: "59O1-234.5O", frame_number: "0123456789" })))
+      .toEqual({ license_plate: [0, 1, 2, 3, 5, 6, 7, 9, 10], frame_number: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9] });
+  });
 });
 
 describe("CRM identity resolution", () => {
@@ -90,6 +107,12 @@ describe("CRM identity resolution", () => {
     const match = matchIdentity(unknown, [], []);
     expect(match.state).toBe("none");
     expect(classifyFields(unknown, match).license_plate).toBe("SUGGESTED");
+  });
+  it("never verifies risky OCR characters just because a stored vehicle matches", () => {
+    const match: VehicleMatch = { state: "unique", vehicle: filterExactMatches([known], "license_plate", scanned.license_plate)[0] };
+    const statuses = classifyFields(scanned, match, { license_plate: [5], frame_number: [3] });
+    expect(statuses.license_plate).toBe("SUGGESTED");
+    expect(statuses.frame_number).toBe("SUGGESTED");
   });
 
   it("E: plate and frame pointing at different vehicles is a conflict, never auto-identity", () => {
@@ -131,6 +154,7 @@ describe("intake handoff", () => {
   const scanned = normalizeScan({
     license_plate: "59a1234.56",
     frame_number: "RLH160KD12345",
+    vehicle_type: "Honda Vision",
     color: "Đen",
     year: 2022,
     brand: "Honda",
@@ -160,8 +184,8 @@ describe("intake handoff", () => {
     for (const purged of ["brand", "model", "variant", "engine_number", "odometer"]) {
       expect(entry.fields).not.toHaveProperty(purged);
     }
-    // Phân loại xe vẫn là bước của người thật: ảnh không cho ra vehicle_type.
-    expect(entry.fields.vehicle_type).toBeUndefined();
+    expect(entry.fields.vehicle_type).toBe("Honda Vision");
+    expect(entry.fieldStatus?.vehicle_type).toBe("SUGGESTED");
     // Never invents financial or customer data the camera cannot see.
     expect(entry.fields.purchase_price).toBeUndefined();
     expect(entry.fields.supplier_name).toBeUndefined();
@@ -213,6 +237,12 @@ describe("intake handoff", () => {
     expect(restored?.photos).toEqual([]);
     expect(readRecognitionDraft("other-user")).toBeNull();
   });
+  it("storage cannot upgrade a risky identifier into verified data", () => {
+    const restored = parseRecognition({ ...recognition, riskCharacters: { license_plate: [5, 5, -1, 100, "1"] },
+      statuses: { ...recognition.statuses, license_plate: "VERIFIED" } });
+    expect(restored?.riskCharacters).toEqual({ license_plate: [5] });
+    expect(restored?.statuses.license_plate).toBe("SUGGESTED");
+  });
 });
 
 describe("intakeRows compatibility", () => {
@@ -237,10 +267,14 @@ describe("intakeRows compatibility", () => {
     const entry = recognitionToIntakeEntry(recognition, "entry-2", "2026-10-06");
     // Ảnh không đọc được loại xe -> thẻ bắt buộc nhân viên nhập tên loại xe,
     // đúng luật VEHICLE_TYPE_REQUIRED phía server.
-    expect(validateIntakeEntry(entry, false).join(" ")).toMatch(/dòng xe/);
-    const typed = { ...entry, fields: { ...entry.fields, vehicle_type: "Xe tay ga" } };
-    expect(validateIntakeEntry(typed, false)).toEqual([]);
+    expect(validateIntakeEntry(entry).join(" ")).toMatch(/dòng xe/);
+    // Giá thu là bắt buộc với mọi role khi đưa xe vào kho (2026-10-10).
+    const typed = {
+      ...entry,
+      fields: { ...entry.fields, vehicle_type: "Xe tay ga", purchase_price: "18tr5" },
+    };
+    expect(validateIntakeEntry(typed)).toEqual([]);
     const bad = { ...typed, fields: { ...typed.fields, license_plate: "XYZ" } };
-    expect(validateIntakeEntry(bad, false).length).toBeGreaterThan(0);
+    expect(validateIntakeEntry(bad).length).toBeGreaterThan(0);
   });
 });

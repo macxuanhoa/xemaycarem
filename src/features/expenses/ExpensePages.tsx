@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useDebouncedValue } from "@/lib/useDebouncedValue";
-import { Link, useSearchParams } from "react-router-dom";
+import { Link, useLocation, useSearchParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -69,6 +69,10 @@ export function ExpensesPage({
   const { profile } = useAuth();
   const client = useQueryClient();
   const [params, setParams] = useSearchParams();
+  const location = useLocation();
+  const aiDraft = (
+    location.state as { aiDraft?: Record<string, unknown> } | null
+  )?.aiDraft;
 
   const kind: ExpenseKind =
     params.get("kind") === "business"
@@ -87,11 +91,13 @@ export function ExpensesPage({
   const deferredSearch = useDebouncedValue(search, 250);
   const [editing, setEditing] = useState<ExpenseRecord | null>(null);
   const [cancelling, setCancelling] = useState<ExpenseRecord | null>(null);
-  const [adding, setAdding] = useState(params.get("new") === "1");
+  const [adding, setAdding] = useState(
+    params.get("new") === "1" || !!aiDraft,
+  );
 
   useEffect(() => {
-    if (params.get("new") === "1") setAdding(true);
-  }, [params]);
+    if (params.get("new") === "1" || aiDraft) setAdding(true);
+  }, [params, aiDraft]);
 
   const query = useQuery({
     queryKey: [
@@ -150,6 +156,13 @@ export function ExpensesPage({
       const next = new URLSearchParams(params);
       next.delete("new");
       setParams(next, { replace: true });
+    }
+    if (
+      location.state &&
+      typeof location.state === "object" &&
+      "aiDraft" in location.state
+    ) {
+      window.history.replaceState({}, document.title);
     }
   }
 
@@ -256,10 +269,11 @@ export function ExpensesPage({
 
       {(adding || editing) && (
         <ExpenseEditor
-          key={`${kind}-${editing?.id ?? selectedVehicle ?? "new"}`}
+          key={`${kind}-${editing?.id ?? selectedVehicle ?? (aiDraft ? "aiDraft" : "new")}`}
           kind={kind}
           expense={editing ?? undefined}
           vehicleId={selectedVehicle}
+          aiDraft={aiDraft}
           onClose={closeEditor}
         />
       )}
@@ -568,18 +582,22 @@ function ExpenseEditor({
   kind,
   expense,
   vehicleId,
+  aiDraft,
   onClose,
 }: {
   kind: ExpenseKind;
   expense?: ExpenseRecord;
   vehicleId: string;
+  aiDraft?: Record<string, unknown>;
   onClose: () => void;
 }) {
   const client = useQueryClient();
   const [editorKind, setEditorKind] = useState<ExpenseKind>(
     expense?.kind ?? (expense?.vehicle_id ? "vehicle" : kind),
   );
-  const [vehicleSearch, setVehicleSearch] = useState("");
+  const initialPlate =
+    typeof aiDraft?.license_plate === "string" ? aiDraft.license_plate : "";
+  const [vehicleSearch, setVehicleSearch] = useState(initialPlate);
   const deferredSearch = useDebouncedValue(vehicleSearch, 250);
   const [showCancel, setShowCancel] = useState(false);
   const [reason, setReason] = useState("");
@@ -606,6 +624,25 @@ function ExpenseEditor({
     enabled: editorKind === "vehicle" && !initialVehicle,
   });
 
+  const draftAmount =
+    typeof aiDraft?.amount === "number" && aiDraft.amount > 0
+      ? aiDraft.amount
+      : undefined;
+  const draftDescription =
+    typeof aiDraft?.description === "string" ? aiDraft.description : undefined;
+  const draftType =
+    typeof aiDraft?.expense_type === "string"
+      ? aiDraft.expense_type
+      : typeof aiDraft?.category === "string"
+        ? aiDraft.category
+        : undefined;
+  const draftDate =
+    typeof aiDraft?.date === "string"
+      ? aiDraft.date
+      : typeof aiDraft?.expense_date === "string"
+        ? aiDraft.expense_date
+        : undefined;
+
   const form = useForm<ExpenseValues>({
     resolver: zodResolver(expenseSchema),
     defaultValues: {
@@ -613,10 +650,11 @@ function ExpenseEditor({
       type:
         expense?.expense_type ??
         expense?.category ??
+        draftType ??
         (editorKind === "vehicle" ? "PARTS" : "RENT"),
-      description: expense?.description ?? "",
-      amount: expense?.amount ?? 0,
-      expense_date: expense?.expense_date ?? today(),
+      description: expense?.description ?? draftDescription ?? "",
+      amount: expense?.amount ?? draftAmount ?? 0,
+      expense_date: expense?.expense_date ?? draftDate ?? today(),
     },
   });
 
@@ -712,6 +750,14 @@ function ExpenseEditor({
           <X size={18} />
         </Button>
       </div>
+
+      {aiDraft && (
+        <p className="notice" style={{ marginBottom: "14px" }}>
+          Bản nháp gợi ý từ Cà Rem AI Copilot: hãy kiểm tra biển số{" "}
+          <strong>{initialPlate || "xe"}</strong>, chọn đúng xe trong danh sách
+          và xác nhận chi phí trước khi lưu.
+        </p>
+      )}
 
       {!expense && !vehicleId && (
         <div className="tabs" style={{ marginBottom: "16px" }} aria-label="Chọn loại chi phí">
@@ -894,6 +940,7 @@ function ExpenseEditor({
                   ? "Ví dụ: thay lốp trước, thay nhớt, bảo dưỡng phanh…"
                   : "Ví dụ: tiền thuê mặt bằng, điện nước tháng này, tiếp khách…"
               }
+              defaultValue={form.watch("description")}
               {...form.register("description")}
             />
           </Field>

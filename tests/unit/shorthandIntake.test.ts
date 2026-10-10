@@ -294,35 +294,32 @@ describe("intake payload", () => {
   )[0];
 
   it("accepts any non-empty type name and keeps optional fields optional", () => {
-    expect(validateIntakeEntry(entry, true)).toEqual([]);
-    expect(validateIntakeEntry(entry, false)).toEqual([]);
+    expect(validateIntakeEntry(entry)).toEqual([]);
     // Loại xe là tên tự do — một tên mới ngoài danh mục vẫn hợp lệ.
     const invented = {
       ...entry,
       fields: { ...entry.fields, vehicle_type: "Honda SH 160i" },
     };
-    expect(validateIntakeEntry(invented, true)).toEqual([]);
-    // Số khung, biển số, năm, giá thu đều có thể bổ sung sau khi thu.
+    expect(validateIntakeEntry(invented)).toEqual([]);
+    // Số khung, biển số, năm có thể bổ sung sau, riêng giá thu là bắt buộc.
     const sparse = { ...entry, fields: { vehicle_type: "Honda Vision" } };
-    expect(validateIntakeEntry(sparse, true)).toEqual([]);
+    expect(validateIntakeEntry(sparse).join(" ")).toMatch(/giá thu/i);
   });
   it("blocks a row whose type name is empty", () => {
     const none = { ...entry, fields: {} };
-    expect(validateIntakeEntry(none, true).join(" ")).toMatch(/dòng xe/);
+    expect(validateIntakeEntry(none).join(" ")).toMatch(/dòng xe/);
     const blank = { ...entry, fields: { vehicle_type: "   " } };
-    expect(validateIntakeEntry(blank, true).join(" ")).toMatch(/dòng xe/);
+    expect(validateIntakeEntry(blank).join(" ")).toMatch(/dòng xe/);
   });
-  it("never sends purchase_price for users without financial rights", () => {
-    const row = entryToImportRow(entry, false);
-    expect("purchase_price" in row).toBe(false);
+  it("always sends purchase_price because every role records the intake cost", () => {
+    const row = entryToImportRow(entry);
+    expect(row.purchase_price).toBe(18_500_000);
     expect(row.vehicle_type).toBe("Xe tay ga");
     expect(row).not.toHaveProperty("vehicle_type_id");
     expect(row.supplier_name).toBe("");
     for (const purged of ["brand", "model", "variant", "engine_number", "odometer", "asking_price"]) {
       expect(row).not.toHaveProperty(purged);
     }
-    const finRow = entryToImportRow(entry, true);
-    expect(finRow.purchase_price).toBe(18_500_000);
   });
   it("maps supplier fields to the single-vehicle form names", () => {
     const draft = entryToAcquisitionDraft(entry);
@@ -336,12 +333,12 @@ describe("intake payload", () => {
       ...entry,
       fields: { ...entry.fields, license_plate: "abc xyz" },
     };
-    expect(validateIntakeEntry(garbage, true).join(" ")).toMatch(/Biển số/);
+    expect(validateIntakeEntry(garbage).join(" ")).toMatch(/Biển số/);
     const blank = {
       ...entry,
       fields: { ...entry.fields, license_plate: "   " },
     };
-    expect(validateIntakeEntry(blank, true)).toEqual([]);
+    expect(validateIntakeEntry(blank)).toEqual([]);
   });
   it("INTAKE_FIELDS covers exactly the editable fields that survive the purge", () => {
     expect(INTAKE_FIELDS.map((f) => f.key)).toEqual([

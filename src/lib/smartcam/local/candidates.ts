@@ -6,31 +6,34 @@
  */
 import { isValidMotorbikePlate, normalizePlate } from "@/lib/plate";
 
-/** A candidate identifier with the OCR confidence that produced it (0..100). */
-export type Candidate = { value: string; confidence: number };
+/** Risk indexes count letters/digits only, matching the cloud OCR contract. */
+export type Candidate = {
+  value: string;
+  confidence: number;
+  uncertainCharacters?: number[];
+  /** Original compact glyphs, for associating Tesseract symbol confidence. */
+  rawValue?: string;
+};
 
-/** Mirror easily-confused glyph pairs; the plate validator does the filtering. */
-function glyphVariants(token: string): string[] {
-  const seen = new Set<string>();
-  const push = (value: string) => seen.add(value.toUpperCase());
-  push(token);
-  // Only cheap 1:1 substitutions — a phone browser cannot afford a big search.
-  const swaps: [RegExp, string][] = [
-    [/O/g, "0"],
-    [/Q/g, "0"],
-    [/I/g, "1"],
-    [/L/g, "1"],
-    [/S/g, "5"],
-    [/B/g, "8"],
-    [/Z/g, "2"],
-    [/0/g, "O"],
-    [/1/g, "I"],
-    [/5/g, "S"],
-  ];
-  for (const [pattern, replacement] of swaps) {
-    if (pattern.test(token)) push(token.replace(pattern, replacement));
+const DIGIT_GLYPHS: Record<string, string> = { O: "0", Q: "0", I: "1", L: "1", S: "5", B: "8", Z: "2" };
+const CONFUSABLE = /[OQILSBZ012568]/;
+
+export function riskyGlyphs(value: string, confidence: number): number[] {
+  const compact = value.replace(/[^A-Z0-9]/gi, "").toUpperCase();
+  return [...compact].flatMap((character, index) => confidence < 55 || (confidence < 78 && CONFUSABLE.test(character)) ? [index] : []);
+}
+
+function digits(raw: string): { value: string; risks: number[] } | null {
+  let value = "";
+  const risks: number[] = [];
+  for (const [index, character] of [...raw].entries()) {
+    if (/\d/.test(character)) value += character;
+    else if (DIGIT_GLYPHS[character]) {
+      value += DIGIT_GLYPHS[character];
+      risks.push(index);
+    } else return null;
   }
-  return [...seen];
+  return { value, risks };
 }
 
 /**
@@ -39,47 +42,78 @@ function glyphVariants(token: string): string[] {
  */
 export function parsePlateCandidates(text: string, confidence: number): Candidate[] {
   const upper = text.toUpperCase();
-  // Province code + 1-2 letters + series digit + 4-5 digit serial, with every
-  // separator OCR may eat or invent, including multi-space and newlines on 2-line plates:
-  // "59-B1 234.56", "59B123456", "29-A1\n1234", "59-A1 \n 234.56".
-  // All spellings fold to the canonical dash form e.g. "59B1-234.56".
-  const pattern = /\d{2}[\s\-._]*[A-Z]{1,2}[\s\-._]*\d[\s\-._]*\d{2,3}[\s\-._]*\d{2}(?!\d)/g;
+  const pattern = /(?<![A-Z0-9])([0-9OQILSBZ]{2})[\s\-._]*([A-Z]{1,2}?)[\s\-._]*([0-9OQILSBZ])[\s\-._]*([0-9OQILSBZ]{2,3})[\s\-._]*([0-9OQILSBZ]{2})(?![A-Z0-9])/g;
   const found = new Map<string, Candidate>();
   for (const match of upper.matchAll(pattern)) {
-    const compact = match[0].replace(/[^A-Z0-9]/g, "");
-    for (const variant of glyphVariants(compact)) {
-      const canonical = normalizePlate(variant);
-      if (!canonical || !isValidMotorbikePlate(canonical)) continue;
-      // Canonical format is validated by plate.ts; here only exclude prefixes
-      // that have never been issued (00–10). Real current and legacy codes
-      // start at 11 (Cao Bằng/Lạng Sơn) and run through 99.
-      const province = Number(canonical.slice(0, 2));
-      if (province < 11 || province > 99) continue;
-      const previous = found.get(canonical);
-      // A variant that needed no glyph swap keeps the raw confidence; swapped
-      // ones are discounted so the stable-frame vote prefers clean reads.
-      const score = variant === compact ? confidence : confidence * 0.8;
-      if (!previous || previous.confidence < score) found.set(canonical, { value: canonical, confidence: score });
-    }
+    const province = digits(match[1]);
+    const series = digits(match[3]);
+    const serial = digits(match[4] + match[5]);
+    if (!province || !series || !serial || Number(province.value) < 11 || Number(province.value) > 99) continue;
+    const prefix = province.value + match[2];
+    const canonical = normalizePlate(prefix + series.value + serial.value);
+    if (!canonical || !isValidMotorbikePlate(canonical)) continue;
+    const corrected = [...province.risks, ...series.risks.map((index) => prefix.length + index), ...serial.risks.map((index) => prefix.length + 1 + index)];
+    const score = confidence * (corrected.length ? Math.max(0.65, 1 - corrected.length * 0.08) : 1);
+    const candidate: Candidate = {
+      value: canonical,
+      confidence: score,
+      uncertainCharacters: [...new Set([...corrected, ...riskyGlyphs(canonical, confidence)])],
+      rawValue: match[0].replace(/[^A-Z0-9]/g, ""),
+    };
+    const previous = found.get(canonical);
+    if (!previous || previous.confidence < score) found.set(canonical, candidate);
   }
   return [...found.values()];
 }
 
-/** Frame numbers: 11-18 alphanumerics with both letters and digits (VIN-like). */
+function foldText(text: string): string {
+  return text.normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/đ/gi, "D").toUpperCase();
+}
+
+const FRAME_LABEL = /(?:SO\s*KHUNG|KHUNG|CHASSIS|FRAME(?:\s*NO)?|VIN)\s*[:#=.-]?\s*$/;
+const KNOWN_FRAME_PREFIX = /^(?:RL[ACHMST]|JH2|JYA|JKA|JS1|KM4|MLH|ME1|LC2|LBB|LAL|ZD4)/;
+
+/** Accept whole stamped tokens; never slide a window through joined page text. */
 export function parseFrameCandidates(text: string, confidence: number): Candidate[] {
-  const compact = text.toUpperCase().replace(/[^A-Z0-9]/g, "");
+  const upper = foldText(text);
   const found = new Map<string, Candidate>();
-  for (let i = 0; i + 11 <= compact.length && i < compact.length - 10; i++) {
-    const window = compact.slice(i, Math.min(i + 18, compact.length));
-    const match = window.match(/^[A-Z0-9]{11,18}/);
-    if (!match) continue;
-    const value = match[0];
-    if (value.length < 11 || value.length > 18) continue;
-    const digits = value.replace(/[^0-9]/g, "").length;
-    const letters = value.replace(/[^A-Z]/g, "").length;
-    // Real stamped frames mix both; pure runs are province/serial artifacts.
-    if (digits < 4 || letters < 2) continue;
-    if (!found.has(value)) found.set(value, { value, confidence });
+  const pattern = /(?<![A-Z0-9])[A-Z0-9](?:[A-Z0-9.*-]{9,24})[A-Z0-9](?![A-Z0-9])/g;
+  const add = (raw: string, labelled: boolean) => {
+    const value = raw.replace(/[^A-Z0-9]/g, "");
+    if (value.length < 11 || value.length > 18) return;
+    if ((value.match(/\d/g) ?? []).length < 4 || (value.match(/[A-Z]/g) ?? []).length < 2) return;
+    if (parsePlateCandidates(value, confidence).length) return;
+    if (!labelled && !KNOWN_FRAME_PREFIX.test(value) && !/^[A-Z0-9]{2,4}\d/.test(value)) return;
+    if (!labelled && !KNOWN_FRAME_PREFIX.test(value) && /[A-Z]{4,}/.test(value)) return;
+    if (/^(?:TEL|PHONE|HOTLINE|DATE|MODEL|HONDA|YAMAHA|SUZUKI|PARKING|BIENSO)/.test(value)) return;
+    const candidate: Candidate = { value, confidence, uncertainCharacters: riskyGlyphs(value, confidence), rawValue: value };
+    const previous = found.get(value);
+    if (!previous || previous.confidence < confidence) found.set(value, candidate);
+  };
+  for (const match of upper.matchAll(pattern)) {
+    const preceding = upper.slice(Math.max(0, match.index! - 30), match.index);
+    add(match[0], FRAME_LABEL.test(preceding));
+  }
+  // OCR spaces inside a stamp are accepted only after a chassis label.
+  const labelled = /(?:SO\s*KHUNG|KHUNG|CHASSIS|FRAME(?:\s*NO)?|VIN)\s*[:#=.-]?\s*([^\r\n:]{11,45})/g;
+  for (const match of upper.matchAll(labelled)) {
+    const groups = match[1].trim().split(/\s+/);
+    if (groups[0].replace(/[^A-Z0-9]/g, "").length >= 11) continue;
+    let raw = "";
+    for (const group of groups) {
+      if (!/^[A-Z0-9.*-]+$/.test(group) || /^[A-Z]{4,}$/.test(group)) break;
+      raw += group;
+    }
+    add(raw, true);
+  }
+  // A real metal stamp has no printed "số khung" label. A known maker prefix
+  // at the beginning of an OCR line also provides enough context to join
+  // spaces the reader inserted, while unrelated page words remain separate.
+  for (const line of upper.split(/[\r\n]+/)) {
+    const groups = line.trim().split(/\s+/);
+    if (groups.length < 2 || !KNOWN_FRAME_PREFIX.test(groups[0]) || groups[0].length > 6) continue;
+    if (groups.some((group) => !/^[A-Z0-9.*-]+$/.test(group) || /^[A-Z]{4,}$/.test(group))) continue;
+    add(groups.join(""), true);
   }
   return [...found.values()];
 }
@@ -92,6 +126,12 @@ export function bestCandidate(candidates: Candidate[]): Candidate | null {
   return best;
 }
 
+/** Competing identifiers require another focused scan, never first-hit selection. */
+export function uniqueCandidate(candidates: Candidate[]): Candidate | null {
+  const values = new Set(candidates.map((candidate) => candidate.value));
+  return values.size === 1 ? bestCandidate(candidates) : null;
+}
+
 /**
  * Raw OCR output → the field draft `normalizeScan` understands.
  * Bộ đọc tại máy chỉ còn biển số + số khung: cột `engine_number` đã bị xoá
@@ -102,7 +142,7 @@ export function candidatesFromOcr(text: string, confidence: number): {
   frame_number: string;
 } {
   return {
-    license_plate: bestCandidate(parsePlateCandidates(text, confidence))?.value ?? "",
-    frame_number: bestCandidate(parseFrameCandidates(text, confidence))?.value ?? "",
+    license_plate: uniqueCandidate(parsePlateCandidates(text, confidence))?.value ?? "",
+    frame_number: uniqueCandidate(parseFrameCandidates(text, confidence))?.value ?? "",
   };
 }

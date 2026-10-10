@@ -8,7 +8,9 @@
 # Requires an elevated PowerShell only if Windows refuses the task (the script says so).
 param(
   [string]$TaskName = 'Carem CRM - daily production backup',
-  [string]$At = '21:30'
+  [string]$At = '21:30',
+  [string]$WeeklyTaskName = 'Carem CRM - weekly local restore drill',
+  [string]$WeeklyAt = '22:00'
 )
 $ErrorActionPreference = 'Stop'
 $root = Split-Path -Parent $PSScriptRoot
@@ -19,6 +21,7 @@ $action = New-ScheduledTaskAction -Execute 'powershell.exe' `
   -Argument "-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File `"$script`"" `
   -WorkingDirectory $root
 
+if ($At -notmatch '^([01]\d|2[0-3]):[0-5]\d$' -or $WeeklyAt -notmatch '^([01]\d|2[0-3]):[0-5]\d$') { throw 'Time must use HH:mm (00:00-23:59)' }
 $hour, $minute = $At.Split(':')
 $trigger = New-ScheduledTaskTrigger -Daily -At ([datetime]::new(2000, 1, 1, [int]$hour, [int]$minute, 0))
 
@@ -29,9 +32,21 @@ $settings = New-ScheduledTaskSettingsSet -StartWhenAvailable -AllowStartIfOnBatt
 $principal = New-ScheduledTaskPrincipal -UserId "$env:USERDOMAIN\$env:USERNAME" -LogonType Interactive
 
 try {
-  Register-ScheduledTask -TaskName $TaskName -Action $action -Trigger $trigger -Settings $settings -Principal $principal `
-    -Description 'Chup ban sao luu production (Supabase + Storage), kiem chung ban do nap lai duoc, va cat theo 7 ngay/4 tuan/12 thang. Log: backups\scheduler.log' `
-    -Force | Out-Null
+  $existing = Get-ScheduledTask -TaskName $TaskName -ErrorAction SilentlyContinue
+  # Preserve the shop's existing healthy schedule. Explicit -At requests an update;
+  # otherwise only repair a task pointing at a different workspace/action.
+  if (-not $existing -or $PSBoundParameters.ContainsKey('At') -or $existing.Actions.Arguments -ne $action.Arguments) {
+    Register-ScheduledTask -TaskName $TaskName -Action $action -Trigger $trigger -Settings $settings -Principal $principal `
+      -Description 'Daily database + Storage backup and full file/image integrity checks. Log: backups\scheduler.log' -Force | Out-Null
+  }
+  $weeklyScript = Join-Path $PSScriptRoot 'backup-weekly.ps1'
+  if (-not (Test-Path -LiteralPath $weeklyScript)) { throw "missing $weeklyScript" }
+  $weeklyHour, $weeklyMinute = $WeeklyAt.Split(':')
+  $weeklyTrigger = New-ScheduledTaskTrigger -Weekly -DaysOfWeek Sunday -At ([datetime]::new(2000, 1, 1, [int]$weeklyHour, [int]$weeklyMinute, 0))
+  $weeklyAction = New-ScheduledTaskAction -Execute 'powershell.exe' `
+    -Argument "-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File `"$weeklyScript`"" -WorkingDirectory $root
+  Register-ScheduledTask -TaskName $WeeklyTaskName -Action $weeklyAction -Trigger $weeklyTrigger -Settings $settings -Principal $principal `
+    -Description 'Weekly backup replay into disposable local PostgreSQL. Production is never changed. Hosted Auth/Storage checks require separate staging.' -Force | Out-Null
 } catch {
   Write-Host "Khong the tao lich tu dong: $($_.Exception.Message)"
   Write-Host 'Mở PowerShell nhap "Run as administrator" roi chay lai file nay.'
@@ -40,5 +55,6 @@ try {
 
 $info = Get-ScheduledTask -TaskName $TaskName
 Write-Host "Da gan lich: '$TaskName' ($($info.State)) chay hang ngay luc $At, bu khi mo may."
+Write-Host "Da gan lich: '$WeeklyTaskName' chay Chu nhat luc $WeeklyAt, bu khi mo may."
 Write-Host "Kiểm tra nhanh:  schtasks /Run /TN `"$TaskName`"   roi mo backups\scheduler.log"
 Write-Host "Xem suc khoe:    npm run backup:status"

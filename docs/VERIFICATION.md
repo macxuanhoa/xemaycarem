@@ -182,6 +182,27 @@ Trạng thái triển khai so với chưa xác minh được (thật → bắt b
 - **CHƯA xác minh (không thể đo trong workspace này — cần điện tử/xe/biển thật):** độ chính xác OCR trên biển số Việt Nam thật, tỉ lệ khớp sai, thời gian trung bình nhận diện một xe, tỉ lệ prefill intake thành công, số lượt gọi API/mỗi quét trong điều kiện 4G, chi phí provider/1.000 lượt, tác động CPU/pin/nhiệt trên di động Android/iOS. Hàng đợi đo: chạy `/capture` trên máy thật với ảnh xe đại diện, ghi lại dòng metrics của camera (OCR ms, lookup ms, lượt mây hôm nay, JS heap nếu Chromium cho phép).
 - Giới hạn kỹ thuật cần biết: Tesseract chỉ hợp nhất OCR Latin (`eng`) — biển Việt Nam dùng chữ A–Z/0–9 nên phù hợp, nhưng ký tự mờ/nghoang ngoảnh vẫn cần cloud fallback; traineddata ~2 MB tải từ CDN lần đầu rồi cache; `performance.memory` chỉ có trên Chromium.
 
+## Đợt 2026-10-09 — Giá thu mọi role + bán dưới giá thu chờ chủ duyệt
+
+Cổng chạy trên worktree đang có WIP song song (Smart Camera / Post Studio AI / VietQR / staging-backup) do một nhánh khác vừa ghi vào, và nhánh này sửa mã ngay trong lúc đo: một lỗi `test:db` và bốn lỗi e2e còn lại đều thuộc mã đó, ghi rõ bên dưới để không lẫn với phạm vi tính năng này.
+
+| Kiểm tra | Kết quả |
+|---|---|
+| npm run lint | Đạt, 0 lỗi (xác nhận lại lần cuối, sau khi `scripts/tmp-core-suite.mjs` tạm đã xoá) |
+| npm run typecheck (`tsc -b`) | Đạt |
+| npx vitest run | 57 file / 653 test đạt (chạy lại lần cuối, sau khi nhánh song song thêm test; đầu đợt là 53 file / 615) — gồm `tests/unit/below-cost-sale-approval.test.ts` (18 ca), `validation.test.ts` (43 ca), `shorthandIntake.test.ts`, `operationRecovery.test.ts` |
+| npm run knowledge:check | Đạt — `docs/SYSTEM_REFERENCE.md` khớp mã; seed 234 mục (tăng 4 so với 230: bốn `##` mới ở INTERNAL_SOPS, PROJECT_STATE, DECISIONS và chính mục này) |
+| npm run test:db — phạm vi tính năng | Đạt: `11 below-cost sale approval checks passed on postgres`; các suite liên quan vẫn xanh: auth-security 15, staff-parity & delete-approval 5, hard-delete 7, notifications 11, operation-receipts, mandatory-write-protocol 12, expense-conflict 11, vehicle-type-catalogue 14 |
+| npm run test:db — toàn run | **Dừng** ở suite VietQR mới (`tests/db/vietqr-payment.test.mjs`, file chưa track của WIP song song): `assert.equal` so một cột numeric trả về chuỗi `'25000000'` với số `25000000`. Đầu đợt `field-purge-integrity` ca 6 cũng dừng vì `public.log_post_ai_usage` dùng cột `model` (regex purge `\\m(brand\|model\|...)\\M`) — nhánh song song đã sửa trong lúc đo. Chạy lại toàn bộ danh sách suite với đúng suite VietQR bị bỏ qua (bản sao runner tạm trong `scripts/`, đã xoá sau khi đo): 25 suite còn lại đều xanh, kết thúc bằng suite lõi inline **30 database integration checks passed on postgres** (bán hàng, thu tiền, đối soát, concurrency, OWNER handover). Không lỗi nào thuộc migration `20261010000300_below_cost_sale_approval.sql` |
+| npm run build | Đạt (12.99s) — `tsc -b` sạch sau khi nhánh song song dọn `PaymentSettingsCard.tsx`. Bundle: entry `index` 263.29 kB (84.14 kB gzip), `react` 261.97 kB (83.34), `supabase` 223.41 kB (58.45), `vendor-scanner` 416.47 kB (110.24) tách riêng, `SettingsPage` 47.06 kB, `CapturePage` 55.15 kB; PWA precache 77 mục 2.506,71 KiB |
+| npx playwright test (toàn bộ, 9.8 phút, workers=1) | 200 đạt / 4 lỗi; cả 4 lỗi thuộc spec của WIP song song: `smart-camera.spec.mjs` 239/293/487 và `ux-convenience.spec.mjs:927` (bản sao `VehicleDuplicateCheck.tsx` — đổi copy kết quả tra nghi trùng) |
+| npx playwright test 4 spec liên quan | 35/35 đạt (1.9 phút): assistant 6, auth-failure-recovery 10, below-cost-sale-approval 7, workflows 12 |
+| npx playwright test tests/e2e/shorthand-intake.spec.mjs | 5/5 đạt |
+| npm run test:pwa (với `vite preview` thật trên 4173) | Đạt: manifest/icons, installability Chromium, service worker, precache không chứa API, login desktop/mobile, offline shell, recovery khi lên mạng lại, 0 lỗi runtime |
+| git diff --check | Còn 3 cảnh báo dòng trắng cuối tệp, đều thuộc các hunk của nhánh song song: `src/lib/api.ts:510`, `tests/unit/copilot-draft-actions.test.tsx:178`, `tests/unit/smartcam-camera.test.ts:226` |
+
+Ba spec phải viết lại vì hợp đồng nghiệp vụ đổi (không phải lỗi mã): `shorthand-intake.spec.mjs` (nhân viên là người nhập giá thu, bắt buộc > 0), `assistant.spec.mjs` (phiếu thu xe luôn hiện `Giá thu (₫) *`, vẫn không tự lưu), `auth-failure-recovery.spec.mjs` (phải điền giá thu thì yêu cầu JWT hết hạn mới thực sự được gửi). Test duyệt đơn của `below-cost-sale-approval.spec.mjs` được cho timeout 30s ở bước điều hướng, vì `ApprovalsPage` chờ bốn lần `invalidateQueries` nối tiếp rồi mới `navigate`.
+
 ## Phạm vi các kiểm tra quan trọng
 
 - DB suite chạy toàn bộ 26 migration trên PostgreSQL tạm; tạo schema Auth/Storage tối thiểu, dùng dữ liệu giả và kiểm quyền/RLS bằng các role PostgreSQL thật. Communication cases verify atomic outbox behavior, isolated outbox failures, unique idempotency, skips/configuration, retry/backoff, mock state/history and direct-table denial.

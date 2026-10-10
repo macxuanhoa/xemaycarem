@@ -5,6 +5,7 @@ import {
 } from "@supabase/supabase-js";
 import { supabase } from "./supabase";
 import { AppError } from "./errors";
+import { reportRuntimeIssue } from "./runtimeMonitoring";
 import {
   IDENTITY_DOCUMENT_BUCKET,
   IDENTITY_DOCUMENT_URL_TTL_SECONDS,
@@ -42,11 +43,13 @@ async function handleEdgeFunctionError(
       // response body could not be parsed
     }
 
+    if (status && status >= 500)
+      reportRuntimeIssue("edge", "EDGE_SERVER_ERROR", functionName);
+
     if (import.meta.env.DEV) {
       console.error(`[EdgeFunction:${functionName}] FunctionsHttpError`, {
         errorClass: "FunctionsHttpError",
         status,
-        body: safeBody,
         functionName,
       });
     }
@@ -77,10 +80,10 @@ async function handleEdgeFunctionError(
   }
 
   if (error instanceof FunctionsRelayError) {
+    reportRuntimeIssue("edge", "EDGE_RELAY_ERROR", functionName);
     if (import.meta.env.DEV) {
       console.error(`[EdgeFunction:${functionName}] FunctionsRelayError`, {
         errorClass: "FunctionsRelayError",
-        message: error.message,
         functionName,
       });
     }
@@ -90,10 +93,10 @@ async function handleEdgeFunctionError(
   }
 
   if (error instanceof FunctionsFetchError) {
+    reportRuntimeIssue("edge", "NETWORK_ERROR", functionName);
     if (import.meta.env.DEV) {
       console.error(`[EdgeFunction:${functionName}] FunctionsFetchError`, {
         errorClass: "FunctionsFetchError",
-        message: error.message,
         functionName,
       });
     }
@@ -110,6 +113,7 @@ async function handleEdgeFunctionError(
     });
   }
   if (error instanceof AppError) throw error;
+  reportRuntimeIssue("edge", "EDGE_SERVER_ERROR", functionName);
   if (error instanceof Error) throw new AppError(error.message);
   throw new AppError("Đã xảy ra lỗi không xác định khi kết nối dịch vụ.");
 }
@@ -129,10 +133,29 @@ async function call<T>(
     throw new AppError(
       "Ứng dụng chưa được kết nối với cơ sở dữ liệu của cửa hàng.",
     );
-  const { data, error } = await supabase.rpc(name, args);
+  let result;
+  try {
+    result = await supabase.rpc(name, args);
+  } catch (error) {
+    if (name !== "report_client_issue" && name !== "list_client_issues") {
+      reportRuntimeIssue(
+        "rpc",
+        error instanceof TypeError ? "NETWORK_ERROR" : "RPC_SERVER_ERROR",
+        name,
+      );
+    }
+    throw error;
+  }
+  const { data, error, status } = result;
   if (error) {
+    if (name !== "report_client_issue" && name !== "list_client_issues") {
+      if (status === 0) reportRuntimeIssue("rpc", "NETWORK_ERROR", name);
+      else if (status >= 500)
+        reportRuntimeIssue("rpc", "RPC_SERVER_ERROR", name);
+    }
     // Server error details can contain submitted personal data or SQL values.
-    if (import.meta.env.DEV) console.error("RPC failed", name, { code: error.code });
+    if (import.meta.env.DEV)
+      console.error("RPC failed", name, { code: error.code });
     throw error;
   }
   return data as T;
@@ -282,11 +305,11 @@ export const api = {
     }),
   /** OWNER-only digest of copilot questions that had no evidence (documentation gaps). */
   listCopilotGaps: async (days = 30) =>
-    call<import("@/types").CopilotGapDigest>("list_copilot_gaps", { p_days: days }),
+    call<import("@/types").CopilotGapDigest>("list_copilot_gaps", {
+      p_days: days,
+    }),
   listActiveAnnouncements: async () =>
-    call<
-      import("@/types").Announcement[]
-    >("list_active_announcements"),
+    call<import("@/types").Announcement[]>("list_active_announcements"),
   listAnnouncements: async () =>
     call<{ items: import("@/types").Announcement[] }>("list_announcements"),
   saveAnnouncement: async (
@@ -335,6 +358,42 @@ export const api = {
       { p_filters: filters },
     ),
   /**
+   * STAFF/MANAGER xin bán dưới giá thu: xe vẫn nằm trong kho, chưa có doanh thu,
+   * đơn vào thẳng hàng đợi "Chờ duyệt" của OWNER. Có request_id để chống gửi trùng.
+   */
+  requestSaleBelowCost: async (
+    data: Record<string, unknown>,
+    requestId: string,
+  ) =>
+    call<string>("request_sale_below_cost", {
+      p_data: { ...data, request_id: requestId },
+    }),
+  /**
+   * OWNER quyết định đơn bán dưới giá thu. APPROVE ghi luôn giao dịch bán trong
+   * cùng transaction (tồn kho, doanh thu, lợi nhuận); REJECT giữ xe lại.
+   */
+  resolveSaleApproval: async (
+    approvalId: string,
+    action: "APPROVE" | "REJECT",
+    note: string | undefined,
+    requestId: string,
+  ) =>
+    call<{ approval_id: string; action: string; sale_id: string | null }>(
+      "resolve_sale_approval",
+      {
+        p_approval_id: approvalId,
+        p_action: action,
+        p_note: note ?? null,
+        p_request_id: requestId,
+      },
+    ),
+  /** Người gửi (hoặc OWNER) rút đơn đang chờ để sửa số liệu rồi gửi lại. */
+  cancelSaleApproval: async (approvalId: string, reason?: string) =>
+    call<void>("cancel_sale_approval", {
+      p_approval_id: approvalId,
+      p_reason: reason ?? null,
+    }),
+  /**
    * Danh mục loại xe (bảng vehicle_types). Mọi role đang công tác đọc được;
    * `save_vehicle_type`/`delete_vehicle_type` là OWNER tuyệt đối — server từ
    * chối trùng tên sau chuẩn hoá và chặn xoá loại đang có xe tham chiếu.
@@ -368,7 +427,9 @@ export const api = {
     ),
   processMessage: async (messageId: string): Promise<void> => {
     if (!supabase) return;
-    const { error } = await supabase.functions.invoke("process-message", { body: { message_id: messageId } });
+    const { error } = await supabase.functions.invoke("process-message", {
+      body: { message_id: messageId },
+    });
     if (error) await handleEdgeFunctionError("process-message", error);
   },
   uploadVehicleImage,
@@ -410,4 +471,40 @@ export const api = {
       mode,
     });
   },
+  /**
+   * Tạo yêu cầu thanh toán chuyển khoản VietQR động.
+   */
+  createVietQrPaymentRequest: async (data: {
+    vehicle_id?: string;
+    sale_id?: string;
+    amount: number;
+    qr_payload?: string;
+  }) =>
+    call<import("@/types").VietQrPaymentRequest>("create_vietqr_payment_request", {
+      p_data: data,
+    }),
+  getVietQrPaymentRequest: async (id: string) =>
+    call<import("@/types").VietQrPaymentRequest>("get_vietqr_payment_request", {
+      p_id: id,
+    }),
+  cancelVietQrPaymentRequest: async (id: string, reason = "") =>
+    call<import("@/types").VietQrPaymentRequest>("cancel_vietqr_payment_request", {
+      p_id: id,
+      p_reason: reason,
+    }),
+  confirmVietQrPayment: async (data: {
+    qr_request_id: string;
+    request_id?: string;
+    payment_date?: string;
+    notes?: string;
+  }) =>
+    call<string>("confirm_vietqr_payment", {
+      p_data: data,
+    }),
+  getActiveVietQrRequest: async (vehicleId: string, saleId?: string) =>
+    call<import("@/types").VietQrPaymentRequest | null>("get_active_vietqr_request", {
+      p_vehicle_id: vehicleId,
+      p_sale_id: saleId ?? null,
+    }),
 };
+

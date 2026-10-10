@@ -148,7 +148,7 @@ export function normalizeScanRisks(draft: Record<string, unknown>, fields: Scann
       if (typeof index === "number" && Number.isInteger(index) && displayPositions.includes(index)) flagged.add(index);
     }
     if ((key === "license_plate" && !normalizePlate(value))
-      || (key === "frame_number" && (value.length < 8 || /^\d+$/.test(value)))) {
+      || (key === "frame_number" && (value.length < 11 || /^\d+$/.test(value)))) {
       for (const index of displayPositions) flagged.add(index);
     }
     if (flagged.size) risks[key] = [...flagged].sort((a, b) => a - b);
@@ -217,12 +217,13 @@ export function matchIdentity(
  * read stays SUGGESTED and empty values are UNREADABLE.
  */
 export function classifyFields(fields: ScannedFields, match: VehicleMatch, riskCharacters: RecognitionRisks = {}): Record<ScannedKey, RecognitionFieldStatus> {
+  const risks = normalizeScanRisks({ riskCharacters }, fields);
   const statuses = {} as Record<ScannedKey, RecognitionFieldStatus>;
   for (const key of SCANNED_KEYS) statuses[key] = fields[key] ? "SUGGESTED" : "UNREADABLE";
   if (match.state === "unique") {
-    if (fields.license_plate && !riskCharacters.license_plate?.length && compact(canonicalizePlate(match.vehicle.license_plate)) === compact(canonicalizePlate(fields.license_plate)))
+    if (fields.license_plate && !risks.license_plate?.length && compact(canonicalizePlate(match.vehicle.license_plate)) === compact(canonicalizePlate(fields.license_plate)))
       statuses.license_plate = "VERIFIED";
-    if (fields.frame_number && !riskCharacters.frame_number?.length && compact(match.vehicle.frame_number) === compact(fields.frame_number))
+    if (fields.frame_number && !risks.frame_number?.length && compact(match.vehicle.frame_number) === compact(fields.frame_number))
       statuses.frame_number = "VERIFIED";
   }
   if (match.state === "conflict") {
@@ -359,6 +360,7 @@ export function parseRecognition(value: unknown): Recognition | null {
         : "UNREADABLE";
     if ((key === "license_plate" || key === "frame_number") && riskCharacters[key]?.length && statuses[key] === "VERIFIED")
       statuses[key] = "SUGGESTED";
+    if (key === "vehicle_type" || key === "color" || key === "year") statuses[key] = fields[key] ? "SUGGESTED" : "UNREADABLE";
   }
   const photos = Array.isArray(raw.photos)
     ? raw.photos.filter((photo): photo is string => typeof photo === "string" && photo.startsWith("data:image/")).slice(0, 4)

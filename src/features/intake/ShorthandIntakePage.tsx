@@ -20,7 +20,6 @@ import { api } from "@/lib/api";
 import { AppError, friendlyError } from "@/lib/errors";
 import { executeOperation, reconcileOperation } from "@/lib/operationRecovery";
 import { OperationRecoveryNotice } from "@/components/OperationRecoveryNotice";
-import { canFinance } from "@/lib/permissions";
 import { isoToDisplayDate, displayToIsoDate, today } from "@/lib/format";
 import { MoneyInput } from "@/components/ui/MoneyInput";
 import { parseMoneyInput } from "@/lib/moneyHelper";
@@ -134,7 +133,6 @@ export default function ShorthandIntakePage() {
   const { profile } = useAuth();
   const navigate = useNavigate();
   const client = useQueryClient();
-  const financial = canFinance(profile);
   // Copilot handoff: a command sentence can seed the notes box and auto-parse.
   const location = useLocation();
   const seedText =
@@ -365,7 +363,7 @@ export default function ShorthandIntakePage() {
           photos: recovered,
         };
       }
-      const rows = entries.map((entry) => entryToImportRow(entry, financial));
+      const rows = entries.map((entry) => entryToImportRow(entry));
       const check = await api.call<ImportCheck>("validate_import_vehicles", {
         p_vehicles: rows,
       });
@@ -419,8 +417,8 @@ export default function ShorthandIntakePage() {
   });
 
   const clientErrorsByEntry = useMemo(
-    () => entries.map((entry) => validateIntakeEntry(entry, financial)),
-    [entries, financial],
+    () => entries.map((entry) => validateIntakeEntry(entry)),
+    [entries],
   );
   // Smart Camera provenance badges: only camera entries carry fieldStatus,
   // so parsed notes render exactly as before.
@@ -728,18 +726,19 @@ export default function ShorthandIntakePage() {
                   autoCorrect="off"
                 />
               </Field>
-              {financial && (
-                <Field label="Giá thu">
-                  <IntakeMoneyInput
-                    ariaLabel="Giá thu"
-                    value={entry.fields.purchase_price ?? ""}
-                    onChange={(value) =>
-                      updateField(entry.id, "purchase_price", value)
-                    }
-                    placeholder="18tr5"
-                  />
-                </Field>
-              )}
+              <Field label="Giá thu">
+                <IntakeMoneyInput
+                  ariaLabel="Giá thu"
+                  value={entry.fields.purchase_price ?? ""}
+                  onChange={(value) =>
+                    updateField(entry.id, "purchase_price", value)
+                  }
+                  placeholder="18tr5"
+                />
+                {entry.fields.purchase_price?.trim() ? null : (
+                  <small className="muted">Bắt buộc khi thu xe.</small>
+                )}
+              </Field>
               <Field label="Tên người bán">
                 <input
                   value={entry.fields.supplier_name ?? ""}

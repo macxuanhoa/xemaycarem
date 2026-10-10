@@ -14,7 +14,7 @@ import {
   X,
 } from "lucide-react";
 import { api } from "@/lib/api";
-import { canDeleteVehicle, canFinance, canOperate } from "@/lib/permissions";
+import { canDeleteVehicle, canOperate } from "@/lib/permissions";
 import { dateLabel, money, today } from "@/lib/format";
 import { useDebouncedValue } from "@/lib/useDebouncedValue";
 import { useDialog } from "@/lib/useDialog";
@@ -168,7 +168,10 @@ export function AcquisitionsPage() {
                   <th>Số khung / Biển số</th>
                   <th>Ngày thu</th>
                   <th>Người bán</th>
-                  {canFinance(profile) && <th className="numeric">Giá thu</th>}
+                  {/* Giá thu do chính người thao tác xe nhập nên lịch sử thu xe
+                      hiển thị cho mọi role; tổng chi phí/lợi nhuận vẫn là số nội
+                      bộ của quyền tài chính. */}
+                  <th className="numeric">Giá thu</th>
                   <th>Trạng thái</th>
                   <th aria-label="Thao tác" />
                 </tr>
@@ -185,11 +188,18 @@ export function AcquisitionsPage() {
                           <Highlight text={vehicleTypeName(acq)} query={debouncedSearch} />
                         </strong>
                       </Link>
-                      <small className="muted">
-                        {acq.year ? `Đời ${acq.year} · ` : ""}
-                        {acq.color ? `${acq.color} · ` : ""}
-                        Mã {acq.internal_code ? <Highlight text={acq.internal_code} query={debouncedSearch} /> : "—"}
-                      </small>
+                      {/* Dòng phụ chỉ còn Đời·Màu; mã nội bộ đã ẩn khỏi
+                          thẻ danh sách (vẫn tìm xe bằng mã qua ô tìm kiếm). */}
+                      {(acq.year || acq.color) && (
+                        <small className="muted">
+                          {[
+                            acq.year ? `Đời ${acq.year}` : null,
+                            acq.color || null,
+                          ]
+                            .filter(Boolean)
+                            .join(" · ")}
+                        </small>
+                      )}
                     </td>
                     <td>
                       <VehicleIdentityChips vehicle={acq} query={debouncedSearch} />
@@ -199,13 +209,11 @@ export function AcquisitionsPage() {
                       <div>{acq.seller_name ? <Highlight text={acq.seller_name} query={debouncedSearch} /> : "—"}</div>
                       <small className="muted">{acq.seller_phone ? <Highlight text={acq.seller_phone} query={debouncedSearch} /> : "—"}</small>
                     </td>
-                    {canFinance(profile) && (
-                      <td className="numeric price">
-                        {acq.purchase_price != null
-                          ? money(acq.purchase_price)
-                          : "—"}
-                      </td>
-                    )}
+                    <td className="numeric price">
+                      {acq.purchase_price != null
+                        ? money(acq.purchase_price)
+                        : "—"}
+                    </td>
                     <td>
                       <Badge status={acq.status} />
                     </td>
@@ -244,14 +252,19 @@ export function AcquisitionsPage() {
                   <Badge status={acq.status} />
                 </div>
                 <VehicleIdentityChips vehicle={acq} query={debouncedSearch} />
-                <span className="muted">
-                  {acq.year ? `Đời ${acq.year} · ` : ""}
-                  {acq.color ? `${acq.color} · ` : ""}
-                  Mã {acq.internal_code || "—"}
-                </span>
+                {(acq.year || acq.color) && (
+                  <span className="muted">
+                    {[
+                      acq.year ? `Đời ${acq.year}` : null,
+                      acq.color || null,
+                    ]
+                      .filter(Boolean)
+                      .join(" · ")}
+                  </span>
+                )}
                 <div className="row between">
                   <span>{dateLabel(acq.acquisition_date)}</span>
-                  {canFinance(profile) && acq.purchase_price != null && (
+                  {acq.purchase_price != null && (
                     <strong className="price">
                       {money(acq.purchase_price)}
                     </strong>

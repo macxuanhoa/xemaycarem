@@ -1,0 +1,371 @@
+/* Cà Rem AI Sales Assistant — Post Studio / Reply Assistant / Brand Memory.
+   Tách riêng khỏi styles.css (đang có agent khác chỉnh) theo tiền lệ
+   styles-showroom.css: chỉ dùng token đã có trong :root, không tạo màu mới. */
+
+.ps-page {
+  display: grid;
+  gap: var(--space-lg);
+}
+.ps-step h2 {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  font-size: 15px;
+  margin: 0 0 var(--space-md);
+}
+.ps-step h3 {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  font-size: 14px;
+  margin: var(--space-lg) 0 var(--space-sm);
+}
+.ps-hint {
+  color: var(--readable-muted);
+  font-size: 12.5px;
+  margin: var(--space-sm) 0 0;
+}
+.ps-source {
+  color: var(--readable-muted);
+  font-size: 12.5px;
+  background: var(--line-subtle);
+  border-radius: var(--radius);
+  padding: var(--space-sm) var(--space-md);
+  margin: 0 0 var(--space-md);
+}
+
+/* Bước chọn xe */
+.ps-picker-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-sm);
+  align-items: center;
+  margin-bottom: var(--space-md);
+}
+.ps-picker-controls input[type="search"] {
+  flex: 1 1 200px;
+  min-width: 0;
+}
+.ps-tabs {
+  display: inline-flex;
+  background: var(--line-subtle);
+  border-radius: 999px;
+  padding: 3px;
+  gap: 2px;
+}
+.ps-tabs button {
+  border: 0;
+  background: transparent;
+  border-radius: 999px;
+  padding: 6px 14px;
+  font-size: 13px;
+  color: var(--muted);
+  min-height: 34px;
+}
+.ps-tabs button.is-active {
+  background: #fff;
+  color: var(--primary-dark);
+  font-weight: 600;
+  box-shadow: 0 1px 3px var(--primary-glow);
+}
+.ps-vehicle-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: var(--space-sm);
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+}
+.ps-vehicle-card {
+  width: 100%;
+  display: grid;
+  gap: 2px;
+  text-align: left;
+  border: 1px solid var(--line);
+  background: #fff;
+  border-radius: var(--radius);
+  padding: var(--space-md);
+  transition: border-color 140ms ease, background 140ms ease;
+}
+.ps-vehicle-card.is-selected {
+  border-color: var(--primary);
+  background: color-mix(in srgb, var(--primary) 6%, #fff);
+}
+.ps-vehicle-title {
+  font-weight: 600;
+  font-size: 13.5px;
+}
+.ps-vehicle-sub {
+  color: var(--readable-muted);
+  font-size: 12.5px;
+}
+.ps-picked-note {
+  margin: var(--space-md) 0 0;
+  font-size: 13px;
+}
+.ps-linkbtn {
+  border: 0;
+  background: none;
+  color: var(--primary);
+  text-decoration: underline;
+  padding: 0 2px;
+  font-size: 12.5px;
+}
+
+/* Chips loại bài / kênh */
+.ps-chiprow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-sm);
+  margin: 0 0 var(--space-md);
+}
+.ps-chip {
+  border: 1px solid var(--line);
+  background: #fff;
+  border-radius: 999px;
+  padding: 7px 14px;
+  font-size: 13px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 36px;
+  transition: border-color 140ms ease, background 140ms ease;
+}
+.ps-chip.is-active {
+  border-color: var(--primary);
+  background: color-mix(in srgb, var(--primary) 10%, #fff);
+  color: var(--primary-dark);
+  font-weight: 600;
+}
+
+/* Caption & chat */
+.ps-caption-card {
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: var(--space-md);
+  margin-bottom: var(--space-md);
+  background: #fff;
+}
+.ps-caption-card textarea {
+  width: 100%;
+  border: 0;
+  resize: vertical;
+  background: transparent;
+  font-size: 14px;
+  line-height: 1.55;
+  padding: 0;
+}
+.ps-caption-card textarea:focus {
+  outline: none;
+}
+.ps-caption-actions,
+.ps-draft-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-sm);
+  margin-top: var(--space-sm);
+}
+.ps-chat {
+  border-top: 1px dashed var(--line);
+  margin-top: var(--space-md);
+  padding-top: var(--space-md);
+}
+.ps-chat-log {
+  list-style: none;
+  margin: 0 0 var(--space-md);
+  padding: 0;
+  display: grid;
+  gap: var(--space-sm);
+  max-height: 260px;
+  overflow-y: auto;
+}
+.ps-turn {
+  font-size: 13px;
+  border-radius: var(--radius);
+  padding: var(--space-sm) var(--space-md);
+  white-space: pre-wrap;
+}
+.ps-turn.is-user {
+  background: var(--line-subtle);
+  margin-left: 24px;
+}
+.ps-turn.is-assistant {
+  background: color-mix(in srgb, var(--primary) 8%, #fff);
+  margin-right: 24px;
+}
+.ps-chat-input {
+  display: flex;
+  gap: var(--space-sm);
+}
+.ps-chat-input input {
+  flex: 1;
+  min-width: 0;
+}
+.ps-message-input {
+  width: 100%;
+  margin-bottom: var(--space-md);
+}
+
+/* Ảnh xe */
+.ps-image-grid {
+  list-style: none;
+  margin: 0 0 var(--space-md);
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(88px, 1fr));
+  gap: var(--space-sm);
+}
+.ps-image-cell {
+  aspect-ratio: 1;
+  border: 2px solid var(--line);
+  border-radius: var(--radius);
+  overflow: hidden;
+  padding: 0;
+  background: var(--line-subtle);
+  display: grid;
+  place-items: center;
+  transition: border-color 140ms ease;
+}
+.ps-image-cell.is-picked {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 2px var(--primary-glow);
+}
+.ps-image-cell img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.ps-image-empty {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+/* Xe khớp trong kho (Reply Assistant) */
+.ps-vehicle-cards {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: var(--space-sm);
+}
+.ps-stock-card {
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: var(--space-sm) var(--space-md);
+  background: #fff;
+}
+.ps-stock-card .ps-image-empty,
+.ps-stock-card img {
+  width: 56px;
+  height: 56px;
+  border-radius: 10px;
+  object-fit: cover;
+  flex: none;
+  display: grid;
+  place-items: center;
+  background: var(--line-subtle);
+}
+.ps-stock-card > span:nth-child(2) {
+  flex: 1;
+  min-width: 0;
+  display: grid;
+}
+.ps-stock-card small {
+  color: var(--readable-muted);
+}
+
+/* Danh sách nháp / bộ nhớ */
+.ps-draft-list,
+.ps-memory-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: var(--space-md);
+}
+.ps-draft-row,
+.ps-memory-row {
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: var(--space-md);
+  background: #fff;
+}
+.ps-draft-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-sm);
+  margin-bottom: var(--space-sm);
+}
+.ps-draft-head small {
+  color: var(--readable-muted);
+  width: 100%;
+}
+.ps-draft-status,
+.ps-version-source {
+  font-size: 11.5px;
+  font-weight: 600;
+  border-radius: 999px;
+  padding: 3px 10px;
+  background: var(--line-subtle);
+  color: var(--muted);
+}
+.ps-draft-status.is-approved,
+.ps-version-source.is-ai {
+  background: color-mix(in srgb, var(--primary) 12%, #fff);
+  color: var(--primary-dark);
+}
+.ps-draft-status.is-example {
+  background: color-mix(in srgb, var(--primary) 12%, #fff);
+  color: var(--primary-dark);
+}
+.ps-draft-status.is-rule {
+  background: color-mix(in srgb, #d97706 15%, #fff);
+  color: #92400e;
+}
+.ps-draft-caption {
+  white-space: pre-wrap;
+  font-size: 13.5px;
+  margin: 0;
+}
+.ps-library-check {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12.5px;
+  color: var(--readable-muted);
+}
+.ps-versions {
+  border-top: 1px dashed var(--line);
+  margin-top: var(--space-md);
+  padding-top: var(--space-md);
+}
+.ps-versions ol {
+  margin: 0 0 var(--space-sm);
+  padding-left: 20px;
+  display: grid;
+  gap: var(--space-sm);
+}
+.ps-versions li p {
+  white-space: pre-wrap;
+  margin: 2px 0;
+  font-size: 13px;
+}
+.ps-versions li small {
+  color: var(--readable-muted);
+  font-size: 11.5px;
+}
+
+@media (max-width: 640px) {
+  .ps-vehicle-list {
+    grid-template-columns: 1fr;
+  }
+  .ps-turn.is-user,
+  .ps-turn.is-assistant {
+    margin-inline: 0;
+  }
+}

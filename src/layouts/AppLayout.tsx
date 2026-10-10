@@ -10,6 +10,7 @@ import {
 } from "react-router-dom";
 import {
   ArrowDownLeft,
+  BookMarked,
   BookOpen,
   Bot,
   Camera,
@@ -19,6 +20,8 @@ import {
   Inbox,
   LogOut,
   Menu,
+  Megaphone,
+  MessagesSquare,
   Moon,
   Bike,
   Package,
@@ -140,6 +143,9 @@ export function AppLayout() {
     if (pathname.startsWith("/capture")) return "Camera thông minh";
     if (pathname.startsWith("/intake")) return "Thu xe tốc ký";
     if (pathname.startsWith("/copilot")) return "Trợ lý AI";
+    if (pathname.startsWith("/posts")) return "Studio bài đăng";
+    if (pathname.startsWith("/reply")) return "Trợ lý trả lời tin nhắn";
+    if (pathname.startsWith("/brand-memory")) return "Bộ nhớ thương hiệu";
     if (pathname.startsWith("/docs")) return "Tài liệu cửa hàng";
     if (pathname.startsWith("/sell")) return "Bán xe";
     return "";
@@ -243,6 +249,33 @@ export function AppLayout() {
                 >
                   <BookOpen size={20} />
                   <span>Tài liệu cửa hàng</span>
+                </NavLink>
+                <NavLink
+                  to="/posts"
+                  onClick={drawer.close}
+                  onMouseEnter={() => preloadRoute("/posts")}
+                  onFocus={() => preloadRoute("/posts")}
+                >
+                  <Megaphone size={20} />
+                  <span>Studio bài đăng</span>
+                </NavLink>
+                <NavLink
+                  to="/reply"
+                  onClick={drawer.close}
+                  onMouseEnter={() => preloadRoute("/reply")}
+                  onFocus={() => preloadRoute("/reply")}
+                >
+                  <MessagesSquare size={20} />
+                  <span>Trả lời tin nhắn</span>
+                </NavLink>
+                <NavLink
+                  to="/brand-memory"
+                  onClick={drawer.close}
+                  onMouseEnter={() => preloadRoute("/brand-memory")}
+                  onFocus={() => preloadRoute("/brand-memory")}
+                >
+                  <BookMarked size={20} />
+                  <span>Bộ nhớ thương hiệu</span>
                 </NavLink>
               </nav>
             )}
@@ -418,6 +451,11 @@ export function AppLayout() {
           </div>
         </header>
         <AnnouncementBar />
+        {import.meta.env.VITE_APP_ENV === "staging" && (
+          <div className="staging-banner" role="status">
+            Môi trường thử nghiệm · Dữ liệu dùng để kiểm tra
+          </div>
+        )}
         {!online && (
           <div className="offline-banner" role="alert">
             <WifiOff size={18} /> Mất kết nối. Các giao dịch mới chưa được gửi;

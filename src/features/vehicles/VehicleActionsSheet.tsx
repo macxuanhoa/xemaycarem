@@ -43,6 +43,9 @@ export function VehicleActionsSheet({
   const panelRef = useDialog(true, onClose);
   const available = ["IN_STOCK", "RESERVED"].includes(vehicle.status);
   const pending = !!vehicle.pending_deletion;
+  // Đơn bán dưới giá thu đang chờ chủ duyệt: vẫn mở form bán để nhân viên
+  // xem chênh lệch và rút yêu cầu, nhưng không được bán trùng.
+  const pendingSale = !!vehicle.pending_sale_approval;
   const canDirectDelete =
     !!onDelete && canDeleteVehicle(profile) && available && !pending;
   const canRequestDelete =
@@ -102,12 +105,20 @@ export function VehicleActionsSheet({
           )}
           {canOperate(profile) && available && !vehicle.cost_pending && !pending && (
             <Link
-              className={rowClass("primary")}
+              className={rowClass(pendingSale ? "neutral" : "primary")}
               to={`/vehicles/${vehicle.id}/sell`}
               state={state}
             >
-              <span className="vas-tile vas-tile-primary"><ShoppingBag size={17} /></span>
-              <span className="vas-label">Bán xe</span>
+              <span
+                className={
+                  pendingSale ? "vas-tile vas-tile-neutral" : "vas-tile vas-tile-primary"
+                }
+              >
+                {pendingSale ? <SendHorizontal size={17} /> : <ShoppingBag size={17} />}
+              </span>
+              <span className="vas-label">
+                {pendingSale ? "Chờ chủ duyệt bán" : "Bán xe"}
+              </span>
               <ChevronRight className="vas-chevron" size={16} />
             </Link>
           )}

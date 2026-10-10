@@ -41,10 +41,10 @@ Lưu ý: xóa tài khoản **không** xóa xe/bán/chi phí mà người đó đ
 ## Ghi nhận xe thu vào (STAFF trở lên, trong lịch làm việc)
 
 1. Mở **Thu vào** (`/acquisitions`) để xem danh sách; bấm tạo mới để vào form (`/acquisitions/new`).
-2. Điền thông tin xe: **loại xe** là bắt buộc — chọn từ danh mục cửa hàng (không gõ tay), chưa xác định được thì chọn `Chưa phân loại` rồi sửa lại sau. Số khung, biển số, đời xe, màu sơn, giá mua, chi phí linh tinh, ngày thu, người bán có thể để trống nếu chưa có ngay lúc thu. Hồ sơ xe **không còn** hãng, dòng xe, phiên bản, số máy, số km và giá bán dự kiến; màn hình nào cũng định danh xe bằng **biển số · số khung**, dòng phụ ghi **loại xe · đời xe · màu sắc**.
+2. Điền thông tin xe: **loại xe** và **giá thu** là bắt buộc — loại xe chọn từ danh mục cửa hàng (không gõ tay), chưa xác định được thì chọn `Chưa phân loại` rồi sửa lại sau; giá thu do chính người thu xe gõ (lớn hơn 0). Số khung, biển số, đời xe, màu sơn, chi phí linh tinh, ngày thu, người bán có thể để trống nếu chưa có ngay lúc thu. Hồ sơ xe **không còn** hãng, dòng xe, phiên bản, số máy, số km và giá bán dự kiến; màn hình nào cũng định danh xe bằng **biển số · số khung**, dòng phụ ghi **loại xe · đời xe · màu sắc**.
 3. Ảnh CCCD của người bán (khi thu xe) chụp và tải trực tiếp trong form: ảnh chỉ lưu ở bucket riêng tư `identity-documents`, liên kết theo hồ sơ thu qua `save_identity_document` + `register_identity_document_image`; người có quyền chỉ xem được bằng liên kết tạm 120 giây. Không lưu ảnh CCCD vào nơi khác.
 4. Bấm Lưu. Giao dịch được ghi bằng RPC `acquire_vehicle` — một transaction duy nhất tạo xe + chi phí + hồ sơ; hoặc có thể thêm xe bằng form Tồn kho (`save_vehicle`) rồi bổ sung chi phí sau.
-5. Giá mua chưa xác định được thì để trống: xe ở trạng thái "chờ giá vốn" (`cost_pending`), **chưa bán được** cho tới khi người có quyền tài chính nhập giá mua thật.
+5. **Giá thu là dữ liệu đầu vào của nghiệp vụ thu xe, không còn là mật khẩu tài chính**: STAFF, MANAGER, OWNER đều gõ được và đều thấy lại giá mình đã nhập trong hồ sơ xe. Vì vậy không còn cảnh "thu xe trước, chờ người có quyền bổ sung giá vốn sau" — thiếu giá thu thì server chặn ngay (`PURCHASE_PRICE_REQUIRED`). Xe **đời cũ** nhập trước khi có quy tắc này vẫn có thể trống giá (`cost_pending`) và những xe đó **chưa bán được** (`PURCHASE_COST_REQUIRED`) cho tới khi nhập giá thu thật. Khi **sửa** một hồ sơ đã có giá, để trống ô giá nghĩa là *giữ nguyên giá đang có*; muốn đổi thì gõ số mới lớn hơn 0.
 6. Số khung để trống: hệ thống tự sinh mã nội bộ `GEN-<uuid>` để xe vẫn lưu được mà không phá chỉ số UNIQUE. Khi có giấy tờ, mở lại form Tồn kho → điền số khung thật → hệ thống kiểm tra trùng như bình thường.
 7. Chưa đọc được số khung đầy đủ ngoài hiện trường (tem khung mờ, bị sơn phủ, giấy tờ chủ xe giữ): chọn nút gạt **"5 ký tự cuối"** ngay dưới ô Số khung và chỉ gõ **5 ký tự cuối** — hệ thống hiểu đây là dữ liệu **rút gọn** (`PARTIAL`), vẫn giữ đủ 5 ký tự (kể cả số `0` đầu) và **không** bắt phải nhập cả VIN. Chi tiết ở mục **Kiểm tra trùng xe** bên dưới.
 
@@ -68,7 +68,7 @@ Khi có một danh sách nhiều xe cần thu (tin nhắn Notes/Zalo), dùng tra
 4. Tiền viết tắt: `18tr5` = 18.500.000, `1.2ty` = 1.200.000.000, `450k` = 450.000, hoặc số đầy đủ `18.000.000`.
 5. Từ không nhận diện được **không bao giờ bị đoán vào trường tiền và cũng không còn được đổ vào "Dòng xe"** (quy tắc đó đã bị xoá cùng các trường cũ): chúng hiện ở mục "từ chưa nhận diện" để bạn gán vào Ghi chú hoặc dạy cho máy.
 6. **Dạy viết tắt**: sửa một giá trị (loại xe, màu, tên người bán) khác token gốc sẽ hiện nút dạy; xác nhận là lần sau dán lại tự đúng. Bộ nhớ viết tắt lưu **theo tài khoản ngay trên máy đó** (localStorage), không đồng bộ sang máy khác; xem và xóa từng quy tắc trong bảng "Bộ nhớ viết tắt" cuối trang.
-7. Trước khi lưu, mỗi thẻ xe tự kiểm tra: **bắt buộc có loại xe nằm trong danh mục** (`Chọn loại xe từ danh mục.`); nếu bạn có quyền tài chính thì **bắt buộc giá thu**; số khung và biển số được phép để trống (khung trống → server tự sinh `GEN-<uuid>`, biển có gõ thì phải đúng format xe máy Việt Nam); năm 1900–2100; ngày thu không ở tương lai. Nhân viên không có quyền tài chính không ghi giá thu (chủ/nhân viên quản lý có quyền sẽ nhập sau; xe chờ giá vốn không bán được).
+7. Trước khi lưu, mỗi thẻ xe tự kiểm tra: **bắt buộc có loại xe nằm trong danh mục** (`Chọn loại xe từ danh mục.`) và **bắt buộc giá thu lớn hơn 0** (`Nhập giá thu xe (vd: 18tr5).`) — mọi role đều gõ giá thu vì chính mình là người thu xe; số khung và biển số được phép để trống (khung trống → server tự sinh `GEN-<uuid>`, biển có gõ thì phải đúng format xe máy Việt Nam); năm 1900–2100; ngày thu không ở tương lai.
 8. Bấm **Xác nhận thu xe**: hệ thống gửi cả lô cho `validate_import_vehicles` kiểm tra trùng lặp và tính hợp lệ phía server. Nếu có bất kỳ lỗi/trùng nào → báo ngay trên từng thẻ, **không lưu gì cả** để bạn sửa. Khi sạch lỗi → `import_vehicles` lưu toàn bộ xe + phiếu thu trong một giao dịch rồi chuyển về danh sách Thu vào.
 
 ## Cập nhật xe trong tồn kho
@@ -98,10 +98,27 @@ Form **Thu vào**, **Nhập xe mới**, và **Thu tốc ký** hiển thị một
 
 ## Bán xe (STAFF trở lên, trong lịch làm việc)
 
-1. Từ xe trong kho bấm **Bán** (`/vehicles/:id/sell`) — xe phải đã chốt giá mua (không còn `cost_pending`).
+1. Từ xe trong kho bấm **Bán** (`/vehicles/:id/sell`) — xe phải đã có giá thu (chỉ xe **đời cũ** còn `cost_pending` mới bị chặn `PURCHASE_COST_REQUIRED`).
 2. Form bán (`sell_vehicle`) gồm: tên khách, số điện thoại khách, giá bán, ngày bán, số tiền đặt cọc/trả trước, phương thức thanh toán, ghi chú. **Giá bán và khoản trả trước luôn mở trống** — nhân viên phải tự gõ; hệ thống không còn lưu giá bán dự kiến trên xe nên không có gì để điền sẵn, và bản nháp AI, tốc ký hay handoff từ màn hình khác cũng không được prefill giá. Toàn bộ là SĐT và số tiền VND nguyên; tổng thanh toán không được vượt giá bán.
-3. Lưu tạo bản ghi bán và chuyển xe sang trạng thái SOLD; hóa đơn cho khách in từ trang chi tiết bán (`/sales/:id`).
-4. Muốn xóa bán sai: chủ/nhân viên được quyền bấm **Hủy bán** trên trang chi tiết, **bắt buộc nhập lý do** (`cancel_sale`). Các khoản đã thu bị đánh dấu `VOIDED` và loại khỏi công nợ đang hiệu lực nhưng vẫn giữ lịch sử; việc **hoàn tiền thật thực hiện bằng tiền mặt/chuyển khoản ngoài app** và phải tự đối chiếu.
+3. **Giá bán so với giá thu quyết định bước tiếp theo** (xem mục **Bán xe dưới giá thu** bên dưới): bán **bằng hoặc cao hơn** giá thu thì lưu là xe sang SOLD, ghi nhận doanh thu ngay; bán **thấp hơn** giá thu thì nhân viên/quản lý không hoàn tất được mà phải gửi Chủ duyệt.
+4. Lưu tạo bản ghi bán và chuyển xe sang trạng thái SOLD; hóa đơn cho khách in từ trang chi tiết bán (`/sales/:id`).
+5. Muốn xóa bán sai: chủ/nhân viên được quyền bấm **Hủy bán** trên trang chi tiết, **bắt buộc nhập lý do** (`cancel_sale`). Các khoản đã thu bị đánh dấu `VOIDED` và loại khỏi công nợ đang hiệu lực nhưng vẫn giữ lịch sử; việc **hoàn tiền thật thực hiện bằng tiền mặt/chuyển khoản ngoài app** và phải tự đối chiếu.
+
+## Bán xe dưới giá thu — mọi role đề xuất, chỉ OWNER quyết (09/10/2026)
+
+Giá thu đã nhập lúc thu xe là **mốc sàn**. Bán **bằng hoặc cao hơn** giá thu: làm như mục trên, một bước là xong. Bán **thấp hơn** giá thu: giao dịch thuộc quyền quyết của Chủ cửa hàng.
+
+1. STAFF/MANAGER mở form **Bán xe**, gõ giá bán thấp hơn giá thu → form hiện cảnh báo giá bán đang thấp hơn giá thu kèm **số tiền chênh** và nút đổi thành **Gửi yêu cầu duyệt** (không còn nút Xác nhận bán). Nếu client cũ vẫn cố gọi `sell_vehicle` thì server tự trả `SALE_BELOW_COST_APPROVAL_REQUIRED` — **frontend chỉ gợi ý, server mới là chỗ chốt**.
+2. Gửi đơn đi qua `request_sale_below_cost`: **xe vẫn nằm trong kho**, **không** sang SOLD và **không** ghi nhận doanh thu; chỉ tồn tại một đơn `SALE_BELOW_COST` trạng thái `PENDING` cho mỗi xe (gửi lặp → `ALREADY_PENDING`). Hồ sơ xe và tấm thao tác khi đó hiện dải *Đang chờ chủ cửa hàng duyệt bán*.
+3. Chủ nhận chuông thông báo và mở **Chờ duyệt** (`/approvals`) — **cùng hàng đợi sẵn có** với yêu cầu xóa xe, không phải hệ thống duyệt song song. Mỗi đơn hiển thị đủ căn cứ quyết: xe · **biển số** · **số khung** · **giá thu** · **giá bán đề xuất** · **chênh lệch** · khách hàng & khoản trả trước · **người yêu cầu** · **thời gian gửi**.
+4. **Chỉ OWNER** bấm **Phê duyệt** hoặc **Từ chối**:
+   - **Phê duyệt** → hoàn tất đúng bản đề xuất trong một transaction: tạo phiếu bán + khoản thu đầu, xe sang SOLD, doanh thu và lợi nhuận cập nhật; người bán trên phiếu là **chính nhân viên đã gửi đề xuất**. Chủ được đưa tới `/sales/<id>` để in hóa đơn.
+   - **Từ chối** → xe **không bị bán**, đơn mang `REJECTED` (kèm ghi chú của chủ), nhân viên gửi đơn nhận thông báo và xe vẫn còn trong kho để bán giá khác.
+5. **Không duyệt dữ liệu lỗi thời**: khi phê duyệt server kiểm lại hiện trạng — xe còn `IN_STOCK`/`RESERVED`, chưa có phiếu bán `COMPLETED`, không có đơn xóa đang chờ, và **giá thu + tổng chi phí đang có phải khớp snapshot trong đơn**. Giá vốn đã đổi thì trả `APPROVAL_STALE_DATA`: đơn phải **Rút yêu cầu** (`cancel_sale_approval`) rồi gửi lại với số mới. Ngược lại, một đơn đang chờ cũng **chặn mọi giao dịch bán khác trên cùng xe** (`SALE_APPROVAL_PENDING`, kể cả OWNER) và chặn xóa xe — không có xe "bán hai lần" hay "bốc hơi" khi chủ còn đang cân nhắc.
+6. **OWNER bán dưới giá thu thì quyết ngay**: form vẫn hiện cảnh báo chênh lệch để chủ thấy rõ đang bán lỗ, nhưng nút vẫn là **Xác nhận bán** — không có vòng tự gửi tự duyệt (`request_sale_below_cost` từ chối tài khoản OWNER).
+7. Phê duyệt **quyền ở backend**, không chỉ giao diện: `resolve_sale_approval` chỉ nhận vai trò OWNER (RLS hàng đợi chỉ mở `SELECT` cho OWNER và chính tác giả đơn); MANAGER/STAFF gọi sẽ nhận `ACCESS_DENIED`.
+8. **Chống lưu hai lần**: cả gửi đơn lẫn duyệt đều mang `request_id` và ghi biên lai trong `private.operation_receipts`. Mất phản hồi thì lần bấm kế tiếp đối soát bằng `get_operation_result` và trả lại đúng kết quả cũ — không tạo đơn thứ hai, không bán lần hai. Duyệt lại một đơn đã quyết → `ALREADY_RESOLVED`.
+9. **Lịch sử phê duyệt** được ghi nhận: `REQUEST_SALE_BELOW_COST` / `APPROVE_SALE_BELOW_COST` / `REJECT_SALE_BELOW_COST` / `CANCEL_SALE_BELOW_COST` vào nhật ký thao tác (`/audit`), và trang **Chờ duyệt** xem lại được quá khứ bằng bộ lọc *Đã duyệt* / *Đã từ chối*.
 
 ## Thu tiền công nợ
 
@@ -113,11 +130,11 @@ Mở **Chi phí** (`/expenses`) — cần MANAGER/OWNER để xem danh sách; ST
 
 ## Quyền nghiệp vụ xe của Nhân viên (parity với Quản lý mặc định)
 
-Nhân viên (STAFF) hoạt động trên xe **ngang tầm một Quản lý mặc định không xem được tài chính**: thêm/sửa xe, **hủy và khôi phục trạng thái** xe, **thêm–sửa–hủy chi phí gắn theo xe** (`save_expense`/`cancel_expense` với `p_kind='vehicle'`), và **bán xe**. STAFF **không** được: xem danh sách chi phí chung/số liệu lãi–giá vốn (khi chưa bật *Xem số tài chính*), ghi **chi phí hoạt động chung** (`p_kind='business'` vẫn yêu cầu MANAGER/OWNER), và quản lý tài khoản/quản trị hệ thống. Mọi giới hạn này do RPC `private.require_role` + `private.can_financials` buộc, không phụ thuộc giao diện.
+Nhân viên (STAFF) hoạt động trên xe **ngang tầm một Quản lý mặc định không xem được tài chính**: thêm/sửa xe — **kể cả gõ giá thu lúc đưa xe vào kho** —, **hủy và khôi phục trạng thái** xe, **thêm–sửa–hủy chi phí gắn theo xe** (`save_expense`/`cancel_expense` với `p_kind='vehicle'`), và **bán xe**. STAFF **không** được: xem **tổng giá vốn / số liệu lãi–lỗ** (giá thu thì thấy vì chính mình nhập, còn các cột tổng hợp vẫn theo quyền tài chính), ghi **chi phí hoạt động chung** (`p_kind='business'` vẫn yêu cầu MANAGER/OWNER), **quyết bán dưới giá thu** và quản lý tài khoản/quản trị hệ thống. Mọi giới hạn này do RPC `private.require_role` + `private.can_financials` buộc, không phụ thuộc giao diện.
 
 ## Gửi yêu cầu xóa xe (chỉ STAFF) — chờ Chủ duyệt
 
-Khác Quản lý/Chủ được **xóa xe ngay** (`delete_vehicle`), Nhân viên bấm **Gửi yêu cầu xóa** trên menu **Thao tác trên xe** (hoặc tấm thao tác trên điện thoại). Quy trình:
+Khác Quản lý/Chủ được **xóa xe ngay** (`delete_vehicle`), Nhân viên bấm **Gửi yêu cầu xóa** trên menu **Thao tác trên xe** (hoặc tấm thao tác trên điện thoại). Trang **Chờ duyệt** (`/approvals`) giờ có **hai loại yêu cầu**: xóa xe (mục này) và bán dưới giá thu (mục **Bán xe dưới giá thu** ở trên) — cùng một bảng `approval_requests`, một màn hình, một cơ chế thông báo. Quy trình xóa:
 
 1. STAFF mở xe trong **Tồn kho** → menu ••• → **Gửi yêu cầu xóa**, nhập **lý do** (3–1000 ký tự, bắt buộc) → xác nhận. Xe **lập tức ẩn khỏi danh sách tồn kho** và mang cờ *đang chờ duyệt xóa* (`pending_deletion`); khi đó **không** sửa, bán, thêm chi phí hay xóa trực tiếp được nữa (RPC trả `DELETE_PENDING`).
 2. Hệ thống ghi nhật ký `REQUEST_DELETE_VEHICLE` và **báo cho Chủ cửa hàng** (chuông thông báo, bấm mở trang **Chờ duyệt** `/approvals`).

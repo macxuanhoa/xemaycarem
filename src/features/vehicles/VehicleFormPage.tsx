@@ -10,7 +10,7 @@ import { executeOperation } from "@/lib/operationRecovery";
 import { OperationRecoveryNotice } from "@/components/OperationRecoveryNotice";
 import { today } from "@/lib/format";
 import { canonicalizePlate, PLATE_EXAMPLE } from "@/lib/plate";
-import { canFinance, canManage, canOperate } from "@/lib/permissions";
+import { canManage, canOperate } from "@/lib/permissions";
 import { useAuth } from "@/features/auth/AuthProvider";
 import {
   useVehicleDuplicateCheck,
@@ -96,7 +96,6 @@ function VehicleEditor({ vehicle }: { vehicle?: Vehicle }) {
   const { profile } = useAuth();
   const navigate = useNavigate();
   const client = useQueryClient();
-  const financial = canFinance(profile);
   const [files, setFiles] = useState<File[]>([]);
   const [savedId, setSavedId] = useState<string>();
   // Keep the version that supplied the form defaults even if queries refetch.
@@ -190,8 +189,12 @@ function VehicleEditor({ vehicle }: { vehicle?: Vehicle }) {
 
   const mutation = useMutation({
     mutationFn: async (values: VehicleFormValues) => {
-      if (financial && values.purchase_price === undefined)
-        throw new AppError("Vui lòng nhập giá mua xe.");
+      // Giá thu là bắt buộc khi đưa xe mới vào kho — mọi role đều nhập được.
+      // Khi sửa xe, để trống ô giá nghĩa là "giữ giá thu đang có".
+      if (!vehicle && !(values.purchase_price && values.purchase_price > 0))
+        throw new AppError(
+          "Nhập giá thu mua (lớn hơn 0) trước khi đưa xe vào kho.",
+        );
       const data: Record<string, unknown> = {
         ...values,
         license_plate: canonicalizePlate(values.license_plate),
@@ -202,7 +205,7 @@ function VehicleEditor({ vehicle }: { vehicle?: Vehicle }) {
         year: values.year ?? null,
         ...(vehicle && expectedRevision ? { expected_updated_at: expectedRevision } : {}),
       };
-      if (!financial) delete data.purchase_price;
+      if (values.purchase_price === undefined) delete data.purchase_price;
       if (!profile) throw new AppError("Vui lòng đăng nhập lại trước khi lưu xe.");
       const resultId =
         savedId ??
@@ -401,14 +404,15 @@ function VehicleEditor({ vehicle }: { vehicle?: Vehicle }) {
           <Card>
             <div className="section-heading">
               <h2 className="section-title" style={{ margin: 0 }}>2. Giá cả & Nhập kho</h2>
-              <span className="muted small">Bắt buộc: Ngày nhập</span>
+              <span className="muted small">
+                Bắt buộc: Ngày nhập · Giá mua{vehicle ? " (khi xe chưa có giá)" : ""}
+              </span>
             </div>
-            {!financial && (
-              <p className="notice">
-                Chủ cửa hàng hoặc người có quyền tài chính sẽ bổ sung giá nhập
-                trước khi bán xe.
-              </p>
-            )}
+            <p className="notice">
+              {vehicle
+                ? "Để trống giá mua nếu bạn muốn giữ đúng giá thu đang có; muốn đổi giá thì nhập số mới (lớn hơn 0)."
+                : "Giá thu mua là bắt buộc khi đưa xe vào kho. Nhân viên nào cũng nhập được vì chính mình là người thu xe."}
+            </p>
             <div className="form-grid">
               <Field label="Ngày nhập kho *" error={error("purchase_date")}>
                 <DatePicker
@@ -425,23 +429,21 @@ function VehicleEditor({ vehicle }: { vehicle?: Vehicle }) {
                   required
                 />
               </Field>
-              {financial && (
-                <Field label="Giá mua (₫) *" error={error("purchase_price")}>
-                  <MoneyInput
-                    aria-label="Giá mua (₫) *"
-                    value={form.watch("purchase_price")}
-                    onChange={(value) =>
-                      form.setValue("purchase_price", value, {
-                        shouldDirty: true,
-                        shouldValidate: !!form.formState.errors.purchase_price,
-                      })
-                    }
-                    onBlur={() => void form.trigger("purchase_price")}
-                    min={0}
-                    required
-                  />
-                </Field>
-              )}
+              <Field label="Giá mua (₫) *" error={error("purchase_price")}>
+                <MoneyInput
+                  aria-label="Giá mua (₫) *"
+                  value={form.watch("purchase_price")}
+                  onChange={(value) =>
+                    form.setValue("purchase_price", value, {
+                      shouldDirty: true,
+                      shouldValidate: !!form.formState.errors.purchase_price,
+                    })
+                  }
+                  onBlur={() => void form.trigger("purchase_price")}
+                  min={0}
+                  required
+                />
+              </Field>
               <Field label="Tên nhà cung cấp" error={error("supplier_name")}>
                 <input {...form.register("supplier_name")} />
               </Field>

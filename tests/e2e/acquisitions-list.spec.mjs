@@ -151,11 +151,12 @@ test("Thu vào list page preserves UX, simplifies date presets, enhances table r
     page.locator(".data-table").getByTestId("frame-chip"),
   ).toContainText("RLH123456");
 
-  // - Tên loại xe đứng đầu cột Xe, mã xe nằm ở dòng phụ.
+  // - Tên loại xe đứng đầu cột Xe; biển số/số khung nằm trong chip.
+  //   Mã nội bộ đã ẩn khỏi thẻ danh sách (vẫn tìm xe bằng mã qua ô tìm kiếm).
   await expect(
     page.locator(".data-table").getByText("Xe tay ga").first(),
   ).toBeVisible();
-  await expect(page.locator(".data-table").getByText("XE-UX-001").first()).toBeVisible();
+  await expect(page.locator(".data-table").getByText("XE-UX-001")).toHaveCount(0);
 
   // - Seller name + phone as secondary
   await expect(page.locator(".data-table").getByText("Nguyễn Văn Thanh")).toBeVisible();

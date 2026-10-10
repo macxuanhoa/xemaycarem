@@ -479,7 +479,9 @@ test("Inventory rows use clear vehicle metadata, status, age and preset wording"
   const firstRow = page.locator(".desktop-table tbody tr").first();
   const vehicleCell = firstRow.locator("td").nth(0);
   const typeCell = firstRow.locator("td").nth(1);
-  await expect(vehicleCell.getByText("XE-UX-1", { exact: true })).toBeVisible();
+  // Mã nội bộ đã ẩn khỏi ô "Xe" trên desktop (phương án B);
+  // vẫn tìm được xe bằng mã qua ô tìm kiếm.
+  await expect(vehicleCell.getByText("XE-UX-1", { exact: true })).toHaveCount(0);
   await expect(typeCell).toHaveText("Xe tay ga");
   await expect(typeCell).not.toContainText("XE-UX-1");
   await expect(firstRow.getByText("Hôm nay", { exact: true })).toBeVisible();
@@ -508,9 +510,10 @@ test("Inventory rows use clear vehicle metadata, status, age and preset wording"
   await page.reload();
   await expect(page.locator(".mobile-record").first()).toBeVisible();
   const mobileCard = page.locator(".mobile-record").first();
+  // Mã nội bộ đã ẩn khỏi mobile card (phương án B).
   await expect(
-    mobileCard.getByText("Mã xe: XE-UX-1", { exact: true }),
-  ).toBeVisible();
+    mobileCard.getByText(/Mã xe:/),
+  ).toHaveCount(0);
   await expect(mobileCard.getByText("Hôm nay", { exact: true })).toBeVisible();
   expect(
     await page.evaluate(() => document.documentElement.scrollWidth),

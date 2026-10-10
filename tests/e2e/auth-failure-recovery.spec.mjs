@@ -288,6 +288,9 @@ test("A mutation rejected with expired JWT retains input and never shows saved s
   await page
     .getByLabel("Biển số", { exact: true })
     .fill("59A1-234.56");
+  // Giá thu bắt buộc khi đưa xe vào kho: phải điền trước, nếu không frontend chặn
+  // tại chỗ và yêu cầu JWT hết hạn không bao giờ được gửi đi.
+  await page.getByLabel("Giá mua (₫) *", { exact: false }).fill("25000000");
   await page.getByRole("button", { name: "Lưu xe mới", exact: true }).click();
   await expect(
     page.getByText("Phiên làm việc đã hết hạn. Vui lòng đăng nhập lại.", {

@@ -151,23 +151,33 @@ test('server-side duplicates block the batch before anything is saved', async ({
   expect(calls.imports).toHaveLength(0)
 })
 
-test('staff without financial rights never sees or sends the purchase price', async ({ page }) => {
+test('every role types the intake price: staff sees Giá thu, sends it, and cannot skip it', async ({ page }) => {
+  // Không còn ô giá bị che theo quyền — chính nhân viên thu xe là người bấm giá
+  // thu, nên thẻ tốc ký luôn hiện ô này và bắt buộc phải có số (> 0).
   const calls = await setupFixtures(page, { role: 'STAFF' })
   await page.goto('/intake')
   await page.locator('textarea.intake-notes').fill('vision den gia 20tr fk MH0123')
   await page.getByRole('button', { name: 'Tách thành danh sách' }).click()
   const card = page.locator('.intake-entry').first()
-  await expect(card.getByLabel('Giá thu')).toHaveCount(0)
+  await expect(card.getByLabel('Giá thu')).toHaveCount(1)
   await card.getByLabel('Loại xe *').fill('Xe tay ga')
+
+  // Bỏ giá thu thì nút lưu khóa lại kèm hướng dẫn bằng tiếng Việt.
+  await card.getByLabel('Giá thu').fill('')
+  await expect(page.getByRole('button', { name: /Thu 1 xe vào kho/ })).toBeDisabled()
+  await expect(card.locator('.intake-entry-issues')).toContainText('Nhập giá thu xe')
+  await card.getByLabel('Giá thu').fill('20tr')
+
   await page.getByRole('button', { name: /Thu 1 xe vào kho/ }).click()
   const dialog = page.getByRole('alertdialog')
   await dialog.getByRole('button', { name: 'Xác nhận thu xe' }).click()
   expect(calls.imports).toHaveLength(1)
   const [row] = calls.imports[0].p_vehicles.rows
-  expect('purchase_price' in row).toBe(false)
   expect('asking_price' in row).toBe(false)
   expect('brand' in row).toBe(false)
-  expect(row).toMatchObject({ vehicle_type: 'Xe tay ga', frame_number: 'MH0123', color: 'Đen' })
+  expect(row).toMatchObject({
+    vehicle_type: 'Xe tay ga', frame_number: 'MH0123', color: 'Đen', purchase_price: 20_000_000,
+  })
 })
 
 test('mobile review cards stay two-up, tappable and free of iOS zoom', async ({ page }) => {

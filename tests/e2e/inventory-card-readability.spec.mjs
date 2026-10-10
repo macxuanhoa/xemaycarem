@@ -170,7 +170,9 @@ for (const width of [320, 375, 390, 430]) {
     await expect(card.getByTestId("plate-chip")).toContainText("43A1-99999");
     await expect(card.getByTestId("frame-chip")).toContainText("RLH2023XYZ000001");
     await expect(card.locator(".record-details")).toBeVisible();
-    await expect(card.getByText("Mã xe: XE-RD-001", { exact: true })).toBeVisible();
+    // Mã nội bộ được ẩn khỏi thẻ danh sách (phương án B). Vẫn tìm được xe
+    // bằng mã qua ô tìm kiếm; nên thẻ không còn hiển thị dòng "Mã xe:".
+    await expect(card.getByText("Mã xe:")).toHaveCount(0);
     await expect(card.getByText("Đời xe: 2023", { exact: true })).toBeVisible();
     await expect(card.getByText("Màu sắc: Đen", { exact: true })).toBeVisible();
     await expect(card.locator(".record-cost")).toContainText("Giá vốn:");

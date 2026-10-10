@@ -5,7 +5,7 @@
 // Usage: npm run backup:status
 import { existsSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { BACKUP_DIR, MIRROR_MARKER, listSets, offsiteTarget, readHealth } from './backup-lib.mjs'
+import { BACKUP_DIR, MIRROR_MARKER, SET_PREFIX, checkSetIntegrity, listSets, needsRestoreDrill, offsiteTarget, readHealth } from './backup-lib.mjs'
 
 const health = readHealth()
 const sets = listSets()
@@ -22,11 +22,18 @@ const lines = []
 const flags = []
 lines.push('=== SỨC KHỎE SAO LƯU — Cà Rem CRM ===')
 
-const lastOk = health?.lastBackupStatus === 'ok' ? health.lastBackup : null
+const lastOk = health?.lastBackup ?? null
 if (lastOk) {
   lines.push(`Bản chụp gần nhất : ${lastOk.stamp} (${fmtAge(lastOk.at)}) — ${lastOk.files} tệp, ${(lastOk.bytes / 1024).toFixed(0)} KiB, ${lastOk.storageObjects} ảnh/tệp Storage`)
   const stale = hoursSince(lastOk.at) > 26
   if (stale) flags.push(`SAO LƯU QUÁ CŨ: hơn 26 giờ chưa có bản mới. Xem log: ${join(BACKUP_DIR, 'backup.log')}`)
+  const set = complete.find((s) => s.stamp === lastOk.stamp)
+  if (!set) flags.push('BẢN CHỤP GẦN NHẤT KHÔNG CÒN ĐỦ MANIFEST TRÊN MÁY')
+  else {
+    const integrity = checkSetIntegrity(set.manifest)
+    if (!integrity.ok) flags.push(`CHECKSUM LỖI: ${integrity.failures.slice(0, 3).join('; ')}`)
+    if (!integrity.fullHashes) lines.push('                       (bản cũ dùng 16 ký tự checksum; bản mới sẽ dùng đủ SHA-256)')
+  }
 } else {
   flags.push('CHƯA CÓ BẢN CHỤP THÀNH CÔNG NÀO được ghi nhận trong backups/LATEST.json — chạy: npm run backup:prod')
 }
@@ -36,9 +43,11 @@ if (health?.consecutiveBackupFailures > 0) flags.push(`${health.consecutiveBacku
 lines.push('')
 if (health?.lastVerify) {
   const v = health.lastVerify
-  lines.push(`Diễn tập khôi phục   : ${v.ok ? 'ĐẠT — bản chụp nạp lại được thật' : 'LỖI'} (${v.stamp}, ${fmtAge(v.at)})${v.ok ? '' : `: ${v.failed?.join('; ')}`}`)
+  lines.push(`Diễn tập khôi phục   : ${v.ok ? 'ĐẠT — dữ liệu nghiệp vụ nạp lại trên PostgreSQL thử' : 'LỖI'} (${v.stamp}, ${fmtAge(v.at)})${v.ok ? '' : `: ${v.failed?.join('; ')}`}`)
   if (!v.ok) flags.push(`DIỄN TẬP KHÔI PHỤC LỖI trên bản ${v.stamp}: ${v.failed?.join('; ')}`)
   if (lastOk && v.stamp !== lastOk.stamp) lines.push('                       (bản mới nhất chưa được diễn tập — chạy npm run backup:verify)')
+  if (needsRestoreDrill(health)) flags.push('DIỄN TẬP HẰNG TUẦN ĐÃ ĐẾN HẠN: chạy npm run backup:verify')
+  lines.push('                       Auth/Storage trên Supabase cần diễn tập riêng ở staging; kiểm tra local chưa chứng minh đăng nhập và quyền truy cập ảnh.')
 } else {
   flags.push('CHƯA DIỄN TẬP KHÔI PHỤC: chưa chứng minh được bản chụp nào nạp lại được. Chạy: npm run backup:verify')
 }
@@ -58,9 +67,15 @@ if (!target) flags.push('BẢN SAO THỨ HAI CHƯA BẬT: tất cả bản chụ
 else if (!existsSync(target)) flags.push(`Bản sao thứ hai không ghi được: ${target} không tồn tại (Google Drive chưa đồng bộ ở máy này / ổ chưa cắm)`)
 else if (!existsSync(join(target, MIRROR_MARKER))) flags.push(`Bản sao thứ hai bị chặn: chưa xác nhận ${target} là nơi cất backup (thiếu tệp ${MIRROR_MARKER})`)
 else {
-  const mirrored = existsSync(join(target, 'LATEST.json')) ? JSON.parse(readFileSync(join(target, 'LATEST.json'), 'utf8'))?.lastBackup?.stamp : null
+  let mirrored = null
+  try { mirrored = existsSync(join(target, 'LATEST.json')) ? JSON.parse(readFileSync(join(target, 'LATEST.json'), 'utf8'))?.lastBackup?.stamp : null } catch { flags.push('TRẠNG THÁI BẢN SAO THỨ HAI BỊ HỎNG') }
   lines.push(`Bản sao thứ hai     : ${target} — lần ghi cuối ${mirrored || 'chưa rõ'}`)
   if (lastOk && mirrored !== lastOk.stamp) flags.push(`Bản sao thứ hai đang cũ (${mirrored}) so với bản mới nhất (${lastOk.stamp})`)
+  if (lastOk && mirrored === lastOk.stamp) {
+    const setDir = join(target, `${SET_PREFIX}${mirrored}`)
+    const manifest = join(setDir, `${SET_PREFIX}${mirrored}-MANIFEST.md`)
+    if (!existsSync(manifest) || !checkSetIntegrity(manifest, setDir).ok) flags.push('CHECKSUM BẢN SAO THỨ HAI KHÔNG ĐẠT')
+  }
 }
 
 console.log(lines.join('\n'))

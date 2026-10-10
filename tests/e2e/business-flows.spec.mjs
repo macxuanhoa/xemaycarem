@@ -696,12 +696,11 @@ test("Operational: QR vehicle route opens after login (dashboard-first), downloa
     }
   });
   await page.goto("/capture");
-  await page.getByRole("button", { name: "Mở camera quét QR", exact: true }).click();
-  await expect(page.getByText("Không mở được camera. Kiểm tra quyền camera hoặc nhập mã xe để tìm.", { exact: true })).toBeVisible();
-  await page.getByLabel("Nhập mã QR, số khung hoặc biển số").fill(`29A-${ids.OWNER.slice(0, 4)}`);
-  await page.locator("main").getByRole("button", { name: "Tìm xe", exact: true }).click();
-  await expect(page.getByLabel("Tìm kiếm xe")).toHaveValue(`29A-${ids.OWNER.slice(0, 4)}`);
-  await expect(page.locator(".mobile-record")).toHaveCount(1);
+  await page.getByRole("button", { name: "Mở camera", exact: true }).click();
+  // Camera denial now offers the gallery fallback; /capture no longer hosts a manual text search.
+  await expect(page.getByText("Không mở được camera. Kiểm tra quyền camera hoặc chọn ảnh từ thư viện.", { exact: true })).toBeVisible();
+  await expect(page.getByText("Ảnh thư viện", { exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Tra cứu xe thủ công", exact: true })).toHaveCount(0);
 });
 
 test("Operational: sale/payment receipts print customer-only allowlist with clean Vietnamese A4 preview", async ({ page }) => {

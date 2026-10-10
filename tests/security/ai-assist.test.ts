@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { outputSchema, readBusinessFacts, validateInput, validateOutput } from '../../supabase/functions/ai-assist/contracts'
+import { outputSchema, readBusinessFacts, validateInput, validateOutput, vehicleScanInstructions } from '../../supabase/functions/ai-assist/contracts'
 import { loadEdgeHandler } from '../helpers/edge-handler'
 
 const owner = { role: 'OWNER', can_view_financials: true }
@@ -9,7 +9,8 @@ const png = Buffer.from('\x89PNG\r\n\x1a\n' + 'test fixture bytes', 'latin1').to
 const inputImage = { mime_type: 'image/png', base64: png }
 const plan = (kind: string) => ({ kind, month: '2026-09', query: null, vehicle_id: null })
 const draft = (task: Parameters<typeof outputSchema>[0], values = {}) => ({
-  ...Object.fromEntries(Object.keys(outputSchema(task).properties).map((key) => [key, null])), ...values,
+  ...Object.fromEntries(Object.keys(outputSchema(task).properties).map((key) => [key, null])),
+  ...(task === 'vehicle_scan' ? { uncertain_characters: { license_plate: [], frame_number: [] } } : {}), ...values,
 })
 function harness(options: { enabled?: boolean; role?: string; result?: Record<string, unknown>; rpcError?: boolean } = {}) {
   const caller = {
@@ -53,9 +54,9 @@ describe('AI drafts and read tools preserve authority outside the model', () => 
     expect(() => validateInput({ task: 'vehicle_scan', image: inputImage }, staff)).toThrow('EXPLICIT_PROCESSING_CONSENT_REQUIRED')
     expect(() => validateInput({ task: 'vehicle_scan', consent: true, text: 'xe vision đen' }, staff)).toThrow('INVALID_INPUT')
     expect(validateInput({ task: 'vehicle_scan', consent: true, image: inputImage }, staff)).toMatchObject({ task: 'vehicle_scan' })
-    // Hợp đồng đầu ra chỉ còn đúng bốn trường nhìn được; loại xe do người chọn.
+    // One existing motorcycle name field plus bounded OCR risk metadata.
     expect(Object.keys(outputSchema('vehicle_scan').properties))
-      .toEqual(['license_plate', 'frame_number', 'color', 'year'])
+      .toEqual(['license_plate', 'frame_number', 'vehicle_type', 'color', 'year', 'identity_number', 'uncertain_characters'])
     // A STAFF scan is allowed (intake is an operational task) but extra keys never pass.
     expect(() => validateOutput('vehicle_scan', { ...draft('vehicle_scan'), purchase_price: 18000000 }, staff)).toThrow('INVALID_INPUT')
     // Tên trường đã xoá vĩnh viễn (08/10/2026) bị chặn ngay ở bước kiểm khoá,
@@ -68,6 +69,64 @@ describe('AI drafts and read tools preserve authority outside the model', () => 
       license_plate: '59A1-234.56', frame_number: 'RLH160KD12345', color: 'Đen', year: 2022,
     }), staff))
       .toMatchObject({ license_plate: '59A1-234.56', frame_number: 'RLH160KD12345', color: 'Đen', year: 2022 })
+  })
+  it('accepts only exact camera modes and identifier targets on image scans', () => {
+    const scan = { task: 'vehicle_scan', consent: true, image: inputImage }
+    for (const scan_mode of ['identifiers', 'vehicle'])
+      expect(validateInput({ ...scan, scan_mode }, staff)).toMatchObject({ scan_mode })
+    expect(validateInput({ ...scan, scan_mode: 'identifiers', scan_target: 'frame' }, staff)).toMatchObject({ scan_target: 'frame' })
+    expect(() => validateInput({ ...scan, scan_mode: 'sql' }, staff)).toThrow('INVALID_SCAN_MODE')
+    expect(() => validateInput({ ...scan, scan_mode: 'identity', scan_target: 'both' }, staff)).toThrow('INVALID_SCAN_TARGET')
+    expect(() => validateInput({ ...scan, scan_target: 'engine' }, staff)).toThrow('INVALID_SCAN_TARGET')
+    expect(() => validateInput({ ...scan, task: 'receipt', scan_mode: 'identity' }, owner)).toThrow('INVALID_SCAN_MODE')
+  })
+  it('permits CCCD image processing only for owners and managers, before any provider request', async () => {
+    const input = { task: 'vehicle_scan', consent: true, image: inputImage, scan_mode: 'identity' }
+    expect(validateInput(input, owner)).toMatchObject({ scan_mode: 'identity' })
+    expect(validateInput(input, { role: 'MANAGER', can_view_financials: false })).toMatchObject({ scan_mode: 'identity' })
+    expect(() => validateInput(input, staff)).toThrow('ACCESS_DENIED')
+    const h = harness({ enabled: true, role: 'STAFF' })
+    const response = await h.invoke(input)
+    expect(response.status).toBe(403)
+    expect(await response.json()).toMatchObject({ error: 'ACCESS_DENIED' })
+    expect(h.provider).not.toHaveBeenCalled()
+    expect(h.caller.rpc.mock.calls.map(([name]) => name)).toEqual(['check_user_access'])
+  })
+  it('bounds uncertainty indexes to actual visible alphanumeric characters', () => {
+    const values = { license_plate: '59A1-234.56', frame_number: 'RLH160KD12345' }
+    expect(validateOutput('vehicle_scan', draft('vehicle_scan', { ...values,
+      uncertain_characters: { license_plate: [4, 7], frame_number: [3] } }), staff))
+      .toHaveProperty('uncertain_characters.license_plate', [4, 7])
+    for (const license_plate of [[9], [-1], [1.5], ['2'], [1, 1]])
+      expect(() => validateOutput('vehicle_scan', draft('vehicle_scan', { ...values,
+        uncertain_characters: { license_plate, frame_number: [] } }), staff)).toThrow('INVALID_AI_RESULT')
+    expect(() => validateOutput('vehicle_scan', draft('vehicle_scan', {
+      uncertain_characters: { license_plate: [0], frame_number: [] } }), staff)).toThrow('INVALID_AI_RESULT')
+  })
+  it('rejects malformed identity numbers and isolates outputs by the selected camera mode', () => {
+    for (const identity_number of ['01234567890', '0123456789O1', 123456789012])
+      expect(() => validateOutput('vehicle_scan', draft('vehicle_scan', { identity_number }), staff)).toThrow('INVALID_AI_RESULT')
+    const input = validateInput({ task: 'vehicle_scan', consent: true, image: inputImage, scan_mode: 'identity' }, owner)
+    const result = validateOutput('vehicle_scan', draft('vehicle_scan', {
+      identity_number: '012345678901', license_plate: '59A1-234.56', vehicle_type: 'Honda Vision', color: 'Đen', year: 2022,
+      uncertain_characters: { license_plate: [4], frame_number: [] },
+    }), owner, input)
+    expect(result).toMatchObject({ identity_number: '012345678901', license_plate: null, vehicle_type: null, color: null, year: null,
+      uncertain_characters: { license_plate: [], frame_number: [] } })
+    const photoInput = { ...input, scan_mode: 'vehicle' as const }
+    expect(validateOutput('vehicle_scan', draft('vehicle_scan', { vehicle_type: 'Honda Vision', year: 2022,
+      license_plate: '59A1-234.56', identity_number: '012345678901' }), staff, photoInput))
+      .toMatchObject({ vehicle_type: 'Honda Vision', year: 2022, license_plate: null, identity_number: null })
+    expect(validateOutput('vehicle_scan', draft('vehicle_scan', { license_plate: '59A1-234.56', frame_number: 'RLH160KD12345',
+      vehicle_type: 'Honda Vision' }), staff, { ...input, scan_mode: 'identifiers', scan_target: 'frame' }))
+      .toMatchObject({ license_plate: null, frame_number: 'RLH160KD12345', vehicle_type: null })
+  })
+  it('instructs scans to locate actual plates/stamps, avoid distractors and never guess an exact photo year or identity', () => {
+    const input = validateInput({ task: 'vehicle_scan', consent: true, image: inputImage }, staff)
+    expect(vehicleScanInstructions(input)).toMatch(/actual plate rectangle.*actual chassis stamp/)
+    expect(vehicleScanInstructions(input)).toMatch(/engine codes/)
+    expect(vehicleScanInstructions({ ...input, scan_mode: 'vehicle' })).toMatch(/appearance alone cannot determine an exact year/)
+    expect(vehicleScanInstructions({ ...input, scan_mode: 'identity' })).toMatch(/never guess a customer identity/)
   })
   it('executes only allowlisted read RPCs and uses database facts, preserving known vehicle context', async () => {
     const caller = { rpc: vi.fn(async (name: string) => { void name; return { data: { gross_profit: 123, expenses: [] }, error: null } }) }
@@ -102,6 +161,16 @@ describe('AI drafts and read tools preserve authority outside the model', () => 
     expect(String(request[1].body)).not.toContain('gross_profit')
     expect(JSON.stringify(h.log.info.mock.calls)).not.toContain(png)
     expect(h.caller.rpc.mock.calls.every(([name]) => ['check_user_access', 'get_vehicle'].includes(name))).toBe(true)
+  })
+  it('sends selected photo mode to the provider and explains that the absent year cannot be guessed', async () => {
+    const h = harness({ enabled: true, role: 'STAFF', result: draft('vehicle_scan', { vehicle_type: 'Honda Vision', color: 'Đen' }) })
+    const response = await h.invoke({ task: 'vehicle_scan', consent: true, image: inputImage, scan_mode: 'vehicle' })
+    expect(response.status).toBe(200)
+    const result = await response.json()
+    expect(result.draft).toMatchObject({ vehicle_type: 'Honda Vision', color: 'Đen', year: null, license_plate: null })
+    expect(result.warnings.join(' ')).toMatch(/không đoán năm/)
+    const request = h.provider.mock.calls[0] as unknown as [string, RequestInit]
+    expect(JSON.parse(String(request[1].body)).instructions).toContain('VEHICLE PHOTO MODE')
   })
   it('denies a model request to see restricted profit and performs no business query', async () => {
     const h = harness({ enabled: true, role: 'STAFF', result: plan('profit') })

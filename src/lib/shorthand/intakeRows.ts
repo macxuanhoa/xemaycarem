@@ -29,10 +29,7 @@ function moneyOf(entry: IntakeEntry, field: IntakeFieldKey): number | null | "in
 }
 
 /** Returns Vietnamese error messages for one entry; empty means ready to import. */
-export function validateIntakeEntry(
-  entry: IntakeEntry,
-  financial: boolean,
-): string[] {
+export function validateIntakeEntry(entry: IntakeEntry): string[] {
   const errors: string[] = [];
   const f = entry.fields;
   // Loại xe là tên tự do, bắt buộc có; server sẽ tạo loại mới khi lưu nên
@@ -65,9 +62,12 @@ export function validateIntakeEntry(
     else if (f.purchase_date > today())
       errors.push("Ngày thu không được ở tương lai.");
   }
+  // Giá thu bắt buộc với MỌI role ngay khi đưa xe vào kho (server cũng chặn
+  // PURCHASE_PRICE_REQUIRED), nhờ đó hồ sơ xe luôn có giá vốn từ đầu.
   const purchase = moneyOf(entry, "purchase_price");
-  if (financial && purchase === "invalid")
-    errors.push("Giá thu không hợp lệ (vd: 18tr5).");
+  if (purchase === null) errors.push("Nhập giá thu xe (vd: 18tr5).");
+  else if (purchase === "invalid") errors.push("Giá thu không hợp lệ (vd: 18tr5).");
+  else if (purchase <= 0) errors.push("Giá thu phải lớn hơn 0.");
   if ((f.supplier_name ?? "").length > 200) errors.push("Tên người bán quá dài.");
   if ((f.supplier_phone ?? "").length > 40) errors.push("SĐT người bán quá dài.");
   if ((f.notes ?? "").length > 10_000) errors.push("Ghi chú quá dài.");
@@ -79,10 +79,7 @@ export function validateIntakeEntry(
  * Không có `brand`/`model`/`variant`/`engine_number`/`odometer`/`asking_price`
  * — các key đó đã bị server từ chối lẫn cột DB đã bị xoá.
  */
-export function entryToImportRow(
-  entry: IntakeEntry,
-  financial: boolean,
-): Record<string, unknown> {
+export function entryToImportRow(entry: IntakeEntry): Record<string, unknown> {
   const f = entry.fields;
   const frame = (f.frame_number ?? "").trim().toUpperCase();
   const row: Record<string, unknown> = {
@@ -97,12 +94,9 @@ export function entryToImportRow(
   };
   if (f.year) row.year = normalizeVehicleYear(f.year) ?? Number(f.year);
   if (f.purchase_date) row.purchase_date = f.purchase_date;
-  // The server rejects any row that carries purchase_price for a user without
-  // financial rights, so the key is only present when it is allowed and filled.
-  if (financial) {
-    const purchase = moneyOf(entry, "purchase_price");
-    if (typeof purchase === "number") row.purchase_price = purchase;
-  }
+  // Giá thu luôn được gửi cùng hồ sơ thu xe — mọi role đều nhập được giá này.
+  const purchase = moneyOf(entry, "purchase_price");
+  if (typeof purchase === "number") row.purchase_price = purchase;
   return row;
 }
 

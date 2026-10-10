@@ -1,7 +1,8 @@
 # Daily production backup wrapper for Windows Task Scheduler.
-# Takes one complete backup set, prunes to the retention window, then proves the newest
-# set is actually restorable. Everything is logged; the task exit code is 0 only when
-# both steps succeed, so Task Scheduler history shows the failure without anyone reading
+# Takes one complete backup set, then checks every checksum and decodes Storage images.
+# Produces a verified, friendly ZIP archive with readable Vietnamese names for Google Drive.
+# A separate weekly task replays the business dump into disposable PostgreSQL. Both
+# steps are logged; the task exit code is 0 only when daily integrity checks succeed.
 # a log file. Run manually any time:  powershell -File scripts\backup-daily.ps1
 $ErrorActionPreference = 'Stop'
 Set-Location (Split-Path -Parent $PSScriptRoot)
@@ -33,7 +34,7 @@ function Ensure-Docker {
   $exe = 'C:\Program Files\Docker\Docker\Docker Desktop.exe'
   if (-not (Test-Path $exe)) { Note 'Docker Desktop is not installed at the expected path - cannot start it'; return $false }
   Note 'Docker engine not running, starting Docker Desktop...'
-  Start-Process $exe | Out-Null
+  Start-Process $exe -WindowStyle Hidden | Out-Null
   for ($i = 0; $i -lt 40; $i++) {
     Start-Sleep -Seconds 5
     if (Test-DockerEngine) { Note "Docker ready after $((($i + 1) * 5))s"; return $true }
@@ -62,12 +63,21 @@ $backupExit = $LASTEXITCODE
 $ErrorActionPreference = 'Stop'
 Note "backup-prod exit=$backupExit"
 
-if ($backupExit -ne 0) { Note 'SKIP restore drill: no new set was produced'; exit $backupExit }
+if ($backupExit -ne 0) { Note 'SKIP daily integrity follow-up: backup or configured mirror failed'; exit $backupExit }
 
 $ErrorActionPreference = 'Continue'
-node scripts/backup-verify.mjs 2>&1 | ForEach-Object { Add-Content -Path $log -Value $_ -Encoding UTF8 }
+node scripts/backup-verify.mjs --integrity-only 2>&1 | ForEach-Object { Add-Content -Path $log -Value $_ -Encoding UTF8 }
 $verifyExit = $LASTEXITCODE
 $ErrorActionPreference = 'Stop'
-Note "backup-verify exit=$verifyExit (0 = newest set proven restorable)"
-Note '=== backup run finished ==='
+Note "backup-verify exit=$verifyExit (0 = checksums and all image bytes verified)"
+
 if ($verifyExit -ne 0) { exit $verifyExit }
+
+Note '=== friendly ZIP export for Google Drive / offline storage ==='
+$ErrorActionPreference = 'Continue'
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts\backup-export.ps1 2>&1 | ForEach-Object { Add-Content -Path $log -Value $_ -Encoding UTF8 }
+$exportExit = $LASTEXITCODE
+$ErrorActionPreference = 'Stop'
+Note "backup-export exit=$exportExit (0 = friendly ZIP created and verified with readable Vietnamese names)"
+Note '=== backup run finished ==='
+if ($exportExit -ne 0) { exit $exportExit }

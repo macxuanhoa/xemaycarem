@@ -86,6 +86,21 @@ export function friendlyError(error: unknown): string {
     return "Xe này đã có lịch sử mua bán nên không thể xóa cứng. Hãy dùng thao tác hủy để giữ lại vết kiểm toán.";
   if (/DELETION_REASON_REQUIRED/i.test(value))
     return "Vui lòng nhập lý do xóa (từ 3 đến 1000 ký tự).";
+  // Hàng đợi "Chờ duyệt" cho bán dưới giá thu (migration 20261010000300).
+  if (/SALE_BELOW_COST_APPROVAL_REQUIRED/i.test(value))
+    return "Bán dưới giá thu là quyết định của chủ cửa hàng. Hãy bấm «Gửi yêu cầu duyệt» để chuyển yêu cầu sang mục Chờ duyệt.";
+  if (/SALE_APPROVAL_PENDING/i.test(value))
+    return "Xe đang có yêu cầu bán dưới giá thu chờ chủ duyệt nên chưa tạo được giao dịch khác. Cần đổi số liệu thì rút yêu cầu cũ rồi gửi lại.";
+  if (/ALREADY_PENDING/i.test(value))
+    return "Xe này đang có yêu cầu bán dưới giá thu chờ duyệt. Không gửi thêm yêu cầu trùng.";
+  if (/ALREADY_RESOLVED/i.test(value))
+    return "Yêu cầu này đã được xử lý. Tải lại danh sách Chờ duyệt để xem trạng thái mới.";
+  if (/APPROVAL_STALE_DATA/i.test(value))
+    return "Giá thu hoặc chi phí của xe đã thay đổi sau khi gửi đơn. Chủ không duyệt bản cũ; nhân viên cần rút yêu cầu và gửi lại số liệu mới.";
+  if (/SALE_NOT_BELOW_COST/i.test(value))
+    return "Giá bán không thấp hơn giá thu nên không cần duyệt. Hãy bấm xác nhận bán xe bình thường.";
+  if (/APPROVAL_NOT_FOUND/i.test(value))
+    return "Yêu cầu không còn trong danh sách chờ duyệt. Tải lại trang để cập nhật trạng thái.";
   if (/FUTURE_DATE/i.test(value))
     return "Ngày ghi nhận không được nằm trong tương lai.";
   if (/SALE_BEFORE_EXPENSE/i.test(value))
@@ -120,8 +135,10 @@ export function friendlyError(error: unknown): string {
     return "Bạn không có quyền thực hiện thao tác này hoặc tài khoản đã bị khóa.";
   if (/already sold|not available|vehicle_not|sold|sale.*exist/i.test(value))
     return "Không thể bán xe. Xe có thể đã được bán hoặc thay đổi bởi người dùng khác.";
+  if (/PURCHASE_PRICE_REQUIRED/i.test(value))
+    return "Cần nhập giá thu mua (lớn hơn 0) cho xe. Đây là thông tin bắt buộc khi đưa xe vào kho.";
   if (/cost.*pending|purchase.*required|cost.*missing/i.test(value))
-    return "Giá mua chưa được xác nhận. Chủ cửa hàng cần bổ sung giá mua trước khi bán.";
+    return "Xe chưa có giá thu mua. Mở hồ sơ xe và bổ sung giá thu trước khi bán.";
   if (/overpay|exceed|remaining|payment.*amount/i.test(value))
     return "Số tiền thu vượt quá số tiền còn phải thanh toán.";
   if (/duplicate|unique/i.test(value))

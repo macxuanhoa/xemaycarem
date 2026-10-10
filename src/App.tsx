@@ -9,6 +9,7 @@ import ChangePasswordPage from "@/features/auth/ChangePasswordPage";
 import { PwaUpdate } from "@/components/PwaUpdate";
 import { Toaster } from "@/components/ui/Toaster";
 import { ConfirmDialogHost } from "@/components/ui/ConfirmDialog";
+import { reportRuntimeIssue } from "@/lib/runtimeMonitoring";
 const DashboardPage = lazy(() => import("@/features/dashboard/DashboardPage"));
 const AcquisitionsPage = lazy(() =>
   import("@/features/acquisitions/AcquisitionsPage").then((m) => ({
@@ -20,7 +21,9 @@ const AcquisitionFormPage = lazy(() =>
     default: m.AcquisitionFormPage,
   })),
 );
-const ShorthandIntakePage = lazy(() => import("@/features/intake/ShorthandIntakePage"));
+const ShorthandIntakePage = lazy(
+  () => import("@/features/intake/ShorthandIntakePage"),
+);
 const InventoryPage = lazy(() =>
   import("@/features/vehicles/InventoryPage").then((m) => ({
     default: m.InventoryPage,
@@ -71,6 +74,9 @@ const CustomersPage = lazy(() =>
 const CapturePage = lazy(() => import("@/features/capture/CapturePage"));
 const AssistPage = lazy(() => import("@/features/assistant/AssistPage"));
 const CopilotPage = lazy(() => import("@/features/copilot/CopilotPage"));
+const PostStudioPage = lazy(() => import("@/features/poststudio/PostStudioPage"));
+const ReplyAssistantPage = lazy(() => import("@/features/replyassistant/ReplyAssistantPage"));
+const BrandMemoryPage = lazy(() => import("@/features/poststudio/BrandMemoryPage"));
 const DocsPage = lazy(() => import("@/features/docs/DocsPage"));
 const ShowroomPage = lazy(() => import("@/features/showroom/ShowroomPage"));
 function Protected({
@@ -132,8 +138,8 @@ class ErrorBoundary extends Component<
   static getDerivedStateFromError() {
     return { failed: true };
   }
-  componentDidCatch(error: Error) {
-    console.error("Application error", error);
+  componentDidCatch() {
+    reportRuntimeIssue("render", "RENDER_ERROR", "app");
   }
   render() {
     return this.state.failed ? (
@@ -176,6 +182,9 @@ export default function App() {
               <Route path="capture" element={<CapturePage />} />
               <Route path="assist" element={<AssistPage />} />
               <Route path="copilot" element={<CopilotPage />} />
+              <Route path="posts" element={<PostStudioPage />} />
+              <Route path="reply" element={<ReplyAssistantPage />} />
+              <Route path="brand-memory" element={<BrandMemoryPage />} />
               <Route path="docs" element={<DocsPage />} />
               <Route path="docs/:slug" element={<DocsPage />} />
               <Route path="receivables" element={<ReceivablesPage />} />

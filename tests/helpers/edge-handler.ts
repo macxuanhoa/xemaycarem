@@ -23,6 +23,9 @@ export function loadEdgeHandler(path: string, mocks: {
     const execute = runInNewContext(`(function(require,module,exports){${compiled}\n})`, {
       Deno: { env: { get: (key: string) => mocks.env[key] }, serve: (callback: typeof handler) => { handler = callback } },
       Request, Response, TextDecoder, TextEncoder, Uint8Array, AbortSignal, atob,
+      // Some handlers schedule provider retries (post-ai backs off between attempts);
+      // vm contexts have no Web APIs unless explicitly bridged.
+      setTimeout, clearTimeout,
       // Deno exposes Web Crypto globally; handlers use crypto.randomUUID() for
       // disposable secrets (e.g. scrambling a deleted account's password).
       crypto: globalThis.crypto,

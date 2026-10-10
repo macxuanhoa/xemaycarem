@@ -1,11 +1,15 @@
 import { useState } from "react";
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Link } from "react-router-dom";
-import { Check, RotateCcw, Bike, User } from "lucide-react";
+import { Link, useNavigate } from "react-router-dom";
+import { Check, RotateCcw, Bike, User, X } from "lucide-react";
 import { api } from "@/lib/api";
-import { dateLabel } from "@/lib/format";
+import { AppError } from "@/lib/errors";
+import { celebrateSale } from "@/lib/celebrate";
+import { executeOperation } from "@/lib/operationRecovery";
+import { dateLabel, money } from "@/lib/format";
 import { toast } from "@/lib/toast";
 import { confirmAction } from "@/components/ui/ConfirmDialog";
+import { useAuth } from "@/features/auth/AuthProvider";
 import {
   Card,
   EmptyState,
@@ -18,13 +22,53 @@ import type { ApprovalKind, ApprovalRequest } from "@/types";
 // Human labels per approval kind. New approval workflows plug in here without a
 // schema change — the queue itself is generic (migration 20261008000200).
 const KIND_LABELS: Record<ApprovalKind, string> = {
+  SALE_BELOW_COST: "Bán xe dưới giá thu",
   VEHICLE_DELETION: "Xóa xe khỏi kho",
 };
 
 const pageSize = 50;
 
+type ResolveInput =
+  | { item: ApprovalRequest; action: "APPROVE" | "REJECT"; kind: "sale"; note?: string }
+  | { item: ApprovalRequest; action: "APPROVE" | "RESTORE"; kind: "deletion"; note?: string };
+
+/** Bảng đề xuất bán dưới giá thu: dữ liệu do server chốt lúc nhân viên gửi đơn. */
+function saleFacts(item: ApprovalRequest) {
+  const payload = item.payload ?? {};
+  return (
+    <>
+      <small className="muted">
+        Biển số <strong>{item.license_plate || "chưa có biển"}</strong> · Số khung{" "}
+        <strong>{item.frame_number || "chưa có"}</strong>
+      </small>
+      <dl className="summary-list">
+        <div>
+          <dt>Giá thu vào</dt>
+          <dd>{money(payload.snapshot_purchase_price)}</dd>
+        </div>
+        <div>
+          <dt>Giá bán đề xuất</dt>
+          <dd className="danger">{money(payload.sale_price)}</dd>
+        </div>
+        <div className="summary-total">
+          <dt>Chênh lệch</dt>
+          <dd className="danger">−{money(payload.shortfall)}</dd>
+        </div>
+      </dl>
+      <small className="muted">
+        Khách {payload.customer_name || "chưa rõ"}
+        {payload.customer_phone ? ` · ${payload.customer_phone}` : ""} · Ngày bán{" "}
+        {payload.sale_date ? dateLabel(payload.sale_date) : "chưa rõ"} · Trả trước{" "}
+        {money(payload.initial_payment)}
+      </small>
+    </>
+  );
+}
+
 export function ApprovalsPage() {
   const client = useQueryClient();
+  const navigate = useNavigate();
+  const { profile } = useAuth();
   const [offset, setOffset] = useState(0);
 
   const query = useQuery({
@@ -34,22 +78,90 @@ export function ApprovalsPage() {
     placeholderData: keepPreviousData,
   });
 
+  // Hai luồng duyệt dùng chung một hàng đợi. Duyệt bán ghi giao dịch ngay trong
+  // cùng transaction nên cần request_id chống bấm hai lần (biên lai vận hành).
   const resolve = useMutation({
-    mutationFn: ({
-      id,
-      action,
-      note,
-    }: {
-      id: string;
-      action: "APPROVE" | "RESTORE";
-      note?: string;
-    }) => api.resolveVehicleDeletion(id, action, note),
-    onSuccess: async () => {
+    mutationFn: async (input: ResolveInput): Promise<string | null> => {
+      if (input.kind === "sale") {
+        if (!profile)
+          throw new AppError("Vui lòng đăng nhập lại trước khi duyệt yêu cầu.");
+        const result = await executeOperation(
+          profile.id,
+          "resolve_sale_approval",
+          input.item.id,
+          (requestId) =>
+            api.resolveSaleApproval(
+              input.item.id,
+              input.action,
+              input.note,
+              requestId,
+            ),
+        );
+        return result.sale_id;
+      }
+      await api.resolveVehicleDeletion(input.item.id, input.action, input.note);
+      return null;
+    },
+    onSuccess: async (saleId, input) => {
       await client.invalidateQueries({ queryKey: ["approvals"] });
       await client.invalidateQueries({ queryKey: ["vehicles"] });
+      await client.invalidateQueries({ queryKey: ["sales"] });
       await client.invalidateQueries({ queryKey: ["dashboard"] });
+      if (input.kind === "sale" && input.action === "APPROVE" && saleId) {
+        // Chủ vừa chốt giao dịch: pháo hoa chúc mừng như lúc nhân viên bán.
+        celebrateSale({ detail: input.item.vehicle_title || undefined });
+        navigate(`/sales/${saleId}`);
+      }
     },
+    onError: (error) =>
+      toast.error("Không xử lý được yêu cầu.", {
+        description: String((error as Error).message ?? error),
+      }),
   });
+
+  async function approveSale(item: ApprovalRequest) {
+    const ok = await confirmAction({
+      title: "Phê duyệt bán dưới giá thu?",
+      description:
+        "Hệ thống ghi đúng giao dịch nhân viên đã đề xuất: xe chuyển sang đã bán, cập nhật tồn kho, doanh thu và lợi nhuận. Nhân viên nhận được thông báo.",
+      entity: item.vehicle_title || item.vehicle_code || undefined,
+      confirmLabel: "Phê duyệt",
+      cancelLabel: "Xem lại",
+      tone: "primary",
+      summary: (
+        <div className="sale-review-stack">
+          {saleFacts(item)}
+          <p className="notice">
+            Nếu giá thu hoặc chi phí của xe đã đổi sau lúc gửi đơn, hệ thống sẽ
+            chặn và yêu cầu gửi lại bản mới.
+          </p>
+        </div>
+      ),
+    });
+    if (!ok) return;
+    resolve.mutate(
+      { item, action: "APPROVE", kind: "sale" },
+      { onSuccess: () => toast.success("Đã phê duyệt và ghi nhận giao dịch bán.") },
+    );
+  }
+
+  async function rejectSale(item: ApprovalRequest) {
+    const ok = await confirmAction({
+      title: "Từ chối yêu cầu bán dưới giá thu?",
+      description:
+        "Xe không bị bán và vẫn nằm trong kho. Yêu cầu được đánh dấu từ chối, nhân viên gửi đơn nhận được thông báo.",
+      entity: item.vehicle_title || item.vehicle_code || undefined,
+      confirmLabel: "Từ chối",
+      cancelLabel: "Giữ nguyên",
+      tone: "danger",
+      summary: <div className="sale-review-stack">{saleFacts(item)}</div>,
+    });
+    if (!ok) return;
+    resolve.mutate(
+      { item, action: "REJECT", kind: "sale" },
+      { onSuccess: () => toast.success("Đã từ chối yêu cầu. Xe vẫn còn trong kho.") },
+    );
+  }
 
   async function approve(item: ApprovalRequest) {
     const ok = await confirmAction({
@@ -62,13 +174,8 @@ export function ApprovalsPage() {
     });
     if (!ok) return;
     resolve.mutate(
-      { id: item.id, action: "APPROVE" },
-      {
-        onSuccess: () => toast.success("Đã duyệt xóa xe."),
-        onError: (error) => toast.error("Không duyệt được xe.", {
-          description: String((error as Error).message ?? error),
-        }),
-      },
+      { item, action: "APPROVE", kind: "deletion" },
+      { onSuccess: () => toast.success("Đã duyệt xóa xe.") },
     );
   }
 
@@ -84,13 +191,8 @@ export function ApprovalsPage() {
     });
     if (!ok) return;
     resolve.mutate(
-      { id: item.id, action: "RESTORE" },
-      {
-        onSuccess: () => toast.success("Đã khôi phục xe về kho."),
-        onError: (error) => toast.error("Không khôi phục được xe.", {
-          description: String((error as Error).message ?? error),
-        }),
-      },
+      { item, action: "RESTORE", kind: "deletion" },
+      { onSuccess: () => toast.success("Đã khôi phục xe về kho.") },
     );
   }
 
@@ -104,6 +206,14 @@ export function ApprovalsPage() {
     (acc[item.kind] ??= []).push(item);
     return acc;
   }, {});
+  // Ưu tiên luồng tiền: yêu cầu bán dưới giá thu cần quyết định trong ngày.
+  const kindOrder: ApprovalKind[] = ["SALE_BELOW_COST", "VEHICLE_DELETION"];
+  const orderedKinds = [
+    ...kindOrder.filter((kind) => groups[kind]?.length),
+    ...Object.keys(groups).filter(
+      (kind) => !kindOrder.includes(kind as ApprovalKind),
+    ),
+  ];
 
   return (
     <div className="stack">
@@ -114,13 +224,17 @@ export function ApprovalsPage() {
       {items.length === 0 ? (
         <EmptyState
           title="Không có gì chờ duyệt"
-          description="Khi nhân viên gửi yêu cầu xóa xe, bạn sẽ thấy ở đây."
+          description="Khi nhân viên xin bán dưới giá thu hoặc gửi yêu cầu xóa xe, bạn sẽ thấy ở đây."
         />
       ) : (
-        Object.entries(groups).map(([kind, rows]) => (
+        orderedKinds.map((kindKey) => {
+          const kind = kindKey as ApprovalKind;
+          const rows = groups[kind] ?? [];
+          const isSale = kind === "SALE_BELOW_COST";
+          return (
           <Card key={kind}>
             <h2 className="section-title">
-              {KIND_LABELS[kind as ApprovalKind] ?? kind}
+              {KIND_LABELS[kind] ?? kind}
               <span className="muted" style={{ marginLeft: 8 }}>
                 ({rows.length})
               </span>
@@ -134,15 +248,19 @@ export function ApprovalsPage() {
                         item.vehicle_code ||
                         "Xe không còn tồn tại"}
                     </strong>
-                    <small>
-                      {[
-                        item.vehicle_subtitle,
-                        item.vehicle_code ? `Mã xe ${item.vehicle_code}` : "",
-                        item.reason,
-                      ]
-                        .filter(Boolean)
-                        .join(" · ")}
-                    </small>
+                    {isSale ? (
+                      saleFacts(item)
+                    ) : (
+                      <small>
+                        {[
+                          item.vehicle_subtitle,
+                          item.vehicle_code ? `Mã xe ${item.vehicle_code}` : "",
+                          item.reason,
+                        ]
+                          .filter(Boolean)
+                          .join(" · ")}
+                      </small>
+                    )}
                     <small className="muted">
                       <User size={12} style={{ verticalAlign: "-1px" }} />{" "}
                       {item.requester_name || "Nhân viên"} ·{" "}
@@ -156,22 +274,45 @@ export function ApprovalsPage() {
                     </Link>
                   </div>
                   <div className="align-right approvals-row-actions">
-                    <button
-                      type="button"
-                      className="button primary"
-                      disabled={resolve.isPending}
-                      onClick={() => void approve(item)}
-                    >
-                      <Check size={15} /> Duyệt xóa
-                    </button>
-                    <button
-                      type="button"
-                      className="button secondary"
-                      disabled={resolve.isPending}
-                      onClick={() => void restore(item)}
-                    >
-                      <RotateCcw size={15} /> Khôi phục
-                    </button>
+                    {isSale ? (
+                      <>
+                        <button
+                          type="button"
+                          className="button primary"
+                          disabled={resolve.isPending}
+                          onClick={() => void approveSale(item)}
+                        >
+                          <Check size={15} /> Phê duyệt
+                        </button>
+                        <button
+                          type="button"
+                          className="button secondary"
+                          disabled={resolve.isPending}
+                          onClick={() => void rejectSale(item)}
+                        >
+                          <X size={15} /> Từ chối
+                        </button>
+                      </>
+                    ) : (
+                      <>
+                        <button
+                          type="button"
+                          className="button primary"
+                          disabled={resolve.isPending}
+                          onClick={() => void approve(item)}
+                        >
+                          <Check size={15} /> Duyệt xóa
+                        </button>
+                        <button
+                          type="button"
+                          className="button secondary"
+                          disabled={resolve.isPending}
+                          onClick={() => void restore(item)}
+                        >
+                          <RotateCcw size={15} /> Khôi phục
+                        </button>
+                      </>
+                    )}
                   </div>
                 </div>
               ))}
@@ -200,7 +341,8 @@ export function ApprovalsPage() {
               </div>
             )}
           </Card>
-        ))
+          );
+        })
       )}
     </div>
   );

@@ -355,14 +355,20 @@ describe("AcquisitionsPage layout, table readability and operational UX", () => 
     expect(html).toContain("Số khung / Biển số");
     expect(html).toContain("Giá thu");
     // Semantic labels for chassis and plate
-    expect(html).toContain("Khung:");
+    expect(html).toMatch(/data-testid="frame-chip"[^>]*title="Số khung: RLH123456"/);
+    expect(html).toMatch(/<span[^>]*>Số khung<\/span>/);
     expect(html).toContain("RLH123456");
-    expect(html).toContain("BS:");
+    expect(html).toMatch(/data-testid="plate-chip"[^>]*title="Biển số: 43A1-99999"/);
+    expect(html).toMatch(/<span[^>]*>Biển số<\/span>/);
     expect(html).toContain("43A1-99999");
-    // Primary identity = Biển số · Số khung, dòng phụ = Loại xe · Đời · Màu
+    // Identity remains available to accessible actions; vehicle type is the
+    // visible record name, with year/color displayed in the supporting line.
     expect(html).toContain("43A1-99999 · RLH123456");
-    expect(html).toContain("Xe tay ga · 2023 · Đen");
-    expect(html).toContain("XE-2026-0001");
+    expect(html).toMatch(/<strong[^>]*>Xe tay ga<\/strong>/);
+    expect(html).toContain("Đời 2023 · Đen");
+    // Mã nội bộ đã ẩn khỏi thẻ danh sách (phương án B); vẫn tìm xe bằng mã
+    // qua ô tìm kiếm (đường dẫn server-side giữ nguyên).
+    expect(html).not.toContain("XE-2026-0001");
     // Trường đã xoá vĩnh viễn không được xuất hiện lại ở bất kỳ đâu
     expect(html).not.toMatch(/Honda|Vision/i);
     // Vietnamese date DD/MM/YYYY

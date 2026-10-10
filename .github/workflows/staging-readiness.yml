@@ -1,0 +1,33 @@
+name: Staging readiness
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  readiness:
+    if: ${{ vars.STAGING_PROJECT_REF != '' && vars.PRODUCTION_PROJECT_REF != '' }}
+    environment: staging
+    runs-on: ubuntu-latest
+    env:
+      CAREM_STAGING_PROJECT_REF: ${{ vars.STAGING_PROJECT_REF }}
+      CAREM_PRODUCTION_PROJECT_REF: ${{ vars.PRODUCTION_PROJECT_REF }}
+      VITE_SUPABASE_URL: https://${{ vars.STAGING_PROJECT_REF }}.supabase.co
+      VITE_SUPABASE_ANON_KEY: ${{ secrets.STAGING_SUPABASE_ANON_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.16'
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck
+      - run: node scripts/staging-check.mjs
+      - run: npm run ocr:assets
+      - run: node scripts/staging-build.mjs
+      - uses: actions/upload-artifact@v4
+        with:
+          name: staging-app-and-readiness
+          path: |
+            scratch/staging-dist/
+            scratch/staging-readiness.json
+          retention-days: 7

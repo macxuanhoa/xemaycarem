@@ -8,12 +8,15 @@
 // stub (the stub carries a deliberately small auth.users column list) — those are counted
 // as PLATFORM_ROWS and never fail the drill, but the same line reminds the operator that a
 // real restore needs a Supabase-managed Auth backup, not this replay.
-// Usage: npm run backup:verify   (adds -- --prune to backup:prod)
+// Usage: npm run backup:verify
+//        node scripts/backup-verify.mjs --integrity-only (daily file checks)
+//        node scripts/backup-verify.mjs --if-due (weekly local replay)
 //        npm run backup:verify -- --set 2026-10-03-124513 | -- --list
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs'
 import { join } from 'node:path'
 import { createDatabase } from './db-harness.mjs'
-import { BACKUP_DIR, SET_PREFIX, listSets, readManifestCounts, readManifestHashes, sha256, splitStatements, writeFileSyncSafe, writeHealth } from './backup-lib.mjs'
+import sharp from 'sharp'
+import { BACKUP_DIR, SET_PREFIX, checkSetIntegrity, containedPath, listSets, needsRestoreDrill, readHealth, readManifestCounts, sha256, splitStatements, writeFileSyncSafe, writeHealth } from './backup-lib.mjs'
 
 const argv = process.argv.slice(2)
 const argOf = (name) => { const i = argv.indexOf(name); return i === -1 ? null : argv[i + 1] }
@@ -21,6 +24,10 @@ const sets = listSets()
 
 if (argv.includes('--list')) {
   for (const s of sets) console.log(`${s.stamp}  ${s.manifest ? 'manifest' : 'NO MANIFEST'}  ${s.files.length} files  ${(s.bytes / 1024).toFixed(0)} KiB  storage:${s.storageDir ? 'yes' : 'no'}`)
+  process.exit(0)
+}
+if (argv.includes('--if-due') && !needsRestoreDrill(readHealth())) {
+  console.log('PASS  weekly local restore drill is current; no replay needed today')
   process.exit(0)
 }
 
@@ -34,7 +41,8 @@ if (!set) { console.log('FAIL  no complete backup set (with MANIFEST.md) exists 
 for (const s of dangling) console.log(`NOTE  ${s.stamp} is an incomplete run (${s.files.length} files, no manifest) - not treated as a restore point`)
 
 console.log(`Restore drill for ${set.stamp} (${set.files.length} files, ${(set.bytes / 1024).toFixed(0)} KiB)`)
-const report = { stamp: set.stamp, startedAt: new Date().toISOString(), checks: [], ok: true }
+const integrityOnly = argv.includes('--integrity-only')
+const report = { stamp: set.stamp, scope: integrityOnly ? 'files-and-storage' : 'local-business-replay', platformRestoreProven: false, startedAt: new Date().toISOString(), checks: [], ok: true }
 const record = (name, ok, detail = '') => {
   report.checks.push({ name, ok, detail })
   if (!ok) report.ok = false
@@ -81,24 +89,46 @@ async function loadSchemaResilient(database, sqlIn) {
 }
 
 // --------------------------------------------------------------- 1. file integrity
-const hashes = readManifestHashes(set.manifest)
-if (!hashes.length) record('manifest hashes parsed', false, 'no `path | N bytes | sha256:X` lines found')
-else {
-  const bad = []
-  for (const h of hashes) {
-    const file = join(BACKUP_DIR, ...h.path.split('/'))
-    if (!existsSync(file)) { bad.push(`${h.path} MISSING`); continue }
-    if (statSync(file).size !== h.size) { bad.push(`${h.path} SIZE ${statSync(file).size} != ${h.size}`); continue }
-    // Older manifests recorded only the first 16 hex chars, so compare on that prefix.
-    if (!sha256(file).startsWith(h.sha.slice(0, 16))) bad.push(`${h.path} SHA MISMATCH`)
-  }
-  record('manifest checksums verified on disk', bad.length === 0, bad.length ? bad.slice(0, 5).join('; ') : `${hashes.length} files`)
-}
+const integrity = checkSetIntegrity(set.manifest)
+record('manifest checksums verified on disk', integrity.ok, integrity.ok ? `${integrity.files} files (${integrity.fullHashes ? 'full SHA-256' : 'legacy 16-hex hashes'})` : integrity.failures.slice(0, 5).join('; '))
 
 // ------------------------------------------------------------- 2. schema + data replay
 const base = join(BACKUP_DIR, `${SET_PREFIX}${set.stamp}`)
+for (const name of ['schema.sql', 'data.sql', 'migration-history.txt']) record(`required ${name} exists`, existsSync(`${base}-${name}`), '')
+if (report.ok) {
+  const expectedObjects = Number(/storage\.objects=(\d+)/.exec(readFileSync(set.manifest, 'utf8'))?.[1] ?? 0)
+  const files = set.storageDir ? collectFiles(set.storageDir) : []
+  const bad = []
+  if (files.length !== expectedObjects) bad.push(`object count ${files.length} != ${expectedObjects}`)
+  for (const file of files) {
+    try {
+      if (statSync(file).size === 0) throw new Error('empty file')
+      // Decode the complete compressed image, not just its first four bytes. A JPEG
+      // with its tail missing used to pass the "real image bytes" signature check.
+      await sharp(file, { failOn: 'warning', limitInputPixels: 100000000 }).raw().toBuffer()
+    } catch { bad.push('Storage image cannot be fully decoded') }
+  }
+  const inventoryFile = `${base}-storage-inventory.json`
+  if (existsSync(inventoryFile)) {
+    try {
+      const inventory = JSON.parse(readFileSync(inventoryFile, 'utf8'))
+      if (!Array.isArray(inventory.objects) || inventory.objects.length !== expectedObjects) throw new Error('inventory object count mismatch')
+      const seen = new Set()
+      for (const object of inventory.objects) {
+        const path = `${object.bucket_id}/${object.name}`
+        if (seen.has(path)) throw new Error('duplicate inventory object')
+        seen.add(path)
+        const file = containedPath(`${base}-storage`, path)
+        if (statSync(file).size !== object.bytes || sha256(file) !== object.sha256) throw new Error('inventory checksum mismatch')
+      }
+      record('Storage inventory agrees with every object', true, `${inventory.objects.length} objects; bucket visibility/settings saved`)
+    } catch { bad.push('Storage inventory is invalid or disagrees with downloaded objects') }
+  }
+  record('Storage binaries complete and decoded', bad.length === 0, bad.length ? bad.slice(0, 5).join('; ') : `${files.length} images decoded`)
+}
 let db = null
 try {
+  if (!report.ok || integrityOnly) throw { skipReplay: true }
   db = await createDatabase({ engine: 'postgres', applyMigrations: false })
   // Same search_path repair the harness applies after a pg_dump, because the dump ends with
   // set_config('search_path','') and this engine reuses one session.
@@ -161,20 +191,8 @@ try {
   const fnCount = Number((await db.query(`SELECT count(*)::int AS c FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace WHERE n.nspname IN ('public','private')`)).rows[0].c)
   console.log(`      functions restored: ${fnCount}`)
 
-  // -------------------------------------------- 5. Storage binaries really on disk
-  const objectsLine = Number(/storage\.objects=(\d+)/.exec(manifestText)?.[1] ?? 0)
-  if (set.storageDir) {
-    const files = collectFiles(set.storageDir)
-    const empty = files.filter((f) => statSync(f).size === 0)
-    const odd = files.filter((f) => !isProbablyImage(f))
-    const countOk = files.length === objectsLine
-    record('storage object binaries readable', countOk && empty.length === 0 && odd.length === 0,
-      `${files.length} files on disk vs ${objectsLine} in manifest; ${empty.length} empty, ${odd.length} not a recognizable image`)
-  } else {
-    record('storage binaries complete for this set', objectsLine === 0, objectsLine ? `${objectsLine} objects in manifest but no -storage directory` : 'no objects in production, nothing to download')
-  }
 } catch (error) {
-  record('restore drill completed', false, String(error?.message || error).split('\n')[0].slice(0, 300))
+  if (!error?.skipReplay) record('restore drill completed', false, String(error?.message || error).split('\n')[0].slice(0, 300))
 } finally {
   if (db) await db.close().catch(() => {})
 }
@@ -182,9 +200,11 @@ try {
 report.finishedAt = new Date().toISOString()
 report.durationMs = new Date(report.finishedAt) - new Date(report.startedAt)
 report.failedChecks = report.checks.filter((c) => !c.ok).map((c) => c.name)
-writeFileSyncSafe(join(BACKUP_DIR, `verify-${set.stamp}.json`), JSON.stringify(report, null, 2) + '\n')
-writeHealth({ lastVerify: { stamp: set.stamp, ok: report.ok, at: report.finishedAt, failed: report.failedChecks } })
-console.log(`\n=== ${report.ok ? 'BACKUP IS RESTORABLE' : 'BACKUP NOT PROVEN'} — ${set.stamp} (${Math.round(report.durationMs / 1000)}s) ===`)
+writeFileSyncSafe(join(BACKUP_DIR, `${integrityOnly ? 'integrity' : 'verify'}-${set.stamp}.json`), JSON.stringify(report, null, 2) + '\n')
+const result = { stamp: set.stamp, ok: report.ok, at: report.finishedAt, failed: report.failedChecks, scope: report.scope, platformRestoreProven: false }
+writeHealth(integrityOnly ? { lastIntegrity: result } : { lastVerify: result, lastIntegrity: { ...result, ok: integrity.ok, scope: 'files-and-storage' } })
+console.log(`\n=== ${report.ok ? (integrityOnly ? 'FILE AND IMAGE INTEGRITY VERIFIED' : 'LOCAL BUSINESS RESTORE VERIFIED') : 'BACKUP NOT PROVEN'} — ${set.stamp} (${Math.round(report.durationMs / 1000)}s) ===`)
+if (!integrityOnly) console.log('Hosted Auth/Storage login, grants and uploaded image access still require a separate Supabase staging drill; this local replay does not prove them.')
 if (!report.ok) console.log('Do not rely on this set until every FAIL line above is fixed: take a fresh backup and drill again.')
 process.exitCode = report.ok ? 0 : 1
 
@@ -201,11 +221,4 @@ function collectFiles(dir) {
     }
   })(dir)
   return out
-}
-
-// JPEG FFD8, PNG 8950, WEBP RIFF.... An empty or truncated download fails this check.
-function isProbablyImage(file) {
-  const head = readFileSync(file).subarray(0, 4)
-  return (head[0] === 0xff && head[1] === 0xd8) || (head[0] === 0x89 && head[1] === 0x50) ||
-    (head[0] === 0x52 && head[1] === 0x49 && head[2] === 0x46 && head[3] === 0x46)
 }

@@ -365,12 +365,17 @@ test("Mobile: inventory cards, global search, quick sale, no horizontal overflow
   await noOverflow(page);
 });
 
-test("Staff: financial fields absent, forbidden routes blocked, disabled user rejected", async ({
+test("Staff: sees the intake price they typed but no cost/profit aggregates, forbidden routes blocked, disabled user rejected", async ({
   page,
 }) => {
   await login(page, "staff");
   await expect(page.getByText("Doanh thu trong kỳ")).toHaveCount(0);
   await page.goto(`/vehicles/${vehicles[0]}`);
+  // Giá thu là số do chính nhân viên nhập khi thu xe nên hồ sơ xe phải hiển thị
+  // cho họ (họ cần nó để biết khi nào đang bán dưới giá thu). Tổng giá vốn và
+  // các con số lãi/lỗ vẫn là đặc quyền của quyền tài chính.
+  await expect(page.getByText("Giá thu vào", { exact: true })).toBeVisible();
+  await expect(page.getByText("Tổng giá vốn", { exact: true })).toHaveCount(0);
   await expect(page.getByText("Giá mua", { exact: true })).toHaveCount(0);
   await page.goto("/users");
   await expect(

@@ -118,7 +118,7 @@ test('receipt capture stays transient and saves only after review in the existin
   expect(calls.writes[0]).toMatchObject({ name: 'save_expense', body: { p_kind: 'vehicle', p_data: { vehicle_id: vehicleId, expense_type: 'PARTS', amount: 850000, description: 'Thay lốp' } } })
 })
 
-test('staff document draft opens a review form without financial fields or automatic acquisition', async ({ page }) => {
+test('staff document draft opens a review form without automatic acquisition', async ({ page }) => {
   const calls = await setup(page, { role: 'STAFF', result: draftResponse('vehicle_document', { frame_number: 'RLHNEW123', license_plate: '43A1-45678', color: 'Trắng', year: 2024 }) })
   await page.goto('/assist?task=vehicle_document')
   await submitDraft(page)
@@ -128,7 +128,9 @@ test('staff document draft opens a review form without financial fields or autom
   // ("Số khung Số khung chưa có trong hệ thống"), so match by prefix. Số
   // khung became an optional field in migration 20261005000000 — no asterisk.
   await expect(page.getByLabel(/^Số khung/)).toHaveValue('RLHNEW123')
-  await expect(page.getByLabel('Giá thu (₫) *', { exact: true })).toHaveCount(0)
+  // Giá thu là ô mọi role đều nhập được (bán dưới giá thu cần mốc này để cảnh
+  // báo), nên phiếu thu xe luôn hiện nó. Bản nháp AI chỉ điền trước mắt.
+  await expect(page.getByLabel('Giá thu (₫) *', { exact: true })).toBeVisible()
   expect(calls.writes).toHaveLength(0)
 })
 

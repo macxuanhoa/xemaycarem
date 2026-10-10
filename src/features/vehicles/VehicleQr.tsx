@@ -1,13 +1,13 @@
 import { useQuery } from "@tanstack/react-query";
 import { Button, Card, ErrorState } from "@/components/ui";
-import { generateQrSvg, vehicleQrUrl } from "@/lib/qrcode";
+import { generateQrSvg, vehicleQrPayload } from "@/lib/qrcode";
 import { vehicleSubtitle, vehicleTitle } from "@/lib/vehicleDisplay";
 import type { Vehicle } from "@/types";
 
 export function VehicleQr({ vehicle }: { vehicle: Vehicle }) {
   const query = useQuery({
-    queryKey: ["vehicle-qr", vehicle.id],
-    queryFn: () => generateQrSvg(vehicleQrUrl(vehicle.id)),
+    queryKey: ["vehicle-qr", 1, vehicle.id],
+    queryFn: () => generateQrSvg(vehicleQrPayload(vehicle.id)),
     staleTime: Infinity,
   });
   const download = () => {
@@ -30,6 +30,7 @@ export function VehicleQr({ vehicle }: { vehicle: Vehicle }) {
     <Card>
       <h2 className="section-title">QR xe</h2>
       <div className="vehicle-label print-vehicle-label">
+        <strong>{vehicle.internal_code}</strong>
         <strong>{vehicleTitle(vehicle)}</strong>
         <span>{vehicleSubtitle(vehicle)}</span>
         {query.data && (
@@ -40,6 +41,7 @@ export function VehicleQr({ vehicle }: { vehicle: Vehicle }) {
             src={`data:image/svg+xml;charset=utf-8,${encodeURIComponent(query.data)}`}
           />
         )}
+        <span className="small">Quét bằng Camera trong Cà Rem</span>
       </div>
       {query.error && <ErrorState error={query.error} />}
       <div className="row">

@@ -18,6 +18,7 @@ function zxing() {
 }
 
 let reader: InstanceType<typeof import("@zxing/library").MultiFormatReader> | null = null;
+let pureQrReader: InstanceType<typeof import("@zxing/library").QRCodeReader> | null = null;
 let hints: Map<import("@zxing/library").DecodeHintType, unknown> | null = null;
 
 function buildHints(mod: typeof import("@zxing/library")): Map<import("@zxing/library").DecodeHintType, unknown> {
@@ -53,7 +54,7 @@ export async function detectCodes(video: HTMLVideoElement | HTMLCanvasElement): 
   band.width = full.width;
   band.height = Math.round(height * 0.45);
   const ctx = band.getContext("2d", { willReadFrequently: true });
-  if (ctx) {
+  if (ctx && band.width > 0 && band.height > 0) {
     ctx.drawImage(full, 0, Math.round(height * 0.4), full.width, band.height, 0, 0, band.width, band.height);
     regions.push(band);
   }
@@ -69,6 +70,18 @@ export async function detectCodes(video: HTMLVideoElement | HTMLCanvasElement): 
       if (text) found.add(text);
     } catch {
       // NotFoundException/ChecksumException are the normal "no code here".
+      // A clean gallery screenshot can defeat the perspective/finder-pattern
+      // detector even when its QR modules are intact. The QR-only pure path
+      // bypasses that detector and still validates the QR payload/checksum.
+      // Real photos retain the normal detection pass above.
+      pureQrReader ??= new mod.QRCodeReader();
+      try {
+        const pureHints = new Map<import("@zxing/library").DecodeHintType, unknown>();
+        pureHints.set(mod.DecodeHintType.PURE_BARCODE, true);
+        const text = pureQrReader.decode(bitmap, pureHints).getText()?.trim();
+        if (text) found.add(text);
+      } catch { /* The region is neither a detectable code nor a pure QR. */ }
+      pureQrReader.reset();
     }
     reader.reset();
   }

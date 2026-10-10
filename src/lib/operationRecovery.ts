@@ -1,7 +1,7 @@
 import { api } from "./api";
 import { AppError } from "./errors";
 
-export type RecoverableOperation = "acquire_vehicle" | "import_vehicles" | "sell_vehicle" | "create_vehicle";
+export type RecoverableOperation = "acquire_vehicle" | "import_vehicles" | "sell_vehicle" | "create_vehicle" | "request_sale_below_cost" | "resolve_sale_approval";
 const storageKey = (userId: string, operation: RecoverableOperation, scope: string) =>
   `xe_operation_pending_v1:${userId}:${operation}:${scope}`;
 const validId = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;

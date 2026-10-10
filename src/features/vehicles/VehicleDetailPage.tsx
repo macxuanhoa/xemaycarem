@@ -22,6 +22,7 @@ import {
   canManage,
   canOperate,
   canRequestVehicleDelete,
+  isOwner,
 } from "@/lib/permissions";
 import { useAuth } from "@/features/auth/AuthProvider";
 import { toast } from "@/lib/toast";
@@ -124,6 +125,9 @@ export function VehicleDetailPage() {
   // A queued deletion (STAFF request pending OWNER approval) locks the record:
   // the vehicle is hidden from inventory and only reachable by its detail link.
   const pending = !!vehicle.pending_deletion;
+  // A queued below-cost sale: the bike stays IN_STOCK and earns no revenue
+  // until the OWNER resolves the request, so the record has to say so loudly.
+  const pendingSale = !!vehicle.pending_sale_approval;
   const canAddExpense = canOperate(profile) && available && !pending;
   const canEditVehicle =
     !pending &&
@@ -307,6 +311,21 @@ export function VehicleDetailPage() {
           thể chỉnh sửa, bán hay thêm chi phí cho tới khi yêu cầu được duyệt.
         </div>
       )}
+      {pendingSale && (
+        <div className="notice warning" role="status">
+          <TriangleAlert size={16} aria-hidden="true" />{" "}
+          Đang chờ chủ cửa hàng duyệt bán dưới giá thu. Xe vẫn nằm trong kho và
+          chưa ghi nhận doanh thu; muốn đổi giá bán hãy rút yêu cầu rồi gửi lại.
+          {isOwner(profile) && (
+            <>
+              {" "}
+              <Link to="/approvals" className="text-link">
+                Mở mục Chờ duyệt
+              </Link>
+            </>
+          )}
+        </div>
+      )}
       {location.state?.acquisitionConfirmed && (
         <div className="notice" role="status">
           Đã thu xe thành công.{" "}
@@ -326,25 +345,25 @@ export function VehicleDetailPage() {
       <Card>
         <h2 className="section-title">Giá trị xe</h2>
         <div className="value-summary">
+          {/* Giá thu là do nhân viên thao tác xe nhập, nên mọi role đều thấy —
+              đây là con số họ cần để biết mình đang bán dưới giá thu hay không. */}
+          <div className="value-item">
+            <span>Giá thu vào</span>
+            <strong>
+              {vehicle.cost_pending
+                ? "Chưa có giá thu"
+                : money(vehicle.purchase_price)}
+            </strong>
+          </div>
           {financial && (
-            <>
-              <div className="value-item">
-                <span>Giá mua</span>
-                <strong>
-                  {vehicle.cost_pending
-                    ? "Chờ bổ sung"
-                    : money(vehicle.purchase_price)}
-                </strong>
-              </div>
-              <div className="value-item total">
-                <span>Tổng giá vốn</span>
-                <strong>
-                  {vehicle.cost_pending
-                    ? "Chờ bổ sung"
-                    : money(vehicle.total_cost)}
-                </strong>
-              </div>
-            </>
+            <div className="value-item total">
+              <span>Tổng giá vốn</span>
+              <strong>
+                {vehicle.cost_pending
+                  ? "Chưa có giá thu"
+                  : money(vehicle.total_cost)}
+              </strong>
+            </div>
           )}
         </div>
       </Card>

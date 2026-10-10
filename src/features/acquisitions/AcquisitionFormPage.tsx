@@ -13,7 +13,7 @@ import { api } from "@/lib/api";
 import { executeOperation } from "@/lib/operationRecovery";
 import { OperationRecoveryNotice } from "@/components/OperationRecoveryNotice";
 import { AppError } from "@/lib/errors";
-import { canFinance, canOperate } from "@/lib/permissions";
+import { canOperate } from "@/lib/permissions";
 import { dateLabel, money, today } from "@/lib/format";
 import { canonicalizePlate, PLATE_EXAMPLE } from "@/lib/plate";
 import { formatVndApproxText, formatVndWords } from "@/lib/moneyHelper";
@@ -66,7 +66,6 @@ function AcquisitionEditor() {
   const navigate = useNavigate();
   const location = useLocation();
   const client = useQueryClient();
-  const financial = canFinance(profile);
   const [pendingConfirmation, setPendingConfirmation] =
     useState<AcquisitionFormValues | null>(null);
   const [isDraftRestored, setIsDraftRestored] = useState(false);
@@ -149,17 +148,10 @@ function AcquisitionEditor() {
 
   const mutation = useMutation({
     mutationFn: async (values: AcquisitionFormValues) => {
-      if (
-        financial &&
-        (values.purchase_price === undefined || values.purchase_price === null)
-      ) {
-        throw new AppError("Vui lòng nhập giá thu xe.");
-      }
       const data: Record<string, unknown> = {
         ...values,
         year: values.year ?? null,
       };
-      if (!financial) delete data.purchase_price;
       if (!profile)
         throw new AppError("Vui lòng đăng nhập lại trước khi thu xe.");
       return executeOperation<string>(
@@ -419,23 +411,24 @@ function AcquisitionEditor() {
                   placeholder="Ví dụ: Đỏ đen, Trắng…"
                 />
               </Field>
-              {financial && (
-                <Field label="Giá thu (₫) *" error={error("purchase_price")}>
-                  <MoneyInput
-                    aria-label="Giá thu (₫) *"
-                    value={form.watch("purchase_price")}
-                    onChange={(value) =>
-                      form.setValue("purchase_price", value, {
-                        shouldDirty: true,
-                        shouldValidate: !!error("purchase_price"),
-                      })
-                    }
-                    onBlur={() => void form.trigger("purchase_price")}
-                    required
-                    min={0}
-                  />
-                </Field>
-              )}
+              {/* Giá thu hiển thị và bắt buộc với mọi role thao tác xe: nhân viên
+                  là người nhập giá này tại quầy, và bán dưới giá thu cần đúng con
+                  số đó để cảnh báo. */}
+              <Field label="Giá thu (₫) *" error={error("purchase_price")}>
+                <MoneyInput
+                  aria-label="Giá thu (₫) *"
+                  value={form.watch("purchase_price")}
+                  onChange={(value) =>
+                    form.setValue("purchase_price", value, {
+                      shouldDirty: true,
+                      shouldValidate: !!error("purchase_price"),
+                    })
+                  }
+                  onBlur={() => void form.trigger("purchase_price")}
+                  required
+                  min={0}
+                />
+              </Field>
 
               <Field label="Ngày thu xe *" error={error("acquisition_date")}>
                 <DatePicker
@@ -612,20 +605,18 @@ function AcquisitionEditor() {
                   {pendingConfirmation.frame_number}
                 </code>
               </div>
-              {financial && (
-                <div className="confirm-summary-row highlight-price">
-                  <span className="confirm-label">Giá thu xe:</span>
-                  <div className="confirm-price-col">
-                    <strong className="price-big">
-                      {money(pendingConfirmation.purchase_price)}
-                    </strong>
-                    <span className="price-words">
-                      {formatVndApproxText(pendingConfirmation.purchase_price)}{" "}
-                      ({formatVndWords(pendingConfirmation.purchase_price)})
-                    </span>
-                  </div>
+              <div className="confirm-summary-row highlight-price">
+                <span className="confirm-label">Giá thu xe:</span>
+                <div className="confirm-price-col">
+                  <strong className="price-big">
+                    {money(pendingConfirmation.purchase_price)}
+                  </strong>
+                  <span className="price-words">
+                    {formatVndApproxText(pendingConfirmation.purchase_price)} {" "}
+                    ({formatVndWords(pendingConfirmation.purchase_price)})
+                  </span>
                 </div>
-              )}
+              </div>
               <div className="confirm-summary-row">
                 <span className="confirm-label">Người bán:</span>
                 <span className="confirm-value">

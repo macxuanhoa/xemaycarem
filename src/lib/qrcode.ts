@@ -1,6 +1,13 @@
 import QRCode from "qrcode";
 
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const vehicleQrPrefix = "carem:vehicle:v1:";
+
+/** Printed identity survives domain changes and contains no session or PII. */
+export function vehicleQrPayload(id: string): string {
+  if (!uuid.test(id)) throw new Error("Mã xe không hợp lệ.");
+  return `${vehicleQrPrefix}${id.toLowerCase()}`;
+}
 
 export function vehicleQrUrl(
   id: string,
@@ -12,13 +19,18 @@ export function vehicleQrUrl(
 
 /** Accept our own vehicle identity only; never follow an arbitrary scanned URL. */
 export function resolveVehicleQr(value: string, origin: string): string | null {
-  if (uuid.test(value.trim())) return value.trim();
+  const text = value.trim();
+  if (text.startsWith(vehicleQrPrefix)) {
+    const id = text.slice(vehicleQrPrefix.length);
+    return uuid.test(id) ? id.toLowerCase() : null;
+  }
+  if (uuid.test(text)) return text.toLowerCase();
   try {
-    const url = new URL(value.trim(), origin);
+    const url = new URL(text, origin);
     if (url.origin !== new URL(origin).origin || url.search || url.hash)
       return null;
     const match = /^\/vehicles\/([^/]+)\/?$/.exec(url.pathname);
-    return match && uuid.test(match[1]) ? match[1] : null;
+    return match && uuid.test(match[1]) ? match[1].toLowerCase() : null;
   } catch {
     return null;
   }

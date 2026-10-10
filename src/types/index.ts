@@ -144,6 +144,10 @@ export type Vehicle = {
   days_in_inventory: number;
   /** STAFF filed a delete request; hidden from inventory, awaiting OWNER approval. */
   pending_deletion?: boolean;
+  /** STAFF/MANAGER filed a below-cost sale request; the bike is still in stock. */
+  pending_sale_approval?: boolean;
+  /** Id của đơn chờ duyệt bán — để rút yêu cầu ngay trên hồ sơ xe. */
+  sale_approval_id?: string | null;
   images?: VehicleImage[];
   expenses?: Expense[];
   sales?: Sale[];
@@ -478,26 +482,56 @@ export type NotificationAction =
   | "VOID_PAYMENT"
   | "CREATE_VEHICLE"
   | "UPDATE_VEHICLE"
-  | "REQUEST_DELETE_VEHICLE";
+  | "REQUEST_DELETE_VEHICLE"
+  | "REQUEST_SALE_BELOW_COST"
+  | "APPROVE_SALE_BELOW_COST"
+  | "REJECT_SALE_BELOW_COST"
+  | "CANCEL_SALE_BELOW_COST";
 
 /**
  * Generic approval queue row (migration 20261008000200). `kind` discriminates
- * the workflow; VEHICLE_DELETION is the first kind. OWNER reviews these on
- * /approvals. Vehicle fields are denormalized for the pending list only.
+ * the workflow; VEHICLE_DELETION and SALE_BELOW_COST share the same table,
+ * RPC shape and /approvals screen. Vehicle fields are denormalized so the
+ * OWNER reads biển số/số khung without a second round trip.
  */
-export type ApprovalKind = "VEHICLE_DELETION";
+export type ApprovalKind = "VEHICLE_DELETION" | "SALE_BELOW_COST";
+/**
+ * Bản đề xuất bán dưới giá thu do server sinh (STEP 7). Client không bao giờ
+ * tự viết; đây là đúng dữ liệu OWNER duyệt và giao dịch sẽ được ghi theo.
+ */
+export type SaleApprovalPayload = {
+  vehicle_id?: string;
+  customer_name?: string;
+  customer_phone?: string;
+  sale_price?: number;
+  sale_date?: string;
+  due_date?: string | null;
+  payment_method?: string;
+  initial_payment?: number;
+  notes?: string;
+  sold_by?: string;
+  snapshot_purchase_price?: number;
+  snapshot_expense_total?: number;
+  shortfall?: number;
+};
 export type ApprovalRequest = {
   id: string;
   kind: ApprovalKind;
   subject_id: string;
   reason: string;
+  status?: "PENDING" | "APPROVED" | "REJECTED";
+  payload?: SaleApprovalPayload | null;
   requested_by: string;
   requester_name: string | null;
   created_at: string;
+  resolved_at?: string | null;
+  resolution_note?: string | null;
+  resolved_by_name?: string | null;
   vehicle_code: string | null;
   vehicle_title: string | null;
   vehicle_subtitle: string | null;
   license_plate: string | null;
+  frame_number?: string | null;
   vehicle_status: string | null;
 };
 
@@ -527,3 +561,5 @@ export type NotificationGroup = {
   label: string;
   items: NotificationItem[];
 };
+
+export * from "./vietqr";

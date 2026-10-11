@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type ChangeEvent } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { Camera, CirclePlus, Upload, X } from "lucide-react";
+import { Camera, Upload, X } from "lucide-react";
 import { api } from "@/lib/api";
 import { compressImage } from "@/lib/imageCompression";
 import { toast } from "@/lib/toast";
@@ -24,7 +24,6 @@ export function VehicleImageUpload({
   vehicleId,
   isChoiceOpen,
   onCloseChoice,
-  onOpenChoice,
 }: {
   vehicleId: string;
   isChoiceOpen?: boolean;
@@ -232,17 +231,6 @@ export function VehicleImageUpload({
           </div>
         </div>
       )}
-
-      {/* Visible Action Button */}
-      <div className="row">
-        <Button
-          variant="secondary"
-          className="upload-button"
-          onClick={() => onOpenChoice?.()}
-        >
-          <CirclePlus size={16} /> Thêm ảnh xe
-        </Button>
-      </div>
 
       {error && (
         <p className="field-error" role="alert">

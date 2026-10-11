@@ -484,15 +484,15 @@ export function VehicleDetailPage() {
         <div className="stack">
           <section id="photos">
             <Card>
-              <div className="row between">
-                <h2 className="section-title">Hình ảnh xe</h2>
+              <div className="row between" style={{ alignItems: "center", marginBottom: 12 }}>
+                <h2 className="section-title" style={{ margin: 0 }}>Hình ảnh xe</h2>
                 {canOperate(profile) && (
                   <Button
-                    variant="ghost"
+                    variant="primary"
                     className="btn-sm"
                     onClick={() => setPhotoChoiceOpen(true)}
                   >
-                    <CirclePlus size={15} /> Thêm ảnh
+                    <CirclePlus size={16} /> Thêm ảnh xe
                   </Button>
                 )}
               </div>
@@ -508,17 +508,16 @@ export function VehicleDetailPage() {
                   }
                 />
               ) : (
-                <div className="vehicle-empty-photo">
+                <div
+                  className="vehicle-empty-photo"
+                  onClick={canOperate(profile) ? () => setPhotoChoiceOpen(true) : undefined}
+                  style={{ cursor: canOperate(profile) ? "pointer" : "default" }}
+                  role={canOperate(profile) ? "button" : undefined}
+                  tabIndex={canOperate(profile) ? 0 : undefined}
+                  title="Bấm để tải ảnh xe lên"
+                >
                   <Bike size={74} strokeWidth={1.2} />
                   <p>Thêm ảnh để dễ nhận diện xe trong kho</p>
-                  {canOperate(profile) && (
-                    <Button
-                      variant="secondary"
-                      onClick={() => setPhotoChoiceOpen(true)}
-                    >
-                      <CirclePlus size={16} /> Thêm ảnh xe
-                    </Button>
-                  )}
                 </div>
               )}
               {canOperate(profile) && (
@@ -527,7 +526,6 @@ export function VehicleDetailPage() {
                   vehicleId={vehicle.id}
                   isChoiceOpen={photoChoiceOpen}
                   onCloseChoice={() => setPhotoChoiceOpen(false)}
-                  onOpenChoice={() => setPhotoChoiceOpen(true)}
                 />
               )}
             </Card>

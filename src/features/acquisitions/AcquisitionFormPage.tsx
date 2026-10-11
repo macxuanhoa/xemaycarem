@@ -658,23 +658,32 @@ function AcquisitionEditor() {
             </div>
 
             <div className="confirm-summary-list">
-              <div className="confirm-summary-row">
-                <span className="confirm-label">Loại xe:</span>
-                <strong className="confirm-value">
-                  {pendingConfirmation.vehicle_type || "—"}
-                </strong>
-              </div>
-              <div className="confirm-summary-row">
-                <span className="confirm-label">Biển số:</span>
-                <span className="confirm-value">
-                  {pendingConfirmation.license_plate || "Chưa có"}
-                </span>
-              </div>
-              <div className="confirm-summary-row">
-                <span className="confirm-label">Số khung:</span>
-                <code className="confirm-code">
-                  {pendingConfirmation.frame_number}
-                </code>
+              <div className="confirm-identity-highlight-card">
+                <div className="confirm-identity-header">
+                  <span className="confirm-identity-tag">Định danh xe</span>
+                </div>
+                <div className="confirm-identity-rows">
+                  <div className="confirm-highlight-item">
+                    <span className="confirm-label">Loại xe:</span>
+                    <strong className="confirm-value confirm-value-highlight-type">
+                      {pendingConfirmation.vehicle_type || "—"}
+                    </strong>
+                  </div>
+                  <div className="confirm-highlight-item">
+                    <span className="confirm-label">Biển số:</span>
+                    <span className="confirm-value">
+                      <span className="identity-chip-plate confirm-plate-chip">
+                        <strong>{pendingConfirmation.license_plate || "Chưa có"}</strong>
+                      </span>
+                    </span>
+                  </div>
+                  <div className="confirm-highlight-item">
+                    <span className="confirm-label">Số khung:</span>
+                    <code className="confirm-code confirm-code-highlight">
+                      {pendingConfirmation.frame_number}
+                    </code>
+                  </div>
+                </div>
               </div>
               <div className="confirm-summary-row highlight-price">
                 <span className="confirm-label">Giá thu xe:</span>

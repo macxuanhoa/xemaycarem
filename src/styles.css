@@ -15668,3 +15668,105 @@ html[data-theme="dark"] .header-theme-toggle {
   margin-top: 14px;
 }
 
+/* ==========================================================================
+   Acquisition Confirmation Modal Vehicle Identity Highlight
+   ========================================================================== */
+.confirm-identity-highlight-card {
+  background: linear-gradient(135deg, #f7faf5 0%, #f0f7ed 100%);
+  border: 1.5px solid #cce3c5;
+  border-radius: 10px;
+  padding: 12px 14px;
+  margin-bottom: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+[data-theme="dark"] .confirm-identity-highlight-card {
+  background: linear-gradient(135deg, #18201a 0%, #1c261e 100%);
+  border-color: #2e4431;
+}
+
+.confirm-identity-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 2px;
+}
+
+.confirm-identity-tag {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.8px;
+  text-transform: uppercase;
+  color: var(--color-primary-dark, #2b6127);
+  background: rgba(43, 97, 39, 0.1);
+  padding: 2px 8px;
+  border-radius: 4px;
+}
+
+[data-theme="dark"] .confirm-identity-tag {
+  color: #86efac;
+  background: rgba(134, 239, 172, 0.12);
+}
+
+.confirm-identity-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.confirm-highlight-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 4px 0;
+  border-bottom: 1px solid rgba(204, 227, 197, 0.5);
+}
+
+.confirm-highlight-item:last-child {
+  border-bottom: 0;
+}
+
+[data-theme="dark"] .confirm-highlight-item {
+  border-bottom-color: rgba(46, 68, 49, 0.5);
+}
+
+.confirm-value-highlight-type {
+  font-size: 14.5px;
+  font-weight: 700;
+  color: #1a3818;
+}
+
+[data-theme="dark"] .confirm-value-highlight-type {
+  color: #d1fae5;
+}
+
+.confirm-plate-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 10px;
+  font-size: 14px;
+  letter-spacing: 0.8px;
+}
+
+.confirm-code-highlight {
+  font-family: var(--font-mono, monospace);
+  font-size: 13.5px;
+  font-weight: 700;
+  letter-spacing: 0.8px;
+  background: #ffffff;
+  color: #1e3a1a;
+  border: 1px solid #cce3c5;
+  padding: 3px 8px;
+  border-radius: 6px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+}
+
+[data-theme="dark"] .confirm-code-highlight {
+  background: #111827;
+  color: #86efac;
+  border-color: #374151;
+}
+
+

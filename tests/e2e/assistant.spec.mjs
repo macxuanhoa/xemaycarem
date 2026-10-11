@@ -110,7 +110,7 @@ test('receipt capture stays transient and saves only after review in the existin
   await page.getByRole('button', { name: 'Kiểm tra chi phí cho xe đang chọn' }).click()
   const dialog = page.getByRole('dialog')
   await expect(dialog.getByLabel('Số tiền chi (₫) *', { exact: true })).toHaveValue('850.000')
-  await expect(dialog.getByLabel('Nội dung chi tiết *', { exact: true })).toHaveValue('Thay lốp')
+  await expect(dialog.getByLabel('Tên của các loại chi phí *', { exact: true })).toHaveValue('Thay lốp')
   expect(calls.writes).toHaveLength(0)
   await dialog.getByRole('button', { name: 'Lưu chi phí' }).click()
   await expect(dialog).toBeHidden()

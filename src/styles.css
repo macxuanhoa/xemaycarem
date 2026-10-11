@@ -4836,9 +4836,16 @@ mark.search-hit {
   gap: 10px;
   margin-top: 18px;
 }
-/* Quick expense modal: compact width + category chips. */
+/* Quick expense modal: clean layout with spacious textarea. */
 .quick-expense-modal {
-  width: min(460px, 100%);
+  width: min(480px, 100%);
+}
+.quick-expense-textarea {
+  min-height: 84px;
+  resize: vertical;
+  line-height: 1.5;
+  font-family: inherit;
+  font-size: 13.5px;
 }
 .expense-chips-grid {
   display: flex;
@@ -8019,7 +8026,8 @@ mark.search-hit {
   flex-shrink: 0;
 }
 
-.form-actions-acquisition {
+.form-actions-acquisition,
+.form-actions-vehicle {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -8028,31 +8036,40 @@ mark.search-hit {
   border-top: 1px solid var(--line);
 }
 
-.form-actions-acquisition .form-actions-status {
+.form-actions-acquisition .form-actions-status,
+.form-actions-vehicle .form-actions-status {
   display: flex;
   align-items: center;
   min-height: 32px;
 }
 
-.form-actions-acquisition .form-actions-buttons {
+.form-actions-buttons,
+.form-actions-acquisition .form-actions-buttons,
+.form-actions-vehicle .form-actions-buttons {
   display: flex;
   align-items: center;
   gap: 10px;
 }
 
 @media (max-width: 768px) {
-  .form-actions-acquisition {
+  .form-actions-acquisition,
+  .form-actions-vehicle {
     flex-direction: column;
     align-items: stretch;
     gap: 12px;
   }
-  .form-actions-acquisition .form-actions-status {
+  .form-actions-acquisition .form-actions-status,
+  .form-actions-vehicle .form-actions-status {
     justify-content: flex-start;
   }
-  .form-actions-acquisition .form-actions-buttons {
+  .form-actions-buttons,
+  .form-actions-acquisition .form-actions-buttons,
+  .form-actions-vehicle .form-actions-buttons {
     width: 100%;
   }
-  .form-actions-acquisition .form-actions-buttons > * {
+  .form-actions-buttons > *,
+  .form-actions-acquisition .form-actions-buttons > *,
+  .form-actions-vehicle .form-actions-buttons > * {
     flex: 1;
   }
 }
@@ -13609,6 +13626,66 @@ html[data-theme="dark"] .header-theme-toggle {
 .money-input-error {
   margin: var(--space-xs) 0 0;
 }
+/* Màn “Giao dịch bán ra trước” khi mở xe đã bán từ tab Đã bán trong kho */
+.sold-sale-first {
+  max-width: 640px;
+  margin: 0 auto;
+  width: 100%;
+}
+.sold-sale-first-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-sm);
+  padding-bottom: var(--space-md);
+  margin-bottom: var(--space-md);
+  border-bottom: 1px solid var(--line);
+}
+.sold-sale-first-title {
+  min-width: 0;
+}
+.sold-sale-first-title h1 {
+  margin: 2px 0 0;
+  font-size: 1.35rem;
+  line-height: 1.2;
+  word-break: break-word;
+}
+.sold-sale-first-title p {
+  margin: 4px 0 0;
+}
+.sold-sale-first-body .section-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: var(--space-sm);
+}
+.sold-sale-buyer {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-sm);
+  margin-bottom: var(--space-sm);
+}
+.sold-sale-buyer strong {
+  font-size: 1.05rem;
+}
+.sold-sale-first-actions {
+  display: flex;
+  gap: var(--space-sm);
+  margin-top: var(--space-md);
+}
+.sold-sale-first-actions .button {
+  flex: 1;
+  justify-content: center;
+}
+@media (max-width: 480px) {
+  .sold-sale-first-actions {
+    flex-direction: column;
+  }
+}
+[data-theme="dark"] .sold-sale-first-head {
+  border-bottom-color: var(--line);
+}
 .vehicle-identity {
   display: grid;
   gap: var(--space-sm);
@@ -13742,70 +13819,456 @@ html[data-theme="dark"] .header-theme-toggle {
 [data-theme="dark"] .vehicle-id-frame .vehicle-id-copy:hover {
   background: rgba(220, 235, 226, 0.16);
 }
-/* ─── Vehicle detail page: new compact layout ──────────────────────────────── */
-/* Heading meta actions: badge + days + menu all sit inline beside the h1. */
-.heading-meta-actions {
+/* ─── Vehicle detail page: header layout & LED effects ─────────────────────── */
+.vehicle-detail-header {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: 100%;
+}
+
+.vehicle-title-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+}
+
+.vehicle-title-left {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.vehicle-internal-code {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--readable-muted);
+  margin: 0;
+}
+
+/* Ensure the three-dots action button is firmly pinned to the far right edge */
+.vehicle-title-row .vehicle-actions-menu-wrap {
+  margin-left: auto;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+}
+
+.vehicle-status-row {
   display: flex;
   align-items: center;
   gap: 10px;
   flex-wrap: wrap;
 }
-.identity-days {
-  font-size: 12px;
-  white-space: nowrap;
-}
-/* Compact identity strip: biển số + số khung as small inline chips. */
-.vehicle-identity-compact {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px 18px;
-  margin-top: 6px;
-  padding: 10px 14px;
-  border-radius: 10px;
-  background: var(--surface-raised, #f6f8f4);
-}
-.identity-chip {
+
+/* 1. Vehicle Title LED Shimmer / Light Sweep */
+.carem-led-title {
+  position: relative;
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  font-size: 13px;
+  gap: 10px;
+  font-size: clamp(24px, 3.2vw + 14px, 32px);
+  font-weight: 850;
+  letter-spacing: -0.02em;
+  margin: 0;
+  line-height: 1.2;
   min-width: 0;
 }
-.identity-chip small {
-  font-size: 10px;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.8px;
-  color: var(--readable-muted);
+
+.carem-led-title-dot {
+  display: inline-block;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: #10b981;
+  box-shadow: 0 0 8px #10b981, 0 0 16px #34d399;
+  flex-shrink: 0;
+  animation: caremLedDotPulse 2s ease-in-out infinite;
 }
-.identity-chip strong,
-.identity-chip code {
-  font-size: 14px;
+
+@keyframes caremLedDotPulse {
+  0%, 100% {
+    opacity: 0.65;
+    transform: scale(0.9);
+    box-shadow: 0 0 6px #10b981;
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.2);
+    box-shadow: 0 0 14px #10b981, 0 0 24px #34d399;
+  }
+}
+
+.carem-led-title-text {
+  background: linear-gradient(
+    90deg,
+    #0f172a 0%,
+    #0f172a 25%,
+    #059669 45%,
+    #2563eb 55%,
+    #059669 65%,
+    #0f172a 85%,
+    #0f172a 100%
+  );
+  background-size: 250% 100%;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: caremLedTitleSweep 5s linear infinite;
+}
+
+[data-theme="dark"] .carem-led-title-text {
+  background: linear-gradient(
+    90deg,
+    #f8fafc 0%,
+    #f8fafc 25%,
+    #34d399 45%,
+    #60a5fa 55%,
+    #34d399 65%,
+    #f8fafc 85%,
+    #f8fafc 100%
+  );
+  background-size: 250% 100%;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+@keyframes caremLedTitleSweep {
+  0% {
+    background-position: 100% 0;
+  }
+  100% {
+    background-position: -150% 0;
+  }
+}
+
+/* 2. Inventory Days LED Display Badge */
+.carem-led-days-badge {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 5px 12px;
+  border-radius: 999px;
+  background: #0f172a;
+  border: 1px solid rgba(16, 185, 129, 0.45);
+  color: #e2e8f0;
+  font-size: 12.5px;
   font-weight: 600;
-  letter-spacing: 0.3px;
+  box-shadow: 0 2px 10px rgba(15, 23, 42, 0.25), inset 0 1px 1px rgba(255, 255, 255, 0.1);
+  overflow: hidden;
+  white-space: nowrap;
 }
-.identity-chip code {
+
+.carem-led-diode {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #34d399;
+  box-shadow: 0 0 8px #34d399, 0 0 14px #10b981;
+  animation: caremDiodeFlicker 2.5s infinite ease-in-out;
+  flex-shrink: 0;
+}
+
+@keyframes caremDiodeFlicker {
+  0%, 100% {
+    opacity: 0.7;
+    transform: scale(0.9);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.15);
+    box-shadow: 0 0 10px #34d399, 0 0 18px #10b981;
+  }
+}
+
+.carem-led-days-text {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.carem-led-days-num {
+  color: #34d399;
   font-family: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+  font-size: 14px;
+  font-weight: 800;
+  letter-spacing: 0.5px;
+  text-shadow: 0 0 8px rgba(52, 211, 153, 0.6);
 }
-.identity-chip-plate strong {
-  color: #1e3a5f;
+
+.carem-led-border-glow {
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 80%;
+  height: 100%;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(52, 211, 153, 0.25) 50%,
+    transparent 100%
+  );
+  animation: caremBorderShimmer 3.5s infinite linear;
+  pointer-events: none;
 }
-.identity-chip-frame code {
-  color: #2d5a3f;
+
+@keyframes caremBorderShimmer {
+  0% {
+    left: -100%;
+  }
+  100% {
+    left: 200%;
+  }
 }
-.identity-chip-copy {
-  width: 24px;
-  height: 24px;
+
+/* ─── Prominent License Plate and Frame Number Highlight Cards ─────────── */
+.vehicle-id-highlight-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(260px, 100%), 1fr));
+  gap: 12px;
+  margin-top: 6px;
+  width: 100%;
+}
+
+.vehicle-id-highlight-card {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 12px 16px;
+  border-radius: 12px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+}
+
+.vehicle-id-card-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.vehicle-id-tag {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 8px;
   border-radius: 6px;
+  font-size: 11px;
+  font-weight: 750;
+  letter-spacing: 0.8px;
+  text-transform: uppercase;
 }
-[data-theme="dark"] .vehicle-identity-compact {
-  background: rgba(220, 235, 226, 0.06);
+
+.vehicle-id-value {
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+  min-width: 0;
+  line-height: 1.25;
 }
-[data-theme="dark"] .identity-chip-plate strong {
-  color: #a8c8e8;
+
+.vehicle-id-copy {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 150ms ease;
 }
-[data-theme="dark"] .identity-chip-frame code {
-  color: #8fd3a8;
+
+/* Biển số Card: Deep Royal / Navy Highlight */
+.vehicle-id-highlight-card.plate-card {
+  background: linear-gradient(135deg, #f0f7ff 0%, #e0effe 100%);
+  border: 1.5px solid #93c5fd;
+}
+
+.plate-card .vehicle-id-tag.plate-tag {
+  background: #1d4ed8;
+  color: #ffffff;
+}
+
+.plate-card .vehicle-id-value.plate-value {
+  font-size: clamp(20px, 3.5vw, 24px);
+  font-weight: 850;
+  letter-spacing: 0.8px;
+  color: #1e3a8a;
+}
+
+.plate-card .vehicle-id-copy {
+  background: rgba(30, 64, 175, 0.08);
+  border: 1px solid rgba(30, 64, 175, 0.15);
+  color: #1d4ed8;
+}
+
+.plate-card .vehicle-id-copy:hover {
+  background: rgba(30, 64, 175, 0.16);
+  border-color: #1d4ed8;
+}
+
+/* Số khung Card: Technical Mint / Emerald Highlight */
+.vehicle-id-highlight-card.frame-card {
+  background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%);
+  border: 1.5px solid #86efac;
+}
+
+.frame-card .vehicle-id-tag.frame-tag {
+  background: #15803d;
+  color: #ffffff;
+}
+
+.frame-card .vehicle-id-value.frame-value {
+  font-size: clamp(18px, 3.2vw, 21px);
+  font-weight: 800;
+  font-family: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+  letter-spacing: 0.8px;
+  color: #14532d;
+}
+
+.frame-card .vehicle-id-copy {
+  background: rgba(21, 128, 61, 0.08);
+  border: 1px solid rgba(21, 128, 61, 0.15);
+  color: #15803d;
+}
+
+.frame-card .vehicle-id-copy:hover {
+  background: rgba(21, 128, 61, 0.16);
+  border-color: #15803d;
+}
+
+/* Dark Theme Contrast */
+[data-theme="dark"] .vehicle-id-highlight-card.plate-card {
+  background: linear-gradient(135deg, #0b192e 0%, #112240 100%);
+  border-color: #1d4ed8;
+}
+
+[data-theme="dark"] .plate-card .vehicle-id-value.plate-value {
+  color: #bfdbfe;
+}
+
+[data-theme="dark"] .plate-card .vehicle-id-copy {
+  background: rgba(191, 219, 254, 0.1);
+  border-color: rgba(191, 219, 254, 0.2);
+  color: #93c5fd;
+}
+
+[data-theme="dark"] .vehicle-id-highlight-card.frame-card {
+  background: linear-gradient(135deg, #092316 0%, #0d3221 100%);
+  border-color: #16a34a;
+}
+
+[data-theme="dark"] .frame-card .vehicle-id-value.frame-value {
+  color: #bbf7d0;
+}
+
+[data-theme="dark"] .frame-card .vehicle-id-copy {
+  background: rgba(187, 247, 208, 0.1);
+  border-color: rgba(187, 247, 208, 0.2);
+  color: #86efac;
+}
+
+/* ─── Photo Choice Dialog ─────────────────────────────────────────────── */
+.photo-choice-panel {
+  max-width: 440px;
+  width: 100%;
+  padding: 22px;
+  border-radius: var(--radius-lg, 16px);
+  background: var(--surface, #ffffff);
+  box-shadow: 0 24px 48px -12px rgba(0, 0, 0, 0.25);
+}
+
+.photo-choice-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+}
+
+.photo-choice-header h3 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 750;
+  color: var(--readable);
+}
+
+.photo-choice-options {
+  display: grid;
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+.photo-choice-btn {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 16px;
+  border-radius: 12px;
+  border: 1.5px solid var(--line, #e2e8f0);
+  background: var(--surface-raised, #f8fafc);
+  cursor: pointer;
+  text-align: left;
+  transition: background-color 150ms ease, border-color 150ms ease;
+  width: 100%;
+}
+
+.photo-choice-btn:hover {
+  background: var(--surface-hover, #f1f5f9);
+  border-color: var(--accent, #10b981);
+}
+
+.photo-choice-btn:active {
+  transform: scale(0.99);
+}
+
+.photo-choice-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 46px;
+  height: 46px;
+  border-radius: 12px;
+  flex-shrink: 0;
+}
+
+.photo-choice-camera .photo-choice-icon {
+  background: #ecfdf5;
+  color: #059669;
+}
+
+.photo-choice-device .photo-choice-icon {
+  background: #eff6ff;
+  color: #2563eb;
+}
+
+[data-theme="dark"] .photo-choice-camera .photo-choice-icon {
+  background: rgba(16, 185, 129, 0.15);
+  color: #34d399;
+}
+
+[data-theme="dark"] .photo-choice-device .photo-choice-icon {
+  background: rgba(37, 99, 235, 0.15);
+  color: #60a5fa;
+}
+
+.photo-choice-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.photo-choice-title {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--readable);
+}
+
+.photo-choice-desc {
+  font-size: 12.5px;
+  color: var(--readable-muted);
 }
 /* Notes card: prominent, larger text. */
 .vehicle-notes-card {
@@ -14552,16 +15015,114 @@ html[data-theme="dark"] .header-theme-toggle {
   z-index: 130;
   pointer-events: none;
   opacity: 1;
-  transition: opacity 0.5s ease;
+  transition: opacity 0.6s ease;
   /* Vignette làm nền pháo nổi bật mà vẫn nhẹ nhàng, không che đặc màn hình. */
   background: radial-gradient(
     120% 90% at 50% 32%,
     rgba(15, 10, 3, 0) 42%,
-    rgba(15, 10, 3, 0.34) 100%
+    rgba(15, 10, 3, 0.4) 100%
   );
+}
+/* Thanh điện ảnh trên/dưới (letterbox) – khung hình "hào hùng" như rạp chiếu. */
+.sale-celebrate::before,
+.sale-celebrate::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: max(28px, 5vh);
+  z-index: 3;
+  pointer-events: none;
+}
+.sale-celebrate::before {
+  top: 0;
+  background: linear-gradient(180deg, rgba(8, 5, 1, 0.82), rgba(8, 5, 1, 0));
+}
+.sale-celebrate::after {
+  bottom: 0;
+  background: linear-gradient(0deg, rgba(8, 5, 1, 0.82), rgba(8, 5, 1, 0));
 }
 .sale-celebrate.leaving {
   opacity: 0;
+}
+/* Viền nghi lễ vàng: khung mỏng bo tròn + hai chạm góc đối diện. */
+.sale-celebrate-frame {
+  position: absolute;
+  inset: 12px;
+  z-index: 3;
+  pointer-events: none;
+  border: 1px solid rgba(253, 224, 71, 0.22);
+  border-radius: 20px;
+  box-shadow: inset 0 0 90px -40px rgba(251, 191, 36, 0.4);
+  animation: celebrate-frame-in 0.9s ease both;
+}
+.sale-celebrate-frame::before,
+.sale-celebrate-frame::after {
+  content: "";
+  position: absolute;
+  width: 72px;
+  height: 72px;
+  border: 2px solid rgba(251, 191, 36, 0.8);
+}
+.sale-celebrate-frame::before {
+  top: -1px;
+  left: -1px;
+  border-right: 0;
+  border-bottom: 0;
+  border-top-left-radius: 20px;
+}
+.sale-celebrate-frame::after {
+  right: -1px;
+  bottom: -1px;
+  border-left: 0;
+  border-top: 0;
+  border-bottom-right-radius: 20px;
+}
+@keyframes celebrate-frame-in {
+  from {
+    opacity: 0;
+    inset: 26px;
+  }
+  to {
+    opacity: 1;
+    inset: 12px;
+  }
+}
+/* Hint lịch sự: nhắc người dùng bấm là màn chúc mừng khép lại sớm. */
+.sale-celebrate-hint {
+  position: absolute;
+  bottom: max(10px, 6.2vh);
+  left: 50%;
+  translate: -50% 0;
+  z-index: 4;
+  pointer-events: none;
+  padding: 6px 16px;
+  border-radius: 999px;
+  border: 1px solid rgba(253, 224, 71, 0.35);
+  background: rgba(15, 10, 3, 0.55);
+  backdrop-filter: blur(4px);
+  color: rgba(253, 230, 138, 0.9);
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  animation: celebrate-hint-pulse 2s ease-in-out infinite,
+    celebrate-hint-in 0.6s 0.5s ease both;
+}
+@keyframes celebrate-hint-pulse {
+  0%,
+  100% {
+    opacity: 0.75;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+@keyframes celebrate-hint-in {
+  from {
+    opacity: 0;
+  }
 }
 /* Vòng tia vàng xoay chậm phía sau biểu ngữ – cảm giác "sân khấu rạng rỡ". */
 .sale-celebrate-rays {
@@ -14629,6 +15190,15 @@ html[data-theme="dark"] .header-theme-toggle {
   text-align: center;
   backdrop-filter: blur(6px);
   animation: celebrate-banner-pop 0.6s cubic-bezier(0.22, 1.4, 0.5, 1) both;
+}
+/* Khép vàng hai lớp cho biểu ngữ thêm phần hoành tráng. */
+.sale-celebrate-banner::after {
+  content: "";
+  position: absolute;
+  inset: 7px;
+  border-radius: 19px;
+  border: 1px solid rgba(253, 224, 71, 0.18);
+  pointer-events: none;
 }
 .sale-celebrate-ribbon {
   font-style: normal;
@@ -14704,6 +15274,13 @@ html[data-theme="dark"] .header-theme-toggle {
     animation: none;
     opacity: 0.35;
   }
+  .sale-celebrate-frame {
+    animation: none;
+  }
+  .sale-celebrate-hint {
+    animation: none;
+    opacity: 0.9;
+  }
   .sale-celebrate-banner,
   .sale-celebrate-banner.leaving {
     animation: none;
@@ -14727,4 +15304,367 @@ html[data-theme="dark"] .header-theme-toggle {
     font-size: 0.62rem;
     letter-spacing: 0.14em;
   }
+  .sale-celebrate-hint {
+    font-size: 0.56rem;
+    letter-spacing: 0.16em;
+    padding: 5px 12px;
+  }
+  .sale-celebrate-frame::before,
+  .sale-celebrate-frame::after {
+    width: 44px;
+    height: 44px;
+  }
 }
+
+/* Unified Approvals segmented control & classification */
+.approvals-filter-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 6px;
+}
+.approval-segmented-bar {
+  display: inline-flex;
+  align-items: center;
+  background: #f1f3f7;
+  padding: 4px;
+  border-radius: 10px;
+  gap: 3px;
+  border: 1px solid #e2e8f0;
+  max-width: 100%;
+  overflow-x: auto;
+  scrollbar-width: thin;
+}
+.approval-seg-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  font-size: 13px;
+  font-weight: 550;
+  border: 0;
+  background: transparent;
+  border-radius: 7px;
+  color: #64748b;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease, box-shadow 0.15s ease;
+  white-space: nowrap;
+  line-height: 1.2;
+}
+.approval-seg-btn:hover {
+  color: #0f172a;
+}
+.approval-seg-btn.active {
+  background: #ffffff;
+  color: var(--primary, #0f766e);
+  font-weight: 650;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+}
+.approval-filter-count {
+  display: inline-grid;
+  place-items: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: rgba(100, 116, 139, 0.14);
+  color: #64748b;
+  font-size: 11px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.approval-seg-btn.active .approval-filter-count {
+  background: rgba(15, 118, 110, 0.12);
+  color: var(--primary, #0f766e);
+}
+[data-theme="dark"] .approval-segmented-bar {
+  background: #1e293b;
+  border-color: #334155;
+}
+[data-theme="dark"] .approval-seg-btn {
+  color: #94a3b8;
+}
+[data-theme="dark"] .approval-seg-btn:hover {
+  color: #f1f5f9;
+}
+[data-theme="dark"] .approval-seg-btn.active {
+  background: #0f172a;
+  color: #38bdf8;
+}
+
+/* ═══ Chi phí cửa hàng: menu kebab 3 chấm + thẻ mobile ═══ */
+.expense-row-trigger {
+  width: 34px;
+  height: 34px;
+  min-height: 34px;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: #64748b;
+  transition:
+    background 0.16s ease,
+    color 0.16s ease;
+}
+.expense-row-trigger:hover,
+.expense-row-trigger[aria-expanded="true"] {
+  background: #e2e8f0;
+  color: #1e293b;
+}
+.expense-row-scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 45;
+  background: transparent;
+}
+.expense-row-menu {
+  position: fixed;
+  z-index: 46;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 184px;
+  padding: 6px;
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  box-shadow:
+    0 12px 30px -12px rgba(15, 23, 42, 0.28),
+    0 2px 6px -2px rgba(15, 23, 42, 0.12);
+}
+.expense-row-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 9px 11px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: #1e293b;
+  font-size: 13px;
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.14s ease;
+}
+.expense-row-menu-item svg {
+  flex: 0 0 auto;
+  color: #64748b;
+}
+.expense-row-menu-item:hover,
+.expense-row-menu-item:focus-visible {
+  background: #f1f5f9;
+}
+.expense-row-menu-danger,
+.expense-row-menu-danger svg {
+  color: #dc2626;
+}
+.expense-row-menu-danger:hover,
+.expense-row-menu-danger:focus-visible {
+  background: #fef2f2;
+}
+
+/* Thẻ chi phí trên mobile: làm nổi bật nội dung + số tiền, tách nhãn phụ. */
+.expense-record {
+  gap: 12px;
+}
+.expense-card-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+.expense-card-main {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+.expense-card-title {
+  font-size: 15px;
+  line-height: 1.35;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+.expense-card-side {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 0 0 auto;
+}
+.expense-card-amount {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  padding-top: 10px;
+  border-top: 1px dashed var(--line, #e2e8f0);
+}
+.expense-card-amount .price {
+  font-size: 19px;
+  font-weight: 800;
+  color: #dc2626;
+}
+
+[data-theme="dark"] .expense-row-trigger {
+  color: #9aa1b4;
+}
+[data-theme="dark"] .expense-row-trigger:hover,
+[data-theme="dark"] .expense-row-trigger[aria-expanded="true"] {
+  background: #262833;
+  color: #e5e7eb;
+}
+[data-theme="dark"] .expense-row-menu {
+  background: #17181f;
+  border-color: #262833;
+}
+[data-theme="dark"] .expense-row-menu-item {
+  color: #dcdfe9;
+}
+[data-theme="dark"] .expense-row-menu-item svg {
+  color: #8f96a8;
+}
+[data-theme="dark"] .expense-row-menu-item:hover,
+[data-theme="dark"] .expense-row-menu-item:focus-visible {
+  background: #20222c;
+}
+[data-theme="dark"] .expense-row-menu-danger,
+[data-theme="dark"] .expense-row-menu-danger svg {
+  color: #fda4af;
+}
+[data-theme="dark"] .expense-row-menu-danger:hover,
+[data-theme="dark"] .expense-row-menu-danger:focus-visible {
+  background: rgba(244, 63, 94, 0.12);
+}
+[data-theme="dark"] .expense-card-amount {
+  border-top-color: #262833;
+}
+[data-theme="dark"] .approval-filter-count {
+  background: rgba(148, 163, 184, 0.15);
+  color: #94a3b8;
+}
+[data-theme="dark"] .approval-seg-btn.active .approval-filter-count {
+  background: rgba(56, 189, 248, 0.18);
+  color: #38bdf8;
+}
+
+/* ==========================================================================
+   Sales Detail & Vehicle Transaction Refined Layout
+   ========================================================================== */
+.sale-info-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 20px 32px;
+}
+
+.sale-info-section {
+  display: flex;
+  flex-direction: column;
+}
+
+.sale-section-subtitle {
+  font-size: 13px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  color: var(--color-primary-dark, #2b6127);
+  margin: 0 0 10px 0;
+  padding-bottom: 6px;
+  border-bottom: 2px solid #eef2e9;
+}
+
+[data-theme="dark"] .sale-section-subtitle {
+  border-bottom-color: #2b3528;
+  color: #86efac;
+}
+
+.sale-spec-list {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+}
+
+.sale-spec-list > div {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 9px 0;
+  border-bottom: 1px solid #f1f4ed;
+  font-size: 13px;
+}
+
+.sale-spec-list > div:last-child {
+  border-bottom: 0;
+}
+
+[data-theme="dark"] .sale-spec-list > div {
+  border-bottom-color: #262933;
+}
+
+.sale-spec-list dt {
+  font-size: 12px;
+  color: var(--readable-muted, #64748b);
+  margin: 0;
+  flex: 0 0 auto;
+}
+
+.sale-spec-list dd {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+  text-align: right;
+  flex: 1 1 auto;
+}
+
+.sale-notes-box {
+  background: #f8faf5;
+  border: 1px solid #e2ebd8;
+  border-radius: 10px;
+  padding: 12px 16px;
+  margin-top: 18px;
+}
+
+[data-theme="dark"] .sale-notes-box {
+  background: #191c22;
+  border-color: #2b3427;
+}
+
+.sale-notes-label {
+  display: block;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-primary-dark, #2b6127);
+  margin-bottom: 4px;
+}
+
+[data-theme="dark"] .sale-notes-label {
+  color: #86efac;
+}
+
+.sale-notes-box p {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.6;
+  color: #475569;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+[data-theme="dark"] .sale-notes-box p {
+  color: #cbd5e1;
+}
+
+.sale-quick-pay-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-top: 14px;
+}
+

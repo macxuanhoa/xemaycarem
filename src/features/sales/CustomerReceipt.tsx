@@ -48,7 +48,7 @@ export function CustomerReceipt({
               {settings.data?.phone && <p>Điện thoại: {settings.data.phone}</p>}
             </header>
             <h1>{payment ? "PHIẾU THU TIỀN" : "PHIẾU BÁN XE"}</h1>
-            <p>Giao dịch: {sale.sale_code}</p>
+            <p>Mã giao dịch: {sale.sale_code}</p>
             {payment && <p>Mã phiếu thu: {payment.id}</p>}
             <p>Ngày: {dateLabel(payment?.payment_date || sale.sale_date)}</p>
             <dl className="summary-list">

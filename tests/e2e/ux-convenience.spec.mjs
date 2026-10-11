@@ -415,9 +415,8 @@ test("Quick expense hides vehicle identifiers, maps category to the existing enu
   await expect(dialog).not.toContainText("XE-UX-001");
   await expect(dialog).not.toContainText("43A1-12345");
   await expect(dialog).not.toContainText("DUPLICATE-FRAME");
-  // Chip chỉ chọn phân loại — nội dung để trống cho người dùng tự ghi.
-  await dialog.getByRole("button", { name: "Lốp xe", exact: true }).click();
-  await expect(dialog.getByLabel("Nội dung chi tiết *")).toHaveValue("");
+  // Phân loại chi phí đã bỏ, trường tên các loại chi phí đặt ngay trên đầu.
+  await expect(dialog.getByLabel("Tên của các loại chi phí *")).toHaveValue("");
   await dialog.getByLabel("Số tiền chi (₫) *", { exact: true }).fill("150k");
   await dialog
     .getByRole("button", { name: "Lưu chi phí", exact: true })
@@ -426,7 +425,7 @@ test("Quick expense hides vehicle identifiers, maps category to the existing enu
     dialog.getByText("Nhập nội dung chi phí.", { exact: true }),
   ).toBeVisible();
   await dialog
-    .getByLabel("Nội dung chi tiết *")
+    .getByLabel("Tên của các loại chi phí *")
     .fill("Thay lốp xe sau bảo dưỡng");
   await dialog
     .getByRole("button", { name: "Lưu chi phí", exact: true })
@@ -437,7 +436,6 @@ test("Quick expense hides vehicle identifiers, maps category to the existing enu
   const request = calls.find((call) => call.name === "save_expense").body;
   expect(request.p_data).toMatchObject({
     vehicle_id: vehicleId,
-    expense_type: "PARTS",
     amount: 150000,
     description: "Thay lốp xe sau bảo dưỡng",
     expense_date: today,

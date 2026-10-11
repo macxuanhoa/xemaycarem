@@ -24,11 +24,13 @@ export function VehiclePhotoDisplay({
   vehicleName,
   removable,
   addPhotoHref,
+  onAddPhoto,
 }: {
   photos: VehicleImage[];
   vehicleName: string;
   removable: boolean;
   addPhotoHref?: string;
+  onAddPhoto?: () => void;
 }) {
   const client = useQueryClient();
   const [selected, setSelected] = useState(0);
@@ -171,7 +173,7 @@ export function VehiclePhotoDisplay({
   return (
     <div className="vehicle-display">
       {stage}
-      {(count > 1 || addPhotoHref) && (
+      {(count > 1 || addPhotoHref || onAddPhoto) && (
         <div
           className="vehicle-display-thumbs"
           ref={stripRef}
@@ -201,17 +203,28 @@ export function VehiclePhotoDisplay({
               />
             );
           })}
-          {addPhotoHref && (
-            /* Ô "+ ảnh" cuối dải: thêm bao nhiêu ảnh cũng không tràn UI —
-               dải cuộn ngang thay vì chất đống làm dài trang. */
-            <Link
-              to={addPhotoHref}
-              className="vehicle-display-thumb vehicle-display-add"
-              aria-label="Thêm ảnh cho xe"
-              title="Thêm ảnh"
-            >
-              <Plus size={18} />
-            </Link>
+          {(onAddPhoto || addPhotoHref) && (
+            /* Ô "+ ảnh" cuối dải: thêm bao nhiêu ảnh cũng không tràn UI */
+            onAddPhoto ? (
+              <button
+                type="button"
+                onClick={onAddPhoto}
+                className="vehicle-display-thumb vehicle-display-add"
+                aria-label="Thêm ảnh cho xe"
+                title="Thêm ảnh"
+              >
+                <Plus size={18} />
+              </button>
+            ) : (
+              <Link
+                to={addPhotoHref!}
+                className="vehicle-display-thumb vehicle-display-add"
+                aria-label="Thêm ảnh cho xe"
+                title="Thêm ảnh"
+              >
+                <Plus size={18} />
+              </Link>
+            )
           )}
         </div>
       )}

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useDebouncedValue } from "@/lib/useDebouncedValue";
 import { Link, useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -6,11 +6,10 @@ import { useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import {
-  Bike,
   CirclePlus,
+  MoreVertical,
   Pencil,
   Search,
-  Store,
   Trash2,
   X,
 } from "lucide-react";
@@ -61,10 +60,8 @@ const pageSize = 10;
 
 export function ExpensesPage({
   hideHeader = false,
-  defaultKind = "vehicle",
 }: {
   hideHeader?: boolean;
-  defaultKind?: ExpenseKind;
 } = {}) {
   const { profile } = useAuth();
   const client = useQueryClient();
@@ -75,12 +72,15 @@ export function ExpensesPage({
     location.state as { aiDraft?: Record<string, unknown> } | null
   )?.aiDraft;
 
+  // Bản nháp chi phí xe từ Copilot (deep-link /expenses kèm aiDraft) vẫn cần
+  // chế độ "xe" để chọn xe. Mọi truy cập quản lý thông thường chỉ xem/thêm
+  // chi phí cửa hàng — mục "Chi phí xe" đã gỡ khỏi giao diện này.
   const kind: ExpenseKind =
     params.get("kind") === "business"
       ? "business"
-      : params.get("kind") === "vehicle"
+      : params.get("kind") === "vehicle" || aiDraft
         ? "vehicle"
-        : defaultKind;
+        : "business";
 
   const selectedVehicle = params.get("vehicle") ?? "";
   const [range, setRange] = useState({
@@ -169,14 +169,6 @@ export function ExpensesPage({
     }
   }
 
-  function changeKind(value: ExpenseKind) {
-    setParams({ kind: value });
-    setPage(1);
-    setEditing(null);
-    setCancelling(null);
-    setAdding(false);
-  }
-
   if (!canManage(profile)) {
     return (
       <EmptyState
@@ -196,8 +188,8 @@ export function ExpensesPage({
     <div className="stack">
       {!hideHeader && (
         <PageHeader
-          title="Quản lý chi phí"
-          description="Ghi nhận và theo dõi chi phí xe (tân trang, phụ tùng, sửa chữa) và chi phí vận hành cửa hàng."
+          title="Chi phí cửa hàng"
+          description="Ghi nhận và theo dõi chi phí vận hành cửa hàng: thuê mặt bằng, điện nước, tiếp khách và các khoản chi chung khác."
           actions={
             <Button
               onClick={() => {
@@ -213,25 +205,6 @@ export function ExpensesPage({
       )}
 
       <Card>
-        <div className="tabs" aria-label="Loại chi phí">
-          <button
-            className={`tab ${kind === "vehicle" ? "active" : ""}`}
-            aria-pressed={kind === "vehicle"}
-            onClick={() => changeKind("vehicle")}
-          >
-            <Bike size={16} />
-            Chi phí xe
-          </button>
-          <button
-            className={`tab ${kind === "business" ? "active" : ""}`}
-            aria-pressed={kind === "business"}
-            onClick={() => changeKind("business")}
-          >
-            <Store size={16} />
-            Chi phí cửa hàng
-          </button>
-        </div>
-
         <div className="row filter-row">
           <label className="search-field">
             <Search size={19} />
@@ -376,38 +349,20 @@ export function ExpensesPage({
                     </td>
                     <td>
                       {expense.status === "ACTIVE" ? (
-                        <div
-                          className="row"
-                          style={{
-                            gap: "6px",
-                            justifyContent: "flex-end",
-                          }}
-                        >
-                          <Button
-                            variant="ghost"
-                            aria-label={`Sửa chi phí ${expense.description}`}
-                            title="Chỉnh sửa chi phí"
-                            onClick={() => {
+                        <div className="row" style={{ justifyContent: "flex-end" }}>
+                          <ExpenseRowMenu
+                            label={expense.description}
+                            onEdit={() => {
                               setCancelling(null);
                               setAdding(false);
                               setEditing(expense);
                             }}
-                          >
-                            <Pencil size={15} />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            style={{ color: "#dc2626" }}
-                            aria-label={`Hủy chi phí ${expense.description}`}
-                            title="Hủy khoản chi"
-                            onClick={() => {
+                            onCancel={() => {
                               setEditing(null);
                               setAdding(false);
                               setCancelling(expense);
                             }}
-                          >
-                            <Trash2 size={15} />
-                          </Button>
+                          />
                         </div>
                       ) : (
                         <span className="muted small" style={{ display: "block", textAlign: "right" }}>
@@ -423,17 +378,38 @@ export function ExpensesPage({
 
           <div className="mobile-cards">
             {query.data.items.map((expense) => (
-              <div key={expense.id} className="mobile-record">
-                <div className="row between">
-                  <strong><Highlight text={expense.description} query={deferredSearch} /></strong>
-                  <Badge status={expense.status} />
+              <div key={expense.id} className="mobile-record expense-record">
+                <div className="expense-card-head">
+                  <div className="expense-card-main">
+                    <strong className="expense-card-title">
+                      <Highlight text={expense.description} query={deferredSearch} />
+                    </strong>
+                    <span className="muted small">
+                      {dateLabel(expense.expense_date)} ·{" "}
+                      {labels[
+                        expense.expense_type ?? expense.category ?? "OTHER"
+                      ] ?? "Khác"}
+                    </span>
+                  </div>
+                  <div className="expense-card-side">
+                    <Badge status={expense.status} />
+                    {expense.status === "ACTIVE" && (
+                      <ExpenseRowMenu
+                        label={expense.description}
+                        onEdit={() => {
+                          setCancelling(null);
+                          setAdding(false);
+                          setEditing(expense);
+                        }}
+                        onCancel={() => {
+                          setEditing(null);
+                          setAdding(false);
+                          setCancelling(expense);
+                        }}
+                      />
+                    )}
+                  </div>
                 </div>
-                <span className="muted">
-                  {dateLabel(expense.expense_date)} ·{" "}
-                  {labels[
-                    expense.expense_type ?? expense.category ?? "OTHER"
-                  ] ?? "Khác"}
-                </span>
                 {kind === "vehicle" && (
                   <Link
                     className="text-link"
@@ -442,35 +418,9 @@ export function ExpensesPage({
                     <Highlight text={expense.vehicle_title || expense.vehicle_code || expense.internal_code || ""} query={deferredSearch} />
                   </Link>
                 )}
-                <div className="row between">
+                <div className="expense-card-amount">
+                  <span className="muted small">Số tiền</span>
                   <strong className="price">{money(expense.amount)}</strong>
-                  {expense.status === "ACTIVE" ? (
-                    <div className="row" style={{ gap: "4px" }}>
-                      <Button
-                        variant="ghost"
-                        onClick={() => {
-                          setCancelling(null);
-                          setAdding(false);
-                          setEditing(expense);
-                        }}
-                      >
-                        <Pencil size={14} /> Sửa
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        style={{ color: "#dc2626" }}
-                        onClick={() => {
-                          setEditing(null);
-                          setAdding(false);
-                          setCancelling(expense);
-                        }}
-                      >
-                        <Trash2 size={14} /> Hủy
-                      </Button>
-                    </div>
-                  ) : (
-                    <span className="muted small">Đã hủy</span>
-                  )}
                 </div>
               </div>
             ))}
@@ -485,6 +435,105 @@ export function ExpensesPage({
         </Card>
       )}
     </div>
+  );
+}
+
+function ExpenseRowMenu({
+  label,
+  onEdit,
+  onCancel,
+}: {
+  label: string;
+  onEdit: () => void;
+  onCancel: () => void;
+}) {
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const [open, setOpen] = useState(false);
+  const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
+
+  // Menu định vị position:fixed theo Rect của nút -> không bị .table-wrap
+  // (overflow:auto) cắt khi mở trong ô bảng. Đóng khi cuộn/thay đổi khổ.
+  useEffect(() => {
+    if (!open) return;
+    const close = () => setOpen(false);
+    window.addEventListener("scroll", close, true);
+    window.addEventListener("resize", close);
+    return () => {
+      window.removeEventListener("scroll", close, true);
+      window.removeEventListener("resize", close);
+    };
+  }, [open]);
+
+  const toggle = () => {
+    if (open) {
+      setOpen(false);
+      return;
+    }
+    const rect = triggerRef.current?.getBoundingClientRect();
+    if (rect) {
+      const width = 184;
+      setPos({
+        top: rect.bottom + 6,
+        left: Math.min(
+          Math.max(8, rect.right - width),
+          window.innerWidth - width - 8,
+        ),
+      });
+    }
+    setOpen(true);
+  };
+
+  return (
+    <>
+      <button
+        ref={triggerRef}
+        type="button"
+        className="icon-button expense-row-trigger"
+        aria-label={`Thao tác với chi phí ${label}`}
+        aria-haspopup="menu"
+        aria-expanded={open}
+        onClick={toggle}
+      >
+        <MoreVertical size={18} />
+      </button>
+      {open && pos && (
+        <>
+          <div
+            className="expense-row-scrim"
+            role="presentation"
+            onClick={() => setOpen(false)}
+          />
+          <div
+            className="expense-row-menu"
+            role="menu"
+            style={{ top: pos.top, left: pos.left }}
+          >
+            <button
+              type="button"
+              role="menuitem"
+              className="expense-row-menu-item"
+              onClick={() => {
+                setOpen(false);
+                onEdit();
+              }}
+            >
+              <Pencil size={15} /> Sửa
+            </button>
+            <button
+              type="button"
+              role="menuitem"
+              className="expense-row-menu-item expense-row-menu-danger"
+              onClick={() => {
+                setOpen(false);
+                onCancel();
+              }}
+            >
+              <Trash2 size={15} /> Hủy khoản chi
+            </button>
+          </div>
+        </>
+      )}
+    </>
   );
 }
 
@@ -595,9 +644,8 @@ function ExpenseEditor({
   onClose: () => void;
 }) {
   const client = useQueryClient();
-  const [editorKind, setEditorKind] = useState<ExpenseKind>(
-    expense?.kind ?? (expense?.vehicle_id ? "vehicle" : kind),
-  );
+  const editorKind: ExpenseKind =
+    expense?.kind ?? (expense?.vehicle_id ? "vehicle" : kind);
   const initialPlate =
     typeof aiDraft?.license_plate === "string" ? aiDraft.license_plate : "";
   const [vehicleSearch, setVehicleSearch] = useState(initialPlate);
@@ -760,34 +808,6 @@ function ExpenseEditor({
           <strong>{initialPlate || "xe"}</strong>, chọn đúng xe trong danh sách
           và xác nhận chi phí trước khi lưu.
         </p>
-      )}
-
-      {!expense && !vehicleId && (
-        <div className="tabs" style={{ marginBottom: "16px" }} aria-label="Chọn loại chi phí">
-          <button
-            type="button"
-            className={`tab ${editorKind === "vehicle" ? "active" : ""}`}
-            onClick={() => {
-              setEditorKind("vehicle");
-              form.setValue("type", "PARTS");
-            }}
-          >
-            <Bike size={15} />
-            Chi phí xe
-          </button>
-          <button
-            type="button"
-            className={`tab ${editorKind === "business" ? "active" : ""}`}
-            onClick={() => {
-              setEditorKind("business");
-              form.setValue("type", "RENT");
-              form.clearErrors("vehicle_id");
-            }}
-          >
-            <Store size={15} />
-            Chi phí cửa hàng
-          </button>
-        </div>
       )}
 
       <form

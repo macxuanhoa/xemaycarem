@@ -610,7 +610,7 @@ function VehicleEditor({ vehicle }: { vehicle?: Vehicle }) {
 
         {mutation.isError && <ErrorState error={mutation.error} />}
 
-        <div className="form-actions form-footer-actions">
+        <div className="form-actions form-actions-acquisition form-actions-vehicle form-footer-actions">
           <div className="form-actions-status">
             {isDraftRestored ? (
               <div

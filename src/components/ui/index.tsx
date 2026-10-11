@@ -159,11 +159,11 @@ export const statusLabels: Record<string, string> = {
   FAILED: "Gửi thất bại",
   SKIPPED: "Đã bỏ qua",
 };
-export function Badge({ status }: { status: string }) {
+export function Badge({ status, label, children }: { status: string; label?: React.ReactNode; children?: React.ReactNode }) {
   return (
     <span className={`badge badge-${status.toLowerCase()}`}>
       <span />
-      {statusLabels[status] ?? status}
+      {label ?? children ?? statusLabels[status] ?? status}
     </span>
   );
 }

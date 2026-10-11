@@ -384,4 +384,153 @@ describe("AcquisitionsPage layout, table readability and operational UX", () => 
   });
 });
 
+describe("VehicleFormPage layout and button alignment", () => {
+  it("renders form actions with matching acquisition horizontal button bar layout", async () => {
+    const { MemoryRouter, Routes, Route } = await import("react-router-dom");
+    const { VehicleFormPage } = await import(
+      "@/features/vehicles/VehicleFormPage"
+    );
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+    queryClient.setQueryData(["vehicle", "test-id"], {
+      id: "test-id",
+      vehicle_title: "Wave Alpha",
+      brand: "Honda",
+      model: "Wave Alpha",
+      engine_number: "ENG123",
+      frame_number: "RLH123456",
+      status: "IN_STOCK",
+      import_price: 15000000,
+    });
+    const html = renderToStaticMarkup(
+      <QueryClientProvider client={queryClient}>
+        <MemoryRouter initialEntries={["/vehicles/test-id/edit"]}>
+          <Routes>
+            <Route path="/vehicles/:id/edit" element={<VehicleFormPage />} />
+          </Routes>
+        </MemoryRouter>
+      </QueryClientProvider>,
+    );
+    expect(html).toContain("form-actions-acquisition");
+    expect(html).toContain("form-actions-buttons");
+    expect(html).toContain("Quay lại");
+  }, 15000);
+});
+
+describe("QuickExpenseModal layout and field naming", () => {
+  it("removes expense category classification, moves description to top as textarea named 'Tên của các loại chi phí'", async () => {
+    const { QuickExpenseModal } = await import(
+      "@/features/expenses/QuickExpenseModal"
+    );
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+    const html = renderToStaticMarkup(
+      <QueryClientProvider client={queryClient}>
+        <QuickExpenseModal
+          vehicleId="12345678-1234-1234-1234-123456789abc"
+          isOpen={true}
+          onClose={() => {}}
+        />
+      </QueryClientProvider>,
+    );
+    // Does not render category chips/classification
+    expect(html).not.toContain("Phân loại chi phí");
+    expect(html).not.toContain("expense-chips-grid");
+    // Description field is renamed and rendered as a comfortable textarea at the top
+    expect(html).toContain("Tên của các loại chi phí");
+    expect(html).toContain("<textarea");
+    expect(html).toContain("quick-expense-textarea");
+    // Comes before amount and date
+    const nameIndex = html.indexOf("Tên của các loại chi phí");
+    const amountIndex = html.indexOf("Số tiền chi (₫)");
+    const dateIndex = html.indexOf("Ngày chi");
+    expect(nameIndex).toBeGreaterThan(-1);
+    expect(amountIndex).toBeGreaterThan(nameIndex);
+    expect(dateIndex).toBeGreaterThan(amountIndex);
+  });
+});
+
+describe("Acquisitions and Sales display labels", () => {
+  it("renders 'Đã thu hoàn tất' in AcquisitionsPage for completed acquisitions", async () => {
+    const { AcquisitionsPage } = await import(
+      "@/features/acquisitions/AcquisitionsPage"
+    );
+    const { MemoryRouter } = await import("react-router-dom");
+    const { today } = await import("@/lib/format");
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+    queryClient.setQueryData(
+      [
+        "acquisitions",
+        { from: `${today().slice(0, 7)}-01`, to: today() },
+        "",
+        1,
+      ],
+      {
+        total: 1,
+        items: [
+          {
+            id: "acq-1",
+            vehicle_id: "veh-1",
+            vehicle_type: "Wave Alpha",
+            acquisition_date: "2026-10-01",
+            status: "COMPLETED",
+          },
+        ],
+      },
+    );
+    const html = renderToStaticMarkup(
+      <QueryClientProvider client={queryClient}>
+        <MemoryRouter initialEntries={["/acquisitions"]}>
+          <AcquisitionsPage />
+        </MemoryRouter>
+      </QueryClientProvider>,
+    );
+    expect(html).toContain("Đã thu hoàn tất");
+    expect(html).not.toMatch(/>\s*Hoàn tất\s*</);
+  }, 15000);
+
+  it("renders 'Mã giao dịch: BH-...' and removes 'Hoàn tất' badge for completed sales in SalesPage", async () => {
+    const { SalesPage } = await import("@/features/sales/SalesPage");
+    const { MemoryRouter } = await import("react-router-dom");
+    const { today } = await import("@/lib/format");
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+    queryClient.setQueryData(
+      ["sales", { from: `${today().slice(0, 7)}-01`, to: today() }, "", 1],
+      {
+        total: 1,
+        items: [
+          {
+            id: "sale-1",
+            sale_code: "BH-2026-0001",
+            vehicle_id: "veh-1",
+            vehicle_type: "Vision 2023",
+            customer_name: "Lê Văn Tám",
+            sale_date: "2026-10-02",
+            sale_price: 35000000,
+            paid_amount: 35000000,
+            remaining_amount: 0,
+            status: "COMPLETED",
+          },
+        ],
+      },
+    );
+    const html = renderToStaticMarkup(
+      <QueryClientProvider client={queryClient}>
+        <MemoryRouter initialEntries={["/sales"]}>
+          <SalesPage />
+        </MemoryRouter>
+      </QueryClientProvider>,
+    );
+    expect(html).toContain("Mã giao dịch:");
+    expect(html).toContain("BH-2026-0001");
+    expect(html).not.toContain("Hoàn tất");
+  }, 15000);
+});
+
 

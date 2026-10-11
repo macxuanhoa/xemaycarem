@@ -215,7 +215,7 @@ export function AcquisitionsPage() {
                         : "—"}
                     </td>
                     <td>
-                      <Badge status={acq.status} />
+                      <Badge status={acq.status} label={acq.status === "COMPLETED" ? "Đã thu hoàn tất" : undefined} />
                     </td>
                     <td>
                       <div className="row-actions">
@@ -249,7 +249,7 @@ export function AcquisitionsPage() {
                   <strong className="record-title">
                     <Highlight text={vehicleTypeName(acq)} query={debouncedSearch} />
                   </strong>
-                  <Badge status={acq.status} />
+                  <Badge status={acq.status} label={acq.status === "COMPLETED" ? "Đã thu hoàn tất" : undefined} />
                 </div>
                 <VehicleIdentityChips vehicle={acq} query={debouncedSearch} />
                 {(acq.year || acq.color) && (

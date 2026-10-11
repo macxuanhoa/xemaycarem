@@ -17,13 +17,11 @@ import {
   Camera,
   ChevronDown,
   ExternalLink,
-  Fingerprint,
   House,
   Inbox,
   LogOut,
   Menu,
   Megaphone,
-  MessagesSquare,
   Moon,
   Bike,
   Package,
@@ -157,7 +155,6 @@ export function AppLayout() {
     if (pathname.startsWith("/capture")) return "Camera thông minh";
     if (pathname.startsWith("/intake")) return "Thu xe tốc ký";
     if (pathname.startsWith("/copilot")) return "Trợ lý AI";
-    if (pathname.startsWith("/reply")) return "Trợ lý trả lời tin nhắn";
     if (pathname.startsWith("/brand-memory")) return "Bộ nhớ thương hiệu";
     if (pathname.startsWith("/docs")) return "Tài liệu cửa hàng";
     if (pathname.startsWith("/sell")) return "Bán xe";
@@ -264,15 +261,6 @@ export function AppLayout() {
                   <span>Tài liệu cửa hàng</span>
                 </NavLink>
                 <NavLink
-                  to="/reply"
-                  onClick={drawer.close}
-                  onMouseEnter={() => preloadRoute("/reply")}
-                  onFocus={() => preloadRoute("/reply")}
-                >
-                  <MessagesSquare size={20} />
-                  <span>Trả lời tin nhắn</span>
-                </NavLink>
-                <NavLink
                   to="/brand-memory"
                   onClick={drawer.close}
                   onMouseEnter={() => preloadRoute("/brand-memory")}
@@ -300,15 +288,26 @@ export function AppLayout() {
                   <Users size={20} />
                   Nhân sự
                 </NavLink>
-                {/* Nghi trùng biển số + 5 ký tự cuối: Chủ và Quản lý cùng xác minh. */}
+                {/* Trung tâm duyệt chung (Nghi trùng xe, Bán dưới giá thu, Xóa xe) */}
                 <NavLink
-                  to="/duplicate-reviews"
+                  to="/approvals"
+                  className={({ isActive }) =>
+                    isActive || pathname.startsWith("/duplicate-reviews")
+                      ? "active"
+                      : ""
+                  }
                   onClick={drawer.close}
-                  onMouseEnter={() => preloadRoute("/duplicate-reviews")}
-                  onFocus={() => preloadRoute("/duplicate-reviews")}
+                  onMouseEnter={() => {
+                    preloadRoute("/approvals");
+                    preloadRoute("/duplicate-reviews");
+                  }}
+                  onFocus={() => {
+                    preloadRoute("/approvals");
+                    preloadRoute("/duplicate-reviews");
+                  }}
                 >
-                  <Fingerprint size={20} />
-                  Xác minh nghi trùng
+                  <Inbox size={20} />
+                  Chờ duyệt
                 </NavLink>
                 {canFinance(profile) && (
                   <NavLink
@@ -319,17 +318,6 @@ export function AppLayout() {
                   >
                     <Banknote size={20} />
                     Đối soát chuyển khoản
-                  </NavLink>
-                )}
-                {isOwner(profile) && (
-                  <NavLink
-                    to="/approvals"
-                    onClick={drawer.close}
-                    onMouseEnter={() => preloadRoute("/approvals")}
-                    onFocus={() => preloadRoute("/approvals")}
-                  >
-                    <Inbox size={20} />
-                    Chờ duyệt
                   </NavLink>
                 )}
                 {isOwner(profile) && (

@@ -1,7 +1,17 @@
 import { useState } from "react";
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Link, useNavigate } from "react-router-dom";
-import { Check, RotateCcw, Bike, User, X } from "lucide-react";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
+import {
+  BadgePercent,
+  Bike,
+  Check,
+  Fingerprint,
+  Inbox,
+  RotateCcw,
+  Trash2,
+  User,
+  X,
+} from "lucide-react";
 import { api } from "@/lib/api";
 import { AppError } from "@/lib/errors";
 import { celebrateSale } from "@/lib/celebrate";
@@ -9,6 +19,7 @@ import { executeOperation } from "@/lib/operationRecovery";
 import { dateLabel, money } from "@/lib/format";
 import { toast } from "@/lib/toast";
 import { confirmAction } from "@/components/ui/ConfirmDialog";
+import { canManage, isOwner } from "@/lib/permissions";
 import { useAuth } from "@/features/auth/AuthProvider";
 import {
   Card,
@@ -17,14 +28,9 @@ import {
   Loading,
   PageHeader,
 } from "@/components/ui";
+import { ReviewRow } from "@/features/approvals/DuplicateReviewsPage";
 import type { ApprovalKind, ApprovalRequest } from "@/types";
 
-// Human labels per approval kind. New approval workflows plug in here without a
-// schema change — the queue itself is generic (migration 20261008000200).
-// VEHICLE_DUPLICATE_REVIEW is listed only to satisfy the exhaustive record; it is
-// deliberately NOT rendered here because this OWNER-only screen has no handler for
-// it and its rows carry no finance data. Duplicate reviews live on the dedicated
-// OWNER/MANAGER queue (/duplicate-reviews), keeping this money-first queue clean.
 const KIND_LABELS: Record<ApprovalKind, string> = {
   SALE_BELOW_COST: "Bán xe dưới giá thu",
   VEHICLE_DELETION: "Xóa xe khỏi kho",
@@ -73,10 +79,39 @@ function saleFacts(item: ApprovalRequest) {
 export function ApprovalsPage() {
   const client = useQueryClient();
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { profile } = useAuth();
-  const [offset, setOffset] = useState(0);
+  const owner = isOwner(profile);
+  const manager = canManage(profile);
 
-  const query = useQuery({
+  const [offset, setOffset] = useState(0);
+  const [dupOffset, setDupOffset] = useState(0);
+
+  // Tab: all | duplicate | sale | deletion
+  const tabParam = searchParams.get("tab");
+  const activeTab = !owner
+    ? "duplicate"
+    : tabParam && ["all", "duplicate", "sale", "deletion"].includes(tabParam)
+      ? tabParam
+      : "all";
+
+  const handleTabChange = (tabId: string) => {
+    setSearchParams(
+      (prev) => {
+        const next = new URLSearchParams(prev);
+        if (tabId === "all") {
+          next.delete("tab");
+        } else {
+          next.set("tab", tabId);
+        }
+        return next;
+      },
+      { replace: true },
+    );
+  };
+
+  // Queries
+  const approvalsQuery = useQuery({
     queryKey: ["approvals", offset],
     queryFn: () =>
       api.listPendingApprovals({
@@ -84,6 +119,18 @@ export function ApprovalsPage() {
         offset,
         exclude_kind: "VEHICLE_DUPLICATE_REVIEW",
       }),
+    enabled: owner,
+    placeholderData: keepPreviousData,
+  });
+
+  const duplicateQuery = useQuery({
+    queryKey: ["duplicate-reviews", dupOffset],
+    queryFn: () =>
+      api.listVehicleDuplicateReviews({
+        limit: pageSize,
+        offset: dupOffset,
+      }),
+    enabled: manager,
     placeholderData: keepPreviousData,
   });
 
@@ -205,158 +252,488 @@ export function ApprovalsPage() {
     );
   }
 
-  if (query.isPending) return <Loading />;
-  if (query.isError)
-    return <ErrorState error={query.error} retry={() => void query.refetch()} />;
+  if (!manager) {
+    return (
+      <EmptyState
+        title="Bạn chưa được cấp quyền mở trang này"
+        description="Liên hệ chủ cửa hàng nếu cần thay đổi quyền truy cập."
+      />
+    );
+  }
 
-  // VEHICLE_DUPLICATE_REVIEW is resolved on the dedicated /duplicate-reviews queue
-  // (OWNER + MANAGER). It shares the generic table but has no handler here, so drop
-  // those rows to keep this money-first screen correct and finance-private.
-  const items = (query.data?.items ?? []).filter(
+  if ((owner && approvalsQuery.isPending) || duplicateQuery.isPending) {
+    return <Loading />;
+  }
+
+  if (owner && approvalsQuery.isError) {
+    return (
+      <ErrorState
+        error={approvalsQuery.error}
+        retry={() => void approvalsQuery.refetch()}
+      />
+    );
+  }
+
+  if (duplicateQuery.isError && (!owner || activeTab === "duplicate")) {
+    return (
+      <ErrorState
+        error={duplicateQuery.error}
+        retry={() => void duplicateQuery.refetch()}
+      />
+    );
+  }
+
+  // Duplicate items
+  const duplicateItems = duplicateQuery.data?.items ?? [];
+  const duplicateTotal = duplicateQuery.data?.total ?? duplicateItems.length;
+
+  // Approval items (sale & deletion)
+  const rawApprovalItems = approvalsQuery.data?.items ?? [];
+  const approvalItems = rawApprovalItems.filter(
     (item) => item.kind !== "VEHICLE_DUPLICATE_REVIEW",
   );
-  const total = query.data?.total ?? 0;
-  const groups = items.reduce<Record<string, ApprovalRequest[]>>((acc, item) => {
-    (acc[item.kind] ??= []).push(item);
-    return acc;
-  }, {});
-  // Ưu tiên luồng tiền: yêu cầu bán dưới giá thu cần quyết định trong ngày.
-  const kindOrder: ApprovalKind[] = ["SALE_BELOW_COST", "VEHICLE_DELETION"];
-  const orderedKinds = [
-    ...kindOrder.filter((kind) => groups[kind]?.length),
-    ...Object.keys(groups).filter(
-      (kind) => !kindOrder.includes(kind as ApprovalKind),
-    ),
-  ];
+  const approvalsTotal = approvalsQuery.data?.total ?? approvalItems.length;
+
+  const sales = approvalItems.filter((item) => item.kind === "SALE_BELOW_COST");
+  const deletions = approvalItems.filter((item) => item.kind === "VEHICLE_DELETION");
+  const otherItems = approvalItems.filter(
+    (item) => item.kind !== "SALE_BELOW_COST" && item.kind !== "VEHICLE_DELETION",
+  );
+
+  const totalCount = (owner ? approvalsTotal : 0) + duplicateTotal;
+
+  const tabs = owner
+    ? [
+        {
+          id: "all",
+          label: "Tất cả",
+          icon: <Inbox size={14} />,
+          count: totalCount,
+        },
+        {
+          id: "duplicate",
+          label: "Nghi trùng xe",
+          icon: <Fingerprint size={14} />,
+          count: duplicateTotal,
+        },
+        {
+          id: "sale",
+          label: "Bán dưới giá thu",
+          icon: <BadgePercent size={14} />,
+          count: sales.length,
+        },
+        {
+          id: "deletion",
+          label: "Xóa xe khỏi kho",
+          icon: <Trash2 size={14} />,
+          count: deletions.length,
+        },
+      ]
+    : [
+        {
+          id: "duplicate",
+          label: "Nghi trùng xe",
+          icon: <Fingerprint size={14} />,
+          count: duplicateTotal,
+        },
+      ];
+
+  const renderSaleRow = (item: ApprovalRequest) => (
+    <div className="compact-row approvals-row" key={item.id}>
+      <div className="approvals-row-main">
+        <strong>
+          {item.vehicle_title || item.vehicle_code || "Xe không còn tồn tại"}
+        </strong>
+        {saleFacts(item)}
+        <small className="muted">
+          <User size={12} style={{ verticalAlign: "-1px" }} />{" "}
+          {item.requester_name || "Nhân viên"} · {dateLabel(item.created_at)}
+        </small>
+        <Link className="text-link" to={`/vehicles/${item.subject_id}`}>
+          <Bike size={13} /> Xem xe
+        </Link>
+      </div>
+      <div className="align-right approvals-row-actions">
+        <button
+          type="button"
+          className="button primary"
+          disabled={resolve.isPending}
+          onClick={() => void approveSale(item)}
+        >
+          <Check size={15} /> Phê duyệt
+        </button>
+        <button
+          type="button"
+          className="button secondary"
+          disabled={resolve.isPending}
+          onClick={() => void rejectSale(item)}
+        >
+          <X size={15} /> Từ chối
+        </button>
+      </div>
+    </div>
+  );
+
+  const renderDeletionRow = (item: ApprovalRequest) => (
+    <div className="compact-row approvals-row" key={item.id}>
+      <div className="approvals-row-main">
+        <strong>
+          {item.vehicle_title || item.vehicle_code || "Xe không còn tồn tại"}
+        </strong>
+        <small>
+          {[
+            item.vehicle_subtitle,
+            item.vehicle_code ? `Mã xe ${item.vehicle_code}` : "",
+            item.reason,
+          ]
+            .filter(Boolean)
+            .join(" · ")}
+        </small>
+        <small className="muted">
+          <User size={12} style={{ verticalAlign: "-1px" }} />{" "}
+          {item.requester_name || "Nhân viên"} · {dateLabel(item.created_at)}
+        </small>
+        <Link className="text-link" to={`/vehicles/${item.subject_id}`}>
+          <Bike size={13} /> Xem xe
+        </Link>
+      </div>
+      <div className="align-right approvals-row-actions">
+        <button
+          type="button"
+          className="button primary"
+          disabled={resolve.isPending}
+          onClick={() => void approve(item)}
+        >
+          <Check size={15} /> Duyệt xóa
+        </button>
+        <button
+          type="button"
+          className="button secondary"
+          disabled={resolve.isPending}
+          onClick={() => void restore(item)}
+        >
+          <RotateCcw size={15} /> Khôi phục
+        </button>
+      </div>
+    </div>
+  );
 
   return (
     <div className="stack">
       <PageHeader
         title="Chờ duyệt"
-        description="Các yêu cầu cần chủ cửa hàng xem và quyết định mỗi ngày."
+        description={
+          owner
+            ? "Hàng đợi xác minh hồ sơ nghi trùng và phê duyệt đề xuất từ nhân viên mỗi ngày."
+            : "Hàng đợi xác minh các hồ sơ xe nghi trùng biển số và số khung do nhân viên gửi lên."
+        }
       />
-      {items.length === 0 ? (
-        <EmptyState
-          title="Không có gì chờ duyệt"
-          description="Khi nhân viên xin bán dưới giá thu hoặc gửi yêu cầu xóa xe, bạn sẽ thấy ở đây."
-        />
-      ) : (
-        orderedKinds.map((kindKey) => {
-          const kind = kindKey as ApprovalKind;
-          const rows = groups[kind] ?? [];
-          const isSale = kind === "SALE_BELOW_COST";
-          return (
-          <Card key={kind}>
-            <h2 className="section-title">
-              {KIND_LABELS[kind] ?? kind}
-              <span className="muted" style={{ marginLeft: 8 }}>
-                ({rows.length})
-              </span>
-            </h2>
-            <div className="compact-list">
-              {rows.map((item) => (
-                <div className="compact-row approvals-row" key={item.id}>
-                  <div className="approvals-row-main">
-                    <strong>
-                      {item.vehicle_title ||
-                        item.vehicle_code ||
-                        "Xe không còn tồn tại"}
-                    </strong>
-                    {isSale ? (
-                      saleFacts(item)
-                    ) : (
-                      <small>
-                        {[
-                          item.vehicle_subtitle,
-                          item.vehicle_code ? `Mã xe ${item.vehicle_code}` : "",
-                          item.reason,
-                        ]
-                          .filter(Boolean)
-                          .join(" · ")}
-                      </small>
-                    )}
-                    <small className="muted">
-                      <User size={12} style={{ verticalAlign: "-1px" }} />{" "}
-                      {item.requester_name || "Nhân viên"} ·{" "}
-                      {dateLabel(item.created_at)}
-                    </small>
-                    <Link
-                      className="text-link"
-                      to={`/vehicles/${item.subject_id}`}
-                    >
-                      <Bike size={13} /> Xem xe
-                    </Link>
-                  </div>
-                  <div className="align-right approvals-row-actions">
-                    {isSale ? (
-                      <>
-                        <button
-                          type="button"
-                          className="button primary"
-                          disabled={resolve.isPending}
-                          onClick={() => void approveSale(item)}
-                        >
-                          <Check size={15} /> Phê duyệt
-                        </button>
-                        <button
-                          type="button"
-                          className="button secondary"
-                          disabled={resolve.isPending}
-                          onClick={() => void rejectSale(item)}
-                        >
-                          <X size={15} /> Từ chối
-                        </button>
-                      </>
-                    ) : (
-                      <>
-                        <button
-                          type="button"
-                          className="button primary"
-                          disabled={resolve.isPending}
-                          onClick={() => void approve(item)}
-                        >
-                          <Check size={15} /> Duyệt xóa
-                        </button>
-                        <button
-                          type="button"
-                          className="button secondary"
-                          disabled={resolve.isPending}
-                          onClick={() => void restore(item)}
-                        >
-                          <RotateCcw size={15} /> Khôi phục
-                        </button>
-                      </>
-                    )}
-                  </div>
-                </div>
+
+      {!owner && (
+        <p className="notice" style={{ margin: 0 }}>
+          Bạn đang ở phân quyền Quản lý: duyệt hồ sơ xe nghi trùng. Các yêu cầu
+          tài chính (bán dưới giá thu, xóa xe) thuộc thẩm quyền của Chủ cửa hàng.
+        </p>
+      )}
+
+      {/* Phân loại xét duyệt */}
+      <div className="approvals-filter-toolbar">
+        <div
+          className="approval-segmented-bar"
+          role="tablist"
+          aria-label="Phân loại duyệt"
+        >
+          {tabs.map((t) => (
+            <button
+              key={t.id}
+              type="button"
+              role="tab"
+              aria-selected={activeTab === t.id}
+              className={`approval-seg-btn${activeTab === t.id ? " active" : ""}`}
+              onClick={() => handleTabChange(t.id)}
+            >
+              {t.icon}
+              <span>{t.label}</span>
+              {t.count !== undefined && (
+                <span className="approval-filter-count">{t.count}</span>
+              )}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Tab: Nghi trùng xe */}
+      {activeTab === "duplicate" && (
+        <>
+          {duplicateItems.length === 0 ? (
+            <EmptyState
+              title="Không có yêu cầu nghi trùng nào đang chờ"
+              description="Tất cả hồ sơ xe nghi trùng đã được xử lý xong."
+            />
+          ) : (
+            <div className="stack" style={{ gap: 14 }}>
+              {duplicateItems.map((item) => (
+                <ReviewRow key={item.id} item={item} />
               ))}
             </div>
-          </Card>
-          );
-        })
+          )}
+          {duplicateTotal > pageSize && (
+            <div className="row between" style={{ marginTop: 12 }}>
+              <button
+                type="button"
+                className="button secondary"
+                disabled={dupOffset === 0}
+                onClick={() => setDupOffset((o) => Math.max(0, o - pageSize))}
+              >
+                Trang trước
+              </button>
+              <span className="muted">
+                {dupOffset + 1}–{Math.min(duplicateTotal, dupOffset + pageSize)} /{" "}
+                {duplicateTotal}
+              </span>
+              <button
+                type="button"
+                className="button secondary"
+                disabled={dupOffset + pageSize >= duplicateTotal}
+                onClick={() => setDupOffset((o) => o + pageSize)}
+              >
+                Trang sau
+              </button>
+            </div>
+          )}
+        </>
       )}
-      {total > pageSize && (
-              <div className="row between" style={{ marginTop: 12 }}>
-                <button
-                  type="button"
-                  className="button secondary"
-                  disabled={offset === 0}
-                  onClick={() => setOffset((o) => Math.max(0, o - pageSize))}
-                >
-                  Trang trước
-                </button>
-                <span className="muted">
-                  {offset + 1}–{Math.min(total, offset + pageSize)} / {total}
+
+      {/* Tab: Bán dưới giá thu */}
+      {activeTab === "sale" && (
+        <>
+          {sales.length === 0 ? (
+            <EmptyState
+              title="Không có yêu cầu bán dưới giá thu nào đang chờ"
+              description="Khi nhân viên xin bán dưới giá thu, các yêu cầu sẽ xuất hiện ở đây."
+            />
+          ) : (
+            <Card>
+              <h2 className="section-title">
+                Bán xe dưới giá thu
+                <span className="muted" style={{ marginLeft: 8 }}>
+                  ({sales.length})
                 </span>
-                <button
-                  type="button"
-                  className="button secondary"
-                  disabled={offset + pageSize >= total}
-                  onClick={() => setOffset((o) => o + pageSize)}
-                >
-                  Trang sau
-                </button>
+              </h2>
+              <div className="compact-list">
+                {sales.map((item) => renderSaleRow(item))}
               </div>
+            </Card>
+          )}
+          {approvalsTotal > pageSize && (
+            <div className="row between" style={{ marginTop: 12 }}>
+              <button
+                type="button"
+                className="button secondary"
+                disabled={offset === 0}
+                onClick={() => setOffset((o) => Math.max(0, o - pageSize))}
+              >
+                Trang trước
+              </button>
+              <span className="muted">
+                {offset + 1}–{Math.min(approvalsTotal, offset + pageSize)} /{" "}
+                {approvalsTotal}
+              </span>
+              <button
+                type="button"
+                className="button secondary"
+                disabled={offset + pageSize >= approvalsTotal}
+                onClick={() => setOffset((o) => o + pageSize)}
+              >
+                Trang sau
+              </button>
+            </div>
+          )}
+        </>
+      )}
+
+      {/* Tab: Xóa xe */}
+      {activeTab === "deletion" && (
+        <>
+          {deletions.length === 0 ? (
+            <EmptyState
+              title="Không có yêu cầu xóa xe nào đang chờ"
+              description="Khi nhân viên gửi yêu cầu xóa xe khỏi kho, bạn sẽ thấy ở đây."
+            />
+          ) : (
+            <Card>
+              <h2 className="section-title">
+                Xóa xe khỏi kho
+                <span className="muted" style={{ marginLeft: 8 }}>
+                  ({deletions.length})
+                </span>
+              </h2>
+              <div className="compact-list">
+                {deletions.map((item) => renderDeletionRow(item))}
+              </div>
+            </Card>
+          )}
+          {approvalsTotal > pageSize && (
+            <div className="row between" style={{ marginTop: 12 }}>
+              <button
+                type="button"
+                className="button secondary"
+                disabled={offset === 0}
+                onClick={() => setOffset((o) => Math.max(0, o - pageSize))}
+              >
+                Trang trước
+              </button>
+              <span className="muted">
+                {offset + 1}–{Math.min(approvalsTotal, offset + pageSize)} /{" "}
+                {approvalsTotal}
+              </span>
+              <button
+                type="button"
+                className="button secondary"
+                disabled={offset + pageSize >= approvalsTotal}
+                onClick={() => setOffset((o) => o + pageSize)}
+              >
+                Trang sau
+              </button>
+            </div>
+          )}
+        </>
+      )}
+
+      {/* Tab: Tất cả */}
+      {activeTab === "all" && (
+        <>
+          {duplicateItems.length === 0 && approvalItems.length === 0 ? (
+            <EmptyState
+              title="Không có gì chờ duyệt"
+              description="Khi nhân viên xin bán dưới giá thu, yêu cầu xóa xe hoặc gửi hồ sơ nghi trùng, bạn sẽ thấy ở đây."
+            />
+          ) : (
+            <div className="stack" style={{ gap: 18 }}>
+              {/* Mục xe nghi trùng */}
+              {duplicateItems.length > 0 && (
+                <div>
+                  <div
+                    className="row between"
+                    style={{ marginBottom: 10, alignItems: "center" }}
+                  >
+                    <h2
+                      className="section-title"
+                      style={{
+                        margin: 0,
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 8,
+                      }}
+                    >
+                      <Fingerprint size={18} />
+                      Xác minh xe nghi trùng
+                      <span className="muted">({duplicateTotal})</span>
+                    </h2>
+                    {duplicateTotal > duplicateItems.length && (
+                      <button
+                        type="button"
+                        className="text-link"
+                        onClick={() => handleTabChange("duplicate")}
+                      >
+                        Xem tất cả ({duplicateTotal})
+                      </button>
+                    )}
+                  </div>
+                  <div className="stack" style={{ gap: 14 }}>
+                    {duplicateItems.map((item) => (
+                      <ReviewRow key={item.id} item={item} />
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Mục bán dưới giá thu */}
+              {sales.length > 0 && (
+                <Card>
+                  <h2 className="section-title">
+                    Bán xe dưới giá thu
+                    <span className="muted" style={{ marginLeft: 8 }}>
+                      ({sales.length})
+                    </span>
+                  </h2>
+                  <div className="compact-list">
+                    {sales.map((item) => renderSaleRow(item))}
+                  </div>
+                </Card>
+              )}
+
+              {/* Mục xóa xe */}
+              {deletions.length > 0 && (
+                <Card>
+                  <h2 className="section-title">
+                    Xóa xe khỏi kho
+                    <span className="muted" style={{ marginLeft: 8 }}>
+                      ({deletions.length})
+                    </span>
+                  </h2>
+                  <div className="compact-list">
+                    {deletions.map((item) => renderDeletionRow(item))}
+                  </div>
+                </Card>
+              )}
+
+              {/* Mục khác nếu có */}
+              {otherItems.length > 0 && (
+                <Card>
+                  <h2 className="section-title">
+                    Yêu cầu khác
+                    <span className="muted" style={{ marginLeft: 8 }}>
+                      ({otherItems.length})
+                    </span>
+                  </h2>
+                  <div className="compact-list">
+                    {otherItems.map((item) => (
+                      <div className="compact-row approvals-row" key={item.id}>
+                        <div className="approvals-row-main">
+                          <strong>
+                            {KIND_LABELS[item.kind] || item.kind}
+                          </strong>
+                          <small>{item.reason}</small>
+                          <small className="muted">
+                            <User size={12} style={{ verticalAlign: "-1px" }} />{" "}
+                            {item.requester_name || "Nhân viên"} ·{" "}
+                            {dateLabel(item.created_at)}
+                          </small>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </Card>
+              )}
+            </div>
+          )}
+
+          {approvalsTotal > pageSize && (
+            <div className="row between" style={{ marginTop: 12 }}>
+              <button
+                type="button"
+                className="button secondary"
+                disabled={offset === 0}
+                onClick={() => setOffset((o) => Math.max(0, o - pageSize))}
+              >
+                Trang trước
+              </button>
+              <span className="muted">
+                {offset + 1}–{Math.min(approvalsTotal, offset + pageSize)} /{" "}
+                {approvalsTotal}
+              </span>
+              <button
+                type="button"
+                className="button secondary"
+                disabled={offset + pageSize >= approvalsTotal}
+                onClick={() => setOffset((o) => o + pageSize)}
+              >
+                Trang sau
+              </button>
+            </div>
+          )}
+        </>
       )}
     </div>
   );

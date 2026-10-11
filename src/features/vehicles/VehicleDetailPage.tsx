@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { displayFrame } from "@/lib/frameNumber";
+import { resolveDebtStatus } from "@/lib/debt";
 import { money, dateLabel, daysInStock } from "@/lib/format";
 import {
   canDeleteVehicle,
@@ -29,11 +30,11 @@ import { useAuth } from "@/features/auth/AuthProvider";
 import { toast } from "@/lib/toast";
 import {
   Badge,
+  Button,
   Card,
   EmptyState,
   ErrorState,
   Loading,
-  PageHeader,
 } from "@/components/ui";
 import type { Vehicle } from "@/types";
 import { actionLabels } from "./vehicleSchema";
@@ -48,12 +49,12 @@ import {
 import { VehicleImageUpload } from "./VehicleImageUpload";
 import { VehicleQr } from "./VehicleQr";
 import { IdentityDocumentPanel } from "@/components/IdentityDocumentPanel";
-import { vehicleSubtitle, vehicleTitle } from "@/lib/vehicleDisplay";
+import { vehicleTitle } from "@/lib/vehicleDisplay";
 
-// The plate and VIN are promoted to the hero tiles at the top of the page,
-// so within the secondary details list only the supplier phone keeps the
+// The plate and VIN are promoted to the highlight tiles at the top of the page,
+// so within the secondary details list only the seller phone keeps the
 // monospace + copy treatment.
-const identifierLabels = new Set(["SĐT nhà cung cấp"]);
+const identifierLabels = new Set(["SĐT người bán"]);
 
 export function VehicleDetailPage() {
   const { id } = useParams();
@@ -63,7 +64,13 @@ export function VehicleDetailPage() {
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [requestOpen, setRequestOpen] = useState(false);
   const [actionsOpen, setActionsOpen] = useState(false);
-  const [message, setMessage] = useState("");
+  const [photoChoiceOpen, setPhotoChoiceOpen] = useState(false);
+  // Khi mở từ tab "Đã bán" trong kho, ưu tiên hiện giao dịch bán ra; người dùng
+  // bấm "Xem chi tiết xe" (set true) mới thấy toàn bộ hồ sơ xe.
+  const [revealDetail, setRevealDetail] = useState(false);
+  useEffect(() => {
+    setRevealDetail(false);
+  }, [id]);
 
   const query = useQuery({
     queryKey: ["vehicle", id],
@@ -120,6 +127,125 @@ export function VehicleDetailPage() {
   if (!vehicle) return <EmptyState title="Không tìm thấy xe" />;
 
   const activeSale = vehicle.sales?.find((sale) => sale.status === "COMPLETED");
+  // Màn “giao dịch bán ra trước”: chỉ chặn khi vào từ tab Đã bán, xe đang SOLD
+  // và thật sự có giao dịch hoàn tất; mọi trường hợp khác hiện chi tiết bình thường.
+  const saleFirstGate =
+    !!(location.state as { saleFirst?: boolean } | null)?.saleFirst &&
+    vehicle.status === "SOLD" &&
+    !!activeSale &&
+    !revealDetail;
+  if (saleFirstGate && activeSale) {
+    return (
+      <div className="stack vehicle-detail-page">
+        <Link
+          className="back-link"
+          to={location.state?.fromInventory || "/vehicles"}
+          state={{ restoreInventory: true }}
+        >
+          <ArrowLeft size={16} /> Tồn kho
+        </Link>
+        <Card className="sold-sale-first">
+          <div className="sold-sale-first-head">
+            <div className="sold-sale-first-title">
+              <span className="muted small">
+                Đã bán · {vehicle.vehicle_type || "Chưa phân loại"}
+              </span>
+              <h1>
+                {vehicle.license_plate ||
+                  vehicle.internal_code ||
+                  vehicleTitle(vehicle)}
+              </h1>
+              <p className="muted small">
+                Số khung: {displayFrame(vehicle.frame_number)}
+              </p>
+            </div>
+            <Badge status="SOLD" />
+          </div>
+
+          <div className="sold-sale-first-body">
+            <h2 className="section-title">
+              <ShoppingBag size={18} aria-hidden="true" /> Giao dịch bán ra
+            </h2>
+            <div className="sold-sale-buyer">
+              <strong>{activeSale.customer_name}</strong>
+              {activeSale.customer_phone ? (
+                <a
+                  className="muted small"
+                  href={`tel:${activeSale.customer_phone}`}
+                  style={{ textDecoration: "none" }}
+                >
+                  {activeSale.customer_phone}
+                </a>
+              ) : (
+                <span className="muted small">Chưa có SĐT</span>
+              )}
+              <Badge status={resolveDebtStatus(activeSale)} />
+            </div>
+            <dl className="summary-list">
+              <div>
+                <dt>Mã giao dịch</dt>
+                <dd>{activeSale.sale_code}</dd>
+              </div>
+              <div>
+                <dt>Ngày bán</dt>
+                <dd>{dateLabel(activeSale.sale_date)}</dd>
+              </div>
+              <div>
+                <dt>Giá bán</dt>
+                <dd>
+                  {activeSale.sale_price_hidden
+                    ? "Đã ẩn"
+                    : money(activeSale.sale_price ?? 0)}
+                </dd>
+              </div>
+              <div>
+                <dt>Đã thu</dt>
+                <dd>
+                  {activeSale.sale_price_hidden
+                    ? "Đã ẩn"
+                    : money(activeSale.paid_amount)}
+                </dd>
+              </div>
+              <div className="summary-total">
+                <dt>Còn phải thu</dt>
+                <dd>
+                  {activeSale.sale_price_hidden
+                    ? "Đã ẩn"
+                    : money(activeSale.remaining_amount)}
+                </dd>
+              </div>
+              {canFinance(profile) && activeSale.gross_profit != null && (
+                <div>
+                  <dt>Lợi nhuận gộp</dt>
+                  <dd>{money(activeSale.gross_profit)}</dd>
+                </div>
+              )}
+              {activeSale.employee_name && (
+                <div>
+                  <dt>Người bán</dt>
+                  <dd>{activeSale.employee_name}</dd>
+                </div>
+              )}
+            </dl>
+            <div className="sold-sale-first-actions">
+              <Link
+                className="button primary"
+                to={`/sales/${activeSale.id}`}
+              >
+                Xem giao dịch <ArrowRight size={16} />
+              </Link>
+              <Button
+                variant="secondary"
+                onClick={() => setRevealDetail(true)}
+              >
+                <Bike size={16} aria-hidden="true" /> Xem chi tiết xe
+              </Button>
+            </div>
+          </div>
+        </Card>
+      </div>
+    );
+  }
   const available = ["IN_STOCK", "RESERVED"].includes(vehicle.status);
   const financial = canFinance(profile);
   const hasSales = !!vehicle.sales?.length;
@@ -158,134 +284,162 @@ export function VehicleDetailPage() {
         <ArrowLeft size={16} /> Tồn kho
       </Link>
       <div className="vehicle-identity">
-        <PageHeader
-          title={vehicleSubtitle(vehicle) || "Chưa phân loại"}
-          description={vehicle.internal_code ? `Mã ${vehicle.internal_code}` : undefined}
-          actions={
-            <div className="heading-meta-actions">
-              <Badge status={vehicle.status} />
-              {available && (
-                <span className="identity-days muted">
-                  {daysInStock(vehicle.purchase_date)} ngày trong kho
+        <div className="vehicle-detail-header">
+          <div className="vehicle-title-row">
+            <div className="vehicle-title-left">
+              <h1 className="carem-led-title" title={vehicle.vehicle_type || "Chưa phân loại"}>
+                <span className="carem-led-title-dot" aria-hidden="true" />
+                <span className="carem-led-title-text">
+                  {vehicle.vehicle_type || "Chưa phân loại"}
                 </span>
-              )}
-              {hasVehicleActions && (
-                <div className="vehicle-actions-menu-wrap">
-                  <button
-                    type="button"
-                    className="icon-button vehicle-actions-trigger"
-                    aria-label="Thao tác trên xe"
-                    aria-haspopup="true"
-                    aria-expanded={actionsOpen}
-                    onClick={() => setActionsOpen((v) => !v)}
-                  >
-                    <MoreHorizontal size={22} />
-                  </button>
-                  {actionsOpen && (
-                    <>
-                      <div
-                        className="vehicle-actions-scrim"
-                        role="presentation"
-                        onClick={() => setActionsOpen(false)}
-                      />
-                      <div className="vehicle-actions-menu">
-                        {canSellVehicle && (
-                          <Link
-                            className="vehicle-actions-menu-item vehicle-actions-menu-primary"
-                            to={`/vehicles/${id}/sell`}
-                            onClick={() => setActionsOpen(false)}
-                          >
-                            <ShoppingBag size={17} /> Bán xe này
-                          </Link>
-                        )}
-                        {canAddExpense && (
-                          <button
-                            type="button"
-                            className="vehicle-actions-menu-item"
-                            onClick={() => {
-                              setActionsOpen(false);
-                              setExpenseOpen(true);
-                            }}
-                          >
-                            <CirclePlus size={16} /> Thêm chi phí
-                          </button>
-                        )}
-                        {canEditVehicle && (
-                          <Link
-                            className="vehicle-actions-menu-item"
-                            to={`/vehicles/${id}/edit`}
-                            onClick={() => setActionsOpen(false)}
-                          >
-                            <Pencil size={16} />
-                            {vehicle.status === "CANCELLED"
-                              ? "Khôi phục / Sửa"
-                              : "Chỉnh sửa"}
-                          </Link>
-                        )}
-                        {canDirectDelete && (
-                          <button
-                            type="button"
-                            className="vehicle-actions-menu-item vehicle-actions-menu-danger"
-                            onClick={() => {
-                              setActionsOpen(false);
-                              setDeleteOpen(true);
-                            }}
-                          >
-                            <Trash2 size={16} /> Xóa xe khỏi kho
-                          </button>
-                        )}
-                        {canRequestDelete && (
-                          <button
-                            type="button"
-                            className="vehicle-actions-menu-item vehicle-actions-menu-danger"
-                            onClick={() => {
-                              setActionsOpen(false);
-                              setRequestOpen(true);
-                            }}
-                          >
-                            <SendHorizontal size={16} /> Gửi yêu cầu xóa
-                          </button>
-                        )}
-                      </div>
-                    </>
-                  )}
-                </div>
+              </h1>
+              {vehicle.internal_code && (
+                <p className="vehicle-internal-code">Mã {vehicle.internal_code}</p>
               )}
             </div>
-          }
-        />
-        {/* Compact identity strip: biển số + số khung as inline chips with
-            copy actions — kept for quick reference without stealing the title. */}
-        <div className="vehicle-identity-compact">
-          <span className="identity-chip identity-chip-plate">
-            <small>Biển số</small>
-            <strong>{vehicle.license_plate || "Chưa có"}</strong>
-            {vehicle.license_plate && (
-              <button
-                className="icon-button copy-button identity-chip-copy"
-                type="button"
-                aria-label="Sao chép biển số"
-                onClick={() => void copyValue("Biển số", vehicle.license_plate)}
-              >
-                <Copy size={13} />
-              </button>
+
+            {hasVehicleActions && (
+              <div className="vehicle-actions-menu-wrap">
+                <button
+                  type="button"
+                  className="icon-button vehicle-actions-trigger"
+                  aria-label="Thao tác trên xe"
+                  aria-haspopup="true"
+                  aria-expanded={actionsOpen}
+                  onClick={() => setActionsOpen((v) => !v)}
+                >
+                  <MoreHorizontal size={22} />
+                </button>
+                {actionsOpen && (
+                  <>
+                    <div
+                      className="vehicle-actions-scrim"
+                      role="presentation"
+                      onClick={() => setActionsOpen(false)}
+                    />
+                    <div className="vehicle-actions-menu">
+                      {canSellVehicle && (
+                        <Link
+                          className="vehicle-actions-menu-item vehicle-actions-menu-primary"
+                          to={`/vehicles/${id}/sell`}
+                          onClick={() => setActionsOpen(false)}
+                        >
+                          <ShoppingBag size={17} /> Bán xe này
+                        </Link>
+                      )}
+                      {canAddExpense && (
+                        <button
+                          type="button"
+                          className="vehicle-actions-menu-item"
+                          onClick={() => {
+                            setActionsOpen(false);
+                            setExpenseOpen(true);
+                          }}
+                        >
+                          <CirclePlus size={16} /> Thêm chi phí
+                        </button>
+                      )}
+                      {canEditVehicle && (
+                        <Link
+                          className="vehicle-actions-menu-item"
+                          to={`/vehicles/${id}/edit`}
+                          onClick={() => setActionsOpen(false)}
+                        >
+                          <Pencil size={16} />
+                          {vehicle.status === "CANCELLED"
+                            ? "Khôi phục / Sửa"
+                            : "Chỉnh sửa"}
+                        </Link>
+                      )}
+                      {canDirectDelete && (
+                        <button
+                          type="button"
+                          className="vehicle-actions-menu-item vehicle-actions-menu-danger"
+                          onClick={() => {
+                            setActionsOpen(false);
+                            setDeleteOpen(true);
+                          }}
+                        >
+                          <Trash2 size={16} /> Xóa xe khỏi kho
+                        </button>
+                      )}
+                      {canRequestDelete && (
+                        <button
+                          type="button"
+                          className="vehicle-actions-menu-item vehicle-actions-menu-danger"
+                          onClick={() => {
+                            setActionsOpen(false);
+                            setRequestOpen(true);
+                          }}
+                        >
+                          <SendHorizontal size={16} /> Gửi yêu cầu xóa
+                        </button>
+                      )}
+                    </div>
+                  </>
+                )}
+              </div>
             )}
-          </span>
-          <span className="identity-chip identity-chip-frame">
-            <small>Số khung</small>
-            {/* Placeholder GEN-… không hiển thị như số khung thật. */}
-            <code>{displayFrame(vehicle.frame_number) || "Chưa có"}</code>
-            {!!displayFrame(vehicle.frame_number) && (
-              <button
-                className="icon-button copy-button identity-chip-copy"
-                type="button"
-                aria-label="Sao chép số khung"
-                onClick={() => void copyValue("Số khung", displayFrame(vehicle.frame_number))}
-              >
-                <Copy size={13} />
-              </button>
+          </div>
+
+          <div className="vehicle-status-row">
+            <Badge status={vehicle.status} />
+            {available && (
+              <div className="carem-led-days-badge" title="Thời gian lưu kho">
+                <span className="carem-led-diode" aria-hidden="true" />
+                <span className="carem-led-days-text">
+                  <strong className="carem-led-days-num">
+                    {daysInStock(vehicle.purchase_date)}
+                  </strong>{" "}
+                  ngày trong kho
+                </span>
+                <span className="carem-led-border-glow" aria-hidden="true" />
+              </div>
             )}
-          </span>
+          </div>
+        </div>
+
+        {/* Biển số and Số khung Highlight Cards */}
+        <div className="vehicle-id-highlight-grid">
+          <div className="vehicle-id-highlight-card plate-card">
+            <div className="vehicle-id-card-top">
+              <span className="vehicle-id-tag plate-tag">BIỂN SỐ</span>
+              {vehicle.license_plate && (
+                <button
+                  className="icon-button copy-button vehicle-id-copy"
+                  type="button"
+                  aria-label="Sao chép biển số"
+                  title="Sao chép biển số"
+                  onClick={() => void copyValue("Biển số", vehicle.license_plate)}
+                >
+                  <Copy size={16} />
+                </button>
+              )}
+            </div>
+            <div className="vehicle-id-value plate-value identity-chip-plate">
+              <strong>{vehicle.license_plate || "Chưa có biển"}</strong>
+            </div>
+          </div>
+
+          <div className="vehicle-id-highlight-card frame-card">
+            <div className="vehicle-id-card-top">
+              <span className="vehicle-id-tag frame-tag">SỐ KHUNG</span>
+              {!!displayFrame(vehicle.frame_number) && (
+                <button
+                  className="icon-button copy-button vehicle-id-copy"
+                  type="button"
+                  aria-label="Sao chép số khung"
+                  title="Sao chép số khung"
+                  onClick={() => void copyValue("Số khung", displayFrame(vehicle.frame_number))}
+                >
+                  <Copy size={16} />
+                </button>
+              )}
+            </div>
+            <div className="vehicle-id-value frame-value">
+              {displayFrame(vehicle.frame_number) || "Chưa có số khung"}
+            </div>
+          </div>
         </div>
       </div>
       {pending && (
@@ -310,18 +464,12 @@ export function VehicleDetailPage() {
           )}
         </div>
       )}
-      {message && (
-        <p className="notice" role="status">
-          {message}
-        </p>
-      )}
       {/* Vehicle value leads the page: one horizontal strip so the money
           figures are the first thing owners scan, on every screen size. */}
       <Card>
         <h2 className="section-title">Giá trị xe</h2>
         <div className="value-summary">
-          {/* Giá thu là do nhân viên thao tác xe nhập, nên mọi role đều thấy —
-              đây là con số họ cần để biết mình đang bán dưới giá thu hay không. */}
+          {/* Chỉ hiển thị giá thu vào của chiếc xe */}
           <div className="value-item">
             <span>Giá thu vào</span>
             <strong>
@@ -330,16 +478,6 @@ export function VehicleDetailPage() {
                 : money(vehicle.purchase_price)}
             </strong>
           </div>
-          {financial && (
-            <div className="value-item total">
-              <span>Giá xe bán ra</span>
-              <strong>
-                {vehicle.cost_pending
-                  ? "Chưa có giá thu"
-                  : money(vehicle.total_cost)}
-              </strong>
-            </div>
-          )}
         </div>
       </Card>
       <div className="detail-grid">
@@ -348,24 +486,49 @@ export function VehicleDetailPage() {
             <Card>
               <div className="row between">
                 <h2 className="section-title">Hình ảnh xe</h2>
+                {canOperate(profile) && (
+                  <Button
+                    variant="ghost"
+                    className="btn-sm"
+                    onClick={() => setPhotoChoiceOpen(true)}
+                  >
+                    <CirclePlus size={15} /> Thêm ảnh
+                  </Button>
+                )}
               </div>
               {vehicle.images?.length ? (
                 <VehiclePhotoDisplay
                   photos={vehicle.images}
                   vehicleName={vehicleTitle(vehicle)}
                   removable={canOperate(profile)}
-                  addPhotoHref={
-                    canOperate(profile) ? `/capture?vehicle=${id}` : undefined
+                  onAddPhoto={
+                    canOperate(profile)
+                      ? () => setPhotoChoiceOpen(true)
+                      : undefined
                   }
                 />
               ) : (
                 <div className="vehicle-empty-photo">
                   <Bike size={74} strokeWidth={1.2} />
                   <p>Thêm ảnh để dễ nhận diện xe trong kho</p>
+                  {canOperate(profile) && (
+                    <Button
+                      variant="secondary"
+                      onClick={() => setPhotoChoiceOpen(true)}
+                    >
+                      <CirclePlus size={16} /> Thêm ảnh xe
+                    </Button>
+                  )}
                 </div>
               )}
               {canOperate(profile) && (
-                <VehicleImageUpload key={vehicle.id} vehicleId={vehicle.id} />
+                <VehicleImageUpload
+                  key={vehicle.id}
+                  vehicleId={vehicle.id}
+                  isChoiceOpen={photoChoiceOpen}
+                  onCloseChoice={() => setPhotoChoiceOpen(false)}
+                  onOpenChoice={() => setPhotoChoiceOpen(true)}
+                />
               )}
             </Card>
           </section>
@@ -379,8 +542,8 @@ export function VehicleDetailPage() {
                 ["Năm sản xuất", vehicle.year],
                 ["Màu sắc", vehicle.color],
                 ["Ngày nhập kho", dateLabel(vehicle.purchase_date)],
-                ["Nhà cung cấp", vehicle.supplier_name],
-                ["SĐT nhà cung cấp", vehicle.supplier_phone],
+                ["Tên người bán", vehicle.supplier_name],
+                ["SĐT người bán", vehicle.supplier_phone],
               ].map(([label, value]) => (
                 <div key={String(label)}>
                   <dt>{label}</dt>
@@ -493,15 +656,22 @@ export function VehicleDetailPage() {
           </section>
           {activeSale && (
             <Card>
-              <h2 className="section-title">Giao dịch bán xe</h2>
+              <div className="row between" style={{ alignItems: "center", marginBottom: 12 }}>
+                <h2 className="section-title" style={{ margin: 0 }}>Giao dịch bán xe</h2>
+                <Badge status={activeSale.status} />
+              </div>
               <dl className="summary-list">
                 <div>
                   <dt>Mã giao dịch</dt>
-                  <dd>{activeSale.sale_code}</dd>
+                  <dd>
+                    <Link className="text-link" to={`/sales/${activeSale.id}`}>
+                      {activeSale.sale_code}
+                    </Link>
+                  </dd>
                 </div>
                 <div>
                   <dt>Khách hàng</dt>
-                  <dd>{activeSale.customer_name}</dd>
+                  <dd><strong>{activeSale.customer_name}</strong></dd>
                 </div>
                 <div>
                   <dt>Ngày bán</dt>
@@ -509,28 +679,33 @@ export function VehicleDetailPage() {
                 </div>
                 <div>
                   <dt>Giá bán</dt>
-                  <dd>{money(activeSale.sale_price)}</dd>
+                  <dd style={{ fontWeight: 700 }}>{money(activeSale.sale_price)}</dd>
                 </div>
                 <div>
                   <dt>Đã thu</dt>
                   <dd>{money(activeSale.paid_amount)}</dd>
                 </div>
-                <div>
+                <div className="summary-total">
                   <dt>Còn phải thu</dt>
-                  <dd>{money(activeSale.remaining_amount)}</dd>
+                  <dd style={{ color: activeSale.remaining_amount > 0 ? "var(--color-danger, #c2410c)" : "var(--color-primary-dark, #2b6127)" }}>
+                    {money(activeSale.remaining_amount)}
+                  </dd>
                 </div>
                 {financial && (
                   <div>
                     <dt>Lợi nhuận gộp</dt>
-                    <dd>{money(activeSale.gross_profit)}</dd>
+                    <dd style={{ color: (activeSale.gross_profit ?? 0) >= 0 ? "var(--color-primary-dark, #2b6127)" : "var(--color-danger, #dc2626)", fontWeight: 700 }}>
+                      {money(activeSale.gross_profit)}
+                    </dd>
                   </div>
                 )}
               </dl>
               <Link
                 className="button secondary full-width"
+                style={{ marginTop: 14 }}
                 to={`/sales/${activeSale.id}`}
               >
-                Xem giao dịch <ArrowRight size={16} />
+                Xem chi tiết giao dịch <ArrowRight size={16} />
               </Link>
             </Card>
           )}
@@ -546,7 +721,7 @@ export function VehicleDetailPage() {
                     key={sale.id}
                     to={`/sales/${sale.id}`}
                   >
-                    {sale.sale_code}
+                    Mã giao dịch: {sale.sale_code}
                     <Badge status="CANCELLED" />
                   </Link>
                 ))}
@@ -571,7 +746,6 @@ export function VehicleDetailPage() {
         purchaseDate={vehicle.purchase_date}
         isOpen={expenseOpen}
         onClose={() => setExpenseOpen(false)}
-        onSuccess={() => setMessage("Đã lưu chi phí cho xe.")}
       />
     </div>
   );

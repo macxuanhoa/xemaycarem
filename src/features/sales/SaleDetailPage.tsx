@@ -5,7 +5,6 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { ArrowLeft, ArrowRight, CreditCard, MoreVertical, QrCode } from "lucide-react";
 import { VietQrPaymentModal } from "./VietQrPaymentModal";
-import { SaleAutomationPanel } from "./SaleAutomationPanel";
 import { api } from "@/lib/api";
 import { confirmPayment, pendingPayment, retainPayment } from "@/lib/paymentRecovery";
 import { AppError } from "@/lib/errors";
@@ -31,7 +30,8 @@ import { MoneyInput } from "@/components/ui/MoneyInput";
 import { paymentLabels } from "@/features/vehicles/vehicleSchema";
 import { paymentSchema, type PaymentFormValues } from "./saleSchema";
 import { PaymentReceiptReview, type PaymentReceipt } from "./PaymentReceiptReview";
-import { vehicleTitle } from "@/lib/vehicleDisplay";
+import { displayFrame } from "@/lib/frameNumber";
+import { vehicleSubtitle, vehicleTitle } from "@/lib/vehicleDisplay";
 
 type SaleRecord = Sale & {
   vehicle_code?: string;
@@ -80,7 +80,7 @@ export function SaleDetailPage() {
         <ArrowLeft size={16} /> Bán ra
       </Link>
       <PageHeader
-        title={sale.sale_code}
+        title={`Mã giao dịch: ${sale.sale_code}`}
         description={`Giao dịch ngày ${dateLabel(sale.sale_date)}`}
         actions={
           <>
@@ -190,89 +190,85 @@ export function SaleDetailPage() {
           {sale.cancellation_reason && ` Lý do: ${sale.cancellation_reason}`}
         </p>
       )}
-      <div className={canFinance(profile) ? "detail-grid" : "detail-grid detail-grid-single"}>
+      <div className="detail-grid">
+        {/* Cột trái: Thông tin giao dịch & Lịch sử thanh toán */}
         <div className="stack">
           <Card>
-            <h2 className="section-title">Thông tin giao dịch</h2>
-            <dl className="details-list">
-              <div>
-                <dt>Xe</dt>
-                <dd>
-                  <Link
-                    className="text-link"
-                    to={`/vehicles/${sale.vehicle_id}`}
-                  >
-                    {vehicleTitle(sale)}{" "}
-                    <ArrowRight size={14} />
-                  </Link>
-                </dd>
+            <h2 className="section-title">Thông tin giao dịch xe</h2>
+            <div className="sale-info-grid">
+              <div className="sale-info-section">
+                <h3 className="sale-section-subtitle">Chi tiết xe đã bán</h3>
+                <dl className="sale-spec-list">
+                  <div>
+                    <dt>Loại xe</dt>
+                    <dd>
+                      <Link
+                        className="text-link"
+                        to={`/vehicles/${sale.vehicle_id}`}
+                      >
+                        <strong>{sale.vehicle_type || vehicleSubtitle(sale) || "Xem xe"}</strong>{" "}
+                        <ArrowRight size={14} />
+                      </Link>
+                    </dd>
+                  </div>
+                  <div>
+                    <dt>Biển số</dt>
+                    <dd>
+                      <span className="identity-chip-plate">
+                        <strong>{sale.license_plate || sale.vehicle?.license_plate || "Chưa có"}</strong>
+                      </span>
+                    </dd>
+                  </div>
+                  <div>
+                    <dt>Số khung</dt>
+                    <dd>
+                      <code>{displayFrame(sale.vehicle?.frame_number) || "Chưa có"}</code>
+                    </dd>
+                  </div>
+                  <div>
+                    <dt>Mã xe kho</dt>
+                    <dd>{sale.vehicle_code || sale.vehicle?.internal_code || "—"}</dd>
+                  </div>
+                </dl>
               </div>
-              <div>
-                <dt>Mã xe</dt>
-                <dd>
-                  {sale.vehicle_code || sale.vehicle?.internal_code || "—"}
-                </dd>
+
+              <div className="sale-info-section">
+                <h3 className="sale-section-subtitle">Khách hàng & Bán hàng</h3>
+                <dl className="sale-spec-list">
+                  <div>
+                    <dt>Khách hàng</dt>
+                    <dd><strong>{sale.customer_name}</strong></dd>
+                  </div>
+                  <div>
+                    <dt>Số điện thoại</dt>
+                    <dd>
+                      {sale.customer_phone ? (
+                        <a href={`tel:${sale.customer_phone}`} className="text-link">
+                          {sale.customer_phone}
+                        </a>
+                      ) : "—"}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt>Ngày bán</dt>
+                    <dd>{dateLabel(sale.sale_date)}</dd>
+                  </div>
+                  <div>
+                    <dt>Nhân viên bán</dt>
+                    <dd>{sale.employee_name || "Nhân viên cửa hàng"}</dd>
+                  </div>
+                </dl>
               </div>
-              <div>
-                <dt>Biển số</dt>
-                <dd>
-                  {sale.license_plate || sale.vehicle?.license_plate || "—"}
-                </dd>
-              </div>
-              <div>
-                <dt>Khách hàng</dt>
-                <dd>{sale.customer_name}</dd>
-              </div>
-              <div>
-                <dt>Số điện thoại</dt>
-                <dd>{sale.customer_phone || "—"}</dd>
-              </div>
-              <div>
-                <dt>Ngày bán</dt>
-                <dd>{dateLabel(sale.sale_date)}</dd>
-              </div>
-            </dl>
+            </div>
+
             {sale.notes && (
-              <div className="notes">
-                <strong>Ghi chú</strong>
+              <div className="sale-notes-box">
+                <span className="sale-notes-label">Ghi chú giao dịch</span>
                 <p>{sale.notes}</p>
               </div>
             )}
           </Card>
-          <Card>
-            <h2 className="section-title">Thanh toán</h2>
-            <div className="price-hero">
-              <span className="muted">Giá bán</span>
-              <strong>{sale.sale_price_hidden ? "Đã ẩn" : money(sale.sale_price)}</strong>
-            </div>
-            <dl className="summary-list">
-              <div>
-                <dt>
-                  Đã thu {sale.status === "CANCELLED" ? "(đã vô hiệu)" : ""}
-                </dt>
-                <dd>{sale.sale_price_hidden ? "Đã ẩn" : money(sale.paid_amount)}</dd>
-              </div>
-              <div className="summary-total">
-                <dt>Còn phải thu</dt>
-                <dd>
-                  {sale.sale_price_hidden ? "Đã ẩn" : sale.status === "CANCELLED"
-                    ? "—"
-                    : money(sale.remaining_amount)}
-                </dd>
-              </div>
-            </dl>
-            {!sale.sale_price_hidden && sale.status === "COMPLETED" && sale.remaining_amount === 0 && (
-              <p className="notice success">Đã thanh toán đủ</p>
-            )}
-          </Card>
-          {canManage(profile) && (
-            <IdentityDocumentPanel
-              subjectType="sale"
-              subjectId={sale.id}
-              title="CCCD khách mua"
-              personLabel="Khách mua"
-            />
-          )}
+
           <Card>
             <div className="row between">
               <h2 className="section-title">Lịch sử thanh toán</h2>
@@ -341,13 +337,73 @@ export function SaleDetailPage() {
               />
             )}
           </Card>
-          {!sale.sale_price_hidden && sale.status === "COMPLETED" && <PaymentReceiptReview saleId={sale.id} />}
-          {sale.status !== "CANCELLED" && (
-            <SaleAutomationPanel saleId={sale.id} customerName={sale.customer_name} />
+
+          {canManage(profile) && (
+            <IdentityDocumentPanel
+              subjectType="sale"
+              subjectId={sale.id}
+              title="CCCD khách mua"
+              personLabel="Khách mua"
+            />
           )}
+
+          {!sale.sale_price_hidden && sale.status === "COMPLETED" && <PaymentReceiptReview saleId={sale.id} />}
         </div>
-        {canFinance(profile) && (
-          <aside className="stack">
+
+        {/* Cột phải: Thanh toán & Giá vốn */}
+        <aside className="stack">
+          <Card>
+            <div className="row between" style={{ alignItems: "center", marginBottom: 10 }}>
+              <h2 className="section-title" style={{ margin: 0 }}>Thanh toán</h2>
+              {!sale.sale_price_hidden && sale.status === "COMPLETED" && (
+                sale.remaining_amount === 0 ? (
+                  <span className="badge success small">Đã thanh toán đủ</span>
+                ) : (
+                  <span className="badge warning small">Còn nợ</span>
+                )
+              )}
+            </div>
+            <div className="price-hero">
+              <span className="muted">Giá bán</span>
+              <strong>{sale.sale_price_hidden ? "Đã ẩn" : money(sale.sale_price)}</strong>
+            </div>
+            <dl className="summary-list">
+              <div>
+                <dt>
+                  Đã thu {sale.status === "CANCELLED" ? "(đã vô hiệu)" : ""}
+                </dt>
+                <dd>{sale.sale_price_hidden ? "Đã ẩn" : money(sale.paid_amount)}</dd>
+              </div>
+              <div className="summary-total">
+                <dt>Còn phải thu</dt>
+                <dd style={{ color: sale.remaining_amount > 0 ? "var(--color-danger, #c2410c)" : "var(--color-primary-dark, #2b6127)" }}>
+                  {sale.sale_price_hidden ? "Đã ẩn" : sale.status === "CANCELLED"
+                    ? "—"
+                    : money(sale.remaining_amount)}
+                </dd>
+              </div>
+            </dl>
+            {!sale.sale_price_hidden && canOperate(profile) &&
+              sale.status === "COMPLETED" &&
+              sale.remaining_amount > 0 && (
+                <div className="sale-quick-pay-actions">
+                  <Button
+                    variant="primary"
+                    onClick={() => setShowPayment(!showPayment)}
+                  >
+                    <CreditCard size={16} /> Thu tiền
+                  </Button>
+                  <Button
+                    variant="secondary"
+                    onClick={() => setShowVietQr(true)}
+                  >
+                    <QrCode size={16} /> VietQR
+                  </Button>
+                </div>
+              )}
+          </Card>
+
+          {canFinance(profile) && (
             <Card>
               <h2 className="section-title">Giá vốn đã chốt</h2>
               <dl className="summary-list">
@@ -365,15 +421,17 @@ export function SaleDetailPage() {
                 </div>
                 <div className="summary-total">
                   <dt>Lợi nhuận gộp</dt>
-                  <dd>{money(sale.gross_profit)}</dd>
+                  <dd style={{ color: (sale.gross_profit ?? 0) >= 0 ? "var(--color-primary-dark, #2b6127)" : "var(--color-danger, #dc2626)" }}>
+                    {money(sale.gross_profit)}
+                  </dd>
                 </div>
               </dl>
-              <p className="muted">
+              <p className="muted small" style={{ marginTop: 10, marginBottom: 0 }}>
                 Giá vốn được lưu tại thời điểm bán để bảo toàn báo cáo lịch sử.
               </p>
             </Card>
-          </aside>
-        )}
+          )}
+        </aside>
       </div>
       {showVietQr && !sale.sale_price_hidden && (
         <VietQrPaymentModal

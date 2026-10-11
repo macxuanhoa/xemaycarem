@@ -7,8 +7,8 @@ import { canManage } from "@/lib/permissions";
 import { useAuth } from "@/features/auth/AuthProvider";
 import { Button, DatePicker, ErrorState, Field } from "@/components/ui";
 import { MoneyInput } from "@/components/ui/MoneyInput";
-import { VEHICLE_EXPENSE_CHIPS } from "@/components/ui/QuickChips";
 import { useDialog } from "@/lib/useDialog";
+import { toast } from "@/lib/toast";
 import { expenseSchema, vehicleExpenseLabels } from "./expenseSchema";
 import { dateValue, moneyValue } from "@/lib/validation";
 
@@ -41,19 +41,12 @@ function QuickExpenseEditor({
   initialDraft,
 }: QuickExpenseModalProps) {
   const client = useQueryClient();
-  const [type, setType] = useState(
+  const [type] = useState(
     initialDraft?.expense_type &&
       vehicleExpenseLabels[initialDraft.expense_type]
       ? initialDraft.expense_type
-      : "REPAIR",
+      : "OTHER",
   );
-  const [chipId, setChipId] = useState(
-    initialDraft?.expense_type &&
-      vehicleExpenseLabels[initialDraft.expense_type]
-      ? initialDraft.expense_type
-      : "REPAIR",
-  );
-  // Nội dung để trống: chi phí luôn do người dùng tự ghi, chip chỉ chọn phân loại.
   const [description, setDescription] = useState(
     typeof initialDraft?.description === "string"
       ? initialDraft.description.slice(0, 250)
@@ -110,6 +103,7 @@ function QuickExpenseEditor({
         client.invalidateQueries({ queryKey: ["expenses"] }),
         client.invalidateQueries({ queryKey: ["dashboard"] }),
       ]);
+      toast.success("Đã lưu chi phí cho xe.");
       onSuccess?.();
       onClose();
     },
@@ -118,11 +112,6 @@ function QuickExpenseEditor({
     if (!saveMutation.isPending) onClose();
   };
   const panelRef = useDialog(true, close, saveMutation.isPending);
-  const selectChip = (chip: (typeof VEHICLE_EXPENSE_CHIPS)[number]) => {
-    setType(chip.type);
-    setChipId(chip.id);
-    document.getElementById(amountId)?.focus();
-  };
 
   return (
     <div className="modal-backdrop" onClick={close} role="presentation">
@@ -167,26 +156,22 @@ function QuickExpenseEditor({
                   trước khi lưu chi phí.
                 </p>
               )}
-              <div className="field">
-                <span className="field-label">Phân loại chi phí</span>
-                <div
-                  className="expense-chips-grid"
-                  role="group"
-                  aria-label="Chọn loại chi phí"
-                >
-                  {VEHICLE_EXPENSE_CHIPS.map((chip) => (
-                    <button
-                      key={chip.id}
-                      type="button"
-                      className={`expense-chip-btn ${chipId === chip.id ? "active" : ""}`}
-                      aria-pressed={chipId === chip.id}
-                      onClick={() => selectChip(chip)}
-                    >
-                      {chip.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
+              <Field
+                label="Tên của các loại chi phí *"
+                error={fieldErrors.description}
+              >
+                <textarea
+                  rows={3}
+                  value={description}
+                  onChange={(event) => {
+                    setDescription(event.target.value);
+                    setFieldErrors((old) => ({ ...old, description: "" }));
+                  }}
+                  placeholder="VD: Thay lốp trước, thay nhớt, công thợ, tân trang dọn xe, phí sang tên…"
+                  maxLength={250}
+                  className="quick-expense-textarea"
+                />
+              </Field>
               <Field label="Số tiền chi (₫) *" error={fieldErrors.amount}>
                 <MoneyInput
                   aria-label="Số tiền chi (₫) *"
@@ -199,20 +184,6 @@ function QuickExpenseEditor({
                   placeholder="Ví dụ: 150k hoặc 1.200.000"
                   min={1}
                   required
-                />
-              </Field>
-              <Field
-                label="Nội dung chi tiết *"
-                error={fieldErrors.description}
-              >
-                <input
-                  value={description}
-                  onChange={(event) => {
-                    setDescription(event.target.value);
-                    setFieldErrors((old) => ({ ...old, description: "" }));
-                  }}
-                  placeholder="VD: Thay lốp trước, công sửa xe, phí sang tên…"
-                  maxLength={250}
                 />
               </Field>
               <Field label="Ngày chi" error={fieldErrors.expense_date}>

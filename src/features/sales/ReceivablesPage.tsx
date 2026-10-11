@@ -356,7 +356,7 @@ export function ReceivablesPage({
                     >
                       <td>
                         <Link className="text-link" to={`/sales/${sale.id}`}>
-                          <Highlight text={sale.sale_code} query={deferredSearch} />
+                          Mã giao dịch: <Highlight text={sale.sale_code} query={deferredSearch} />
                         </Link>
                         <small>{dateLabel(sale.sale_date)}</small>
                       </td>
@@ -485,7 +485,7 @@ export function ReceivablesPage({
                 >
                   <div className="row between">
                     <Link to={`/sales/${sale.id}`} className="text-link">
-                      <strong><Highlight text={sale.sale_code} query={deferredSearch} /></strong>
+                      <strong>Mã giao dịch: <Highlight text={sale.sale_code} query={deferredSearch} /></strong>
                     </Link>
                     {isOverdue ? (
                       <span className="badge badge-cancelled">
@@ -587,7 +587,7 @@ export function ReceivablesPage({
             <Card>
             <h3>Hẹn ngày thanh toán</h3>
             <p className="muted small">
-              Giao dịch: <strong>{editingDueDateSale.sale_code}</strong> ·
+              Mã giao dịch: <strong>{editingDueDateSale.sale_code}</strong> ·
               Khách: <strong>{editingDueDateSale.customer_name}</strong>
             </p>
             <form

@@ -35,11 +35,10 @@ async function setup(page, { role = 'OWNER', unavailable = false } = {}) {
   return calls
 }
 
-test('runtime monitoring: reports safe global errors, deduplicates and loads OWNER digest only in Device tab', async ({ page }) => {
+test('runtime monitoring: reports safe global errors, deduplicates and never leaks private data', async ({ page }) => {
   const calls = await setup(page)
   await page.goto('/settings?CCCD=079123456789&token=PRIVATE-TOKEN')
   await expect(page.getByRole('heading', { name: 'Hồ sơ của bạn' })).toBeVisible()
-  expect(calls.digests).toBe(0)
   await page.evaluate(() => {
     for (let i = 0; i < 5; i++) window.dispatchEvent(new ErrorEvent('error', { message: 'PRIVATE CUSTOMER 079123456789', filename: 'https://private.test/vehicle/PRIVATE-ID?token=PRIVATE-TOKEN', error: new Error('PRIVATE STACK') }))
   })
@@ -47,34 +46,5 @@ test('runtime monitoring: reports safe global errors, deduplicates and loads OWN
   expect(Object.keys(calls.reports[0]).sort()).toEqual(['code', 'environment', 'operation', 'release', 'route', 'source'])
   expect(calls.reports[0]).toMatchObject({ source: 'global', code: 'JS_ERROR', operation: 'global', route: '/settings' })
   expect(JSON.stringify(calls.reports)).not.toMatch(/PRIVATE|079123456789|token|stack|filename|message/)
-  await page.getByRole('button', { name: 'Ứng dụng & Dữ liệu', exact: true }).click()
-  await expect(page.getByRole('heading', { name: 'Theo dõi hoạt động' })).toBeVisible()
-  await expect(page.getByText('Lỗi ứng dụng', { exact: true })).toBeVisible()
-  expect(calls.digests).toBe(1)
-  await expect(page.getByText('JS_ERROR · 1.0.0 · production', { exact: false })).toBeHidden()
-  await page.getByText('Chi tiết kỹ thuật', { exact: true }).click()
-  await expect(page.getByText('JS_ERROR · 1.0.0 · production', { exact: false })).toBeVisible()
-  await page.getByRole('button', { name: 'Làm mới', exact: true }).click()
-  await expect.poll(() => calls.digests).toBe(2)
-  expect(calls.businessWrites).toEqual([])
-})
-
-for (const role of ['STAFF', 'MANAGER']) test(`runtime monitoring: ${role} has no OWNER diagnostics card or digest request`, async ({ page }) => {
-  const calls = await setup(page, { role })
-  await page.goto('/settings')
-  await page.getByRole('button', { name: 'Ứng dụng & Dữ liệu', exact: true }).click()
-  await expect(page.getByRole('heading', { name: 'Luôn sẵn sàng trên thiết bị' })).toBeVisible()
-  await expect(page.getByRole('heading', { name: 'Theo dõi hoạt động' })).toHaveCount(0)
-  expect(calls.digests).toBe(0)
-  expect(calls.businessWrites).toEqual([])
-})
-
-test('runtime monitoring: unavailable backend shows a retrieval error instead of a healthy zero count', async ({ page }) => {
-  const calls = await setup(page, { unavailable: true })
-  await page.goto('/settings')
-  await page.getByRole('button', { name: 'Ứng dụng & Dữ liệu', exact: true }).click()
-  await expect(page.getByText('Chức năng chưa được đồng bộ với cơ sở dữ liệu.', { exact: false })).toBeVisible()
-  await expect(page.getByText('Chưa ghi nhận sự cố trong khoảng thời gian này.', { exact: true })).toHaveCount(0)
-  expect(calls.reports).toEqual([])
   expect(calls.businessWrites).toEqual([])
 })

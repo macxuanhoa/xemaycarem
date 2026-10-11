@@ -1,20 +1,36 @@
-// Chúc mừng bán xe – màn "ra mắt" điện ảnh phủ toàn màn hình: nền dim có
-// vignette, vòng tia vàng xoay, biểu ngữ hero chữ ánh kim và pháo hoa canvas
-// nhiều tầng (shell bay có quỹ đạo, burst nứt hạt secondary, nhũ, confetti,
-// emoji). Module thuần DOM/canvas, tự dọn dẹp, không kéo thêm thư viện và
-// không chặn tương tác. Vui phải đi kèm lịch sự: bấm là tắt, tôn trọng
-// prefers-reduced-motion, hạt bị cắt trần để máy yếu vẫn mượt.
+// Chúc mừng bán xe – đại tiệc điện ảnh 10 giây phủ toàn màn hình: một con
+// rồng vàng - ngọc khổng lồ uốn lượn xuyên khung hình (thân dài nhiều màn
+// hình, giải phẫu đầu sừng - bờm - râu - mõm, vảy - gai lưng - bụng sáng),
+// pháo hoa nhiều tầng (shell bay có quỹ đạo rắc tia lửa, burst nứt hạt
+// secondary, nhũ, confetti) và khung nghi lễ vàng hào hùng (letterbox,
+// viền chạm góc, biểu ngữ hero chữ ánh kim). Module thuần DOM/canvas, tự
+// dọn dẹp, không kéo thêm thư viện. Bấm vào màn hình là kết thúc sớm; tôn
+// trọng prefers-reduced-motion; hạt bị cắt trần để máy yếu vẫn mượt.
 
 export type CelebrateOptions = {
   /** Dòng banner phụ trong banner chính, ví dụ biển số hoặc mã xe vừa bán. */
   detail?: string;
 };
 
-const LIFETIME_MS = 4600;
-const FADE_MS = 500;
-const BANNER_MS = 3500;
+// Toàn cảnh kéo dài đúng 10 giây trừ khi người dùng bấm tắt sớm.
+const LIFETIME_MS = 10000;
+const FADE_MS = 600;
+const BANNER_MS = 8700;
 // Trần số hạt đồng thời – thiết bị yếu vẫn chạy 60fps nhờ cắt từ đầu.
-const MAX_PARTICLES = 950;
+const MAX_PARTICLES = 1150;
+
+// Rồng khổng lồ 3D: đầu chạy quỹ đạo Lissajous nhiều tầng sóng phủ toàn màn
+// hình; mình là chuỗi khớp lấy từ lịch sử quỹ đạo, vẽ đuôi trước - đầu sau
+// (painter's algorithm). Độ sâu z điều phối kích thước + độ sáng + độ mờ
+// nên rồng như lặn vào/ló ra khỏi không gian. Thân dài ~4 giây đường bay
+// (vài lần chiều ngang màn hình) với bụng sáng, gai lưng và vảy so le.
+const DRAGON_DURATION_MS = 9200;
+const DRAGON_SEGMENTS = 64;
+const DRAGON_CHAIN_SPACING = 4;
+const DRAGON_HISTORY_CAP = 1400;
+// Số khung hình "quá khứ" nạp sẵn trước giờ G để rồng vào cảnh đã có
+// thân dài đầy đủ thay vì lớn dần từ cụt.
+const DRAGON_WARMUP_FRAMES = DRAGON_SEGMENTS * DRAGON_CHAIN_SPACING + 10;
 
 // Bảng màu lễ hội: đủ sáng trên cả nền sáng lẫn dark theme.
 const PALETTE = [
@@ -63,6 +79,9 @@ type Particle = {
   rotation?: number;
   spin?: number;
 };
+
+/** Một mẫu lịch sử quỹ đạo đầu rồng: x, y màn hình + z độ sâu (-1..1). */
+type DragonPoint = { x: number; y: number; z: number };
 
 function pick<T>(arr: T[]): T {
   return arr[Math.floor(Math.random() * arr.length)];
@@ -314,6 +333,19 @@ export function celebrateSale(options: CelebrateOptions = {}) {
     rays.setAttribute("aria-hidden", "true");
     overlay.appendChild(rays);
 
+    // Khung nghi lễ hào hùng: viền vàng chạm góc + hint tắt sớm. Letterbox
+    // điện ảnh do ::before/::after của .sale-celebrate lo (bên dưới).
+    const frame = document.createElement("div");
+    frame.className = "sale-celebrate-frame";
+    frame.setAttribute("aria-hidden", "true");
+    overlay.appendChild(frame);
+
+    const hint = document.createElement("div");
+    hint.className = "sale-celebrate-hint";
+    hint.setAttribute("aria-hidden", "true");
+    hint.textContent = "✦ Bấm vào màn hình để kết thúc sớm ✦";
+    overlay.appendChild(hint);
+
     showBanner(overlay, options.detail);
 
     let particles: Particle[] = [];
@@ -341,6 +373,258 @@ export function celebrateSale(options: CelebrateOptions = {}) {
       };
       resize();
       window.addEventListener("resize", resize);
+
+      // ---- Rồng 3D uốn lượn phủ toàn màn hình ----
+      const dragonHistory: DragonPoint[] = [];
+      // Mẫu quỹ đạo tại vị trí thập phân giữa hai khớp lịch sử: nội suy để
+      // thân rồng liền mạch dù đầu bay nhanh hơn khoảng cách lấy mẫu.
+      const sampleDragon = (idx: number): DragonPoint => {
+        const max = dragonHistory.length - 1;
+        const f = Math.min(Math.max(idx, 0), max);
+        const i0 = Math.floor(f);
+        const i1 = Math.min(max, i0 + 1);
+        const t = f - i0;
+        const a = dragonHistory[i0];
+        const b = dragonHistory[i1];
+        return {
+          x: a.x + (b.x - a.x) * t,
+          y: a.y + (b.y - a.y) * t,
+          z: a.z + (b.z - a.z) * t,
+        };
+      };
+      const dragonHead = (elapsed: number): DragonPoint => {
+        // ang quét ~1.8 vòng Lissajos trong 9.2 giây; hai sóng tần số cao
+        // chồng lên tạo nhịp uốn như mình rắn đang bơi trong không gian.
+        const ang = (elapsed / DRAGON_DURATION_MS) * Math.PI * 2 * 1.8;
+        return {
+          x: w * (0.5 + 0.56 * Math.sin(ang) + 0.05 * Math.sin(ang * 6.3 + 1)),
+          y: h * (0.46 + 0.33 * Math.sin(ang * 1.6 + 0.7) + 0.06 * Math.sin(ang * 8.1)),
+          z: Math.sin(ang * 0.83 + 1.4),
+        };
+      };
+      // Nạp sẵn ~4 giây quỹ đạo "quá khứ" để rồng vào cảnh đã dài đầy thân,
+      // không phải đuôi cụt lớn dần rồi mới dài ra.
+      for (let i = DRAGON_WARMUP_FRAMES; i >= 1; i -= 1) {
+        dragonHistory.push(dragonHead(-i * 16.7));
+      }
+      const drawDragon = (elapsed: number) => {
+        if (elapsed > DRAGON_DURATION_MS) return;
+        const fade =
+          elapsed < 200
+            ? elapsed / 200
+            : elapsed > DRAGON_DURATION_MS - 700
+              ? Math.max(0, (DRAGON_DURATION_MS - elapsed) / 700)
+              : 1;
+        dragonHistory.unshift(dragonHead(elapsed));
+        if (dragonHistory.length > DRAGON_HISTORY_CAP) {
+          dragonHistory.length = DRAGON_HISTORY_CAP;
+        }
+        // Rồng vẽ bằng source-over: khớp chồng khớp, cộng màu (lighter) sẽ
+        // làm no trắng hết vảy ngọc - vàng; pháo hoa phía dưới vẫn rực riêng.
+        ctx.globalCompositeOperation = "source-over";
+        // Khổng lồ: bề ngang thân bằng ~1/10 chiều cao màn hình.
+        const base = Math.min(w, h) * 0.052;
+        // Chuỗi khớp phụ từ đuôi lên đầu (painter's algorithm): mỗi khớp mang
+        // độ sâu z riêng nên thân tự loang/nhòe theo chiều không gian 3D.
+        const SUB = DRAGON_SEGMENTS * 2;
+        const pts: { p: DragonPoint; r: number; depth: number }[] = [];
+        for (let j = SUB; j >= 0; j -= 1) {
+          const i = (j / SUB) * DRAGON_SEGMENTS;
+          const p = sampleDragon(i * DRAGON_CHAIN_SPACING);
+          const depth = (p.z + 1) / 2;
+          const taper = 0.2 + 0.9 * Math.pow(1 - i / DRAGON_SEGMENTS, 0.7);
+          pts.push({ p, depth, r: base * (0.62 + 0.78 * depth) * taper });
+        }
+        ctx.lineCap = "round";
+        // Lớp 1: quầng hơi vàng liên tục – rồng phát sáng như được thắp từ
+        // trong. Lớp 2: thân vảy so le ngọc - vàng theo cụm dài.
+        for (let k = 0; k < pts.length - 1; k += 1) {
+          const a = pts[k];
+          const b = pts[k + 1];
+          ctx.globalAlpha = (0.05 + 0.08 * a.depth) * fade;
+          ctx.strokeStyle = "#f59e0b";
+          ctx.lineWidth = a.r * 3.2;
+          ctx.beginPath();
+          ctx.moveTo(a.p.x, a.p.y);
+          ctx.lineTo(b.p.x, b.p.y);
+          ctx.stroke();
+        }
+        for (let k = 0; k < pts.length - 1; k += 1) {
+          const a = pts[k];
+          const b = pts[k + 1];
+          // Thân ngọc liền mạch, đậm dần khi lặn sâu; mỗi đai 8 khớp điểm
+          // một vệt vàng nhạt như hàng vảy – rồng ta, không phải sọc kẹo.
+          ctx.globalAlpha = (0.62 + 0.38 * a.depth) * fade;
+          ctx.strokeStyle =
+            a.depth > 0.66 ? "#10b981" : a.depth > 0.33 ? "#0ea371" : "#047857";
+          ctx.lineWidth = a.r * 2;
+          ctx.beginPath();
+          ctx.moveTo(a.p.x, a.p.y);
+          ctx.lineTo(b.p.x, b.p.y);
+          ctx.stroke();
+          if (k % 8 < 4) {
+            ctx.globalAlpha = (0.16 + 0.2 * a.depth) * fade;
+            ctx.strokeStyle = "#fcd34d";
+            ctx.lineWidth = a.r * 1.5;
+            ctx.beginPath();
+            ctx.moveTo(a.p.x, a.p.y);
+            ctx.lineTo(b.p.x, b.p.y);
+            ctx.stroke();
+          }
+          // Lớp 3: bụng sáng – dải mảnh liền dưới sống lưng mỗi khớp.
+          ctx.globalAlpha = (0.1 + 0.14 * a.depth) * fade;
+          ctx.strokeStyle = "#fde68a";
+          ctx.lineWidth = a.r * 0.55;
+          ctx.beginPath();
+          ctx.moveTo(a.p.x, a.p.y + a.r * 0.5);
+          ctx.lineTo(b.p.x, b.p.y + b.r * 0.5);
+          ctx.stroke();
+          // Lớp 4: gai lưng màng vàng – tam giác nhỏ hướng lên mỗi 3 khớp.
+          if (k % 3 === 0 && a.r > base * 0.25) {
+            const dx = b.p.x - a.p.x;
+            const dy = b.p.y - a.p.y;
+            const len = Math.hypot(dx, dy) || 1;
+            let nx = dy / len;
+            let ny = -dx / len;
+            if (ny > 0) {
+              nx = -nx;
+              ny = -ny;
+            }
+            ctx.globalAlpha = (0.25 + 0.3 * a.depth) * fade;
+            ctx.fillStyle = "#f59e0b";
+            ctx.beginPath();
+            ctx.moveTo(a.p.x - (dx / len) * a.r * 0.55, a.p.y - (dy / len) * a.r * 0.55);
+            ctx.lineTo(a.p.x + nx * a.r * 1.7, a.p.y + ny * a.r * 1.7);
+            ctx.lineTo(a.p.x + (dx / len) * a.r * 0.55, a.p.y + (dy / len) * a.r * 0.55);
+            ctx.closePath();
+            ctx.fill();
+          }
+        }
+        // Đầu rồng: quay theo vector chuyển động, giải phẫu nhiều lớp –
+        // quầng sáng, bờm bay theo gió, sừng phân nhánh, mõm dài, quai hàm,
+        // lỗ mũi, râu uốn, mắt hổ phách có mày nổi khối.
+        const head = dragonHistory[0];
+        const behind = dragonHistory[Math.min(4, dragonHistory.length - 1)];
+        const depth = (head.z + 1) / 2;
+        const r = base * (0.62 + 0.78 * depth) * 1.9;
+        const angle = Math.atan2(head.y - behind.y, head.x - behind.x);
+        ctx.save();
+        ctx.translate(head.x, head.y);
+        ctx.rotate(angle);
+        ctx.globalAlpha = 0.3 * fade;
+        ctx.fillStyle = "#fde047";
+        ctx.beginPath();
+        ctx.ellipse(0, 0, r * 2.5, r * 1.7, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.lineCap = "round";
+        // Bờm vàng sau gáy: 5 tua lượn theo thời gian như đang bơi trong
+        // gió – sắc vàng chọn để không tan vào thân ngọc.
+        ctx.strokeStyle = "#fcd34d";
+        ctx.lineWidth = r * 0.22;
+        ctx.globalAlpha = fade * 0.55;
+        for (let m = 0; m < 5; m += 1) {
+          const spread = (m / 4 - 0.5) * 2.1;
+          const len = r * (2.1 + 0.55 * Math.sin(elapsed * 0.012 + m * 1.7));
+          ctx.beginPath();
+          ctx.moveTo(-r * 0.6, spread * r * 0.7);
+          ctx.quadraticCurveTo(-r * 1.5, spread * r * 1.5, -len, spread * r * 2.1);
+          ctx.stroke();
+        }
+        // Sừng chính phân nhánh – nét tối làm viền rồi mới đến lõi sáng để
+        // nổi trên cả nền trắng lẫn nền đêm; gốc choàng ngoài mép hộp sọ.
+        for (const s of [-1, 1]) {
+          for (const [width, color, alpha] of [
+            [r * 0.42, "#92400e", 0.55],
+            [r * 0.24, "#fde68a", 0.95],
+          ] as const) {
+            ctx.lineWidth = width;
+            ctx.globalAlpha = fade * alpha;
+            ctx.strokeStyle = color;
+            ctx.beginPath();
+            ctx.moveTo(-r * 0.4, s * r * 0.8);
+            ctx.bezierCurveTo(-r * 1.1, s * r * 1.5, -r * 1.9, s * r * 1.7, -r * 2.5, s * r * 1.0);
+            ctx.stroke();
+          }
+          ctx.lineWidth = r * 0.12;
+          ctx.globalAlpha = fade * 0.8;
+          ctx.strokeStyle = "#fde68a";
+          ctx.beginPath();
+          ctx.moveTo(-r * 1.45, s * r * 1.42);
+          ctx.quadraticCurveTo(-r * 1.7, s * r * 2.0, -r * 2.2, s * r * 2.15);
+          ctx.stroke();
+        }
+        // Hộp sọ + mõm dài đặc trưng rồng Việt.
+        ctx.globalAlpha = fade * (0.85 + 0.15 * depth);
+        ctx.fillStyle = "#fbbf24";
+        ctx.beginPath();
+        ctx.ellipse(-r * 0.1, 0, r * 1.35, r * 1.05, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.beginPath();
+        ctx.ellipse(r * 1.35, 0, r * 1.05, r * 0.55, 0, 0, Math.PI * 2);
+        ctx.fill();
+        // Gờ má tối hai bên – đầu có khối, không phẳng như mặt nạ.
+        ctx.globalAlpha = fade * 0.35;
+        ctx.fillStyle = "#d97706";
+        for (const s of [-1, 1]) {
+          ctx.beginPath();
+          ctx.ellipse(-r * 0.15, s * r * 0.85, r * 1.05, r * 0.35, 0, 0, Math.PI * 2);
+          ctx.fill();
+        }
+        // Quai hàm + lỗ mũi tạo khối.
+        ctx.strokeStyle = "#b45309";
+        ctx.lineWidth = r * 0.12;
+        ctx.beginPath();
+        ctx.moveTo(r * 2.2, r * 0.16);
+        ctx.quadraticCurveTo(r * 1.2, r * 0.55, r * 0.2, r * 0.6);
+        ctx.stroke();
+        ctx.fillStyle = "#92400e";
+        for (const s of [-1, 1]) {
+          ctx.beginPath();
+          ctx.arc(r * 2.15, s * r * 0.16, r * 0.09, 0, Math.PI * 2);
+          ctx.fill();
+        }
+        // Râu rồng bay phần phật trước mũi: hai nét nền tối + lõi sáng.
+        for (const s of [-1, 1]) {
+          const sway = Math.sin(elapsed * 0.015 + s * 2) * r * 0.5;
+          for (const [width, color, alpha] of [
+            [r * 0.2, "#92400e", 0.45],
+            [r * 0.1, "#fef3c7", 0.9],
+          ] as const) {
+            ctx.lineWidth = width;
+            ctx.globalAlpha = fade * alpha;
+            ctx.strokeStyle = color;
+            ctx.beginPath();
+            ctx.moveTo(r * 2.2, s * r * 0.25);
+            ctx.bezierCurveTo(
+              r * 3.0, s * (r * 0.9 + sway * 0.3),
+              r * 3.4, s * (r * 1.6 + sway),
+              r * 2.9, s * (r * 2.2 + sway),
+            );
+            ctx.stroke();
+          }
+        }
+        // Mắt: lòng trắng hẹp, đồng tử dọc sắc bản, mày trễ hiểm – rồng
+        // chứ không phải mắt ếch tròn to.
+        for (const s of [-1, 1]) {
+          ctx.globalAlpha = fade;
+          ctx.fillStyle = "#fff7ed";
+          ctx.beginPath();
+          ctx.ellipse(r * 0.15, s * r * 0.52, r * 0.26, r * 0.2, 0, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.fillStyle = "#7c2d12";
+          ctx.beginPath();
+          ctx.ellipse(r * 0.22, s * r * 0.52, r * 0.09, r * 0.17, 0, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.strokeStyle = "#b45309";
+          ctx.lineWidth = r * 0.14;
+          ctx.beginPath();
+          ctx.moveTo(-r * 0.25, s * r * 0.74);
+          ctx.quadraticCurveTo(r * 0.15, s * r * 0.8, r * 0.45, s * r * 0.64);
+          ctx.stroke();
+        }
+        ctx.restore();
+        ctx.globalCompositeOperation = "lighter";
+      };
 
       const spawnBursts = (
         x: number,
@@ -373,22 +657,53 @@ export function celebrateSale(options: CelebrateOptions = {}) {
       burstWave(true);
       burstWave(true);
       spawnBursts(w / 2, h * 0.3, true);
-      for (let i = 0; i < 3; i += 1) shells.push(makeShell(w, h));
+      for (let i = 0; i < 4; i += 1) shells.push(makeShell(w, h));
       particles = particles.concat(confettiFall(w, h), emojiFloat(w, h), glitterDrizzle(w, h));
 
-      // Biên đạo: tên lửa bắn liên tục nửa đầu, burst ngẫu nhiên denser.
-      const waveDelays = [500, 950, 1400, 1900, 2400, 2950, 3500];
+      // Biên đạo 10 giây: sóng pháo rải đều từ đầu tới gần cuối, tên lửa bắn
+      // liên tục, finale bùng nổ giây 8.3-9.2 rồi nhường cảnh gập màn.
+      const waveDelays = [
+        500, 1000, 1500, 2050, 2600, 3150, 3700, 4250, 4800, 5400, 6000, 6600, 7200, 7800,
+      ];
       for (const delay of waveDelays) {
         setTimeout(() => {
           if (!stopped) burstWave(Math.random() < 0.55);
         }, delay);
       }
-      const launchDelays = [560, 1150, 1750, 2350, 2900];
+      const launchDelays = [
+        600, 1300, 2000, 2700, 3400, 4100, 4800, 5500, 6200, 6900, 7600,
+      ];
       for (const delay of launchDelays) {
         setTimeout(() => {
           if (!stopped && shells.length < 6) shells.push(makeShell(w, h));
         }, delay);
       }
+      for (const delay of [8300, 8600, 8900, 9200]) {
+        setTimeout(() => {
+          if (stopped) return;
+          burstWave(true);
+          burstWave(true);
+          spawnBursts(w * (0.2 + Math.random() * 0.6), h * (0.15 + Math.random() * 0.3), true);
+        }, delay);
+      }
+
+      // Pháo chân thực hơn: mỗi quả shell đang bay rắc tia lửa ngắn theo quỹ đạo.
+      const shellSparks = (p: Particle) => {
+        if (particles.length >= MAX_PARTICLES || Math.random() > 0.4) return;
+        particles.push({
+          x: p.x + (Math.random() - 0.5) * 2,
+          y: p.y,
+          vx: (Math.random() - 0.5) * 0.4,
+          vy: 0.3 + Math.random() * 0.5,
+          life: 0,
+          maxLife: 14 + Math.random() * 10,
+          color: p.color,
+          size: 1 + Math.random() * 0.8,
+          gravity: 0.02,
+          drag: 0.94,
+          glitter: true,
+        });
+      };
 
       const drawParticle = (p: Particle, alpha: number) => {
         ctx.globalAlpha = alpha;
@@ -474,10 +789,13 @@ export function celebrateSale(options: CelebrateOptions = {}) {
           p.vy += p.gravity * dt;
           p.x += p.vx * dt;
           p.y += p.vy * dt;
+          shellSparks(p);
           drawParticle(p, 1);
           nextShells.push(s);
         }
         shells = nextShells;
+        // Rồng khổng lồ lượn phía trên trường pháo hoa.
+        drawDragon(now - startedAt);
         ctx.globalAlpha = 1;
         ctx.globalCompositeOperation = "source-over";
         // Giữ loop tới hết vòng đời overlay: khoảng hở giữa các đợt burst

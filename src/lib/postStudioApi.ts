@@ -100,20 +100,9 @@ export type AssistRefineReply = {
   caption: string;
   requires_human_review: boolean;
 };
-export type AssistReplyAnswer = {
-  task: "reply";
-  model: string;
-  intent: string;
-  analysis: string;
-  reply: string;
-  vehicle_ids: string[];
-  vehicles: MatchedVehicle[];
-  requires_human_review: boolean;
-};
 export type AssistReply =
   | AssistCaptionReply
-  | AssistRefineReply
-  | AssistReplyAnswer;
+  | AssistRefineReply;
 
 export type UsageDigest = {
   days: number;

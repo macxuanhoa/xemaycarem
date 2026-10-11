@@ -219,7 +219,7 @@ export function SalesPage({
                       <tr key={sale.id}>
                         <td>
                           <Link className="text-link" to={`/sales/${sale.id}`}>
-                            <Highlight text={sale.sale_code} query={deferredSearch} />
+                            Mã giao dịch: <Highlight text={sale.sale_code} query={deferredSearch} />
                           </Link>
                           <small>{dateLabel(sale.sale_date)}</small>
                         </td>
@@ -242,7 +242,7 @@ export function SalesPage({
                             : money(sale.remaining_amount)}
                         </td>
                         <td>
-                          <Badge status={sale.status} />
+                          {sale.status !== "COMPLETED" && <Badge status={sale.status} />}
                         </td>
                         <td>
                           <Link
@@ -266,8 +266,8 @@ export function SalesPage({
                     key={sale.id}
                   >
                     <div className="row between">
-                      <strong><Highlight text={sale.sale_code} query={deferredSearch} /></strong>
-                      <Badge status={sale.status} />
+                      <strong>Mã giao dịch: <Highlight text={sale.sale_code} query={deferredSearch} /></strong>
+                      {sale.status !== "COMPLETED" && <Badge status={sale.status} />}
                     </div>
                     <div className="record-title">
                       <Highlight text={vehicleTypeName(sale)} query={deferredSearch} />

@@ -1,6 +1,5 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Download, Monitor, ShieldCheck, Smartphone } from "lucide-react";
 import {
   Button,
   Card,
@@ -23,14 +22,9 @@ import {
   VEHICLE_TYPES_QUERY_KEY,
 } from "@/lib/useVehicleTypes";
 import { AnnouncementManager } from "./AnnouncementManager";
-import { RuntimeHealthCard } from "./RuntimeHealthCard";
 import { PaymentSettingsCard } from "./PaymentSettingsCard";
 import { SmartSalesAutomationCard } from "./SmartSalesAutomationCard";
 import { SeasonalThemeCard } from "./SeasonalThemeCard";
-interface InstallPrompt extends Event {
-  prompt: () => Promise<void>;
-  userChoice: Promise<{ outcome: string }>;
-}
 type Settings = {
   store_name: string;
   phone?: string;
@@ -47,21 +41,12 @@ export default function SettingsPage() {
   const { profile, user, refresh } = useAuth();
   const [name, setName] = useState(profile?.full_name ?? ""),
     [password, setPassword] = useState(""),
-    [currentPassword, setCurrentPassword] = useState(""),
-    [prompt, setPrompt] = useState<InstallPrompt | null>(null);
+    [currentPassword, setCurrentPassword] = useState("");
   const [activeTab, setActiveTab] = useState<
-    "PROFILE" | "STORE" | "PAYMENT" | "SCHEDULE" | "MESSAGES" | "AUTOMATION" | "VEHICLE_TYPES" | "THEME" | "DEVICE"
+    "PROFILE" | "STORE" | "PAYMENT" | "SCHEDULE" | "MESSAGES" | "AUTOMATION" | "VEHICLE_TYPES" | "THEME"
   >("PROFILE");
 
   const client = useQueryClient();
-  useEffect(() => {
-    const handle = (event: Event) => {
-      event.preventDefault();
-      setPrompt(event as InstallPrompt);
-    };
-    window.addEventListener("beforeinstallprompt", handle);
-    return () => window.removeEventListener("beforeinstallprompt", handle);
-  }, []);
   const profileMutation = useMutation({
     mutationFn: () =>
       api.call("update_profile", {
@@ -200,14 +185,6 @@ export default function SettingsPage() {
             <span>Giao diện hệ thống</span>
           </button>
         )}
-        <button
-          type="button"
-          aria-pressed={activeTab === "DEVICE"}
-          className={`settings-nav-item ${activeTab === "DEVICE" ? "active" : ""}`}
-          onClick={() => setActiveTab("DEVICE")}
-        >
-          <span>Ứng dụng &amp; Dữ liệu</span>
-        </button>
       </div>
 
       {activeTab === "PROFILE" && (
@@ -320,65 +297,6 @@ export default function SettingsPage() {
       {showVehicleTypes && <VehicleTypeCatalogEditor />}
 
       {showTheme && <SeasonalThemeCard />}
-
-      {activeTab === "DEVICE" && (
-        <div className="settings-balance-grid">
-          {isOwner(profile) && <RuntimeHealthCard />}
-          <Card className="install-card">
-            <span className="install-icon">
-              <Download size={24} />
-            </span>
-            <h2>Luôn sẵn sàng trên thiết bị</h2>
-            <p className="muted">
-              Cài Cà Rem để mở nhanh như một ứng dụng độc lập.
-            </p>
-            {prompt && (
-              <Button
-                onClick={async () => {
-                  await prompt.prompt();
-                  await prompt.userChoice;
-                  setPrompt(null);
-                }}
-              >
-                Cài đặt Cà Rem
-              </Button>
-            )}
-            <div className="install-step">
-              <Monitor size={21} />
-              <div>
-                <h3>Trên máy tính</h3>
-                <p>
-                  Mở bằng Chrome hoặc Edge, chọn biểu tượng cài đặt trên thanh
-                  địa chỉ. Sau khi cài, có thể ghim ứng dụng vào thanh tác vụ.
-                </p>
-              </div>
-            </div>
-            <div className="install-step">
-              <Smartphone size={21} />
-              <div>
-                <h3>Trên điện thoại</h3>
-                <p>
-                  Android: chọn “Cài đặt ứng dụng” trong menu trình duyệt.
-                  iPhone: mở bằng Safari → Chia sẻ → Thêm vào màn hình chính.
-                </p>
-              </div>
-            </div>
-          </Card>
-
-          <Card>
-            <div className="row" style={{ gap: "8px", alignItems: "center" }}>
-              <ShieldCheck size={21} style={{ color: "#16a34a" }} />
-              <h3>Dữ liệu &amp; An ninh</h3>
-            </div>
-            <p className="muted small" style={{ marginTop: "10px" }}>
-              Dữ liệu cửa hàng được đồng bộ và lưu trữ bảo mật trên Supabase. Hệ
-              thống yêu cầu kết nối mạng để ghi nhận giao dịch; dữ liệu tài
-              chính không được lưu vào bộ nhớ ngoại tuyến để phòng ngừa gian
-              lận.
-            </p>
-          </Card>
-        </div>
-      )}
     </div>
   );
 }

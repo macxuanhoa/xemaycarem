@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type ChangeEvent } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { Camera, Upload } from "lucide-react";
+import { Camera, CirclePlus, Upload, X } from "lucide-react";
 import { api } from "@/lib/api";
 import { compressImage } from "@/lib/imageCompression";
 import { toast } from "@/lib/toast";
@@ -20,7 +20,17 @@ const labels = {
   error: "Chưa tải được",
 };
 
-export function VehicleImageUpload({ vehicleId }: { vehicleId: string }) {
+export function VehicleImageUpload({
+  vehicleId,
+  isChoiceOpen,
+  onCloseChoice,
+  onOpenChoice,
+}: {
+  vehicleId: string;
+  isChoiceOpen?: boolean;
+  onCloseChoice?: () => void;
+  onOpenChoice?: () => void;
+}) {
   const client = useQueryClient();
   const [items, setItems] = useState<UploadItem[]>([]);
   const [error, setError] = useState("");
@@ -29,6 +39,8 @@ export function VehicleImageUpload({ vehicleId }: { vehicleId: string }) {
   const mounted = useRef(true);
   const urls = useRef<string[]>([]);
   const pending = useRef(0);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const cameraInputRef = useRef<HTMLInputElement>(null);
   // Counts of the current in-flight batch so we can announce one concise
   // confirmation once every queued photo settles.
   const batch = useRef({ ok: 0, fail: 0 });
@@ -129,28 +141,109 @@ export function VehicleImageUpload({ vehicleId }: { vehicleId: string }) {
   };
   return (
     <div className="stack vehicle-image-upload">
+      {/* Hidden native inputs */}
+      <input
+        ref={fileInputRef}
+        aria-label="Thêm ảnh xe từ thiết bị"
+        type="file"
+        accept="image/jpeg,image/png,image/webp"
+        multiple
+        style={{ display: "none" }}
+        onChange={choose}
+      />
+      <input
+        ref={cameraInputRef}
+        aria-label="Chụp ảnh xe bằng máy ảnh"
+        type="file"
+        accept="image/jpeg,image/png,image/webp"
+        capture="environment"
+        style={{ display: "none" }}
+        onChange={choose}
+      />
+
+      {/* Choice Modal */}
+      {isChoiceOpen && (
+        <div
+          className="dialog-backdrop"
+          role="presentation"
+          onClick={onCloseChoice}
+        >
+          <div
+            className="dialog-panel photo-choice-panel"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="photo-choice-title"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="photo-choice-header">
+              <h3 id="photo-choice-title">Thêm ảnh cho xe</h3>
+              <button
+                type="button"
+                className="icon-button"
+                aria-label="Đóng"
+                onClick={onCloseChoice}
+              >
+                <X size={18} />
+              </button>
+            </div>
+            <div className="photo-choice-options">
+              <button
+                type="button"
+                className="photo-choice-btn photo-choice-camera"
+                onClick={() => {
+                  onCloseChoice?.();
+                  cameraInputRef.current?.click();
+                }}
+              >
+                <div className="photo-choice-icon">
+                  <Camera size={24} />
+                </div>
+                <div className="photo-choice-info">
+                  <span className="photo-choice-title">Chụp ảnh bằng camera</span>
+                  <span className="photo-choice-desc">
+                    Mở camera điện thoại để chụp ảnh xe tải lên ngay
+                  </span>
+                </div>
+              </button>
+              <button
+                type="button"
+                className="photo-choice-btn photo-choice-device"
+                onClick={() => {
+                  onCloseChoice?.();
+                  fileInputRef.current?.click();
+                }}
+              >
+                <div className="photo-choice-icon">
+                  <Upload size={24} />
+                </div>
+                <div className="photo-choice-info">
+                  <span className="photo-choice-title">Tải ảnh lên từ thiết bị</span>
+                  <span className="photo-choice-desc">
+                    Chọn một hoặc nhiều ảnh từ thư viện ảnh máy bạn
+                  </span>
+                </div>
+              </button>
+            </div>
+            <div className="dialog-actions">
+              <Button variant="secondary" onClick={onCloseChoice}>
+                Hủy
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Visible Action Button */}
       <div className="row">
-        <label className="button secondary upload-button">
-          <Upload size={16} /> Thêm ảnh
-          <input
-            aria-label="Thêm ảnh xe"
-            type="file"
-            accept="image/jpeg,image/png,image/webp"
-            multiple
-            onChange={choose}
-          />
-        </label>
-        <label className="button secondary upload-button">
-          <Camera size={16} /> Chụp ảnh xe
-          <input
-            aria-label="Chụp ảnh xe"
-            type="file"
-            accept="image/jpeg,image/png,image/webp"
-            capture="environment"
-            onChange={choose}
-          />
-        </label>
+        <Button
+          variant="secondary"
+          className="upload-button"
+          onClick={() => onOpenChoice?.()}
+        >
+          <CirclePlus size={16} /> Thêm ảnh xe
+        </Button>
       </div>
+
       {error && (
         <p className="field-error" role="alert">
           {error}

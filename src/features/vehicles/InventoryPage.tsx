@@ -331,6 +331,9 @@ export function InventoryPage() {
   const vehicles = query.data?.items ?? [];
   const total = query.data?.total ?? 0;
   const statusOptions = pickMode ? PICK_STATUS_OPTIONS : VEHICLE_STATUS_OPTIONS;
+  // Khi đang ở tab "Đã bán" (không phải chế độ chọn xe đăng bài), bấm vào xe sẽ
+  // ưu tiên hiện giao dịch bán ra trước, rồi mới cho phép mở chi tiết xe.
+  const soldTabView = !pickMode && status === "SOLD";
   const dateRangeSummary =
     filters.date_from && filters.date_to
       ? `${dateLabel(filters.date_from)} – ${dateLabel(filters.date_to)}`
@@ -625,7 +628,7 @@ export function InventoryPage() {
                       <Link
                         className="vehicle-cell"
                         to={`/vehicles/${vehicle.id}`}
-                        state={{ fromInventory: returnTo }}
+                        state={{ fromInventory: returnTo, saleFirst: soldTabView }}
                         onClick={rememberPosition}
                         onMouseEnter={() => prefetch(vehicle.id)}
                         onFocus={() => prefetch(vehicle.id)}
@@ -688,7 +691,7 @@ export function InventoryPage() {
                           </Button>
                           <RowViewAction
                             to={`/vehicles/${vehicle.id}`}
-                            state={{ fromInventory: returnTo }}
+                            state={{ fromInventory: returnTo, saleFirst: soldTabView }}
                             onClick={rememberPosition}
                             label={`xe ${vehicleTitle(vehicle)}`}
                           />
@@ -696,7 +699,7 @@ export function InventoryPage() {
                       ) : (
                         <RowViewAction
                           to={`/vehicles/${vehicle.id}`}
-                          state={{ fromInventory: returnTo }}
+                          state={{ fromInventory: returnTo, saleFirst: soldTabView }}
                           onClick={rememberPosition}
                           label={`xe ${vehicleTitle(vehicle)}`}
                         />
@@ -713,7 +716,7 @@ export function InventoryPage() {
                 <Link
                   className="vehicle-record-link"
                   to={`/vehicles/${vehicle.id}`}
-                  state={{ fromInventory: returnTo }}
+                  state={{ fromInventory: returnTo, saleFirst: soldTabView }}
                   onClick={rememberPosition}
                   onPointerDown={() => prefetch(vehicle.id)}
                 >

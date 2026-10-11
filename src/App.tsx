@@ -81,7 +81,6 @@ const CapturePage = lazy(() => import("@/features/capture/CapturePage"));
 const AssistPage = lazy(() => import("@/features/assistant/AssistPage"));
 const CopilotPage = lazy(() => import("@/features/copilot/CopilotPage"));
 const PostStudioPage = lazy(() => import("@/features/poststudio/PostStudioPage"));
-const ReplyAssistantPage = lazy(() => import("@/features/replyassistant/ReplyAssistantPage"));
 const BrandMemoryPage = lazy(() => import("@/features/poststudio/BrandMemoryPage"));
 const DocsPage = lazy(() => import("@/features/docs/DocsPage"));
 const ShowroomPage = lazy(() => import("@/features/showroom/ShowroomPage"));
@@ -194,7 +193,6 @@ export default function App() {
               <Route path="assist" element={<AssistPage />} />
               <Route path="copilot" element={<CopilotPage />} />
               <Route path="posts" element={<PostStudioPage />} />
-              <Route path="reply" element={<ReplyAssistantPage />} />
               <Route path="brand-memory" element={<BrandMemoryPage />} />
               <Route path="docs" element={<DocsPage />} />
               <Route path="docs/:slug" element={<DocsPage />} />
@@ -220,9 +218,8 @@ export default function App() {
                 />
                 {/* Managers reach Nhân sự only to set roles of their juniors. */}
                 <Route path="users" element={<UsersPage />} />
-                {/* Nghi trùng PLATE_AND_LAST5: hàng đợi riêng cho Chủ + Quản lý
-                    (migration 20261011000400), tách khỏi /approvals OWNER-only để
-                    giữ kín giá vốn và cho Quản lý cùng xác minh. */}
+                {/* Hàng đợi duyệt chung (Nghi trùng xe, Bán dưới giá thu, Xóa xe) */}
+                <Route path="approvals" element={<ApprovalsPage />} />
                 <Route
                   path="duplicate-reviews"
                   element={<DuplicateReviewsPage />}
@@ -230,7 +227,6 @@ export default function App() {
               </Route>
               <Route element={<Protected access="owner" />}>
                 <Route path="audit" element={<AuditPage />} />
-                <Route path="approvals" element={<ApprovalsPage />} />
               </Route>
             </Route>
           </Route>

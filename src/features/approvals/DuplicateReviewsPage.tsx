@@ -49,7 +49,7 @@ function requestedSummary(payload?: ApprovalRequest["payload"]) {
   };
 }
 
-function ReviewRow({ item }: { item: ApprovalRequest }) {
+export function ReviewRow({ item }: { item: ApprovalRequest }) {
   const { profile } = useAuth();
   const navigate = useNavigate();
   const client = useQueryClient();
@@ -77,6 +77,7 @@ function ReviewRow({ item }: { item: ApprovalRequest }) {
     },
     onSuccess: async (result, action) => {
       await client.invalidateQueries({ queryKey: ["duplicate-reviews"] });
+      await client.invalidateQueries({ queryKey: ["approvals"] });
       await client.invalidateQueries({ queryKey: ["vehicles"] });
       await client.invalidateQueries({ queryKey: ["dashboard"] });
       if (action === "APPROVE") {

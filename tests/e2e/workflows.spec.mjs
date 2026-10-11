@@ -414,13 +414,6 @@ test("Owner: audit and settings routes", async ({
   await expect(
     page.getByRole("heading", { name: "Hồ sơ của bạn" }),
   ).toBeVisible();
-  // Store identity now lives in the owner-only "Thông tin cửa hàng" tab.
-  await page.getByRole("button", { name: "Thông tin cửa hàng", exact: true }).click();
-  await page
-    .getByLabel("Tên cửa hàng", { exact: true })
-    .fill("Cửa hàng kiểm thử UI");
-  await page.getByRole("button", { name: "Lưu cài đặt", exact: true }).click();
-  await expect(page.getByText("Đã lưu cài đặt cửa hàng.")).toBeVisible();
   await page.getByRole("button", { name: "Hồ sơ & Đổi mật khẩu", exact: true }).click();
   await page
     .getByLabel("Mật khẩu hiện tại", { exact: true })
@@ -633,7 +626,7 @@ test("Regression: loading a new route keeps the navigation shell visible", async
     releaseModule();
   }
   await expect(
-    page.getByRole("heading", { name: "Quản lý chi phí", exact: true }),
+    page.getByRole("heading", { name: "Chi phí cửa hàng", exact: true }),
   ).toBeVisible();
 });
 

@@ -429,11 +429,11 @@ export default function DashboardPage() {
                             </span>
                             <div>
                               <strong>{vehicleTitle(s)}</strong>
-                              <small>{s.customer_name} · {dateLabel(s.sale_date)}</small>
+                              <small>{s.sale_code ? `Mã giao dịch: ${s.sale_code} · ` : ""}{s.customer_name} · {dateLabel(s.sale_date)}</small>
                             </div>
                             <div className="align-right">
                               <strong>{money(s.sale_price)}</strong>
-                              <Badge status={s.status} />
+                              {s.status !== "COMPLETED" && <Badge status={s.status} />}
                             </div>
                           </Link>
                         ))}
@@ -499,7 +499,7 @@ export default function DashboardPage() {
                         <p className="muted small">Các khoản chi ghi nhận trong khoảng thời gian này</p>
                       </div>
                       <Link className="text-link" to="/expenses">
-                        Quản lý chi phí <ArrowRight size={14} />
+                        Chi phí cửa hàng <ArrowRight size={14} />
                       </Link>
                     </div>
                     <div className="compact-list">

@@ -270,7 +270,7 @@ export function GlobalSearchPalette() {
             >
               <span className="result-info">
                 <strong>
-                  <Highlight text={sale.sale_code} query={term} /> ·{" "}
+                  Mã giao dịch: <Highlight text={sale.sale_code} query={term} /> ·{" "}
                   <Highlight text={sale.vehicle_title} query={term} />
                 </strong>
                 <small>
@@ -278,7 +278,7 @@ export function GlobalSearchPalette() {
                   <Highlight text={sale.internal_code} query={term} />
                 </small>
               </span>
-              <Badge status={sale.status} />
+              {sale.status !== "COMPLETED" && <Badge status={sale.status} />}
             </button>
           ))}
           {results && !hasResults && !search.error && (

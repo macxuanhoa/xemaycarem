@@ -513,10 +513,10 @@ export function CustomersPage() {
                     >
                       <div className="row between">
                         <Link to={`/sales/${s.id}`} className="text-link">
-                          <strong>{s.sale_code}</strong> ·{" "}
+                          <strong>Mã giao dịch: {s.sale_code}</strong> ·{" "}
                           {dateLabel(s.sale_date)}
                         </Link>
-                        <Badge status={s.status} />
+                        {s.status !== "COMPLETED" && <Badge status={s.status} />}
                       </div>
                       <div className="row between" style={{ marginTop: "6px" }}>
                         <div

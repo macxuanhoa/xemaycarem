@@ -689,7 +689,7 @@ test("Operational: expense management shows real independent costs and supports 
   const saleId = await seedSale();
   await loginAs(page, "owner");
   await page.goto("/expenses");
-  await expect(page.getByRole("heading", { name: "Quản lý chi phí", exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Chi phí cửa hàng", exact: true })).toBeVisible();
   await page.screenshot({ path: "test-results/expenses-desktop.png", fullPage: true });
   expect((await db.query("SELECT id FROM public.sales WHERE id=$1", [saleId])).rows).toHaveLength(1);
 });

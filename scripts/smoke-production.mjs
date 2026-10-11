@@ -71,7 +71,7 @@ async function runSmokeTests() {
 
   // 5. Auth / RPC Health Check
   console.log('\n--- 5. Testing Supabase Health & Auth Gateway ---');
-  const { data: healthData, error: healthErr } = await supabase.auth.getSession();
+  const { error: healthErr } = await supabase.auth.getSession();
   assert('Auth gateway responds cleanly', !healthErr, healthErr ? healthErr.message : 'Session verified');
 
   console.log(`\n========================================`);

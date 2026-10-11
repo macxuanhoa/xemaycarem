@@ -1431,8 +1431,7 @@ pre {
     opacity: 1;
   }
 }
-.offline-banner,
-.update-banner {
+.offline-banner {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1442,10 +1441,6 @@ pre {
   font-size: 13px;
   padding: 10px 25px;
   line-height: 1.6;
-}
-.update-banner {
-  background: #e8efdc;
-  color: #4f683e;
 }
 /* Dashboard */
 .dashboard-period {
@@ -4463,8 +4458,7 @@ pre {
   .setup-notice .small {
     font-size: 11px;
   }
-  .offline-banner,
-  .update-banner {
+  .offline-banner {
     font-size: 11px;
     padding: 10px 17px;
     align-items: flex-start;
@@ -14456,10 +14450,6 @@ html[data-theme="dark"] .header-theme-toggle {
 [data-theme="dark"] .offline-banner {
   background: rgba(245, 158, 11, 0.12);
   color: #fcd34d;
-}
-[data-theme="dark"] .update-banner {
-  background: rgba(16, 185, 129, 0.12);
-  color: #9fd4b4;
 }
 /* Ảnh & biểu tượng xe */
 [data-theme="dark"] .vehicle-icon {

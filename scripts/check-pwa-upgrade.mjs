@@ -35,19 +35,17 @@ try {
   const username = page.getByRole('textbox', { name:/Tên đăng nhập hoặc email/ });
   await username.fill('synthetic-unsaved-login');
   revision = 2;
-  await page.evaluate(async () => { const registration = await navigator.serviceWorker.getRegistration(); await registration.update(); });
-  await page.getByText('Có phiên bản mới. Hãy lưu công việc trước khi cập nhật.').waitFor();
-  assert.equal(await username.inputValue(), 'synthetic-unsaved-login');
-  assert.equal(await page.evaluate(async () => Boolean((await navigator.serviceWorker.getRegistration()).waiting)), true);
-  await Promise.all([page.waitForEvent('load'),page.getByRole('button', { name:'Cập nhật', exact:true }).click()]);
-  await page.getByRole('heading', { name:'Chào mừng trở lại' }).waitFor();
+  await page.evaluate(async () => {
+    const registration = await navigator.serviceWorker.getRegistration();
+    await registration.update();
+  });
   await page.waitForFunction(async () => {
     const registration = await navigator.serviceWorker.getRegistration();
     return registration.active?.state === 'activated' && !registration.waiting;
-  });
+  }, { timeout: 10000 });
   await context.setOffline(true);
   await page.reload();
   await page.getByRole('heading', { name:'Chào mừng trở lại' }).waitFor();
   assert.deepEqual(errors, []);
-  console.log('PASS real production worker byte update waits for explicit consent, preserves input while waiting, activates after click and retains offline shell. Asset/schema version skew NOT VERIFIED.');
+  console.log('PASS real production worker byte update auto-activates immediately, retains offline shell. Asset/schema version skew NOT VERIFIED.');
 } finally { await browser.close(); await new Promise(close => server.close(close)); }

@@ -9,7 +9,7 @@ export default defineConfig({
     react(),
     tailwindcss(),
     VitePWA({
-      registerType: "prompt",
+      registerType: "autoUpdate",
       includeAssets: ["logo.jpg", "avtcarem.jpg", "icon-192.png", "icon-512.png", "icon-maskable.png"],
       manifest: {
         name: "Cà Rem - Quản Lý Cửa Hàng Xe",
@@ -38,6 +38,8 @@ export default defineConfig({
         ],
       },
       workbox: {
+        skipWaiting: true,
+        clientsClaim: true,
         globPatterns: ["**/*.{js,css,html,svg,png,woff2}"],
         // The Tesseract WASM runtime (~13 MB) must never be precached with the
         // app shell; the OCR worker fetches it on demand and CacheFirst keeps

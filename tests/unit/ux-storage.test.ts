@@ -2,10 +2,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   addRecentVehicle,
   clearRecentVehicles,
-  getLastExpense,
   getRecentValues,
   getRecentVehicles,
-  saveLastExpense,
   saveRecentValue,
 } from "@/lib/recentVehicles";
 import {
@@ -88,22 +86,6 @@ describe("User-scoped convenience storage", () => {
     expect([...data.values()].join(" ")).not.toContain("secret");
   });
 
-  it("repeats only safe expense text, requiring a newly entered amount", () => {
-    saveLastExpense(
-      { type: "CLEANING", description: "Rửa xe", amount: 200000 } as {
-        type: string;
-        description: string;
-      },
-      "owner",
-    );
-    expect(getLastExpense("owner")).toMatchObject({
-      type: "CLEANING",
-      description: "Rửa xe",
-    });
-    expect(getLastExpense("owner")).not.toHaveProperty("amount");
-    expect(getLastExpense("staff")).toBeNull();
-    expect([...data.values()].join(" ")).not.toContain("200000");
-  });
   it("ranks colour suggestions by user recency then store frequency", () => {
     const vehicles = [
       { color: "Đen" },

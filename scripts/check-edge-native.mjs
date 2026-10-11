@@ -7,14 +7,25 @@ import { tmpdir } from 'node:os';
 import { join, resolve, dirname } from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
 
-const binary = process.env.DENO_BINARY || 'deno';
+import { existsSync } from 'node:fs';
+
+function resolveDenoBinary() {
+  if (process.env.DENO_BINARY) return process.env.DENO_BINARY;
+  if (process.platform === 'win32') {
+    const npmDeno = join(process.env.APPDATA || '', 'npm', 'node_modules', 'deno', 'deno.exe');
+    if (existsSync(npmDeno)) return npmDeno;
+  }
+  return 'deno';
+}
+
+const binary = resolveDenoBinary();
 const temporaryRoot = await realpath(tmpdir());
 const temporary = await mkdtemp(join(temporaryRoot, 'carem-edge-native-'));
 const configuration = join(temporary, 'deno.json');
 await writeFile(configuration, JSON.stringify({ compilerOptions: { strict: true }, nodeModulesDir: 'none', lock: false }));
 // Retain operating-system runtime settings, explicitly omit application credentials.
 const environment = Object.fromEntries(Object.entries(process.env).filter(([name]) => /^(PATH|SystemRoot|WINDIR|TEMP|TMP|USERPROFILE|LOCALAPPDATA|APPDATA|DENO_DIR)$/i.test(name)));
-const functions = ['manage-users', 'process-message', 'ai-assist', 'reset-owner'];
+const functions = ['manage-users', 'process-message', 'ai-assist', 'reset-owner', 'bank-webhook', 'post-ai'];
 const entries = functions.map(name => resolve(`supabase/functions/${name}/index.ts`));
 
 async function checkedRun(argumentsList) {
@@ -64,6 +75,17 @@ async function smoke(name, configured) {
       console.log('PASS retired endpoint remains HTTP410 under native Deno');
       return;
     }
+    if (name === 'bank-webhook') {
+      const health = await fetch(address);
+      assert.equal(health.status, 200);
+      assert.equal((await health.json()).status, 'NOT_CONFIGURED');
+      const post = await fetch(address, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
+      assert.equal(post.status, 401);
+      assert.equal((await post.json()).status, 'UNAUTHORIZED');
+      assert.equal(post.headers.get('Cache-Control'), 'no-store');
+      console.log('PASS bank-webhook native startup, no-secret health and unsigned request denial');
+      return;
+    }
     const preflight = await fetch(address, { method: 'OPTIONS', headers: { Origin: 'http://synthetic.local' } });
     assert.equal(preflight.status, 200);
     const get = await fetch(address);
@@ -94,7 +116,7 @@ try {
     await smoke(name, false);
     if (name !== 'reset-owner') await smoke(name, true);
   }
-  console.log('PASS native Deno typecheck for all4 Edge entrypoints and7 isolated HTTP smoke configurations. Hosted JWT/GoTrue/PostgREST/provider behavior NOT VERIFIED.');
+  console.log('PASS native Deno typecheck for all6 Edge entrypoints and11 isolated HTTP smoke configurations. Hosted JWT/GoTrue/PostgREST/provider behavior NOT VERIFIED.');
 } finally {
   // mkdtemp creates only this isolated verification configuration directory.
   assert.equal(dirname(await realpath(temporary)), temporaryRoot);

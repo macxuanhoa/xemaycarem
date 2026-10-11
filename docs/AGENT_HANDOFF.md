@@ -1,6 +1,24 @@
 # Release handoff — Xe CRM
 
+## Audit phát hành mới nhất — 11/10/2026
+
+Xem `docs/MASTER_RELEASE_AUDIT_20261011.md` cho kết quả phiên hoàn thiện hiện tại. LIVE ledger đã có 70 migrations đến `20261011000100`; `post-ai` ACTIVE v1. Những ghi chú cũ nói chưa apply purge/provenance hoặc post-ai MISSING đã hết hiệu lực. Không suy ra các feature WIP mới đã deploy. ExpensePages đã tiếp nhận `location.state.aiDraft`; ghi chú thiếu flow này phía dưới là lịch sử.
+
+Nguồn migration tài liệu đã áp dụng `20261006001400` được phục hồi từ ledger; generator bảo vệ phiên bản này và ghi forward `20261014000300`. Không chạy reseed đè migration lịch sử. Staging riêng và duyệt artwork Tết vẫn là release gates; giữ mọi production write/push/deploy chờ kết quả đầy đủ.
+
 Last reviewed: 2026-10-08 (Asia/Saigon)
+
+## Đăng bài từ kho xe + Smart Facebook Share — 2026-10-11
+
+Scope: the posting tool became a first-class sidebar surface (**Đăng bài từ kho xe**, `/posts`) with a two-step wizard, and a real hand-off path into Facebook. Decisions and rationale are in `docs/DECISIONS.md` ("Đăng bài từ kho xe + Cầu đăng Facebook — 11/10/2026"); verification limits are in `docs/KNOWN_ISSUES.md` ("Post Studio → Facebook hand-off"). Read both before touching this area.
+
+- **Client**: `src/features/poststudio/PostStudioPage.tsx` (step 1 pick → step 2 free-text brief → FB-styled preview + drafts), `FacebookPostCard.tsx`, `FacebookShareButton.tsx` (button + honest status + setup guide), `briefSignals.ts` (server mirror incl. hotline whitelist), `briefSuggestions.ts`, `src/styles-poststudio.css`. `src/layouts/AppLayout.tsx` carries the new nav item outside the `#ai-nav-links` accordion. `src/features/vehicles/InventoryPage.tsx` gained `pick=post` selection mode (`?return=` round trip, only **Chọn**/**Xem chi tiết**). `src/lib/postStudioApi.ts` sends `brief` verbatim.
+- **Hand-off layer**: `src/lib/fbShare/{protocol,detect,images,bridge,strategies,status,service}.ts` — three strategies (`EXTENSION` → `NATIVE` → `MANUAL`), ten stages, memory-only image cache, payload gate (5000 chars / 8 images / 4 MB each / 12 MB total), protocol version 1 on channel `carem-fb-share`.
+- **Browser extension**: `extension/carem-fb-share/{manifest.json,background.js,content.js,README.md}` (MV3, public `key` → fixed ID `njlnpebadapfckldkmdhdhbmnmckgcap`, `externally_connectable` limited to the Cà Rem sites + dev origins, no cookies/tokens, verifies by read-back, never clicks **Đăng**). `npm run fb:pack` (wired into `predev`/`prebuild`) writes the Git-ignored `public/carem-fb-extension.zip` that the in-app guide links, so CI ships the same bytes as the source.
+- **Edge**: `supabase/functions/post-ai/{index.ts,contracts.ts}` now accepts `brief` (≤600 chars) as user **data** in `contents[0]`, never in `systemInstruction`; `scanPublicText` flags `URL/CCCD/PHONE/MONEY/FINANCIAL_TERM` → `BRIEF_NOT_PUBLIC_SAFE` + `log_post_ai_usage` `BLOCKED`. Client falls back to `captionTemplates.ts` when the function is off/quota/error.
+- **Tests**: `tests/unit/fb-share.test.ts` (33), `tests/unit/brief-signals.test.ts` (8), `tests/security/post-ai.test.ts` (18, incl. the structural brief/prompt separation), `tests/e2e/post-studio-share.spec.mjs` (7).
+- **Gate status 2026-10-11**: `lint` ✅, `typecheck` ✅, `vitest` 739/63 files ✅, `knowledge:check` ✅ (after `npm run knowledge:seed`; the regenerated `docs/SYSTEM_REFERENCE.md` + `20261006001400` reseed also carry concurrent agents' RPCs — bank reconciliation, seasonal theme, message templates), `build` + PWA ✅, `check-edge-types.mjs` ✅, new e2e spec 7/7 ✅. `npm run test:db` ❌ at HEAD `fb90144` on the sale check (`SALE_OWNER_CONFIRMATION_REQUIRED`, financial-privacy lane) — pre-existing and unrelated.
+- **Not done**: `supabase functions deploy post-ai` (blocked until OWNER GO, §8 of `docs/R2_FINAL_GO_NO_GO.md`; secrets `GEMINI_API_KEY`, `POST_AI_ENABLED`, `GEMINI_MODEL`), no commit/push performed, and **zero real-Facebook or real-device verification** — the composer adapter and the mobile share sheet both need a human machine. The extension is `Load unpacked` only (Chrome will not sideload from an internal site), so it is an internal rollout, not a store release.
 
 ## Vehicle field purge + "Loại xe" catalogue — 2026-10-08
 

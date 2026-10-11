@@ -23,6 +23,21 @@ export function frameLast5(raw: string | null | undefined): string | null {
 }
 
 /**
+ * Mã máy chủ tự sinh khi xe chưa có số khung (`GEN-<uuid>`, xem save_vehicle).
+ * Đây KHÔNG phải số khung thật — mọi màn hình phải ẩn nó sau nhãn "chưa có khung",
+ * khớp `private.vehicle_label_text` (migration 20261011000200_hide_gen_frame_in_label).
+ */
+export function isPlaceholderFrame(raw: string | null | undefined): boolean {
+  return /^\s*GEN-/i.test(raw ?? "");
+}
+
+/** Số khung thô để hiển thị; rỗng khi chưa có khung hoặc chỉ là placeholder GEN-. */
+export function displayFrame(raw: string | null | undefined): string {
+  const value = (raw ?? "").trim();
+  return isPlaceholderFrame(value) ? "" : value;
+}
+
+/**
  * Suy ra loại dữ liệu từ chính chuỗi đã nén, khớp `private.frame_kind`:
  * rỗng hoặc ≥ 11 ký tự (chuẩn VIN) → FULL; ngắn hơn → PARTIAL.
  */
@@ -47,7 +62,7 @@ export const DUPLICATE_REASON_COPY: Record<string, string> = {
   PLATE_AND_LAST5:
     "Biển số và 5 ký tự cuối số khung trùng khớp một xe đang quản lý. Đây nhiều khả năng là cùng một xe.",
   NEED_VERIFY_PARTIAL_FULL:
-    "Biển số trùng và 5 ký tự cuối khớp nhau, nhưng một bên lưu số khung đầy đủ, một bên chỉ lưu rút gọn. Hãy nhập đủ số khung hoặc mở hồ sơ để đối chiếu.",
+    "Có xe mang 5 ký tự cuối trùng nhưng được lưu ở loại số khung khác (đầy đủ ↔ rút gọn). Đây chỉ là gợi ý đối chiếu, không chặn cứng — hãy nhập đủ số khung, mở hồ sơ để kiểm tra, hoặc xác nhận nếu chắc chắn là hai xe khác nhau.",
   PARTIAL_MATCH:
     "Có xe tương tự (trùng biển số hoặc 5 ký tự cuối số khung). Kiểm tra danh sách trước khi lưu.",
 };

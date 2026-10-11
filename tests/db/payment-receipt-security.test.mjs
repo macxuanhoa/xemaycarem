@@ -37,8 +37,8 @@ export async function runPaymentReceiptSecurityTests(externalDb, { engine = 'pos
     }
     const day = (await row('SELECT private.today()::text AS day')).day
     const createSale = async (price = 1000) => {
-      const vehicle = await call(db, 'owner', 'acquire_vehicle', { request_id: randomUUID(), vehicle_type: 'Xe tay ga', frame_number: '', purchase_price: 100, acquisition_date: day })
-      const sale = await call(db, 'owner', 'sell_vehicle', { request_id: randomUUID(), vehicle_id: vehicle, customer_name: 'Synthetic security customer', sale_date: day, sale_price: price, initial_payment: 0 })
+      const vehicle = await call(db, 'staff', 'acquire_vehicle', { request_id: randomUUID(), vehicle_type: 'Xe tay ga', frame_number: '', purchase_price: 100, acquisition_date: day })
+      const sale = await call(db, 'staff', 'sell_vehicle', { request_id: randomUUID(), vehicle_id: vehicle, customer_name: 'Synthetic security customer', sale_date: day, sale_price: price, initial_payment: 0 })
       return { vehicle, sale }
     }
     await check('same operation key or same bank evidence cannot be reassigned across sales', async () => {

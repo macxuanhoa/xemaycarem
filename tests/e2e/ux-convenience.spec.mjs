@@ -28,6 +28,11 @@ const seedVehicle = {
   sales: [],
 };
 
+async function expectVehicleIdentity(page) {
+  await expect(page.locator(".identity-chip-plate strong")).toHaveText(seedVehicle.license_plate);
+  await expect(page.locator(".identity-chip-frame code")).toHaveText(seedVehicle.frame_number);
+}
+
 async function installMock(page) {
   const calls = [];
   let acquired = null;
@@ -277,12 +282,14 @@ test("Mobile acquisition uses visible save, normalized money and keeps advanced 
     .click();
 
   await expect(
-    page.getByText("Đã thu xe thành công.", { exact: false }),
+    page.locator(".toast-success .toast-title", { hasText: "Thu xe thành công." }),
   ).toBeVisible();
   expect(Date.now() - started).toBeLessThan(30000);
   const request = calls.find((call) => call.name === "acquire_vehicle");
   expect(request.body.p_data.purchase_price).toBe(82000000);
-  await expect(page.getByRole("link", { name: "+ Thu xe tiếp" })).toBeVisible();
+  await expect(
+    page.locator(".toast-action", { hasText: "Thu xe tiếp" }),
+  ).toBeVisible();
   await page.screenshot({
     path: "test-results/ux-acquisition-mobile.png",
     fullPage: true,
@@ -375,13 +382,16 @@ test("Frame duplicates are reported while typing before the form is submitted", 
   await page
     .getByLabel("Số khung", { exact: true })
     .fill(seedVehicle.frame_number);
-  // Mức RED hiện ngay khi gõ, kèm lý do và không cho lưu.
-  await expect(page.getByText(/Nghi trùng xe đang quản lý/)).toBeVisible();
+  // FULL_FRAME_MATCH là chặn tuyệt đối với MỌI vai trò (kể cả Chủ): panel hiện
+  // tiêu đề "Trùng số khung đầy đủ — không lưu được" và nút lưu bị khóa.
+  await expect(
+    page.getByText(/Trùng số khung đầy đủ — không lưu được/),
+  ).toBeVisible();
   await expect(
     page.getByText(/Số khung đầy đủ này đã có trên một xe đang quản lý/),
   ).toBeVisible();
   await expect(
-    page.getByRole("button", { name: "Nghi trùng — không lưu được" }),
+    page.getByRole("button", { name: "Trùng số khung — không lưu được" }),
   ).toBeDisabled();
   expect(calls.some((call) => call.name === "acquire_vehicle")).toBe(false);
   await expect(
@@ -389,7 +399,7 @@ test("Frame duplicates are reported while typing before the form is submitted", 
   ).toHaveAttribute("href", `/vehicles/${vehicleId}`);
 });
 
-test("Quick expense keeps vehicle context, maps category to the existing enum and starts repeats without amounts", async ({
+test("Quick expense hides vehicle identifiers, maps category to the existing enum and requires a written description", async ({
   page,
 }) => {
   const calls = await installMock(page);
@@ -401,8 +411,23 @@ test("Quick expense keeps vehicle context, maps category to the existing enum an
     name: "+ Thêm chi phí xe",
     exact: true,
   });
+  // Popup không còn lộ mã nội bộ, biển số hay số khung của xe.
+  await expect(dialog).not.toContainText("XE-UX-001");
+  await expect(dialog).not.toContainText("43A1-12345");
+  await expect(dialog).not.toContainText("DUPLICATE-FRAME");
+  // Chip chỉ chọn phân loại — nội dung để trống cho người dùng tự ghi.
   await dialog.getByRole("button", { name: "Lốp xe", exact: true }).click();
+  await expect(dialog.getByLabel("Nội dung chi tiết *")).toHaveValue("");
   await dialog.getByLabel("Số tiền chi (₫) *", { exact: true }).fill("150k");
+  await dialog
+    .getByRole("button", { name: "Lưu chi phí", exact: true })
+    .click();
+  await expect(
+    dialog.getByText("Nhập nội dung chi phí.", { exact: true }),
+  ).toBeVisible();
+  await dialog
+    .getByLabel("Nội dung chi tiết *")
+    .fill("Thay lốp xe sau bảo dưỡng");
   await dialog
     .getByRole("button", { name: "Lưu chi phí", exact: true })
     .click();
@@ -414,20 +439,9 @@ test("Quick expense keeps vehicle context, maps category to the existing enum an
     vehicle_id: vehicleId,
     expense_type: "PARTS",
     amount: 150000,
-    description: "Thay lốp xe",
+    description: "Thay lốp xe sau bảo dưỡng",
     expense_date: today,
   });
-  await page.getByRole("button", { name: "Thao tác trên xe" }).click();
-  await page.getByRole("button", { name: "Thêm chi phí", exact: true }).click();
-  await dialog.getByRole("button", { name: /Dùng lại/ }).click();
-  await expect(
-    dialog.getByLabel("Số tiền chi (₫) *", { exact: true }),
-  ).toHaveValue("");
-  await expect(
-    dialog.getByRole("button", { name: "Lưu chi phí", exact: true }),
-  ).toBeDisabled();
-  await page.keyboard.press("Escape");
-  await expect(dialog).toHaveCount(0);
 });
 
 test("Inventory filters, sort, page and scroll survive opening a vehicle and returning", async ({
@@ -451,9 +465,7 @@ test("Inventory filters, sort, page and scroll survive opening a vehicle and ret
     .getByRole("link")
     .last()
     .click();
-  await expect(
-    page.getByRole("heading", { name: "43A1-12345 · DUPLICATE-FRAME", exact: true }),
-  ).toBeVisible();
+  await expectVehicleIdentity(page);
   await page.locator(".back-link").click();
   await expect(page).toHaveURL(
     new RegExp(
@@ -764,9 +776,7 @@ test("Desktop search responds while typing with one debounced request and keyboa
 }) => {
   const calls = await installMock(page);
   await page.goto(`/vehicles/${vehicleId}`);
-  await expect(
-    page.getByRole("heading", { name: "43A1-12345 · DUPLICATE-FRAME", exact: true }),
-  ).toBeVisible();
+  await expectVehicleIdentity(page);
   await page.keyboard.press("Control+k");
   const input = page.getByLabel("Tìm xe toàn hệ thống", { exact: true });
   await expect(input).toBeFocused();
@@ -833,9 +843,7 @@ test("Mobile search contains focus, preserves scroll and fits a reduced visible 
   const calls = await installMock(page);
   await page.setViewportSize({ width: 360, height: 844 });
   await page.goto(`/vehicles/${vehicleId}`);
-  await expect(
-    page.getByRole("heading", { name: "43A1-12345 · DUPLICATE-FRAME", exact: true }),
-  ).toBeVisible();
+  await expectVehicleIdentity(page);
   await page.evaluate(() => window.scrollTo(0, 260));
   const scrollBefore = await page.evaluate(() => window.scrollY);
   await expect.poll(async () => Math.abs((await page.locator(".topbar").boundingBox()).y)).toBeLessThan(1);
@@ -955,40 +963,41 @@ test("A failed chassis lookup never claims the identifier is available", async (
   expect(calls.some((call) => call.name === "acquire_vehicle")).toBe(false);
 });
 
-test("Single frame input auto-classifies a short frame as rút gọn when saving", async ({
+test("Single frame input auto-classifies a short frame as rút gọn (server decides, no manual send)", async ({
   page,
 }) => {
   const calls = await installMock(page);
   await page.goto("/acquisitions/new");
-  // 9 ký tự (< 11) → hệ thống TỰ nhận là mảnh rút gọn, không cần chọn nút.
+  // 9 ký tự (< 11) → hệ thống TỰ nhận là mảnh rút gọn; nhân viên không chọn nút nào.
   await page.getByLabel("Số khung", { exact: true }).fill("ABCDE1234");
-  await expect(page.getByText("Nhận diện: 5 ký tự cuối (rút gọn)")).toBeVisible();
+  await expect(page.getByText(/Nhận diện:.*rút gọn/)).toBeVisible();
   await page.getByLabel("Biển số (nếu có)", { exact: true }).fill("43A1-99999");
   await page.getByLabel("Loại xe *", { exact: true }).fill("Honda Vision");
   await page.getByLabel("Giá thu (₫) *", { exact: true }).fill("82tr");
   await page.getByRole("button", { name: "Thu xe & tạo phiếu", exact: true }).click();
   await page.getByRole("button", { name: "Xác nhận thu xe", exact: true }).click();
   const request = calls.find((call) => call.name === "acquire_vehicle");
-  expect(request.body.p_data.frame_input_kind).toBe("PARTIAL");
+  // Client không còn gửi loại khung — máy chủ tự suy theo độ dài.
+  expect(request.body.p_data.frame_input_kind).toBeUndefined();
 });
 
-test("Advanced override forces a short-but-confirmed frame to FULL on save", async ({
+test("Frame kind is auto-only: no manual Đầy đủ / Rút gọn selector is rendered", async ({
   page,
 }) => {
   const calls = await installMock(page);
   await page.goto("/acquisitions/new");
   await page.getByLabel("Số khung", { exact: true }).fill("ABCDE1234");
+  // Không còn hộp "Nâng cao" cũng không còn radio chọn tay Đầy đủ / Rút gọn.
+  await expect(page.locator(".frame-kind-details")).toHaveCount(0);
+  await expect(page.getByRole("radio", { name: "Đầy đủ", exact: true })).toHaveCount(0);
+  await expect(page.getByRole("radio", { name: "Rút gọn", exact: true })).toHaveCount(0);
+  // Một dòng "Nhận diện:" read-only vẫn hiện để nhân viên hiểu mức cảnh báo.
+  await expect(page.locator(".frame-kind-detected")).toBeVisible();
   await page.getByLabel("Biển số (nếu có)", { exact: true }).fill("43A1-99999");
   await page.getByLabel("Loại xe *", { exact: true }).fill("Honda Vision");
   await page.getByLabel("Giá thu (₫) *", { exact: true }).fill("82tr");
-  // Mở "Nâng cao" rồi ép về Đầy đủ dù số khung ngắn hơn 11 ký tự.
-  await page.locator(".frame-kind-details > summary").click();
-  await page.getByRole("radio", { name: "Đầy đủ", exact: true }).click();
-  await expect(
-    page.getByText(/Nhận diện: số khung đầy đủ.*chọn thủ công/),
-  ).toBeVisible();
   await page.getByRole("button", { name: "Thu xe & tạo phiếu", exact: true }).click();
   await page.getByRole("button", { name: "Xác nhận thu xe", exact: true }).click();
   const request = calls.find((call) => call.name === "acquire_vehicle");
-  expect(request.body.p_data.frame_input_kind).toBe("FULL");
+  expect(request.body.p_data.frame_input_kind).toBeUndefined();
 });

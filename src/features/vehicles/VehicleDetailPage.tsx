@@ -15,6 +15,7 @@ import {
   TriangleAlert,
 } from "lucide-react";
 import { api } from "@/lib/api";
+import { displayFrame } from "@/lib/frameNumber";
 import { money, dateLabel, daysInStock } from "@/lib/format";
 import {
   canDeleteVehicle,
@@ -158,150 +159,133 @@ export function VehicleDetailPage() {
       </Link>
       <div className="vehicle-identity">
         <PageHeader
-          title={vehicleTitle(vehicle)}
-          description={vehicle.internal_code || "Chưa có mã xe"}
+          title={vehicleSubtitle(vehicle) || "Chưa phân loại"}
+          description={vehicle.internal_code ? `Mã ${vehicle.internal_code}` : undefined}
           actions={
-            hasVehicleActions ? (
-              <div className="vehicle-actions-menu-wrap">
-                <button
-                  type="button"
-                  className="icon-button vehicle-actions-trigger"
-                  aria-label="Thao tác trên xe"
-                  aria-haspopup="true"
-                  aria-expanded={actionsOpen}
-                  onClick={() => setActionsOpen((v) => !v)}
-                >
-                  <MoreHorizontal size={22} />
-                </button>
-                {actionsOpen && (
-                  <>
-                    <div
-                      className="vehicle-actions-scrim"
-                      role="presentation"
-                      onClick={() => setActionsOpen(false)}
-                    />
-                    <div className="vehicle-actions-menu">
-                      {canSellVehicle && (
-                        <Link
-                          className="vehicle-actions-menu-item vehicle-actions-menu-primary"
-                          to={`/vehicles/${id}/sell`}
-                          onClick={() => setActionsOpen(false)}
-                        >
-                          <ShoppingBag size={17} /> Bán xe này
-                        </Link>
-                      )}
-                      {canAddExpense && (
-                        <button
-                          type="button"
-                          className="vehicle-actions-menu-item"
-                          onClick={() => {
-                            setActionsOpen(false);
-                            setExpenseOpen(true);
-                          }}
-                        >
-                          <CirclePlus size={16} /> Thêm chi phí
-                        </button>
-                      )}
-                      {canEditVehicle && (
-                        <Link
-                          className="vehicle-actions-menu-item"
-                          to={`/vehicles/${id}/edit`}
-                          onClick={() => setActionsOpen(false)}
-                        >
-                          <Pencil size={16} />
-                          {vehicle.status === "CANCELLED"
-                            ? "Khôi phục / Sửa"
-                            : "Chỉnh sửa"}
-                        </Link>
-                      )}
-                      {canDirectDelete && (
-                        <button
-                          type="button"
-                          className="vehicle-actions-menu-item vehicle-actions-menu-danger"
-                          onClick={() => {
-                            setActionsOpen(false);
-                            setDeleteOpen(true);
-                          }}
-                        >
-                          <Trash2 size={16} /> Xóa xe khỏi kho
-                        </button>
-                      )}
-                      {canRequestDelete && (
-                        <button
-                          type="button"
-                          className="vehicle-actions-menu-item vehicle-actions-menu-danger"
-                          onClick={() => {
-                            setActionsOpen(false);
-                            setRequestOpen(true);
-                          }}
-                        >
-                          <SendHorizontal size={16} /> Gửi yêu cầu xóa
-                        </button>
-                      )}
-                    </div>
-                  </>
-                )}
-              </div>
-            ) : undefined
+            <div className="heading-meta-actions">
+              <Badge status={vehicle.status} />
+              {available && (
+                <span className="identity-days muted">
+                  {daysInStock(vehicle.purchase_date)} ngày trong kho
+                </span>
+              )}
+              {hasVehicleActions && (
+                <div className="vehicle-actions-menu-wrap">
+                  <button
+                    type="button"
+                    className="icon-button vehicle-actions-trigger"
+                    aria-label="Thao tác trên xe"
+                    aria-haspopup="true"
+                    aria-expanded={actionsOpen}
+                    onClick={() => setActionsOpen((v) => !v)}
+                  >
+                    <MoreHorizontal size={22} />
+                  </button>
+                  {actionsOpen && (
+                    <>
+                      <div
+                        className="vehicle-actions-scrim"
+                        role="presentation"
+                        onClick={() => setActionsOpen(false)}
+                      />
+                      <div className="vehicle-actions-menu">
+                        {canSellVehicle && (
+                          <Link
+                            className="vehicle-actions-menu-item vehicle-actions-menu-primary"
+                            to={`/vehicles/${id}/sell`}
+                            onClick={() => setActionsOpen(false)}
+                          >
+                            <ShoppingBag size={17} /> Bán xe này
+                          </Link>
+                        )}
+                        {canAddExpense && (
+                          <button
+                            type="button"
+                            className="vehicle-actions-menu-item"
+                            onClick={() => {
+                              setActionsOpen(false);
+                              setExpenseOpen(true);
+                            }}
+                          >
+                            <CirclePlus size={16} /> Thêm chi phí
+                          </button>
+                        )}
+                        {canEditVehicle && (
+                          <Link
+                            className="vehicle-actions-menu-item"
+                            to={`/vehicles/${id}/edit`}
+                            onClick={() => setActionsOpen(false)}
+                          >
+                            <Pencil size={16} />
+                            {vehicle.status === "CANCELLED"
+                              ? "Khôi phục / Sửa"
+                              : "Chỉnh sửa"}
+                          </Link>
+                        )}
+                        {canDirectDelete && (
+                          <button
+                            type="button"
+                            className="vehicle-actions-menu-item vehicle-actions-menu-danger"
+                            onClick={() => {
+                              setActionsOpen(false);
+                              setDeleteOpen(true);
+                            }}
+                          >
+                            <Trash2 size={16} /> Xóa xe khỏi kho
+                          </button>
+                        )}
+                        {canRequestDelete && (
+                          <button
+                            type="button"
+                            className="vehicle-actions-menu-item vehicle-actions-menu-danger"
+                            onClick={() => {
+                              setActionsOpen(false);
+                              setRequestOpen(true);
+                            }}
+                          >
+                            <SendHorizontal size={16} /> Gửi yêu cầu xóa
+                          </button>
+                        )}
+                      </div>
+                    </>
+                  )}
+                </div>
+              )}
+            </div>
           }
         />
-        {/* Priority identity: descriptive vehicle name leads, then biển số and
-            số khung render as large emphasized tiles with their own copy
-            actions — the facts staff verify on every transaction. */}
-        <div className="vehicle-identity-hero">
-          <p className="vehicle-identity-name">
-            {vehicleSubtitle(vehicle) || "Chưa phân loại"}
-          </p>
-          <div className="vehicle-id-strip">
-            <div className="vehicle-id-tile vehicle-id-plate">
-              <span className="vehicle-id-label">Biển số</span>
-              <div className="vehicle-id-value-row">
-                <strong className="vehicle-id-value">
-                  {vehicle.license_plate || "Chưa có biển số"}
-                </strong>
-                {vehicle.license_plate && (
-                  <button
-                    className="icon-button copy-button vehicle-id-copy"
-                    type="button"
-                    aria-label="Sao chép biển số"
-                    onClick={() =>
-                      void copyValue("Biển số", vehicle.license_plate)
-                    }
-                  >
-                    <Copy size={15} />
-                  </button>
-                )}
-              </div>
-            </div>
-            <div className="vehicle-id-tile vehicle-id-frame">
-              <span className="vehicle-id-label">Số khung</span>
-              <div className="vehicle-id-value-row">
-                <code className="vehicle-id-value">
-                  {vehicle.frame_number || "Chưa có số khung"}
-                </code>
-                {vehicle.frame_number && (
-                  <button
-                    className="icon-button copy-button vehicle-id-copy"
-                    type="button"
-                    aria-label="Sao chép số khung"
-                    onClick={() =>
-                      void copyValue("Số khung", vehicle.frame_number)
-                    }
-                  >
-                    <Copy size={15} />
-                  </button>
-                )}
-              </div>
-            </div>
-          </div>
-        </div>
-        <div className="row vehicle-identity-meta">
-          <Badge status={vehicle.status} />
-          {available && (
-            <span className="muted">
-              {daysInStock(vehicle.purchase_date)} ngày trong kho
-            </span>
-          )}
+        {/* Compact identity strip: biển số + số khung as inline chips with
+            copy actions — kept for quick reference without stealing the title. */}
+        <div className="vehicle-identity-compact">
+          <span className="identity-chip identity-chip-plate">
+            <small>Biển số</small>
+            <strong>{vehicle.license_plate || "Chưa có"}</strong>
+            {vehicle.license_plate && (
+              <button
+                className="icon-button copy-button identity-chip-copy"
+                type="button"
+                aria-label="Sao chép biển số"
+                onClick={() => void copyValue("Biển số", vehicle.license_plate)}
+              >
+                <Copy size={13} />
+              </button>
+            )}
+          </span>
+          <span className="identity-chip identity-chip-frame">
+            <small>Số khung</small>
+            {/* Placeholder GEN-… không hiển thị như số khung thật. */}
+            <code>{displayFrame(vehicle.frame_number) || "Chưa có"}</code>
+            {!!displayFrame(vehicle.frame_number) && (
+              <button
+                className="icon-button copy-button identity-chip-copy"
+                type="button"
+                aria-label="Sao chép số khung"
+                onClick={() => void copyValue("Số khung", displayFrame(vehicle.frame_number))}
+              >
+                <Copy size={13} />
+              </button>
+            )}
+          </span>
         </div>
       </div>
       {pending && (
@@ -326,15 +310,6 @@ export function VehicleDetailPage() {
           )}
         </div>
       )}
-      {location.state?.acquisitionConfirmed && (
-        <div className="notice" role="status">
-          Đã thu xe thành công.{" "}
-          <Link to="/acquisitions/new" className="text-link">
-            + Thu xe tiếp
-          </Link>{" "}
-          · <Link to={`/capture?vehicle=${id}`}>Thêm ảnh</Link>
-        </div>
-      )}
       {message && (
         <p className="notice" role="status">
           {message}
@@ -357,7 +332,7 @@ export function VehicleDetailPage() {
           </div>
           {financial && (
             <div className="value-item total">
-              <span>Tổng giá vốn</span>
+              <span>Giá xe bán ra</span>
               <strong>
                 {vehicle.cost_pending
                   ? "Chưa có giá thu"
@@ -431,13 +406,13 @@ export function VehicleDetailPage() {
                 </div>
               ))}
             </dl>
-            {vehicle.notes && (
-              <div className="notes">
-                <strong>Ghi chú</strong>
-                <p>{vehicle.notes}</p>
-              </div>
-            )}
           </Card>
+          {vehicle.notes && (
+            <Card className="vehicle-notes-card">
+              <h2 className="section-title">Ghi chú</h2>
+              <p className="vehicle-notes-body">{vehicle.notes}</p>
+            </Card>
+          )}
           {canManage(profile) && acquisitionQuery.data && (
             <IdentityDocumentPanel
               subjectType="acquisition"
@@ -593,8 +568,6 @@ export function VehicleDetailPage() {
       )}
       <QuickExpenseModal
         vehicleId={vehicle.id}
-        vehicleName={vehicleTitle(vehicle)}
-        vehicleCode={vehicle.internal_code}
         purchaseDate={vehicle.purchase_date}
         isOpen={expenseOpen}
         onClose={() => setExpenseOpen(false)}

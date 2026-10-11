@@ -251,6 +251,9 @@ function SaleEditor({ vehicle }: { vehicle: Vehicle }) {
   const paidField = form.register("initial_payment");
   const [showPaymentDetails, setShowPaymentDetails] = useState(false);
   const [showVietQrModal, setShowVietQrModal] = useState(false);
+  // Nhân viên chỉ "nói" số tiền khách trả trước khi tự sửa ô trả trước. Cho tới
+  // lúc đó, bán xe mặc định là KHÁCH ĐÃ TRẢ ĐỦ — xem effect đồng bộ bên dưới.
+  const [paymentEdited, setPaymentEdited] = useState(false);
   const handleOpenVietQr = () => {
     const targetAmount = Number.isFinite(paid) && paid > 0 ? paid : (Number.isFinite(price) ? price : 0);
     if (!targetAmount || targetAmount <= 0) {
@@ -406,6 +409,22 @@ function SaleEditor({ vehicle }: { vehicle: Vehicle }) {
       setShowPaymentDetails(true);
     }
   }, [form.formState.errors.initial_payment, form.formState.errors.due_date]);
+
+  // Bán xe mặc định là KHÁCH ĐÃ TRẢ ĐỦ. Cho tới khi nhân viên tự sửa ô "trả
+  // trước" (kể cả nhập 0đ khi khách chưa trả), số tiền trả trước luôn bám đúng
+  // giá bán nên "còn phải thu" = 0 — không có cảnh khách bị tính nợ chỉ vì mới
+  // nhập giá. Đồng bộ theo giá (không phụ thuộc dirtyFields của form) để không
+  // bao giờ bỏ lại một giá trị lẻ khiến khách hoá ra còn nợ cả.
+  useEffect(() => {
+    if (paymentEdited) return;
+    form.setValue(
+      "initial_payment",
+      Number.isFinite(price) ? price : Number.NaN,
+      // A blank first paint is not a user error. Validating its NaN sentinel
+      // would immediately open the otherwise-collapsed payment details.
+      { shouldValidate: Number.isFinite(price) },
+    );
+  }, [price, paymentEdited, form]);
 
   const reviewSale = async (values: SaleFormValues) => {
     if (reviewPending.current || mutation.isPending) return;
@@ -589,14 +608,9 @@ function SaleEditor({ vehicle }: { vehicle: Vehicle }) {
                       shouldValidate: true,
                       shouldDirty: true,
                     });
-                    // Giữ "trả trước" đúng bằng giá cho tới khi nhân viên tự sửa.
-                    if (!form.formState.dirtyFields.initial_payment) {
-                      form.setValue(
-                        "initial_payment",
-                        value ?? Number.NaN,
-                        { shouldValidate: true },
-                      );
-                    }
+                    // "Trả trước" được đồng bộ về đúng giá bán (mặc định khách đã
+                    // trả đủ) bởi effect ở trên — không xử lý ở đây để tránh
+                    // trạng thái dirtyFields cũ khiến số tiền bị lệch.
                   }}
                 />
               </Field>
@@ -646,12 +660,15 @@ function SaleEditor({ vehicle }: { vehicle: Vehicle }) {
                     value={paidInput}
                     min={0}
                     onBlur={() => void form.trigger("initial_payment")}
-                    onChange={(value) =>
+                    onChange={(value) => {
+                      // Nhân viên chạm tay vào ô trả trước (kể cả gõ 0 khi khách
+                      // chưa trả) → không tự bám giá bán nữa, giữ đúng số họ nhập.
+                      setPaymentEdited(true);
                       form.setValue("initial_payment", value ?? Number.NaN, {
                         shouldValidate: true,
                         shouldDirty: true,
-                      })
-                    }
+                      });
+                    }}
                   />
                 </Field>
                 <Field label="Hình thức thanh toán">

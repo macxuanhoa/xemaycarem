@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useDebouncedValue } from "@/lib/useDebouncedValue";
-import { Link, useLocation, useSearchParams } from "react-router-dom";
+import { Link, useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -70,6 +70,7 @@ export function ExpensesPage({
   const client = useQueryClient();
   const [params, setParams] = useSearchParams();
   const location = useLocation();
+  const navigate = useNavigate();
   const aiDraft = (
     location.state as { aiDraft?: Record<string, unknown> } | null
   )?.aiDraft;
@@ -152,17 +153,19 @@ export function ExpensesPage({
   function closeEditor() {
     setAdding(false);
     setEditing(null);
-    if (params.has("new")) {
+    const hasDraft = location.state &&
+      typeof location.state === "object" &&
+      "aiDraft" in location.state;
+    if (params.has("new") || hasDraft) {
       const next = new URLSearchParams(params);
       next.delete("new");
-      setParams(next, { replace: true });
-    }
-    if (
-      location.state &&
-      typeof location.state === "object" &&
-      "aiDraft" in location.state
-    ) {
-      window.history.replaceState({}, document.title);
+      const state = hasDraft ? { ...location.state } : location.state;
+      if (hasDraft) delete state.aiDraft;
+      // Update the router as well as browser history so reopening the editor
+      // starts a fresh expense instead of reusing the dismissed AI draft.
+      navigate({ pathname: location.pathname, search: next.toString(), hash: location.hash }, {
+        replace: true, state,
+      });
     }
   }
 

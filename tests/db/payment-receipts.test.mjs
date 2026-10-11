@@ -19,7 +19,7 @@ export async function runPaymentReceiptTests(externalDb) {
       await db.query('UPDATE public.profiles SET role=$1::public.user_role,active=true,must_change_password=false WHERE id=$2',[role==='owner'?'OWNER':'STAFF',id])
     }
     const day = (await db.query('SELECT private.today()::text AS day')).rows[0].day
-    const vehicle = await call(db,'owner','acquire_vehicle',{request_id:randomUUID(),vehicle_type:'Xe tay ga',frame_number:'',purchase_price:100,acquisition_date:day})
+    const vehicle = await call(db,'staff','acquire_vehicle',{request_id:randomUUID(),vehicle_type:'Xe tay ga',frame_number:'',purchase_price:100,acquisition_date:day})
     const sale = await call(db,'staff','sell_vehicle',{request_id:randomUUID(),vehicle_id:vehicle,customer_name:'Synthetic receipt',sale_date:day,sale_price:10000,initial_payment:50,payment_method:'CASH'})
     const snapshot = (await db.query('SELECT * FROM public.sale_financials WHERE sale_id=$1',[sale])).rows
     const initial = (await db.query('SELECT * FROM public.payments WHERE sale_id=$1',[sale])).rows

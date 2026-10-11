@@ -20,7 +20,9 @@ const both = async (operations) => {
 }
 let day
 const vehicle = (extra = {}) => ({ request_id: randomUUID(), vehicle_type: 'Xe tay ga', frame_number: `AUDIT-${randomUUID()}`, purchase_date: day, purchase_price: 100, ...extra })
-const create = (extra) => call(db, 'owner', 'save_vehicle', vehicle(extra))
+// Operational races need a STAFF-entered PUBLIC price. OWNER-entered prices
+// correctly require OWNER confirmation and are covered by the privacy matrix.
+const create = (extra) => call(db, 'a', 'save_vehicle', vehicle(extra))
 const sale = (id, extra = {}) => ({ request_id: randomUUID(), vehicle_id: id, customer_name: 'Audit fake customer', customer_phone: '', sale_price: 1000, initial_payment: 0, payment_method: 'CASH', sale_date: day, ...extra })
 const pay = (id, extra = {}) => ({ sale_id: id, amount: 100, payment_method: 'CASH', payment_date: day, request_id: randomUUID(), ...extra })
 const prepare = async (id, extra = {}, actor = 'a') => {

@@ -2,6 +2,8 @@ node_modules/
 dist/
 # Generated Tesseract WASM runtime for on-device OCR (scripts/prepare-ocr-assets.mjs).
 public/tesseract/
+# Generated MV3 Facebook share bundle (scripts/pack-fb-extension.mjs) — rebuilt on prebuild.
+public/carem-fb-extension.zip
 .env
 .env.*
 !.env.example
@@ -34,3 +36,5 @@ scratch/
 .env*
 
 .vercel-tmp/
+src/scratch/
+!.env.example

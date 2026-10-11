@@ -1,0 +1,309 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   styles-tet.css — TẾT 2027 (Đinh Mùi) as a THEME of the real Dashboard.
+
+   Nguồn: carem-tet2027-studio/faithful-theme-v1/tet2027-theme.css (OWNER
+   DECISION #13: "Tết 2027 là THEME của Dashboard gốc", không màn hình riêng).
+   Hai thay đổi có chủ đích khi移植 vào ứng dụng:
+     1. `[data-theme="tet"]` → `[data-seasonal="tet"]`. trục "seasonal" là trực
+        giao với Light/Dark (`data-theme`), nên bật Tết không bao giờ xóa mất
+        lựa chọn đêm/ngày của từng người dùng.
+     2. Prototype dùng faithful-base.css (bản token hóa của styles.css). App thật
+        hardcode nhiều giá trị, nên các token chết (--hero-grad, --digest-grad,
+        --dv-*, stroke SVG) được thay bằng override trực tiếp trên selector thật —
+        cùng một giá trị, cùng một hình ảnh.
+
+   File luôn được bundle; không có gì hiển thị khi `data-seasonal="default"`.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* Họa tiết hoa mai 5 cánh — data-URI, texture nền tinh tế */
+:root {
+  --mai-flower: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 60 60'%3E%3Cg fill='%23d4a24e' fill-opacity='0.14'%3E%3Cellipse cx='30' cy='21' rx='6' ry='8.5'/%3E%3Cellipse cx='30' cy='21' rx='6' ry='8.5' transform='rotate(72 30 30)'/%3E%3Cellipse cx='30' cy='21' rx='6' ry='8.5' transform='rotate(144 30 30)'/%3E%3Cellipse cx='30' cy='21' rx='6' ry='8.5' transform='rotate(216 30 30)'/%3E%3Cellipse cx='30' cy='21' rx='6' ry='8.5' transform='rotate(288 30 30)'/%3E%3C/g%3E%3Ccircle cx='30' cy='30' r='2.6' fill='%23a32636' fill-opacity='0.22'/%3E%3C/svg%3E");
+}
+
+[data-seasonal="tet"] {
+  --primary: #a32636;
+  --primary-light: #c94b58;
+  --primary-dark: #6d1220;
+  --primary-glow: rgba(163, 38, 54, 0.22);
+  --tet-paper: #f3e9d2;
+  --tet-paper-2: #ece0c4;
+  --tet-card: #fbf6ea;
+  --tet-ink: #2b1509;
+  --tet-ink-soft: #6f5b45;
+  --tet-lacquer: #6d1220;
+  --tet-lacquer-deep: #3d0a12;
+  --tet-gold: #c9953f;
+  --tet-gold-bright: #e9bd6a;
+  --tet-mai: #f2c14e;
+  --tet-plum: #8c2b4a;
+  --tet-jade: #3e8e6d;
+  --line: #e2d3b2;
+  --muted: #6f5b45;
+  --readable-muted: #7a674f;
+  /* App thật đọc hai token này qua var() trong SVG biểu đồ doanh thu. */
+  --chart-grid: #efe3cb;
+  --chart-point-ring: #fbf6ea;
+  /* Giá trị màu đã chốt của canonical-v1 (app hardcode, nên giữ hằng số). */
+  --tet-digest-grad: linear-gradient(135deg, #24100d 0%, #3a1218 55%, #4a1820 100%);
+  --tet-hero-grad: linear-gradient(138deg, #2b070c 0%, #47101a 52%, #6b1220 100%);
+  color: var(--tet-ink);
+  background: var(--tet-paper);
+}
+
+/* Typography: Playfair Display cho tiêu đề/display, Be Vietnam Pro cho dữ liệu */
+[data-seasonal="tet"] body,
+[data-seasonal="tet"] { font-family: "Be Vietnam Pro", system-ui, sans-serif; }
+[data-seasonal="tet"] h1, [data-seasonal="tet"] h2, [data-seasonal="tet"] h3,
+[data-seasonal="tet"] .carem-banner-title,
+[data-seasonal="tet"] .carem-digest-title,
+[data-seasonal="tet"] .revenue-total,
+[data-seasonal="tet"] .brand { font-family: "Playfair Display", "Times New Roman", serif; }
+
+/* Nền giấy dó + texture hoa mai rải mờ */
+[data-seasonal="tet"] body {
+  background: var(--tet-paper) var(--mai-flower);
+  background-size: auto, 190px 190px;
+  color: var(--tet-ink);
+}
+
+/* ─── Sidebar: sơn mài đỏ thẫm, chữ vàng ─── */
+[data-seasonal="tet"] .sidebar { background: #20060a; border-right-color: rgba(242, 193, 78, .22); color: #f3e2bb; }
+[data-seasonal="tet"] .brand { color: #fff8e7; }
+[data-seasonal="tet"] .brand-icon { background: #2b0a0f; border-color: rgba(242, 193, 78, .4); box-shadow: 0 4px 12px rgba(0, 0, 0, .4); }
+[data-seasonal="tet"] .brand small { color: #cbb289; }
+[data-seasonal="tet"] .nav-caption { color: #a88d5f; }
+[data-seasonal="tet"] .sidebar nav a { color: #d9c49a; }
+[data-seasonal="tet"] .sidebar nav a.active { background: linear-gradient(135deg, #e9bd6a 0%, #c9953f 100%); color: #3d1206; font-weight: 700; box-shadow: 0 4px 14px rgba(201, 149, 63, .35); }
+[data-seasonal="tet"] .sidebar nav a:not(.active):hover { background: rgba(242, 193, 78, .1); color: #fff3d6; }
+[data-seasonal="tet"] .sidebar-signout { color: #d9c49a; }
+[data-seasonal="tet"] .ai-nav-toggle { color: #a88d5f; }
+[data-seasonal="tet"] .ai-nav-toggle:hover { color: #f3e2bb; background: rgba(242, 193, 78, .08); }
+[data-seasonal="tet"] .sidebar-showroom-btn { border-color: rgba(242, 193, 78, .4); background: rgba(242, 193, 78, .08); color: #f2d493; }
+[data-seasonal="tet"] .store-avatar { background: rgba(242, 193, 78, .16); color: #f2c14e; }
+[data-seasonal="tet"] .store-card strong { color: #f8ecd0; }
+
+/* ─── Topbar: giấy dó trong ─── */
+[data-seasonal="tet"] .topbar { background: rgba(251, 246, 234, .9); border-bottom-color: rgba(226, 211, 178, .85); }
+[data-seasonal="tet"] .breadcrumb-page { color: var(--tet-ink); }
+[data-seasonal="tet"] .breadcrumb-brand { color: #97815e; }
+[data-seasonal="tet"] .global-search { background: var(--tet-paper-2); border-color: #dcc9a0; color: #97815e; }
+[data-seasonal="tet"] .global-search:focus-within { background: #fffdf7; border-color: #e0b169; box-shadow: 0 0 0 3px rgba(201, 149, 63, .16), 0 2px 8px rgba(0, 0, 0, .04); }
+[data-seasonal="tet"] .global-search input { color: var(--tet-ink); }
+[data-seasonal="tet"] .search-palette-badge { background: #fffdf7; border-color: #dcc9a0; color: #97815e; }
+[data-seasonal="tet"] .avatar { background: linear-gradient(135deg, #3d0a12 0%, #6d1220 100%); color: #f2d493; border-color: rgba(242, 193, 78, .4); }
+[data-seasonal="tet"] .user-chip { color: var(--tet-ink); }
+[data-seasonal="tet"] .icon-button { color: #8a6f4d; }
+[data-seasonal="tet"] .icon-button:hover { background: rgba(201, 149, 63, .14); }
+[data-seasonal="tet"] .workday { color: #97815e; }
+[data-seasonal="tet"] .header-showroom-link { background: linear-gradient(135deg, #2b070c 0%, #47101a 100%); border-color: rgba(242, 193, 78, .45); color: #f2d493; box-shadow: 0 2px 8px rgba(109, 18, 32, .3); }
+[data-seasonal="tet"] .header-showroom-link:hover { background: #6d1220; color: #fff3d6; border-color: #f2c14e; }
+
+/* ─── Card: giấy dó + viền vàng corner-bracket tinh tế ─── */
+[data-seasonal="tet"] .card { background: var(--tet-card); border-color: var(--line); box-shadow: 0 4px 20px -3px rgba(61, 18, 6, .08), 0 1px 3px rgba(61, 18, 6, .04); position: relative; }
+[data-seasonal="tet"] .card::after {
+  content: ""; position: absolute; inset: 5px; border-radius: 14px; pointer-events: none; opacity: .45;
+  background:
+    linear-gradient(var(--tet-gold), var(--tet-gold)) left 0 top 0 / 14px 1.5px no-repeat,
+    linear-gradient(var(--tet-gold), var(--tet-gold)) left 0 top 0 / 1.5px 14px no-repeat,
+    linear-gradient(var(--tet-gold), var(--tet-gold)) right 0 top 0 / 14px 1.5px no-repeat,
+    linear-gradient(var(--tet-gold), var(--tet-gold)) right 0 top 0 / 14px 1.5px no-repeat,
+    linear-gradient(var(--tet-gold), var(--tet-gold)) left 0 bottom 0 / 14px 1.5px no-repeat,
+    linear-gradient(var(--tet-gold), var(--tet-gold)) left 0 bottom 0 / 14px 1.5px no-repeat,
+    linear-gradient(var(--tet-gold), var(--tet-gold)) right 0 bottom 0 / 14px 1.5px no-repeat,
+    linear-gradient(var(--tet-gold), var(--tet-gold)) right 0 bottom 0 / 14px 1.5px no-repeat;
+}
+[data-seasonal="tet"] .text-link { color: #2f6f4f; }
+
+/* ═══ HERO BANNER: sơn mài + họa tiết mai + shimmer ═══
+   App thật hardcode `background` trên .carem-hero-banner; prototype dùng
+   var(--hero-grad). Cùng một giá trị, khác cơ chế. */
+[data-seasonal="tet"] .carem-hero-banner {
+  background: var(--tet-hero-grad);
+  border-color: rgba(242, 193, 78, .4);
+  box-shadow: 0 14px 36px -4px rgba(0, 0, 0, .4), 0 4px 16px -2px rgba(163, 38, 54, .28), inset 0 1px 0 rgba(255, 220, 150, .22);
+}
+[data-seasonal="tet"] .carem-hero-banner::after {
+  /* họa tiết mai lớn góc phải, lay nhẹ như đèn lồng */
+  content: ""; position: absolute; right: -14px; top: -10px; width: 240px; height: 240px;
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 120 120'%3E%3Cg fill='%23f2c14e' fill-opacity='0.28'%3E%3Cellipse cx='60' cy='40' rx='11' ry='16'/%3E%3Cellipse cx='60' cy='40' rx='11' ry='16' transform='rotate(72 60 60)'/%3E%3Cellipse cx='60' cy='40' rx='11' ry='16' transform='rotate(144 60 60)'/%3E%3Cellipse cx='60' cy='40' rx='11' ry='16' transform='rotate(216 60 60)'/%3E%3Cellipse cx='60' cy='40' rx='11' ry='16' transform='rotate(288 60 60)'/%3E%3C/g%3E%3Ccircle cx='60' cy='60' r='5' fill='%23fbe39f' fill-opacity='0.55'/%3E%3C/svg%3E") no-repeat center / contain;
+  transform-origin: 80% 10%;
+  animation: tetSway 7s ease-in-out infinite;
+  pointer-events: none; z-index: 1;
+}
+@keyframes tetSway { 0%, 100% { transform: rotate(-2deg); } 50% { transform: rotate(2.4deg); } }
+[data-seasonal="tet"] .carem-banner-glow { background: radial-gradient(circle, rgba(242, 193, 78, .3) 0%, rgba(242, 193, 78, 0) 70%); }
+[data-seasonal="tet"] .carem-badge-store { color: #fbe39f; background: rgba(242, 193, 78, .14); border-color: rgba(242, 193, 78, .4); }
+[data-seasonal="tet"] .carem-pulse-dot { background: #f2c14e; box-shadow: 0 0 10px #f2c14e; }
+[data-seasonal="tet"] .carem-badge-greeting { color: #ffe9bd; }
+[data-seasonal="tet"] .carem-name-highlight { color: #f2c14e; text-shadow: 0 0 16px rgba(242, 193, 78, .5); }
+[data-seasonal="tet"] .carem-banner-subtitle { color: #e8d3b0; }
+[data-seasonal="tet"] .carem-banner-actions { border-top-color: rgba(242, 193, 78, .22); }
+[data-seasonal="tet"] .carem-btn-lime {
+  background: linear-gradient(180deg, #f2c14e 0%, #d4a24e 100%);
+  color: #3d1206; border-color: #fbe39f;
+  box-shadow: 0 4px 14px rgba(201, 149, 63, .4), inset 0 1px 0 rgba(255, 255, 255, .45);
+  background-size: 220% 100%;
+  animation: tetShimmer 5.5s ease-in-out infinite;
+}
+[data-seasonal="tet"] .carem-btn-lime:hover { background: linear-gradient(180deg, #fbe39f 0%, #e9bd6a 100%); }
+@keyframes tetShimmer { 0%, 100% { background-position: 0% 0; } 50% { background-position: 100% 0; } }
+[data-seasonal="tet"] .carem-btn-glass { background: rgba(255, 236, 190, .1); border-color: rgba(255, 236, 190, .28); color: #fff6e0; }
+[data-seasonal="tet"] .carem-btn-glass:hover { background: rgba(255, 236, 190, .18); border-color: rgba(255, 236, 190, .42); }
+[data-seasonal="tet"] .carem-btn-sparkle { background: linear-gradient(135deg, rgba(140, 43, 74, .35) 0%, rgba(109, 18, 32, .45) 100%); border-color: rgba(242, 193, 78, .5); color: #ffe9bd; }
+
+/* ═══ DIGEST: LED viền đổi sang vàng mai — đỏ đào ═══ */
+[data-seasonal="tet"] .carem-digest {
+  border-color: rgba(242, 193, 78, .3);
+  background: radial-gradient(115% 130% at 88% -18%, rgba(242, 193, 78, .14), transparent 52%), var(--tet-digest-grad);
+  box-shadow: 0 14px 34px -22px rgba(30, 5, 3, .75);
+}
+[data-seasonal="tet"] .carem-digest::before { background: conic-gradient(from var(--digest-angle), rgba(242, 193, 78, 0) 0deg, rgba(242, 193, 78, 0) 190deg, rgba(242, 193, 78, .5) 250deg, rgba(251, 227, 159, .8) 300deg, rgba(232, 164, 92, .5) 335deg, rgba(242, 193, 78, 0) 360deg); }
+[data-seasonal="tet"] .carem-digest-title { color: #fff3d6; }
+[data-seasonal="tet"] .carem-digest-led { background: #f2c14e; box-shadow: 0 0 8px rgba(242, 193, 78, .9); }
+[data-seasonal="tet"] .carem-digest-meta { color: #cbb289; }
+[data-seasonal="tet"] .carem-digest-section-label { color: #f2c14e; }
+[data-seasonal="tet"] .carem-digest-col + .carem-digest-col { border-left-color: rgba(242, 193, 78, .18); }
+[data-seasonal="tet"] .digest-row { background: rgba(242, 193, 78, .06); border-color: rgba(242, 193, 78, .14); }
+[data-seasonal="tet"] .digest-row--total { background: rgba(62, 142, 109, .14); border-color: rgba(62, 142, 109, .34); }
+[data-seasonal="tet"] .digest-row-label { color: #e8d3b0; }
+[data-seasonal="tet"] .digest-row-value { color: #fff8e7; }
+/* Bảng màu giá trị digest: app hardcode, canonical-v1 đã chốt các ánh xạ này. */
+[data-seasonal="tet"] .digest-row-value.cyan { color: #8fd0c0; }
+[data-seasonal="tet"] .digest-row-value.lime { color: #d8e27a; }
+[data-seasonal="tet"] .digest-row-value.gold { color: #f2c14e; }
+[data-seasonal="tet"] .digest-row-value.emerald { color: #6fd3a8; }
+[data-seasonal="tet"] .digest-row-value.amber { color: #e8a45c; }
+[data-seasonal="tet"] .digest-row-value--lime,
+[data-seasonal="tet"] .digest-status--lime { color: #8fd0c0; background: rgba(62, 142, 109, .18); border-color: rgba(62, 142, 109, .4); }
+[data-seasonal="tet"] .carem-digest-filter .date-segmented-bar { background: rgba(242, 193, 78, .12); border-color: rgba(242, 193, 78, .24); }
+[data-seasonal="tet"] .carem-digest-filter .date-seg-btn { color: #cbb289; }
+[data-seasonal="tet"] .carem-digest-filter .date-seg-btn:hover { color: #fff3d6; }
+[data-seasonal="tet"] .carem-digest-filter .date-seg-btn.active { background: #f8ecd0; color: #3d1206; }
+[data-seasonal="tet"] .carem-digest-filter .date-inputs-pill { background: rgba(36, 16, 13, .6); border-color: rgba(242, 193, 78, .24); }
+[data-seasonal="tet"] .carem-digest-filter .date-inputs-pill input[type="date"] { color: #f3e2bb; }
+
+/* ═══ ALERT CARDS: giữ ngữ nghĩa, ánh xạ bảng màu Tết ═══ */
+[data-seasonal="tet"] .alert-card.alert-warning { border-color: #ecd08a; background: #fdf6e4; }
+[data-seasonal="tet"] .alert-card.alert-danger { border-color: #f2c1c8; background: #fdf0f1; }
+[data-seasonal="tet"] .alert-card.alert-info { border-color: #e6cddd; background: #fbf2f8; }
+[data-seasonal="tet"] .alert-card.alert-info .alert-icon { background: #f3dcec; color: var(--tet-plum); }
+[data-seasonal="tet"] .alert-card.alert-neutral { border-color: #d9d3b2; background: #f6f4e4; }
+[data-seasonal="tet"] .alert-card.alert-neutral .alert-icon { background: #e3e6cf; color: #5f7a52; }
+[data-seasonal="tet"] .alert-count-chip { background: #a32636; color: #fff3d6; border-color: #c94b58; }
+
+/* ═══ CHART ═══ */
+[data-seasonal="tet"] .revenue-total { color: var(--tet-ink); }
+[data-seasonal="tet"] .chart-legend { color: #97815e; }
+[data-seasonal="tet"] .chart-legend i { box-shadow: 0 0 6px rgba(163, 38, 54, .5); }
+[data-seasonal="tet"] .chart-active-hud .hud-date { color: #97815e; }
+[data-seasonal="tet"] .chart-axis-text { fill: #97815e; }
+[data-seasonal="tet"] .chart-empty { background: #f7efdd; border-color: #e2d3b2; color: #97815e; }
+/* Nét vẽ và điểm dữ liệu hardcode trong SVG; presentation attribute luôn thua CSS. */
+[data-seasonal="tet"] .revenue-chart path[stroke] { stroke: var(--primary); }
+[data-seasonal="tet"] .revenue-chart #irisArea stop { stop-color: var(--primary); }
+[data-seasonal="tet"] .revenue-chart #irisGlow feDropShadow { flood-color: var(--primary); }
+[data-seasonal="tet"] .revenue-chart .chart-point-group circle { fill: var(--primary); }
+[data-seasonal="tet"] .revenue-chart .chart-point-group line[stroke] { stroke: rgba(201, 149, 63, .45); }
+[data-seasonal="tet"] .revenue-chart .chart-empty svg { color: var(--primary); }
+
+/* ═══ TABS + ROWS + BADGES ═══ */
+[data-seasonal="tet"] .tx-tabs-header { border-bottom-color: #e2d3b2; }
+[data-seasonal="tet"] .tx-tab-btn { color: #97815e; }
+[data-seasonal="tet"] .tx-tab-btn:hover { color: var(--tet-ink); background: #f4ead2; }
+[data-seasonal="tet"] .tx-tab-btn.active { background: #eee0c3; color: var(--tet-ink); border-color: #dcc9a0; }
+[data-seasonal="tet"] .recent-sale { border-top-color: #ece0c6; }
+[data-seasonal="tet"] .record-icon { background: #efe2c6; color: #9a6b2c; }
+[data-seasonal="tet"] .recent-sale small, [data-seasonal="tet"] .compact-row small { color: #97815e; }
+[data-seasonal="tet"] .compact-row { border-bottom-color: #f0e6cf; }
+[data-seasonal="tet"] .badge-completed { color: #7a5a12; background: #f6e7c2; border-color: #e9d09a; }
+[data-seasonal="tet"] .badge-in_stock, [data-seasonal="tet"] .badge-active { color: #2c6e4b; background: #dcefe1; border-color: #bfe0cb; }
+
+/* ═══ FORM CONTROLS trên nền giấy ═══ */
+[data-seasonal="tet"] input,
+[data-seasonal="tet"] select,
+[data-seasonal="tet"] textarea { background: #fffdf7; border-color: #dcc9a0; color: var(--tet-ink); }
+[data-seasonal="tet"] input:focus,
+[data-seasonal="tet"] select:focus,
+[data-seasonal="tet"] textarea:focus { border-color: #e0b169; }
+[data-seasonal="tet"] .muted, [data-seasonal="tet"] .small, [data-seasonal="tet"] .section-heading { color: var(--tet-ink-soft); }
+
+/* ═══ BOTTOM NAV (mobile): FAB sơn mài đỏ-vàng ═══ */
+[data-seasonal="tet"] .bottom-nav { background: rgba(251, 246, 234, .94); border-top-color: rgba(61, 18, 6, .12); }
+[data-seasonal="tet"] .bottom-nav a { color: #a08a63; }
+[data-seasonal="tet"] .bottom-nav a.active { color: var(--tet-lacquer); }
+[data-seasonal="tet"] .bottom-nav a.active .bottom-nav-icon { background: rgba(163, 38, 54, .13); }
+[data-seasonal="tet"] .bottom-nav .bottom-nav-fab { background: linear-gradient(135deg, #c94b58, #a32636 55%, #6d1220); box-shadow: 0 0 0 4px #fbf6ea, 0 10px 20px -10px rgba(109, 18, 32, .7); }
+
+/* ═══ FOOTER ═══ */
+[data-seasonal="tet"] .workspace-footer { color: #97815e; }
+
+/* ═══ TẾT BAN ĐÊM — cùng ngôn ngữ hình ảnh, trên nền tối của Light/Dark ═══
+   Layer Tết là lớp phủ trực giao: khi người dùng đang ở Dark, mọi token giấy
+   dó/ánh vàng chuyển sang bản đêm thay vì đè màu sáng lên giao diện đêm. */
+[data-seasonal="tet"][data-theme="dark"] {
+  color-scheme: dark;
+  --tet-paper: #150f0e;
+  --tet-paper-2: #1d1512;
+  --tet-card: #1b1312;
+  --tet-ink: #f0e3cb;
+  --tet-ink-soft: #bda88c;
+  --tet-gold: #d9ad5f;
+  --primary: #c94b58;
+  --primary-light: #e0707c;
+  --primary-dark: #8c2b3a;
+  --line: #3b2a25;
+  --muted: #a8927a;
+  --readable-muted: #c0a987;
+  --chart-grid: #34251f;
+  --chart-point-ring: #1b1312;
+  color: var(--tet-ink);
+  background: var(--tet-paper);
+}
+[data-seasonal="tet"][data-theme="dark"] body {
+  background: var(--tet-paper) var(--mai-flower);
+  background-size: auto, 190px 190px;
+  color: var(--tet-ink);
+}
+[data-seasonal="tet"][data-theme="dark"] .topbar { background: rgba(21, 15, 14, .9); border-bottom-color: rgba(217, 173, 95, .18); }
+[data-seasonal="tet"][data-theme="dark"] .global-search { background: #241a17; border-color: #43302a; color: #9c8768; }
+[data-seasonal="tet"][data-theme="dark"] .global-search:focus-within { background: #2b1f1b; border-color: #6b4f36; }
+[data-seasonal="tet"][data-theme="dark"] .global-search input,
+[data-seasonal="tet"][data-theme="dark"] .user-chip,
+[data-seasonal="tet"][data-theme="dark"] .breadcrumb-page,
+[data-seasonal="tet"][data-theme="dark"] .revenue-total { color: var(--tet-ink); }
+[data-seasonal="tet"][data-theme="dark"] .search-palette-badge { background: #2b1f1b; border-color: #43302a; color: #9c8768; }
+[data-seasonal="tet"][data-theme="dark"] .card { background: var(--tet-card); box-shadow: 0 4px 20px -3px rgba(0, 0, 0, .5), 0 1px 3px rgba(0, 0, 0, .35); }
+[data-seasonal="tet"][data-theme="dark"] .card::after { opacity: .3; }
+[data-seasonal="tet"][data-theme="dark"] input,
+[data-seasonal="tet"][data-theme="dark"] select,
+[data-seasonal="tet"][data-theme="dark"] textarea { background: #241a17; border-color: #43302a; color: var(--tet-ink); }
+[data-seasonal="tet"][data-theme="dark"] input:focus,
+[data-seasonal="tet"][data-theme="dark"] select:focus,
+[data-seasonal="tet"][data-theme="dark"] textarea:focus { border-color: #8a6a3c; }
+[data-seasonal="tet"][data-theme="dark"] .text-link { color: #7fd0a8; }
+[data-seasonal="tet"][data-theme="dark"] .tx-tab-btn:hover { color: var(--tet-ink); background: #241a17; }
+[data-seasonal="tet"][data-theme="dark"] .tx-tab-btn.active { background: #2b1f1b; color: var(--tet-ink); border-color: #43302a; }
+[data-seasonal="tet"][data-theme="dark"] .tx-tabs-header { border-bottom-color: #3b2a25; }
+[data-seasonal="tet"][data-theme="dark"] .record-icon { background: #2b1f1b; color: #d9ad5f; }
+[data-seasonal="tet"][data-theme="dark"] .compact-row { border-bottom-color: #2b211d; }
+[data-seasonal="tet"][data-theme="dark"] .recent-sale { border-top-color: #2b211d; }
+[data-seasonal="tet"][data-theme="dark"] .badge-completed { color: #f0cd70; background: #33260f; border-color: #57411a; }
+[data-seasonal="tet"][data-theme="dark"] .badge-in_stock,
+[data-seasonal="tet"][data-theme="dark"] .badge-active { color: #8fdcae; background: #12301f; border-color: #1e4a31; }
+[data-seasonal="tet"][data-theme="dark"] .alert-card.alert-warning { border-color: #57411a; background: #2b200f; }
+[data-seasonal="tet"][data-theme="dark"] .alert-card.alert-danger { border-color: #5c2a30; background: #2c1416; }
+[data-seasonal="tet"][data-theme="dark"] .alert-card.alert-info { border-color: #4c2740; background: #26141f; }
+[data-seasonal="tet"][data-theme="dark"] .alert-card.alert-info .alert-icon { background: #3a1d31; color: #e2a9cd; }
+[data-seasonal="tet"][data-theme="dark"] .alert-card.alert-neutral { border-color: #3b3524; background: #241f14; }
+[data-seasonal="tet"][data-theme="dark"] .alert-card.alert-neutral .alert-icon { background: #2f3018; color: #b7c98f; }
+[data-seasonal="tet"][data-theme="dark"] .chart-empty { background: #1d1512; border-color: #3b2a25; }
+[data-seasonal="tet"][data-theme="dark"] .bottom-nav { background: rgba(21, 15, 14, .94); border-top-color: rgba(217, 173, 95, .16); }
+[data-seasonal="tet"][data-theme="dark"] .bottom-nav a { color: #9c8768; }
+[data-seasonal="tet"][data-theme="dark"] .bottom-nav a.active { color: #f2c14e; }
+[data-seasonal="tet"][data-theme="dark"] .bottom-nav a.active .bottom-nav-icon { background: rgba(242, 193, 78, .14); }
+[data-seasonal="tet"][data-theme="dark"] .bottom-nav .bottom-nav-fab { box-shadow: 0 0 0 4px #150f0e, 0 10px 20px -10px rgba(0, 0, 0, .8); }
+
+@media (prefers-reduced-motion: reduce) {
+  [data-seasonal="tet"] .carem-hero-banner::after { animation: none; }
+  [data-seasonal="tet"] .carem-btn-lime { animation: none; }
+}

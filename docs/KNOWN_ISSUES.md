@@ -1,5 +1,11 @@
 # Known Issues and Verification Limits
 
+## Kiểm tra hiện hành — 11/10/2026
+
+LIVE ledger đã áp dụng 70 migrations đến `20261011000100`, gồm purge, smart duplicate detection và provenance privacy; `post-ai` ACTIVE v1. Những mô tả LOCAL/PENDING/MISSING phía dưới của các phiên bản này là lịch sử. Provider AI, nhắn tin và bank-webhook chưa có credential riêng trong secret inventory; sự tồn tại của Edge Function không chứng minh provider đã cấu hình.
+
+Audit phát hiện receipt đọc và notification shortfall có thể lộ giá PRIVATE; webhook có lỗi xác thực/amount/đối soát và worker cần trust boundary server. Corrections được giữ trong forward migrations `20261014000100`/`20261014000200`, chưa áp production. Kết quả cổng kiểm thử và giới hạn nằm trong `docs/MASTER_RELEASE_AUDIT_20261011.md`. Staging Auth/Storage, Facebook thật, Web Share trên thiết bị và asset Tết đã duyệt còn cần bằng chứng thực tế.
+
 ## Behavioral defect audit A1–A7 — 2026-10-02
 
 All seven confirmed behavioral defects are FIXED with regression coverage and deployed — migrations `003200`/`003300`/`003400` are applied on production (live ledger verified read-only 2026-10-03); none is DEFERRED or BLOCKED.
@@ -83,6 +89,17 @@ Last reviewed: 2026-10-08
 - **Race protection for PARTIAL rows depends entirely on `pg_advisory_xact_lock`**, because PARTIAL has no database uniqueness constraint. The behavior is only exercised on multi-session PostgreSQL (`node scripts/test-db.mjs`); PGlite is single-session and skips that case. Any refactor that removes the advisory lock from the save path silently reintroduces the double-insert window for fragment-only data.
 
 Last reviewed: 2026-10-09
+
+## Post Studio → Facebook hand-off: what is and is not proven (11/10/2026)
+
+- **`post-ai` is NOT deployed.** `docs/R2_FINAL_GO_NO_GO.md` §8 lists `functions deploy` under "Blocked until OWNER GO", and the ledger there records `post-ai` as MISSING in production. The free-text brief contract (verbatim user description sent as Gemini `contents`, rejected by `scanPublicText` when it carries prices/personal phones/links/CCCD/financing terms) is therefore **local code only**: on production the request 404s and `PostStudioPage` falls back to the on-device template captions with the source line "Dùng mẫu có sẵn". Do not describe AI brief parsing as live until the function is deployed with `GEMINI_API_KEY`, `POST_AI_ENABLED=true`, `GEMINI_MODEL`.
+- **The browser extension has never been run against real Facebook.** `extension/carem-fb-share/content.js` probes the composer by several signals and verifies by reading back (≥85% match) plus counting `blob:` previews, but Facebook's DOM is unauthenticated in CI and changes without notice. The only verified paths are the unit fixtures in `tests/unit/fb-share.test.ts` and the e2e MANUAL branch in `tests/e2e/post-studio-share.spec.mjs`. First-run checklist on a real machine: load unpacked from `carem-fb-extension.zip` → open a logged-in facebook.com tab → share a draft → confirm CRM reports `READY_FOR_REVIEW` **with** the read-back note, and confirm the extension never clicks **Đăng** (it must not, by contract). If the composer moves, only `content.js` needs a change — the protocol version and CRM wording stay.
+- **The mobile share sheet is untested on devices.** `navigator.canShare({files})` support differs across iOS Safari/Android Chrome/Samsung Internet, and the CRM can only prove it handed data to the OS (`READY_FOR_REVIEW` there means "you picked the app", never "Facebook received it"). `docs/AGENT_HANDOFF.md` "Android/iPhone … NOT TESTED — DEVICE REQUIRED" still applies to this feature.
+- **Clipboard hand-off is HTTPS-only.** On an insecure origin `readShareEnv` reports `clipboard: false`, so MANUAL says "copy tay / tải ảnh" instead of claiming a copy. That branch is intentionally visible in the UI rather than silent.
+- **No image persists on the device.** Shared images are signed and cached in memory for the current request only; nothing is written to localStorage/IndexedDB, so re-sharing an old draft re-signs the URLs (a draft whose vehicle photo was deleted simply reports the skipped count).
+- **`npm run test:db` is currently red at HEAD for an unrelated reason.** Check 6 fails with `SALE_OWNER_CONFIRMATION_REQUIRED` raised by `private.sell_vehicle_impl` (`supabase/migrations/20261011000100_financial_provenance_privacy.sql`, commit `fb90144`), because `scripts/test-db.mjs` was not updated for the new owner-confirmation rule. This is the financial-privacy lane's work, not the Post Studio lane's; recorded here so the two are not confused.
+
+Last reviewed: 2026-10-11
 
 ## Deployment note
 

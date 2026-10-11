@@ -1,0 +1,27 @@
+{
+  "manifest_version": 3,
+  "name": "Cà Rem · Cầu đăng Facebook",
+  "version": "1.0.1",
+  "description": "Chuyển bài đăng từ CRM Cà Rem sang ô đăng bài Facebook: điền sẵn chữ, đính kèm ảnh xe, rồi DỪNG lại để người bán hàng tự kiểm tra và bấm Đăng. Không đọc cookie, không lấy token, không tự đăng.",
+  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAufZdxNtbub+Nd8ZqfBqGM35IbPrr8mSiPk+0/5AKjdTPAjZou4CHUmH8CYJGKstCjxjqipWeORI/k0gOqVmLKbHsc3ewmo4Sw37WMG7w0flAwMhVag8Thr9g+N6l3LDS4KaEmQLikQkasHoS/lLR8WUmvTr+cSR7yYEBCSDFsNqwXSclk6BtMftXY/DrxpkoIh0UpP9Kq+2BZTqi68W1OewXUjVK+ZSGbvfrxm06juglFfek8WuQCtTKYhPG4BjBjWf4MXXyYAk5UOaBqPWpNESgA2EUPoJ0NJC1GVrOi7jPsd7lcHkohyJuJHb3dKtuh4RVv8KED/+L0QPq9LndkQIDAQAB",
+  "permissions": ["tabs", "scripting"],
+  "host_permissions": ["https://www.facebook.com/*"],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": ["https://www.facebook.com/*"],
+      "js": ["content.js"],
+      "run_at": "document_idle"
+    }
+  ],
+  "externally_connectable": {
+    "matches": [
+      "https://carem.vercel.app/*",
+      "https://xemaycarem.vercel.app/*",
+      "http://localhost:5173/*",
+      "http://127.0.0.1:5173/*"
+    ]
+  }
+}

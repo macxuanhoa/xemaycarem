@@ -40,8 +40,6 @@ const GREEN_RESULT: DuplicateCheckResult = {
 export type DuplicateCheckInput = {
   frameNumber: string;
   licensePlate: string;
-  /** Bỏ trống để hook tự suy từ độ dài số khung đã nén. */
-  frameInputKind?: FrameInputKind;
   excludeVehicleId?: string | null;
   enabled?: boolean;
   delay?: number;
@@ -58,8 +56,9 @@ export type DuplicateCheckInput = {
 export function useVehicleDuplicateCheck(input: DuplicateCheckInput) {
   const frame = (input.frameNumber || "").trim().toUpperCase();
   const plate = canonicalizePlate(input.licensePlate || "");
-  const kind: FrameInputKind =
-    input.frameInputKind ?? frameKindFromCompact(compactFrame(frame));
+  // Loại khung là SUY RA (độ dài chuỗi nén), không phải lựa chọn: server bỏ mọi
+  // `frame_input_kind` do client gửi, nên đây chỉ còn là giá trị hiển thị cho form.
+  const kind: FrameInputKind = frameKindFromCompact(compactFrame(frame));
   const delay = input.delay ?? 450;
 
   const debouncedFrame = useDebouncedValue(frame, delay);
@@ -82,7 +81,6 @@ export function useVehicleDuplicateCheck(input: DuplicateCheckInput) {
       api.checkVehicleDuplicates({
         frame_number: debouncedFrame,
         license_plate: debouncedPlate,
-        frame_input_kind: kind,
         exclude_vehicle_id: input.excludeVehicleId ?? null,
       }),
     enabled: active,

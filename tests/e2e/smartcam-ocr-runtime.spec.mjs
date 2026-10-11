@@ -197,7 +197,7 @@ test(`smart camera runtime: continuous live ${target} scan votes and opens the v
     test.skip(true, `Tesseract language data unavailable in this environment: ${calls.languageFailures.join(', ')}`)
   }
   await expect(page).toHaveURL(new RegExp(`/vehicles/${vehicleId}$`))
-  await expect(page.locator('.vehicle-id-frame .vehicle-id-value')).toHaveText(known.frame_number)
+  await expect(page.locator('.identity-chip-frame code')).toHaveText(known.frame_number)
   expect(calls.lookups).toContain(value)
   // Each observation uses two OCR regions. Four reads prove that the live
   // path repeated the observation and reached its stable-frame vote.
@@ -273,8 +273,8 @@ test(`smart camera runtime: real WASM ${target} OCR opens the matching vehicle w
   }
   expect(outcome, `real local OCR failed to resolve a clean rendered ${target}`).toBe('matched')
   await expect(page).toHaveURL(new RegExp(`/vehicles/${vehicleId}$`))
-  await expect(page.locator('.vehicle-id-plate .vehicle-id-value')).toHaveText(known.license_plate)
-  await expect(page.locator('.vehicle-id-frame .vehicle-id-value')).toHaveText(known.frame_number)
+  await expect(page.locator('.identity-chip-plate strong')).toHaveText(known.license_plate)
+  await expect(page.locator('.identity-chip-frame code')).toHaveText(known.frame_number)
   expect(calls.tesseract.filter(entry => entry.path.endsWith('worker.min.js'))).toHaveLength(1)
   // The LSTM core is served from our own /tesseract/core/ (worker.min.js and
   // the core loader arrive as *.wasm.js — the binary comes with them).

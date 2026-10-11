@@ -17,7 +17,7 @@ export async function runMessageLeaseTests(externalDb, { engine = 'postgres' } =
   const current = async id => (await db.query('SELECT to_jsonb(o) AS job FROM public.message_outbox o WHERE id=$1', [id])).rows[0].job
   const expire = id => db.query("UPDATE public.message_outbox SET lease_expires_at=clock_timestamp()-interval '1 second' WHERE id=$1", [id])
   const createJob = async () => {
-    const vehicle = await call('owner', 'save_vehicle', '$1::jsonb', [JSON.stringify({ request_id: randomUUID(), vehicle_type: 'Xe tay ga', purchase_date: day, purchase_price: 100 })])
+    const vehicle = await call('staff', 'save_vehicle', '$1::jsonb', [JSON.stringify({ request_id: randomUUID(), vehicle_type: 'Xe tay ga', purchase_date: day, purchase_price: 100 })])
     const sale = await call('staff', 'sell_vehicle', '$1::jsonb', [JSON.stringify({ request_id: randomUUID(), vehicle_id: vehicle, customer_name: 'Synthetic', customer_phone: '0912345678', sale_date: day, sale_price: 1000, initial_payment: 0 })])
     return call('staff', 'get_sale_communication', '$1::uuid', [sale])
   }
@@ -124,7 +124,8 @@ export async function runMessageLeaseTests(externalDb, { engine = 'postgres' } =
       const job = await claim((await createJob()).id)
       const renewed = await call('staff', 'renew_message_lease', '$1::uuid,$2::uuid', [job.id, job.lease_token])
       assert.ok(new Date(renewed.lease_expires_at) >= new Date(job.lease_expires_at))
-      await assert.rejects(() => claim(job.id, 'staff', db, 'SMS'), /MESSAGE_PROVIDER_NOT_SUPPORTED/)
+      assert.deepEqual(await claim(job.id, 'staff', db, 'SMS'), {})
+      assert.equal((await current(job.id)).total_attempt_count, 1)
       await expire(job.id)
       await assert.rejects(() => claim(job.id, 'other', db, 'DISABLED'), /MESSAGE_PROVIDER_MODE_CONFLICT/)
       assert.equal((await current(job.id)).total_attempt_count, 1)

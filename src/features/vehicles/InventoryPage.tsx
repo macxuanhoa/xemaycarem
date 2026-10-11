@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import {
   Link,
   useLocation,
+  useNavigate,
   useNavigationType,
   useSearchParams,
 } from "react-router-dom";
@@ -13,6 +14,7 @@ import {
 import {
   Bike,
   Calendar,
+  Check,
   ChevronDown,
   CirclePlus,
   Search,
@@ -44,6 +46,7 @@ import type { Paged, Vehicle, VehicleStatusFilter } from "@/types";
 import {
   DEFAULT_INVENTORY_STATUS,
   VEHICLE_STATUS_OPTIONS,
+  type VehicleStatusOption,
 } from "@/lib/vehicleFilters";
 import { useDebouncedValue } from "@/lib/useDebouncedValue";
 import { Highlight } from "@/components/search/Highlight";
@@ -70,13 +73,45 @@ const inventoryFilterKeys = [
   "cost_pending", "min_days", "status", "sort", "page",
 ];
 
+/**
+ * "pick=post" biến Kho thành màn CHỌN XE ĐỂ ĐĂNG BÀI: vẫn tìm được xe, vẫn mở
+ * được chi tiết, nhưng mọi thao tác nghiệp vụ (thêm chi phí, xoá, thu xe) đều
+ * ẩn đi — người dùng không thể sửa nhầm một chiếc xe khi đang lo viết caption.
+ * `return` chỉ chấp nhận đường dẫn nội bộ, không nhận link ngoài.
+ */
+function safeReturnPath(value: string | null): string {
+  if (!value) return "/posts";
+  if (!value.startsWith("/") || value.startsWith("//")) return "/posts";
+  return value;
+}
+
+/**
+ * Chỉ hai nhóm xe này tạo được bài đăng: `get_post_studio_context` từ chối xe
+ * RESERVED/CANCELLED, nên ở chế độ chọn không bày tab dẫn tới ngõ cụt.
+ */
+const PICK_STATUS_OPTIONS: readonly VehicleStatusOption[] = [
+  {
+    value: "IN_STOCK",
+    label: "Đang bày bán",
+    hint: "Xe còn trong kho — bài đăng bán, ưu đãi, nhiều xe.",
+  },
+  {
+    value: "SOLD",
+    label: "Đã bán",
+    hint: "Xe đã giao khách — bài cảm ơn, vừa bán, khoe xe.",
+  },
+];
+
 export function InventoryPage() {
   const { profile } = useAuth();
   const client = useQueryClient();
   const location = useLocation();
   const navigationType = useNavigationType();
+  const navigate = useNavigate();
   const { items: vehicleTypes } = useVehicleTypes();
   const [params, setParams] = useSearchParams();
+  const pickMode = params.get("pick") === "post";
+  const returnPath = safeReturnPath(params.get("return"));
   const urlQ = params.get("q") ?? "";
   const [search, setSearch] = useState(urlQ);
   const deferredSearch = useDebouncedValue(search, 250);
@@ -120,7 +155,14 @@ export function InventoryPage() {
       { replace: true },
     );
   }, [deferredSearch, urlQ, setParams]);
-  const status = (params.get("status") ?? DEFAULT_INVENTORY_STATUS) as VehicleStatusFilter;
+  const rawStatus = (params.get("status") ?? DEFAULT_INVENTORY_STATUS) as VehicleStatusFilter;
+  // Chế độ chọn xe chỉ tin IN_STOCK/SOLD; tab cũ (AVAILABLE/RESERVED) quy về IN_STOCK
+  // để không rơi vào danh sách mà trang đăng bài sẽ từ chối.
+  const status: VehicleStatusFilter = pickMode
+    ? rawStatus === "SOLD"
+      ? "SOLD"
+      : "IN_STOCK"
+    : rawStatus;
   const setStatus = (value: VehicleStatusFilter | "") =>
     updateParams({ status: value });
   const sort = params.get("sort") ?? "newest";
@@ -172,6 +214,29 @@ export function InventoryPage() {
     void client.prefetchQuery({
       queryKey: ["vehicle", vehicleId],
       queryFn: () => api.call<Vehicle>("get_vehicle", { p_id: vehicleId }),
+    });
+  }
+  /**
+   * Chọn xe cho bài đăng: quay về trang đăng bài kèm chiếc xe vừa chọn. Trang
+   * đăng bài sẽ tự nạp lại ngữ cảnh qua RPC (không tin dữ liệu cũ trong state),
+   * nên ở đây chỉ cần id + biển số để hiển thị tức thì.
+   */
+  function chooseForPost(vehicle: Vehicle) {
+    rememberPosition();
+    navigate(returnPath, {
+      replace: true,
+      state: {
+        pickedVehicle: {
+          id: vehicle.id,
+          license_plate: vehicle.license_plate,
+          vehicle_type: vehicle.vehicle_type,
+          year: vehicle.year,
+          color: vehicle.color,
+          status: vehicle.status,
+          vehicle_title: vehicleTitle(vehicle),
+          vehicle_subtitle: vehicleSubtitle(vehicle),
+        },
+      },
     });
   }
   const query = useQuery({
@@ -265,6 +330,7 @@ export function InventoryPage() {
   }
   const vehicles = query.data?.items ?? [];
   const total = query.data?.total ?? 0;
+  const statusOptions = pickMode ? PICK_STATUS_OPTIONS : VEHICLE_STATUS_OPTIONS;
   const dateRangeSummary =
     filters.date_from && filters.date_to
       ? `${dateLabel(filters.date_from)} – ${dateLabel(filters.date_to)}`
@@ -276,10 +342,18 @@ export function InventoryPage() {
   return (
     <div className="stack">
       <PageHeader
-        title="Tồn kho"
-        description="Theo dõi từng chiếc xe, từ lúc thu vào đến khi bán ra."
+        title={pickMode ? "Chọn xe để đăng bài" : "Tồn kho"}
+        description={
+          pickMode
+            ? "Gõ tìm xe (biển số, loại xe, màu…), bấm Chọn để quay lại trang đăng bài với đúng chiếc xe này. Xem được chi tiết, nhưng chế độ chọn không sửa dữ liệu xe."
+            : "Theo dõi từng chiếc xe, từ lúc thu vào đến khi bán ra."
+        }
         actions={
-          canOperate(profile) ? (
+          pickMode ? (
+            <Link className="button secondary" to={returnPath}>
+              Huỷ, quay lại đăng bài
+            </Link>
+          ) : canOperate(profile) ? (
             <Link
               className="button primary"
               to="/acquisitions/new"
@@ -297,8 +371,12 @@ export function InventoryPage() {
           <label className="search-field">
             <Search size={19} />
             <input
-              aria-label="Tìm kiếm xe"
-              placeholder="Tìm mã xe, biển số, loại xe, số khung, SĐT khách…"
+              aria-label={pickMode ? "Tìm xe để đăng bài" : "Tìm kiếm xe"}
+              placeholder={
+                pickMode
+                  ? "Tìm biển số, loại xe, màu…"
+                  : "Tìm mã xe, biển số, loại xe, số khung, SĐT khách…"
+              }
               type="search"
               enterKeyHint="search"
               value={search}
@@ -307,28 +385,33 @@ export function InventoryPage() {
               }}
             />
           </label>
-          <Button
-            variant="secondary"
-            onClick={() => setExpanded(!expanded)}
-            aria-expanded={expanded}
-          >
-            <SlidersHorizontal size={17} /> Bộ lọc <ChevronDown size={15} />
-          </Button>
-          <select
-            aria-label="Sắp xếp xe"
-            value={sort}
-            onChange={(e) => {
-              setSort(e.target.value);
-            }}
-          >
-            {sortOptions.map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </select>
+          {!pickMode && (
+            <>
+              <Button
+                variant="secondary"
+                onClick={() => setExpanded(!expanded)}
+                aria-expanded={expanded}
+              >
+                <SlidersHorizontal size={17} /> Bộ lọc <ChevronDown size={15} />
+              </Button>
+              <select
+                aria-label="Sắp xếp xe"
+                value={sort}
+                onChange={(e) => {
+                  setSort(e.target.value);
+                }}
+              >
+                {sortOptions.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </>
+          )}
         </div>
         {/* Quick Presets — high-value operational shortcuts only */}
+        {!pickMode && (
         <div className="quick-presets" aria-label="Lọc nhanh">
           <span className="quick-presets-label">Lọc nhanh</span>
           {quickPresets.map((preset) => {
@@ -354,7 +437,8 @@ export function InventoryPage() {
             );
           })}
         </div>
-        {expanded && (
+        )}
+        {!pickMode && expanded && (
           <>
             <div className="form-grid filter-grid">
               <Field label="Loại xe">
@@ -437,7 +521,7 @@ export function InventoryPage() {
           </>
         )}
         <div className="tabs" aria-label="Trạng thái xe">
-          {VEHICLE_STATUS_OPTIONS.map((option) => (
+          {statusOptions.map((option) => (
             <button
               key={option.value}
               type="button"
@@ -489,10 +573,14 @@ export function InventoryPage() {
       ) : vehicles.length === 0 ? (
         <Card>
           <EmptyState
-            title="Chưa có xe phù hợp"
-            description="Thử thay đổi bộ lọc hoặc thu chiếc xe đầu tiên vào kho."
+            title={pickMode ? "Không có xe để chọn" : "Chưa có xe phù hợp"}
+            description={
+              pickMode
+                ? "Đổi từ khoá, hoặc chuyển qua tab “Đã bán” nếu muốn đăng bài cảm ơn khách."
+                : "Thử thay đổi bộ lọc hoặc thu chiếc xe đầu tiên vào kho."
+            }
           />
-          {canOperate(profile) && (
+          {!pickMode && canOperate(profile) && (
             <Link className="button primary" to="/acquisitions/new">
               + Thu xe mới
             </Link>
@@ -524,10 +612,10 @@ export function InventoryPage() {
                   <th>Loại xe</th>
                   <th>Trạng thái</th>
                   <th>Ngày thu</th>
-                  {canFinance(profile) && (
+                  {!pickMode && canFinance(profile) && (
                     <th className="numeric">Giá vốn</th>
                   )}
-                  <th />
+                  <th>{pickMode ? "Chọn" : ""}</th>
                 </tr>
               </thead>
               <tbody>
@@ -579,7 +667,7 @@ export function InventoryPage() {
                         </small>
                       )}
                     </td>
-                    {canFinance(profile) && (
+                    {!pickMode && canFinance(profile) && (
                       <td className="numeric">
                         {vehicle.cost_pending ? (
                           <span className="muted">Chờ giá nhập</span>
@@ -589,12 +677,30 @@ export function InventoryPage() {
                       </td>
                     )}
                     <td>
-                      <RowViewAction
-                        to={`/vehicles/${vehicle.id}`}
-                        state={{ fromInventory: returnTo }}
-                        onClick={rememberPosition}
-                        label={`xe ${vehicleTitle(vehicle)}`}
-                      />
+                      {pickMode ? (
+                        <div className="row inventory-pick-actions">
+                          <Button
+                            variant="secondary"
+                            onClick={() => chooseForPost(vehicle)}
+                            aria-label={`Chọn ${vehicleTitle(vehicle)} để đăng bài`}
+                          >
+                            <Check size={15} aria-hidden="true" /> Chọn
+                          </Button>
+                          <RowViewAction
+                            to={`/vehicles/${vehicle.id}`}
+                            state={{ fromInventory: returnTo }}
+                            onClick={rememberPosition}
+                            label={`xe ${vehicleTitle(vehicle)}`}
+                          />
+                        </div>
+                      ) : (
+                        <RowViewAction
+                          to={`/vehicles/${vehicle.id}`}
+                          state={{ fromInventory: returnTo }}
+                          onClick={rememberPosition}
+                          label={`xe ${vehicleTitle(vehicle)}`}
+                        />
+                      )}
                     </td>
                   </tr>
                 ))}
@@ -638,7 +744,7 @@ export function InventoryPage() {
                       )}
                     </span>
                   </div>
-                  {canFinance(profile) && (
+                  {!pickMode && canFinance(profile) && (
                     <small className="record-cost">
                       Giá vốn:{" "}
                       {vehicle.cost_pending
@@ -648,17 +754,27 @@ export function InventoryPage() {
                   )}
                 </Link>
                 <div className="record-actions">
-                  <button
-                    type="button"
-                    className="record-more-btn"
-                    aria-label={`Thao tác với ${vehicleTitle(vehicle)}`}
-                    onClick={() => {
-                      rememberPosition();
-                      setActionVehicle(vehicle);
-                    }}
-                  >
-                    <MoreHorizontal size={20} />
-                  </button>
+                  {pickMode ? (
+                    <Button
+                      variant="secondary"
+                      onClick={() => chooseForPost(vehicle)}
+                      aria-label={`Chọn ${vehicleTitle(vehicle)} để đăng bài`}
+                    >
+                      <Check size={15} aria-hidden="true" /> Chọn
+                    </Button>
+                  ) : (
+                    <button
+                      type="button"
+                      className="record-more-btn"
+                      aria-label={`Thao tác với ${vehicleTitle(vehicle)}`}
+                      onClick={() => {
+                        rememberPosition();
+                        setActionVehicle(vehicle);
+                      }}
+                    >
+                      <MoreHorizontal size={20} />
+                    </button>
+                  )}
                 </div>
               </article>
             ))}
@@ -707,8 +823,6 @@ export function InventoryPage() {
       {expenseVehicle && (
         <QuickExpenseModal
           vehicleId={expenseVehicle.id}
-          vehicleName={vehicleTitle(expenseVehicle)}
-          vehicleCode={expenseVehicle.internal_code}
           isOpen
           onClose={() => setExpenseVehicle(null)}
           onSuccess={() => setMessage("Đã lưu chi phí cho xe.")}

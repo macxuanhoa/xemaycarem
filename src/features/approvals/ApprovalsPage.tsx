@@ -21,9 +21,14 @@ import type { ApprovalKind, ApprovalRequest } from "@/types";
 
 // Human labels per approval kind. New approval workflows plug in here without a
 // schema change — the queue itself is generic (migration 20261008000200).
+// VEHICLE_DUPLICATE_REVIEW is listed only to satisfy the exhaustive record; it is
+// deliberately NOT rendered here because this OWNER-only screen has no handler for
+// it and its rows carry no finance data. Duplicate reviews live on the dedicated
+// OWNER/MANAGER queue (/duplicate-reviews), keeping this money-first queue clean.
 const KIND_LABELS: Record<ApprovalKind, string> = {
   SALE_BELOW_COST: "Bán xe dưới giá thu",
   VEHICLE_DELETION: "Xóa xe khỏi kho",
+  VEHICLE_DUPLICATE_REVIEW: "Nghi trùng xe cần xác minh",
 };
 
 const pageSize = 50;
@@ -74,7 +79,11 @@ export function ApprovalsPage() {
   const query = useQuery({
     queryKey: ["approvals", offset],
     queryFn: () =>
-      api.listPendingApprovals({ limit: pageSize, offset }),
+      api.listPendingApprovals({
+        limit: pageSize,
+        offset,
+        exclude_kind: "VEHICLE_DUPLICATE_REVIEW",
+      }),
     placeholderData: keepPreviousData,
   });
 
@@ -200,7 +209,12 @@ export function ApprovalsPage() {
   if (query.isError)
     return <ErrorState error={query.error} retry={() => void query.refetch()} />;
 
-  const items = query.data?.items ?? [];
+  // VEHICLE_DUPLICATE_REVIEW is resolved on the dedicated /duplicate-reviews queue
+  // (OWNER + MANAGER). It shares the generic table but has no handler here, so drop
+  // those rows to keep this money-first screen correct and finance-private.
+  const items = (query.data?.items ?? []).filter(
+    (item) => item.kind !== "VEHICLE_DUPLICATE_REVIEW",
+  );
   const total = query.data?.total ?? 0;
   const groups = items.reduce<Record<string, ApprovalRequest[]>>((acc, item) => {
     (acc[item.kind] ??= []).push(item);
@@ -317,7 +331,11 @@ export function ApprovalsPage() {
                 </div>
               ))}
             </div>
-            {total > pageSize && (
+          </Card>
+          );
+        })
+      )}
+      {total > pageSize && (
               <div className="row between" style={{ marginTop: 12 }}>
                 <button
                   type="button"
@@ -339,10 +357,6 @@ export function ApprovalsPage() {
                   Trang sau
                 </button>
               </div>
-            )}
-          </Card>
-          );
-        })
       )}
     </div>
   );

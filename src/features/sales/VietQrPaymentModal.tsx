@@ -165,6 +165,16 @@ export function VietQrPaymentModal({
     },
   });
 
+  // Live-match: soi xem webhook ngân hàng đã phát hiện tiền về cho QR này chưa.
+  // Chỉ hiển thị trạng thái (không lộ số tiền từ phía ngân hàng) — chống suy luận giá.
+  const matchQuery = useQuery({
+    queryKey: ["vietqr-match", request?.id],
+    queryFn: () => api.getVietQrMatchingStatus(request!.id),
+    enabled: !!request && request.status === "PENDING",
+    refetchInterval: 15_000,
+  });
+  const bankState = matchQuery.data?.state;
+
   const handleConfirmPayment = async () => {
     if (!request) return;
     const ok = await confirmAction({
@@ -177,7 +187,6 @@ export function VietQrPaymentModal({
       confirmMutation.mutate();
     }
   };
-
   const handleCopy = (text: string, label: string) => {
     void navigator.clipboard.writeText(text);
     toast.success(`Đã sao chép ${label}: ${text}`);
@@ -330,6 +339,47 @@ export function VietQrPaymentModal({
                 {saleCode ? `Đơn ${saleCode}` : (vehicle.license_plate ? `Biển ${vehicle.license_plate}` : vehicle.internal_code || "Bán xe")}
               </span>
             </div>
+
+            {/* Cờ hiệu đối soát ngân hàng — xác nhận webhook đã thấy tiền về */}
+            {request.status === "PENDING" && bankState && bankState !== "NONE" && (
+              <div
+                className="notice"
+                style={{
+                  display: "flex",
+                  alignItems: "flex-start",
+                  gap: 10,
+                  padding: "10px 12px",
+                  fontSize: "0.8125rem",
+                  border: "1px solid rgba(16,185,129,0.35)",
+                  background: "rgba(16,185,129,0.08)",
+                  color: "#047857",
+                }}
+                role="status"
+              >
+                <CheckCircle2 size={18} style={{ flexShrink: 0, marginTop: 1 }} />
+                <span>
+                  {bankState === "MATCHED" && (
+                    <>
+                      <strong>Ngân hàng báo tiền đã về</strong> và khớp mã{" "}
+                      <code>{request.qr_reference}</code>. Bạn có thể bấm xác nhận
+                      ghi nhận, hoặc để đối soát tự động xử lý.
+                    </>
+                  )}
+                  {bankState === "REVIEW" && (
+                    <>
+                      <strong>Đã thấy giao dịch nhưng cần rà soát</strong> (có thể
+                      lệch số tiền). Hãy kiểm tra lại trước khi ghi nhận.
+                    </>
+                  )}
+                  {bankState === "RECORDED" && (
+                    <>
+                      <strong>Giao dịch này đã được ghi nhận</strong> qua đối soát
+                      ngân hàng. Không cần xác nhận thủ công lần nữa.
+                    </>
+                  )}
+                </span>
+              </div>
+            )}
 
             {/* Vùng hiển thị QR Code */}
             <div

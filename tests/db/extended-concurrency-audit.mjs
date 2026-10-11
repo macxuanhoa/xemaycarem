@@ -11,7 +11,9 @@ const failures = []
 const call = (connection, actor, name, payload, id) => asUser(connection, users[actor], client =>
   rpc(client, name, id ? '$1::jsonb,$2::uuid' : '$1::jsonb', id ? [JSON.stringify(payload), id] : [JSON.stringify(payload)]))
 const vehicle = (extra = {}) => ({ request_id: randomUUID(), vehicle_type: 'Xe tay ga', frame_number: `EXT-${randomUUID()}`, purchase_date: day, purchase_price: 100, ...extra })
-const create = extra => call(db, 'owner', 'save_vehicle', vehicle(extra))
+// Keep the concurrent STAFF flows on PUBLIC price provenance. Private OWNER
+// intake is separately tested as an approval-only path, including inference.
+const create = extra => call(db, 'a', 'save_vehicle', vehicle(extra))
 const sale = (id, extra = {}) => ({ request_id: randomUUID(), vehicle_id: id, customer_name: 'Synthetic customer', customer_phone: '', sale_price: 1000, initial_payment: 0, payment_method: 'CASH', sale_date: day, ...extra })
 const reason = 'Synthetic audit only'
 const check = async (name, run) => {
@@ -106,12 +108,26 @@ try {
   await check('financial edit racing sale preserves authoritative cost snapshot', async () => {
     const id = await create()
     const result = await behindLock('SELECT id FROM public.vehicles WHERE id=$1 FOR UPDATE', [id], [
-      c => call(c, 'owner', 'save_vehicle', { purchase_price: 150 }, id),
+      c => call(c, 'a', 'save_vehicle', { purchase_price: 150 }, id),
       c => call(c, 'a', 'sell_vehicle', sale(id)),
     ])
     assert.equal(result[1].status, 'fulfilled')
     const row = (await db.query('SELECT f.purchase_price,s.purchase_cost_snapshot FROM public.vehicle_financials f JOIN public.sales v ON v.vehicle_id=f.vehicle_id JOIN public.sale_financials s ON s.sale_id=v.id WHERE f.vehicle_id=$1', [id])).rows[0]
     assert.equal(row.purchase_price, row.purchase_cost_snapshot)
+  })
+  await check('OWNER price becoming private during lock wait prevents STAFF sale without inference', async () => {
+    const id = await create()
+    const result = await behindOrderedLock('SELECT id FROM public.vehicles WHERE id=$1 FOR UPDATE', [id], [
+      c => call(c, 'owner', 'save_vehicle', { purchase_price: 150 }, id),
+      c => call(c, 'b', 'sell_vehicle', sale(id)),
+    ])
+    assert.equal(result[0].status, 'fulfilled')
+    assert.equal(result[1].status, 'rejected')
+    assert.match(result[1].reason.message, /SALE_OWNER_CONFIRMATION_REQUIRED/)
+    assert.equal((await saleRows(id)).rows.length, 0)
+    const hidden = await asUser(db, users.b, c => rpc(c, 'get_vehicle', '$1::uuid', [id]))
+    assert.equal(hidden.purchase_price, null)
+    assert.equal(hidden.purchase_price_hidden, true)
   })
   await check('independent overlapping debt payments preserve exact aggregate', async () => {
     const id = await call(db, 'a', 'sell_vehicle', sale(await create()))

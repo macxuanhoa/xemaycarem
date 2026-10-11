@@ -12,7 +12,7 @@ import {
 import { api } from "@/lib/api";
 import { executeOperation } from "@/lib/operationRecovery";
 import { OperationRecoveryNotice } from "@/components/OperationRecoveryNotice";
-import { AppError } from "@/lib/errors";
+import { AppError, mapDuplicateReviewError } from "@/lib/errors";
 import { canOperate } from "@/lib/permissions";
 import { dateLabel, money, today } from "@/lib/format";
 import { canonicalizePlate, PLATE_EXAMPLE } from "@/lib/plate";
@@ -31,19 +31,21 @@ import {
 import { MoneyInput } from "@/components/ui/MoneyInput";
 import { AutocompleteInput } from "@/components/ui/AutocompleteInput";
 import { saveRecentValue } from "@/lib/recentVehicles";
+import { toast } from "@/lib/toast";
 import { vehicleSuggestions } from "@/lib/vehicleSuggestions";
 import {
   useVehicleDuplicateCheck,
 } from "@/lib/vehicleDuplicateCheck";
 import {
-  FrameKindAdvanced,
+  FrameKindHint,
   DuplicateInspector,
 } from "@/components/VehicleDuplicateCheck";
 import {
-  compactFrame,
-  frameKindFromCompact,
-  type FrameInputKind,
-} from "@/lib/frameNumber";
+  OverrideSaveDialog,
+  RequestReviewDialog,
+} from "@/components/DuplicateReviewDialog";
+import { decideDuplicateAction } from "@/lib/duplicateReviewDecision";
+import { compactFrame } from "@/lib/frameNumber";
 import { useFormDraft } from "@/lib/useFormDraft";
 import { draftFields } from "@/lib/formDrafts";
 import { normalizeVehicleYear } from "@/lib/vehicleInputFormatting";
@@ -69,13 +71,18 @@ function AcquisitionEditor() {
   const [pendingConfirmation, setPendingConfirmation] =
     useState<AcquisitionFormValues | null>(null);
   const [isDraftRestored, setIsDraftRestored] = useState(false);
+  // Luồng nghi trùng PLATE_AND_LAST5: giữ bản đã soạn để gửi yêu cầu (STAFF)
+  // hoặc lưu ngoại lệ (OWNER/MANAGER) mà không tạo xe trước khi duyệt.
+  const [pendingDuplicateValues, setPendingDuplicateValues] =
+    useState<AcquisitionFormValues | null>(null);
+  const [requestOpen, setRequestOpen] = useState(false);
+  const [overrideOpen, setOverrideOpen] = useState(false);
 
   const form = useForm<AcquisitionFormValues>({
     resolver: zodResolver(acquisitionSchema),
     mode: "onBlur",
     defaultValues: {
       frame_number: "",
-      frame_input_kind: "FULL",
       duplicate_ack: false,
       license_plate: "",
       vehicle_type: "",
@@ -97,22 +104,9 @@ function AcquisitionEditor() {
   const draft = useFormDraft("acquisition", profile?.id, form);
   const rawFrame = form.watch("frame_number");
   const rawPlate = form.watch("license_plate");
-  // Một ô số khung duy nhất: hệ thống tự nhận FULL/PARTIAL theo độ dài; nhân
-  // viên chỉ ghi đè tay ở "Nâng cao" khi gặp ngoại lệ (số khung ngắn nhưng hợp lệ).
-  const [frameKindOverride, setFrameKindOverride] = useState<
-    FrameInputKind | null
-  >(() => {
-    const stored = form.getValues("frame_input_kind");
-    const auto = frameKindFromCompact(
-      compactFrame(form.getValues("frame_number")),
-    );
-    return stored && stored !== auto ? stored : null;
-  });
-  const frameKind: FrameInputKind =
-    frameKindOverride ?? frameKindFromCompact(compactFrame(rawFrame));
-  useEffect(() => {
-    form.setValue("frame_input_kind", frameKind, { shouldDirty: true });
-  }, [frameKind, form]);
+  // Một ô số khung duy nhất, MỘT nguồn phân loại: máy chủ tự suy FULL/PARTIAL theo
+  // độ dài (`private.frame_kind`). Nhân viên không chọn tay nữa; `dupCheck.kind`
+  // chỉ là giá trị mirror để hiển thị dòng "Nhận diện:" cho dễ hiểu.
 
   const catalog = useQuery({
     queryKey: ["vehicle-form-suggestions", profile?.id],
@@ -126,16 +120,24 @@ function AcquisitionEditor() {
   const dupCheck = useVehicleDuplicateCheck({
     frameNumber: rawFrame,
     licensePlate: rawPlate,
-    frameInputKind: frameKind,
   });
+  const frameKind = dupCheck.kind;
   // Xác nhận YELLOW gắn với đúng chữ ký đang hiện; đổi nội dung thì hạ ack.
   const [acknowledged, setAcknowledged] = useState(false);
   useEffect(() => {
     setAcknowledged(false);
   }, [dupCheck.level, rawFrame, rawPlate, frameKind]);
+  const dupAction = decideDuplicateAction({
+    level: dupCheck.level,
+    reason: dupCheck.result?.reason ?? "",
+    role: profile?.role ?? "STAFF",
+    acknowledged,
+  });
+  // require-ack và hard-block là hai trạng thái khóa nút; request-review và
+  // override-save MỞ hộp thoại nên nút vẫn bấm được.
   const blockSave =
     dupCheck.settled &&
-    (dupCheck.level === "RED" || (dupCheck.level === "YELLOW" && !acknowledged));
+    (dupAction.kind === "require-ack" || dupAction.kind === "hard-block");
 
   const suggestions = (field: "color" | "vehicle_type") =>
     vehicleSuggestions(catalog.data?.items ?? [], field, profile?.id);
@@ -146,12 +148,25 @@ function AcquisitionEditor() {
       shouldValidate: !!form.formState.errors[field],
     });
 
+  type SaveArg = {
+    values: AcquisitionFormValues;
+    override?: { reason: string; reviewedVehicleId: string };
+  };
   const mutation = useMutation({
-    mutationFn: async (values: AcquisitionFormValues) => {
+    mutationFn: async ({ values, override }: SaveArg) => {
       const data: Record<string, unknown> = {
         ...values,
         year: values.year ?? null,
       };
+      // OWNER/MANAGER lưu ngoại lệ: gửi kèm bộ ba override mà server bắt buộc
+      // (lý do + hồ sơ đã đối chiếu ∈ candidate). Server vẫn tái kiểm tra trùng
+      // trong cùng transaction, FULL_FRAME_MATCH không bao giờ qua được.
+      if (override) {
+        data.duplicate_override = true;
+        data.duplicate_override_reason = override.reason;
+        data.duplicate_reviewed_vehicle_id = override.reviewedVehicleId;
+        data.duplicate_ack = true;
+      }
       if (!profile)
         throw new AppError("Vui lòng đăng nhập lại trước khi thu xe.");
       return executeOperation<string>(
@@ -164,15 +179,62 @@ function AcquisitionEditor() {
           }),
       );
     },
-    onSuccess: async (vehicleId, values) => {
+    onSuccess: async (vehicleId, { values, override }) => {
       setPendingConfirmation(null);
+      setOverrideOpen(false);
+      setPendingDuplicateValues(null);
       draft.complete();
       saveRecentValue("color", values.color, profile?.id);
       saveRecentValue("vehicle_type", values.vehicle_type, profile?.id);
       await client.invalidateQueries();
-      navigate(`/vehicles/${vehicleId}`, {
-        state: { acquisitionConfirmed: true },
+      if (override) {
+        toast.success("Đã lưu ngoại lệ nghi trùng.", {
+          description:
+            "Chủ/Quản lý đã trực tiếp thu xe kèm lý do ngoại lệ được ghi nhận vào kiểm toán.",
+          duration: 6000,
+        });
+      } else {
+        toast.success("Thu xe thành công.", {
+          description: "Xe và phiếu thu đã sẵn sàng trong kho.",
+          duration: 5000,
+          action: { label: "Thu xe tiếp", onClick: () => navigate("/acquisitions/new") },
+        });
+      }
+      navigate(`/vehicles/${vehicleId}`);
+    },
+  });
+
+  // STAFF gặp nghi trùng PLATE_AND_LAST5: KHÔNG lưu xe, chỉ gửi toàn bộ dữ liệu
+  // đang soạn sang hàng đợi xác minh. request_id chống bấm đúp; ALREADY_PENDING
+  // (đã có đơn mở cho cùng hồ sơ) được đọc đúng ngữ cảnh qua mapDuplicateReviewError.
+  const requestReview = useMutation({
+    mutationFn: async (arg: SaveArg & { staffNote: string }) => {
+      if (!profile)
+        throw new AppError("Vui lòng đăng nhập lại trước khi gửi yêu cầu.");
+      const data: Record<string, unknown> = {
+        ...arg.values,
+        year: arg.values.year ?? null,
+        _op: "ACQUIRE",
+        staff_note: arg.staffNote,
+      };
+      return executeOperation<string>(
+        profile.id,
+        "request_vehicle_duplicate_review",
+        "new",
+        (requestId) => api.requestVehicleDuplicateReview(data, requestId),
+      );
+    },
+    onSuccess: async () => {
+      setRequestOpen(false);
+      setPendingDuplicateValues(null);
+      draft.complete();
+      await client.invalidateQueries();
+      toast.success("Đã gửi yêu cầu xác minh.", {
+        description:
+          "Xe chưa được lưu vào kho. Chủ/Quản lý sẽ đối chiếu; bạn nhận thông báo khi có quyết định.",
+        duration: 6000,
       });
+      navigate("/acquisitions");
     },
   });
 
@@ -193,7 +255,6 @@ function AcquisitionEditor() {
       frame_number: compactFrame(values.frame_number)
         ? values.frame_number.trim().toUpperCase()
         : "",
-      frame_input_kind: frameKind,
       duplicate_ack: acknowledged,
       license_plate: canonicalizePlate(values.license_plate),
       year: normalizeVehicleYear(values.year) ?? values.year,
@@ -202,6 +263,17 @@ function AcquisitionEditor() {
       seller_phone: values.seller_phone.trim(),
       notes: values.notes.trim(),
     };
+    // Nghi trùng PLATE_AND_LAST5: điều hướng theo vai trò thay vì lưu thẳng.
+    if (dupAction.kind === "request-review") {
+      setPendingDuplicateValues(normalized);
+      setRequestOpen(true);
+      return;
+    }
+    if (dupAction.kind === "override-save") {
+      setPendingDuplicateValues(normalized);
+      setOverrideOpen(true);
+      return;
+    }
     setPendingConfirmation(normalized);
   };
 
@@ -239,9 +311,12 @@ function AcquisitionEditor() {
         onConfirmed={async (vehicleId) => {
           draft.complete();
           await client.invalidateQueries();
-          navigate(`/vehicles/${vehicleId}`, {
-            state: { acquisitionConfirmed: true },
+          toast.success("Thu xe thành công.", {
+            description: "Xe và phiếu thu đã sẵn sàng trong kho.",
+            duration: 5000,
+            action: { label: "Thu xe tiếp", onClick: () => navigate("/acquisitions/new") },
           });
+          navigate(`/vehicles/${vehicleId}`);
         }}
       />
       {location.state?.aiDraft && (
@@ -255,9 +330,7 @@ function AcquisitionEditor() {
           <div className="row" style={{ gap: "8px", alignItems: "center" }}>
             <Clock size={16} />
             <p>
-              Có bản nháp thu xe chưa hoàn tất trên thiết bị này. Nhấn tiếp tục
-              để khôi phục đầy đủ, sau đó kiểm tra lại giá thu trước khi xác
-              nhận.
+              Có bản nháp lần trước chưa hoàn tất.
             </p>
           </div>
           <div className="row" style={{ marginTop: "10px" }}>
@@ -307,37 +380,15 @@ function AcquisitionEditor() {
           <Card>
             <h2 className="section-title">1. Thông tin xe</h2>
             <div className="form-grid">
-              <Field label="Số khung" error={error("frame_number")}>
-                <input
-                  autoFocus
-                  autoCapitalize="characters"
-                  enterKeyHint="next"
-                  {...form.register("frame_number")}
-                  onBlur={() => {
-                    const val = form.getValues("frame_number");
-                    form.setValue("frame_number", val.trim().toUpperCase(), {
-                      shouldValidate: true,
-                      shouldTouch: true,
-                    });
-                  }}
-                  placeholder="Nhập số khung đầy đủ, hoặc 5 ký tự cuối"
-                />
-                <FrameKindAdvanced
-                  kind={frameKind}
-                  selection={frameKindOverride ?? "AUTO"}
-                  disabled={mutation.isPending}
-                  onSelect={(value) =>
-                    setFrameKindOverride(value === "AUTO" ? null : value)
-                  }
-                />
-                <DuplicateInspector
-                  checking={dupCheck.isChecking}
-                  error={dupCheck.isError}
-                  result={dupCheck.result}
-                  hasSignal={dupCheck.hasSignal}
-                  acknowledged={acknowledged}
-                  onAcknowledge={setAcknowledged}
-                  onRetry={() => void dupCheck.refetch()}
+              <Field label="Loại xe *" error={error("vehicle_type")}>
+                <AutocompleteInput
+                  aria-label="Loại xe *"
+                  value={form.watch("vehicle_type")}
+                  onChange={(value) => setText("vehicle_type", value)}
+                  onBlur={() => void form.trigger("vehicle_type")}
+                  suggestions={suggestions("vehicle_type")}
+                  maxSuggestions={10}
+                  placeholder="VD: Honda Vision, Wave Alpha…"
                 />
               </Field>
 
@@ -357,15 +408,31 @@ function AcquisitionEditor() {
                 />
               </Field>
 
-              <Field label="Loại xe *" error={error("vehicle_type")}>
-                <AutocompleteInput
-                  aria-label="Loại xe *"
-                  value={form.watch("vehicle_type")}
-                  onChange={(value) => setText("vehicle_type", value)}
-                  onBlur={() => void form.trigger("vehicle_type")}
-                  suggestions={suggestions("vehicle_type")}
-                  maxSuggestions={10}
-                  placeholder="VD: Honda Vision, Wave Alpha…"
+              <Field label="Số khung" error={error("frame_number")}>
+                <input
+                  autoFocus
+                  autoCapitalize="characters"
+                  enterKeyHint="next"
+                  {...form.register("frame_number")}
+                  onBlur={() => {
+                    const val = form.getValues("frame_number");
+                    form.setValue("frame_number", val.trim().toUpperCase(), {
+                      shouldValidate: true,
+                      shouldTouch: true,
+                    });
+                  }}
+                  placeholder="Nhập số khung đầy đủ, hoặc 5 ký tự cuối"
+                />
+                <FrameKindHint kind={frameKind} />
+                <DuplicateInspector
+                  checking={dupCheck.isChecking}
+                  error={dupCheck.isError}
+                  result={dupCheck.result}
+                  hasSignal={dupCheck.hasSignal}
+                  acknowledged={acknowledged}
+                  role={profile?.role ?? "STAFF"}
+                  onAcknowledge={setAcknowledged}
+                  onRetry={() => void dupCheck.refetch()}
                 />
               </Field>
 
@@ -512,7 +579,7 @@ function AcquisitionEditor() {
                   aria-hidden="true"
                 />
                 <span className="status-text">
-                  Đã khôi phục bản nháp — kiểm tra lại giá thu trước khi xác nhận.
+                  Đã dùng lại bản nháp lần trước.
                 </span>
               </div>
             ) : draft.saved ? (
@@ -537,15 +604,19 @@ function AcquisitionEditor() {
             </Link>
             <Button
               type="submit"
-              disabled={mutation.isPending || blockSave}
+              disabled={
+                mutation.isPending || requestReview.isPending || blockSave
+              }
             >
-              {mutation.isPending
-                ? "Đang lưu…"
-                : blockSave
-                  ? dupCheck.level === "RED"
-                    ? "Nghi trùng — không lưu được"
-                    : "Cần xác nhận để thu xe"
-                  : "Thu xe & tạo phiếu"}
+              {mutation.isPending || requestReview.isPending
+                ? "Đang xử lý…"
+                : dupAction.kind === "hard-block"
+                  ? "Trùng số khung — không lưu được"
+                  : dupAction.kind === "require-ack"
+                    ? "Cần xác nhận để thu xe"
+                    : dupAction.kind === "request-review"
+                      ? "Gửi yêu cầu xác minh"
+                      : "Thu xe & tạo phiếu"}
             </Button>
           </div>
         </div>
@@ -647,7 +718,7 @@ function AcquisitionEditor() {
               </Button>
               <Button
                 type="button"
-                onClick={() => mutation.mutate(pendingConfirmation)}
+                onClick={() => mutation.mutate({ values: pendingConfirmation })}
                 disabled={mutation.isPending}
               >
                 {mutation.isPending ? "Đang xử lý…" : "Xác nhận thu xe"}
@@ -656,6 +727,47 @@ function AcquisitionEditor() {
           </div>
         </div>
       )}
+
+      <RequestReviewDialog
+        open={requestOpen}
+        candidates={dupCheck.result?.candidates ?? []}
+        reason={dupCheck.result?.reason ?? "PLATE_AND_LAST5"}
+        submitting={requestReview.isPending}
+        error={
+          requestReview.error
+            ? new AppError(mapDuplicateReviewError(requestReview.error))
+            : undefined
+        }
+        onClose={() => {
+          if (!requestReview.isPending) setRequestOpen(false);
+        }}
+        onSubmit={(staffNote) => {
+          if (!pendingDuplicateValues) return;
+          requestReview.mutate({ values: pendingDuplicateValues, staffNote });
+        }}
+      />
+
+      <OverrideSaveDialog
+        open={overrideOpen}
+        candidates={dupCheck.result?.candidates ?? []}
+        reason={dupCheck.result?.reason ?? "PLATE_AND_LAST5"}
+        submitting={mutation.isPending}
+        error={
+          overrideOpen && mutation.error
+            ? new AppError(mapDuplicateReviewError(mutation.error))
+            : undefined
+        }
+        onClose={() => {
+          if (!mutation.isPending) setOverrideOpen(false);
+        }}
+        onSubmit={({ reason, reviewedVehicleId }) => {
+          if (!pendingDuplicateValues) return;
+          mutation.mutate({
+            values: pendingDuplicateValues,
+            override: { reason, reviewedVehicleId },
+          });
+        }}
+      />
     </div>
   );
 }

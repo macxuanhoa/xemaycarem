@@ -506,8 +506,6 @@ export default function AssistPage() {
       {expenseOpen && vehicle.data && draft && (
         <QuickExpenseModal
           vehicleId={vehicle.data.id}
-          vehicleName={vehicleTitle(vehicle.data)}
-          vehicleCode={vehicle.data.internal_code}
           isOpen
           initialDraft={{
             expense_type:

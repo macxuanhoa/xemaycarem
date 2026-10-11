@@ -55,6 +55,16 @@ Câu trả lời của `/copilot` và `/docs` lấy từ `public.knowledge_base`
 - **Secrets Edge:** `AI_ENABLED=true`, `AI_PROVIDER_API_KEY`, `AI_MODEL` qua `npx supabase secrets set`. Cả ba đều **tùy chọn** với copilot: thiếu cấu hình thì tra cứu deterministic vẫn trả lời đủ, chỉ chế độ AI tóm tắt (OWNER) bị hạ về tra cứu trực tiếp kèm cảnh báo. Khóa chỉ nằm ở Edge runtime, không vào frontend, không ghi log.
 - **Kiểm tra sau triển khai:** hỏi `/copilot` một câu số liệu và một câu tài liệu; bấm thử từng mã bằng chứng để chắc chắn nó mở đúng màn hình; đăng nhập bằng STAFF để xác nhận các con số nhạy cảm biến mất hoàn toàn (không phải hiển thị `0`); mở `/docs` và chắc chắn không thấy mục audience cao hơn quyền.
 
+## Đăng bài từ kho xe → Facebook
+
+- **Luồng hằng ngày**: sidebar **Đăng bài từ kho xe** → **Chọn xe từ Kho** (trang Kho ở chế độ chọn, chỉ **Chọn** / **Xem chi tiết**) → mô tả kiểu bài ở bước 2 → **Tạo bài viết** → đọc lại bản trình bày kiểu Facebook → **Chuyển vào Facebook** → người bán kiểm tra composer và **tự bấm Đăng**. CRM không có nút Đăng và không bao giờ nói bài đã lên.
+- **Xe đang bày bán** sinh bài bán/ưu đãi; **xe đã bán** tự chuyển sang loại **Xe vừa bán** (cảm ơn khách, đã sang tên). Chọn nhầm thì bấm **Bỏ chọn** rồi chọn lại.
+- **Ảnh xe đi theo bài**: ảnh được ký URL tạm và nạp vào bộ nhớ đúng lượt chia sẻ, không lưu lại trên máy. Xe không có ảnh thì chỉ chuyển chữ.
+- **Cài "Cầu đăng Facebook" một lần trên máy bán hàng** (muốn CRM điền thẳng chữ + ảnh vào ô đăng bài, thay vì dán tay): trong mục *Cài Cầu đăng Facebook* tải `carem-fb-extension.zip` → giải nén → `chrome://extensions` (Edge: `edge://extensions`) → bật **Developer mode** → **Load unpacked** → chọn thư mục `carem-fb-share` → F5 trang CRM. Tiện ích chỉ điền và đọc lại để xác minh; không đọc cookie/token, không bấm Đăng.
+- **Không có tiện ích thì CRM vẫn chạy**: desktop rơi về copy bộ nhớ tạm + mở Facebook (cần HTTPS); điện thoại dùng bảng chia sẻ của hệ điều hành (`navigator.share`, kèm ảnh nếu máy nhận tệp); hết đường thì dán tay / tải ảnh về.
+- **Trợ lý AI cho ô mô tả cần `post-ai` được deploy** (`supabase functions deploy post-ai` với `GEMINI_API_KEY`, `POST_AI_ENABLED=true`, `GEMINI_MODEL`) — theo `docs/R2_FINAL_GO_NO_GO.md` mục 8, việc này chờ OWNER GO. Khi hàm chưa bật, CRM tự viết bài bằng **mẫu có sẵn** và ghi rõ nguồn "Dùng mẫu có sẵn"; nghiệp vụ không bị chặn, chỉ mất phần AI biến mô tả thành bài.
+- **Mô tả có giá / số điện thoại riêng / link / CCCD / trả góp–công nợ** sẽ bị AI bỏ khỏi bài (và máy chủ có thể chặn hẳn lượt tạo). Số hotline công khai của quán `0914.92.92.92` được phép. Muốn chắc bài đăng đúng, đọc lại ô nội dung trước khi chuyển.
+
 ## Sự cố thường gặp
 
 | Hiện tượng | Kiểm tra |
@@ -62,9 +72,9 @@ Câu trả lời của `/copilot` và `/docs` lấy từ `public.knowledge_base`
 | Chưa kết nối cửa hàng | URL/public key frontend và khởi động/build lại |
 | Đăng nhập được nhưng chưa có quyền | `profiles.active`, role và profile UUID trùng Auth user |
 | Tạo nhân viên lỗi | Edge Function đã deploy, OWNER active, `ALLOWED_ORIGINS`, Edge logs |
-| Không thấy **tổng** giá vốn/lợi nhuận | Cần OWNER hoặc MANAGER có `can_view_financials=true`. **Giá thu** thì mọi role active đều thấy vì chính họ nhập lúc thu xe |
+| Không thấy **tổng** giá vốn/lợi nhuận hoặc giá PRIVATE/RESTRICTED | Cần OWNER hoặc MANAGER có `can_view_financials=true`. Giá STAFF/MANAGER nhập PUBLIC có thể đọc theo quyền nghiệp vụ; giá OWNER nhập không được công khai |
 | Không bán được xe | Trạng thái không SOLD/CANCELLED; xe **đời cũ** còn `cost_pending`; ngày bán hợp lệ; hoặc đang có **đơn chờ duyệt bán dưới giá thu** (`SALE_APPROVAL_PENDING`) / đơn xóa chờ (`DELETE_PENDING`) |
-| Bấm bán mà chỉ thấy nút **Gửi yêu cầu duyệt** | Đúng thiết kế: giá bán thấp hơn giá thu và tài khoản không phải OWNER. Chủ quyết trong **Chờ duyệt** (`/approvals`); OWNER bán dưới giá thu vẫn thấy **Xác nhận bán** |
+| Bấm bán mà chỉ thấy nút **Gửi yêu cầu duyệt** | Giá bán thấp hơn giá thu PUBLIC hoặc giá thu bị ẩn. Với giá ẩn, mọi giá đề xuất đều cần OWNER xác nhận và không hiện chênh lệch; Chủ quyết trong `/approvals` |
 | Duyệt đơn báo `APPROVAL_STALE_DATA` | Giá thu hoặc chi phí xe đã đổi sau khi nhân viên gửi đơn — không cho duyệt số cũ. Bắt người gửi **Rút yêu cầu** rồi gửi lại giá mới |
 | Số vốn tồn là `—` | Còn xe **đời cũ** chờ bổ sung giá thu; kiểm tra kho và nhập giá thu vào hồ sơ xe |
 | Mất mạng khi lưu | Không bấm lặp liên tục; tải lại danh sách kiểm tra giao dịch đã ghi chưa |
@@ -79,6 +89,10 @@ Câu trả lời của `/copilot` và `/docs` lấy từ `public.knowledge_base`
 | STAFF thấy **tổng** giá vốn/lợi nhuận, hoặc thấy số tiền trong thông báo **của giao dịch người khác** | Sai. `can_view_financials` đã bị bỏ qua khi trigger ghi — kiểm tra `private.can_financials()` và profile `MANAGER`/`OWNER`; nếu thấy, đây là bug cần điều tra ngay. Ngoại lệ đúng thiết kế: **giá thu của chính xe mình vừa thu** thì nhân viên được thấy, vì đó là số họ nhập. |
 | Xóa/đổi role nhân viên mà thông báo cũ vẫn hiện tên | `actor_id ON DELETE SET NULL` giữ dòng nhưng mất tên; dòng sẽ hiển thị "Hệ thống". Đây là hành vi chấp nhận được — không xóa lịch sử thông báo để "làm sạch" |
 | Realtime publication thiếu `notifications` | Supabase local `db push` có guard `IF EXISTS(pg_publication 'supabase_realtime')`; chạy `ALTER PUBLICATION supabase_realtime ADD TABLE public.notifications;` thủ công nếu CLI bỏ sót |
+| Bấm **Chuyển vào Facebook** mà chỉ được "đã chuẩn bị sẵn để bạn dán" | Trình duyệt chưa có Cầu đăng (chưa cài / chưa F5 lại) hoặc trang chạy ngoài HTTPS nên clipboard chết. Cài tiện ích theo mục trên, hoặc dán tay |
+| CRM báo "Không tìm thấy ô đăng bài trên Facebook" | Tab Facebook chưa đăng nhập, đang ở trang khác, hoặc Facebook đổi giao diện. Mở trang cá nhân (hoặc đúng hội nhóm) đã đăng nhập rồi bấm lại; nếu vẫn lỗi thì chỉ là content script cần cập nhật — bài vẫn dán tay được |
+| "Facebook đã nhận chữ và x/y ảnh" | Chữ đã vào composer, ảnh còn thiếu do Facebook chặn đính kèm tự động. Đính kèm nốt số ảnh còn rồi mới bấm Đăng; có nút **Tải ảnh về để đính kèm tay** |
+| Bài tạo ra không giống mô tả, hoặc bị chặn "mô tả chứa yếu tố không được phép" | Mô tả có giá/SĐT riêng/link/CCCD/trả góp — đúng luật an toàn của quán. Viết lại mô tả không chứa những thứ đó; hotline công khai `0914.92.92.92` thì được phép |
 
 Auth/Edge/Storage hosted không được giả định đã kiểm thử chỉ vì unit test hoặc PostgreSQL cục bộ chạy thành công. Theo dõi log không chứa mật khẩu/token và ghi lại các lỗi giao dịch cần đối chiếu.
 

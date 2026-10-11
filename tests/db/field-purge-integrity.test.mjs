@@ -124,7 +124,7 @@ export async function runFieldPurgeIntegrityTests(externalDb, { engine = 'postgr
     const typeId = catalogue.find((item) => item.name === 'Xe số').id
 
     await pass('get_vehicle projects the new identity and never leaks a purged key')
-    const vehicleId = await call('owner', 'save_vehicle', {
+    const vehicleId = await call('staff', 'save_vehicle', {
       request_id: randomUUID(),
       vehicle_type_id: typeId,
       purchase_date: day,

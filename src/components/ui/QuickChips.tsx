@@ -49,28 +49,15 @@ export function QuickChips({
 // thành phần chip này nhưng lấy dữ liệu từ danh mục `vehicle_types`
 // (`src/lib/useVehicleTypes.ts`), giá trị là id loại xe.
 
+// Chip chỉ chọn phân loại chi phí (type) — nội dung luôn do người dùng tự ghi,
+// nên không còn defaultDesc. `id` định danh từng chip vì hai chip có cùng type
+// (Lốp xe và Thay nhớt đều là PARTS).
 export const VEHICLE_EXPENSE_CHIPS = [
-  { type: "REPAIR", label: "Sửa chữa", defaultDesc: "Sửa chữa kỹ thuật" },
-  { type: "PARTS", label: "Lốp xe", defaultDesc: "Thay lốp xe" },
-  {
-    type: "PARTS",
-    label: "Thay nhớt",
-    defaultDesc: "Thay nhớt máy / nhớt láp",
-  },
-  {
-    type: "CLEANING",
-    label: "Rửa / Vệ sinh",
-    defaultDesc: "Rửa xe & vệ sinh chi tiết",
-  },
-  {
-    type: "TRANSPORT",
-    label: "Vận chuyển",
-    defaultDesc: "Phí vận chuyển xe về kho",
-  },
-  {
-    type: "PAPERWORK",
-    label: "Giấy tờ",
-    defaultDesc: "Phí sang tên / giấy tờ xe",
-  },
-  { type: "OTHER", label: "Khác", defaultDesc: "Chi phí phát sinh khác" },
+  { id: "REPAIR", type: "REPAIR", label: "Sửa chữa" },
+  { id: "TIRE", type: "PARTS", label: "Lốp xe" },
+  { id: "OIL", type: "PARTS", label: "Thay nhớt" },
+  { id: "CLEANING", type: "CLEANING", label: "Rửa / Vệ sinh" },
+  { id: "TRANSPORT", type: "TRANSPORT", label: "Vận chuyển" },
+  { id: "PAPERWORK", type: "PAPERWORK", label: "Giấy tờ" },
+  { id: "OTHER", type: "OTHER", label: "Khác" },
 ];

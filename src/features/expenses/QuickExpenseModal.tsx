@@ -1,6 +1,6 @@
 import { useId, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { RotateCcw, X } from "lucide-react";
+import { X } from "lucide-react";
 import { api } from "@/lib/api";
 import { today } from "@/lib/format";
 import { canManage } from "@/lib/permissions";
@@ -8,19 +8,12 @@ import { useAuth } from "@/features/auth/AuthProvider";
 import { Button, DatePicker, ErrorState, Field } from "@/components/ui";
 import { MoneyInput } from "@/components/ui/MoneyInput";
 import { VEHICLE_EXPENSE_CHIPS } from "@/components/ui/QuickChips";
-import {
-  getLastExpense,
-  saveLastExpense,
-  saveRecentValue,
-} from "@/lib/recentVehicles";
 import { useDialog } from "@/lib/useDialog";
 import { expenseSchema, vehicleExpenseLabels } from "./expenseSchema";
 import { dateValue, moneyValue } from "@/lib/validation";
 
 interface QuickExpenseModalProps {
   vehicleId: string;
-  vehicleName: string;
-  vehicleCode?: string;
   purchaseDate?: string;
   isOpen: boolean;
   onClose: () => void;
@@ -42,26 +35,29 @@ export function QuickExpenseModal(props: QuickExpenseModalProps) {
 
 function QuickExpenseEditor({
   vehicleId,
-  vehicleName,
-  vehicleCode,
   purchaseDate,
   onClose,
   onSuccess,
   initialDraft,
 }: QuickExpenseModalProps) {
-  const { profile } = useAuth();
   const client = useQueryClient();
-  const [lastExpense] = useState(() => getLastExpense(profile?.id));
   const [type, setType] = useState(
     initialDraft?.expense_type &&
       vehicleExpenseLabels[initialDraft.expense_type]
       ? initialDraft.expense_type
       : "REPAIR",
   );
+  const [chipId, setChipId] = useState(
+    initialDraft?.expense_type &&
+      vehicleExpenseLabels[initialDraft.expense_type]
+      ? initialDraft.expense_type
+      : "REPAIR",
+  );
+  // Nội dung để trống: chi phí luôn do người dùng tự ghi, chip chỉ chọn phân loại.
   const [description, setDescription] = useState(
     typeof initialDraft?.description === "string"
       ? initialDraft.description.slice(0, 250)
-      : "Sửa chữa kỹ thuật",
+      : "",
   );
   const [amount, setAmount] = useState<number | undefined>(() => {
     const parsed = moneyValue.safeParse(initialDraft?.amount);
@@ -106,11 +102,6 @@ function QuickExpenseEditor({
         p_kind: "vehicle",
         p_data: parsed.data,
       });
-      saveLastExpense(
-        { type, description: parsed.data.description },
-        profile?.id,
-      );
-      saveRecentValue("expense_desc", parsed.data.description, profile?.id);
     },
     onSuccess: async () => {
       await Promise.all([
@@ -129,7 +120,7 @@ function QuickExpenseEditor({
   const panelRef = useDialog(true, close, saveMutation.isPending);
   const selectChip = (chip: (typeof VEHICLE_EXPENSE_CHIPS)[number]) => {
     setType(chip.type);
-    setDescription(chip.defaultDesc);
+    setChipId(chip.id);
     document.getElementById(amountId)?.focus();
   };
 
@@ -147,10 +138,6 @@ function QuickExpenseEditor({
         <div className="modal-header">
           <div>
             <h3 id={titleId}>+ Thêm chi phí xe</h3>
-            <p className="modal-subtitle">
-              {vehicleCode ? `${vehicleCode} · ` : ""}
-              <strong>{vehicleName}</strong>
-            </p>
           </div>
           <button
             type="button"
@@ -173,27 +160,6 @@ function QuickExpenseEditor({
             disabled={saveMutation.isPending}
             className="plain-fieldset"
           >
-            {lastExpense && (
-              <div className="repeat-expense-bar">
-                <button
-                  type="button"
-                  className="chip-btn repeat-btn"
-                  onClick={() => {
-                    setType(
-                      vehicleExpenseLabels[lastExpense.type]
-                        ? lastExpense.type
-                        : "OTHER",
-                    );
-                    setDescription(lastExpense.description);
-                    setAmount(undefined);
-                    document.getElementById(amountId)?.focus();
-                  }}
-                >
-                  <RotateCcw size={12} /> Dùng lại "{lastExpense.description}"
-                </button>
-                <small>Nhập lại số tiền trước khi lưu.</small>
-              </div>
-            )}
             <div className="modal-body stack">
               {initialDraft && (
                 <p className="notice">
@@ -210,12 +176,10 @@ function QuickExpenseEditor({
                 >
                   {VEHICLE_EXPENSE_CHIPS.map((chip) => (
                     <button
-                      key={chip.label}
+                      key={chip.id}
                       type="button"
-                      className={`expense-chip-btn ${type === chip.type && description === chip.defaultDesc ? "active" : ""}`}
-                      aria-pressed={
-                        type === chip.type && description === chip.defaultDesc
-                      }
+                      className={`expense-chip-btn ${chipId === chip.id ? "active" : ""}`}
+                      aria-pressed={chipId === chip.id}
                       onClick={() => selectChip(chip)}
                     >
                       {chip.label}
@@ -243,7 +207,11 @@ function QuickExpenseEditor({
               >
                 <input
                   value={description}
-                  onChange={(event) => setDescription(event.target.value)}
+                  onChange={(event) => {
+                    setDescription(event.target.value);
+                    setFieldErrors((old) => ({ ...old, description: "" }));
+                  }}
+                  placeholder="VD: Thay lốp trước, công sửa xe, phí sang tên…"
                   maxLength={250}
                 />
               </Field>

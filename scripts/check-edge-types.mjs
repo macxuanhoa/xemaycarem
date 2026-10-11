@@ -12,6 +12,7 @@ declare namespace Deno {
 declare module 'npm:@supabase/supabase-js@2.117.2' {
   import { createClient as localCreateClient } from '@supabase/supabase-js';
   export const createClient: typeof localCreateClient;
+  export type { SupabaseClient } from '@supabase/supabase-js';
 }
 declare module 'npm:@supabase/supabase-js@2.117.2/cors' {
   export const corsHeaders: Record<string, string>;
@@ -29,6 +30,7 @@ host.getSourceFile = (file, languageVersion, onError, shouldCreateNewSourceFile)
   ? ts.createSourceFile(file, shim, languageVersion)
   : originalGetSourceFile(file, languageVersion, onError, shouldCreateNewSourceFile)
 const sourceFiles = ['manage-users/index.ts', 'reset-owner/index.ts', 'ai-assist/index.ts', 'ai-assist/contracts.ts', 'ai-assist/copilot.ts', 'process-message/index.ts']
+  .concat(['bank-webhook/index.ts', 'post-ai/index.ts'])
   .map(file => resolve('supabase/functions', file))
 const program = ts.createProgram([shimPath, ...sourceFiles], options, host)
 const diagnostics = ts.getPreEmitDiagnostics(program)

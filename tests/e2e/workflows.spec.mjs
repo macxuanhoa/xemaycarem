@@ -227,9 +227,9 @@ test("Inventory creation: lost committed response survives reload and reconciles
     if (request.url().endsWith("/rest/v1/rpc/save_vehicle")) requests.push(request.postDataJSON());
   });
   await page.getByLabel("Loại xe *", { exact: true }).fill("Xe số");
-  await page.getByLabel("Biển số", { exact: true }).fill("59B1-111.11");
+  await page.getByLabel("Biển số (nếu có)", { exact: true }).fill("59B1-111.11");
   await page.getByLabel("Số khung", { exact: true }).fill(frame);
-  await page.getByLabel("Giá mua (₫) *", { exact: false }).fill("18000000");
+  await page.getByLabel("Giá thu (₫) *", { exact: false }).fill("18000000");
   failNextInventoryResponse = true;
   await page.getByRole("button", { name: "Lưu xe mới", exact: true }).click();
   await expect(page.getByText(/Giao dịch chưa được xác nhận/)).toBeVisible();
@@ -261,8 +261,8 @@ test("Owner: login, persistent session, add/edit vehicle, expense, sale, payment
   });
   await page.goto("/vehicles/new");
   await page.getByLabel("Loại xe *", { exact: true }).fill("Xe số");
-  await page.getByLabel("Biển số", { exact: true }).fill("61C1-222.22");
-  await page.getByLabel("Giá mua (₫) *", { exact: false }).fill("80000000");
+  await page.getByLabel("Biển số (nếu có)", { exact: true }).fill("61C1-222.22");
+  await page.getByLabel("Giá thu (₫) *", { exact: false }).fill("80000000");
   await page.getByRole("button", { name: "Lưu xe mới", exact: true }).click();
   await expect(page).toHaveURL(/\/vehicles\/[a-f0-9-]{36}$/);
   const vehicleId = page.url().split("/").at(-1);
@@ -730,7 +730,9 @@ test("Regression: changing the expense vehicle search clears the previous vehicl
   await picker.selectOption(vehicles[1]);
   await page.getByRole("button", { name: "Lưu chi phí", exact: true }).click();
   await expect(
-    page.getByText(description, { exact: true }).first(),
+    // The draft textarea already contains this text. Wait for the saved row
+    // before inspecting the database, rather than racing the async mutation.
+    page.locator(".data-table tbody").getByText(description, { exact: true }),
   ).toBeVisible();
   expect(
     (

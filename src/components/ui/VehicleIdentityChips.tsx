@@ -1,4 +1,5 @@
 import { Highlight } from "@/components/search/Highlight";
+import { displayFrame } from "@/lib/frameNumber";
 import {
   NO_FRAME_LABEL,
   NO_PLATE_LABEL,
@@ -36,7 +37,8 @@ export function VehicleIdentityChips({
     || (vehicle?.vehicle_title && !vehicle.vehicle_title.includes(NO_PLATE_LABEL)
       ? pullFromTitle(vehicle.vehicle_title, "plate")
       : "");
-  const frame = (vehicle?.frame_number ?? "").trim()
+  // Placeholder GEN-… không phải số khung thật — chip hiện "chưa có khung".
+  const frame = displayFrame(vehicle?.frame_number)
     || (vehicle?.vehicle_title && !vehicle.vehicle_title.includes(NO_FRAME_LABEL)
       ? pullFromTitle(vehicle.vehicle_title, "frame")
       : "");

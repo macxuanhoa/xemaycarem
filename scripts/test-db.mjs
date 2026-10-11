@@ -24,12 +24,18 @@ import { runVehicleTypeCatalogTests } from '../tests/db/vehicle-type-catalog.tes
 import { runFieldPurgeIntegrityTests } from '../tests/db/field-purge-integrity.test.mjs'
 import { runPlateDisplayFormatTests } from '../tests/db/plate-display-format.test.mjs'
 import { runVehicleDuplicateDetectionTests } from '../tests/db/vehicle-duplicate-detection.test.mjs'
+import { runDuplicatePlateLast5ReviewTests } from '../tests/db/duplicate-plate-last5-review.test.mjs'
 import { runVehicleIdentifierLookupTests } from '../tests/db/vehicle-identifier-lookup.test.mjs'
+import { runVehicleLabelPlaceholderTests } from '../tests/db/vehicle-label-placeholder.test.mjs'
 import { runRuntimeMonitoringTests } from '../tests/db/runtime-monitoring.test.mjs'
 import { runPostStudioAiTests } from '../tests/db/post-studio-ai.test.mjs'
 import { verifiedPayment } from '../tests/db/payment-fixtures.mjs'
 import { runPaymentReceiptSecurityTests } from '../tests/db/payment-receipt-security.test.mjs'
 import { runVietQrPaymentTests } from '../tests/db/vietqr-payment.test.mjs'
+import { runSmartSalesAutomationTests } from '../tests/db/smart-sales-automation.test.mjs'
+import { runSeasonalThemeTetTests } from '../tests/db/seasonal-theme-tet2027.test.mjs'
+import { runSecurityIntegrationTests } from '../tests/db/security-integration.test.mjs'
+import { runMessageDeliveryTrustTests } from '../tests/db/message-delivery-trust.test.mjs'
 
 const engine = process.argv.includes('--pglite') ? 'pglite' : 'postgres'
 console.log(`Database integration suite: ${engine} (disposable database; no cloud credentials)`)
@@ -57,10 +63,16 @@ await runVehicleTypeCatalogTests(null, { engine })
 await runFieldPurgeIntegrityTests(null, { engine })
 await runPlateDisplayFormatTests(null, { engine })
 await runVehicleDuplicateDetectionTests(null, { engine })
+await runDuplicatePlateLast5ReviewTests(null, { engine })
 await runVehicleIdentifierLookupTests(null, { engine })
+await runVehicleLabelPlaceholderTests(null, { engine })
 await runRuntimeMonitoringTests(null, { engine })
 await runPostStudioAiTests(null, { engine })
 await runVietQrPaymentTests(null, { engine })
+await runSmartSalesAutomationTests(null, { engine })
+await runSeasonalThemeTetTests(null, { engine })
+await runSecurityIntegrationTests(null, { engine })
+await runMessageDeliveryTrustTests(null, { engine })
 const db = await createDatabase({ engine })
 let passed = 0
 const users = Object.fromEntries(['owner', 'manager', 'financialManager', 'staff', 'disabled'].map((role) => [role, randomUUID()]))
@@ -102,13 +114,13 @@ try {
     const role = name === 'financialManager' ? 'MANAGER' : name === 'disabled' ? 'STAFF' : name.toUpperCase()
     await db.query('UPDATE public.profiles SET role=$1::public.user_role,active=$2,can_view_financials=$3 WHERE id=$4', [role, name !== 'disabled', name === 'financialManager', id])
   }
-  await test('OWNER creates a vehicle; actor and inventory state come from the session', async () => {
-    vehicleId = await call('owner', 'save_vehicle', vehicle({ created_by: users.staff }))
+  await test('STAFF creates a business-visible vehicle; actor and inventory state come from the session', async () => {
+    vehicleId = await call('staff', 'save_vehicle', vehicle({ created_by: users.owner }))
     const actual = await getVehicle('owner', vehicleId)
     assert.equal(actual.purchase_price, 80_000_000)
     assert.equal(actual.total_cost, 80_000_000)
     assert.equal(actual.status, 'IN_STOCK')
-    assert.equal(actual.created_by, users.owner)
+    assert.equal(actual.created_by, users.staff)
     assert.match(actual.internal_code, /^XE-\d{4}-\d+$/)
   })
   await test('Anonymous role cannot read business data or invoke privileged RPCs', async () => {
@@ -185,7 +197,7 @@ try {
     await deny(() => call('owner', 'save_vehicle', vehicle({ purchase_price: -1 })), /INVALID_MONEY|check constraint/)
   })
   await test('A late audit failure rolls back sale, snapshot, payment and vehicle status together', async () => {
-    const id = await call('owner', 'save_vehicle', vehicle())
+    const id = await call('staff', 'save_vehicle', vehicle())
     const before = await row('SELECT (SELECT count(*) FROM public.sales) AS sales,(SELECT count(*) FROM public.payments) AS payments,(SELECT count(*) FROM public.sale_financials) AS snapshots,(SELECT count(*) FROM public.audit_logs) AS audits')
     await db.exec("CREATE FUNCTION private.test_reject_sale_audit() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN IF NEW.action='CREATE_SALE' THEN RAISE EXCEPTION 'TEST_AUDIT_FAILURE'; END IF; RETURN NEW; END $$; CREATE TRIGGER test_reject_sale_audit BEFORE INSERT ON public.audit_logs FOR EACH ROW EXECUTE FUNCTION private.test_reject_sale_audit();")
     try { await deny(() => call('staff', 'sell_vehicle', sale(id)), /TEST_AUDIT_FAILURE/) }
@@ -380,7 +392,7 @@ async function concurrencyTests() {
   })
   await test('A sale waits for an in-flight expense and includes its committed cost snapshot', async () => {
     const id = await call('owner', 'save_vehicle', vehicle())
-    const result = await interleave((client) => rpc(client, 'save_expense', "'vehicle',$1::jsonb", [JSON.stringify(expense(id, 900_000))]), (client) => rpc(client, 'sell_vehicle', '$1::jsonb', [JSON.stringify(sale(id))]), true)
+    const result = await interleave((client) => rpc(client, 'save_expense', "'vehicle',$1::jsonb", [JSON.stringify(expense(id, 900_000))]), (client) => rpc(client, 'sell_vehicle', '$1::jsonb', [JSON.stringify(sale(id))]), true, users.owner)
     assert.equal((await getSale('owner', result.second.value)).total_cost_snapshot, 80_900_000)
   })
   await test('Payment submitted while cancellation is in flight fails after cancellation commits', async () => {

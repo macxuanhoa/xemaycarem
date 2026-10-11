@@ -60,7 +60,8 @@ export async function runBusinessRisksTests(externalDb, { engine = 'postgres' } 
   }
 
   // 1. VEHICLE INVENTORY: Unique internal_code constraint
-  const v1Id = await call('owner', 'save_vehicle', {
+  // STAFF-authored intake has PUBLIC cost for the accounting/sale contract.
+  const v1Id = await call('staff', 'save_vehicle', {
     request_id: randomUUID(),
     vehicle_type: 'Xe tay ga',
     license_plate: '29-TEST-01',

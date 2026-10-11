@@ -57,6 +57,14 @@ export function friendlyError(error: unknown): string {
     return "Biển số và 5 ký tự cuối số khung trùng với xe đang quản lý. Hãy nhập số khung đầy đủ hoặc mở hồ sơ hiện có để đối chiếu.";
   if (/DUPLICATE_VEHICLE_NEEDS_CONFIRM|PARTIAL_MATCH/i.test(value))
     return "Có thể xe này đã tồn tại. Hãy kiểm tra danh sách xe tương tự rồi xác nhận lưu.";
+  // Luồng xác minh nghi trùng theo vai trò (migration 20261011000400). Hai mã
+  // dưới đây chỉ xuất hiện ở luồng này nên an toàn khi ánh xạ toàn cục; còn
+  // ALREADY_PENDING / APPROVAL_STALE_DATA dùng chung với bán dưới giá thu nên
+  // được diễn giải riêng ngay tại UI gửi/duyệt để không đổi văn bản cũ.
+  if (/DUPLICATE_OVERRIDE_REASON_REQUIRED/i.test(value))
+    return "Cần nhập lý do ngoại lệ (từ 5 ký tự) trước khi lưu hồ sơ nghi trùng.";
+  if (/NO_DUPLICATE_TO_REVIEW/i.test(value))
+    return "Tín hiệu nghi trùng không còn khi gửi. Hãy tải lại kiểm tra trùng; nếu vẫn nghi vấn, mở hồ sơ hiện có để đối chiếu.";
   if (
     /USERNAME_EXISTS/i.test(value) ||
     (code === "23505" && /username|profiles_username|email/.test(signature))
@@ -115,6 +123,16 @@ export function friendlyError(error: unknown): string {
     return "Chứng từ này đã được dùng hoặc có thông tin khác. Khoản thu chưa được ghi nhận; hãy đối chiếu chứng từ và lịch sử với quản lý.";
   if (/PAYMENT_REQUEST_CONFLICT/i.test(value))
     return "Lần thu tiền này có thông tin khác với lần gửi trước. Kiểm tra lịch sử thanh toán trước khi lập khoản thu mới.";
+  if (/BANK_WEBHOOK_NOT_CONFIGURED/i.test(value))
+    return "Kết nối ngân hàng chưa được cấu hình đầy đủ. Chủ cửa hàng cần kiểm tra cấu hình trước khi nhận giao dịch tự động.";
+  if (/BANK_PROVIDER_MISMATCH/i.test(value))
+    return "Giao dịch đến từ dịch vụ ngân hàng khác với cấu hình cửa hàng. Hãy kiểm tra nguồn giao dịch trước khi đối soát.";
+  if (/BANK_ACCOUNT_MISMATCH/i.test(value))
+    return "Tài khoản nhận tiền không khớp cấu hình cửa hàng. Hãy đối chiếu đúng tài khoản trước khi ghi nhận.";
+  if (/BANK_TRANSACTION_AMOUNT_MISMATCH/i.test(value))
+    return "Số tiền ngân hàng nhận không khớp yêu cầu VietQR. Hãy đối chiếu tiền thực nhận và tạo yêu cầu với đúng số tiền.";
+  if (/VIETQR_REQUEST_NOT_PENDING/i.test(value))
+    return "Yêu cầu VietQR đã được xử lý hoặc không còn chờ thanh toán. Tải lại giao dịch trước khi đối soát.";
   if (/OPERATION_REQUEST_CONFLICT/i.test(value))
     return "Mã giao dịch này đã được dùng với thông tin khác. Hãy đối soát giao dịch trước và kiểm tra lịch sử trước khi tạo giao dịch mới.";
   if (/VEHICLE_EDIT_CONFLICT/i.test(value))
@@ -156,5 +174,25 @@ export function friendlyError(error: unknown): string {
     return value;
   }
   return "Không thể hoàn tất thao tác. Vui lòng tải lại dữ liệu và thử lại.";
+}
+
+/**
+ * ALREADY_PENDING và APPROVAL_STALE_DATA là mã dùng chung giữa luồng "bán dưới
+ * giá thu" và luồng "xác minh nghi trùng". friendlyError chỉ có một văn bản cho
+ * mỗi mã (đang thiên về bán), nên UI nghi trùng gọi hàm này để đọc đúng ngữ cảnh
+ * mà KHÔNG sửa ánh xạ toàn cục (tránh hồi quy cho luồng bán).
+ */
+export function mapDuplicateReviewError(error: unknown): string {
+  const raw =
+    error && typeof error === "object" && "message" in error
+      ? String((error as { message: unknown }).message)
+      : error instanceof Error
+        ? error.message
+        : "";
+  if (/ALREADY_PENDING/i.test(raw))
+    return "Hồ sơ nghi trùng này đang có yêu cầu xác minh chờ Chủ/Quản lý. Không gửi yêu cầu trùng — hãy chờ quyết định đã.";
+  if (/APPROVAL_STALE_DATA/i.test(raw))
+    return "Dữ liệu xe hoặc hồ sơ đối chiếu đã thay đổi so với lúc gửi. Không lưu được bản cũ; tải lại và kiểm tra trùng rồi thao tác tiếp.";
+  return friendlyError(error);
 }
 

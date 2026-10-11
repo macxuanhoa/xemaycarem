@@ -289,7 +289,7 @@ test("FLOW A: OWNER full lifecycle (create vehicle -> inventory -> expense -> se
   await page.goto("/vehicles/new");
   await page.getByLabel("Loại xe *", { exact: true }).fill("Xe côn tay");
   await page.getByLabel("Số khung", { exact: true }).fill("FLOWA0001");
-  await page.getByLabel("Giá mua (₫) *", { exact: false }).fill("40000000");
+  await page.getByLabel("Giá thu (₫) *", { exact: false }).fill("40000000");
   await page.getByRole("button", { name: "Lưu xe mới", exact: true }).click();
   await expect(page).toHaveURL(/\/vehicles\/[a-f0-9-]{36}$/);
   const vehicleId = page.url().split("/").at(-1);
@@ -337,7 +337,7 @@ test("FLOW B: Partial payment -> second payment -> fully paid", async ({ page })
   await page.goto("/vehicles/new");
   await page.getByLabel("Loại xe *", { exact: true }).fill("Xe tay ga");
   await page.getByLabel("Số khung", { exact: true }).fill("FLOWB0001");
-  await page.getByLabel("Giá mua (₫) *", { exact: false }).fill("28000000");
+  await page.getByLabel("Giá thu (₫) *", { exact: false }).fill("28000000");
   await page.getByRole("button", { name: "Lưu xe mới", exact: true }).click();
   await expect(page).toHaveURL(/\/vehicles\/[a-f0-9-]{36}$/);
   const vehicleId = page.url().split("/").at(-1);
@@ -707,9 +707,9 @@ test("Operational: QR vehicle route opens after login (dashboard-first), downloa
   // Login always lands on the dashboard first; the QR target is then opened normally.
   await expect(page).toHaveURL("/");
   await page.goto(`/vehicles/${createdVehicles[0]}`);
-  await expect(page.getByRole("img", { name: /QR mở xe/ })).toBeVisible();
+  await expect(page.getByRole("img", { name: "Mã QR xe", exact: true })).toBeVisible();
   const download = page.waitForEvent("download");
-  await page.getByRole("button", { name: "Tải QR", exact: true }).click();
+  await page.locator(".vehicle-qr-actions").getByRole("button", { name: "Tải", exact: true }).click();
   expect((await download).suggestedFilename()).toMatch(/QR\.svg$/);
   await page.setViewportSize({ width: 390, height: 844 });
   await page.screenshot({ path: "test-results/vehicle-qr-mobile.png", fullPage: true });

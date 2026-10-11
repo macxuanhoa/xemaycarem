@@ -28,11 +28,11 @@ try {
     const data = { request_id:randomUUID(), vehicle_id:vehicle, customer_name:'Synthetic', customer_phone:'', sale_price:1000, initial_payment:100, payment_method:'CASH', sale_date:day };
     const a=await db.connection(),b=await db.connection();
     try {
-      const results=await Promise.all([call(a,staff,'sell_vehicle',data),call(b,staff,'sell_vehicle',data)]);
+      const results=await Promise.all([call(a,owner,'sell_vehicle',data),call(b,owner,'sell_vehicle',data)]);
       assert.equal(results[0],results[1]); sale=results[0];
       const totals=(await db.query('SELECT (SELECT count(*) FROM public.sales WHERE vehicle_id=$1) AS s,(SELECT count(*) FROM public.payments WHERE sale_id=$2) AS p,(SELECT count(*) FROM public.audit_logs WHERE entity_id=$2 AND action=\'CREATE_SALE\') AS a',[vehicle,sale])).rows[0];
       assert.deepEqual(Object.values(totals).map(Number),[1,1,1]);
-      await assert.rejects(() => call(db,staff,'sell_vehicle',{...data,sale_price:1001}),/OPERATION_REQUEST_CONFLICT/);
+      await assert.rejects(() => call(db,owner,'sell_vehicle',{...data,sale_price:1001}),/OPERATION_REQUEST_CONFLICT/);
     } finally {await a.close();await b.close();}
   });
   await test('batch replay skips duplicate validation after committed import without repeating side effects', async () => {

@@ -83,7 +83,7 @@ export async function runPostStudioAiTests(externalDb, { engine = 'postgres' } =
     await db.query("UPDATE public.vehicles SET status='RESERVED' WHERE id=$1", [reserved])
     await deny(() => call('staff', 'get_post_studio_context', '$1::uuid', [reserved]), /POST_STUDIO_VEHICLE_UNAVAILABLE/)
     const soldId = await seedVehicle()
-    await call('staff', 'sell_vehicle', '$1::jsonb', [JSON.stringify({
+    await call('owner', 'sell_vehicle', '$1::jsonb', [JSON.stringify({
       vehicle_id: soldId, customer_name: 'Khách Kiểm Thử', customer_phone: '0912345678',
       sale_price: 35_000_000, sale_date: day, initial_payment: 0, payment_method: 'CASH', request_id: randomUUID(),
     })])

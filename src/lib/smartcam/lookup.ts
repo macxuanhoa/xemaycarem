@@ -4,6 +4,7 @@
  * search, it examines every eligible vehicle and returns identity fields only.
  */
 import { api } from "@/lib/api";
+import { isPlaceholderFrame } from "@/lib/frameNumber";
 import { normalizePlate } from "@/lib/plate";
 import { AppError } from "@/lib/errors";
 import {
@@ -23,7 +24,7 @@ const compact = (value: string) =>
 
 /** Partial chassis fragments are leads, never an automatic vehicle identity. */
 function fullFrame(value: string): string | null {
-  if (!/^[A-Z0-9\s.-]+$/i.test(value) || /^\s*GEN-/i.test(value)) return null;
+  if (!/^[A-Z0-9\s.-]+$/i.test(value) || isPlaceholderFrame(value)) return null;
   const normalized = compact(value);
   return normalized.length >= 11 &&
     normalized.length <= 100 &&

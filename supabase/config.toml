@@ -69,3 +69,11 @@ verify_jwt = true
 
 [functions.ai-assist]
 verify_jwt = true
+
+[functions.post-ai]
+verify_jwt = true
+
+# Bank providers authenticate with their own timestamped signature/API secret.
+# The handler performs that check before its service-role-only ingest RPC.
+[functions.bank-webhook]
+verify_jwt = false

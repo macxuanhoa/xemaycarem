@@ -9,8 +9,9 @@
  * 2. PLATE + last-5 together is RED regardless of frame kind (same plate AND
  *    same final five characters ⇒ treated as one bike).
  * 3. A stored PARTIAL fragment vs a newly-entered FULL VIN sharing the last-5
- *    is RED (NEED_VERIFY_PARTIAL_FULL) — the server refuses to assume they are
- *    different bikes.
+ *    is YELLOW (NEED_VERIFY_PARTIAL_FULL) — the two-way "same final five, other
+ *    kind" signal is a hint to verify, never a hard block (migration
+ *    20261011000300). Acknowledging it saves the bike and records history.
  * 4. A single matching signal (only last-5, same kind) is YELLOW: blocked until
  *    acknowledged, then allowed and recorded in vehicle_duplicate_checks.
  * 5. Lifecycle: SOLD still counts (re-acquire is RED); CANCELLED is ignored so
@@ -99,6 +100,28 @@ export async function runVehicleDuplicateDetectionTests(externalDb, { engine = '
     assert.equal(norm.plate_compact, '29A111111', 'plate drops the separator to one alnum key')
     assert.equal(norm.frame_input_kind, 'PARTIAL', 'a 7-char frame is a fragment, not a VIN')
 
+    await pass('server derives kind from the frame, ignores a client-sent frame_input_kind')
+    const saveWithId = (data, id) =>
+      asUser(db, ownerId, (c) => rpc(c, 'save_vehicle', '$1::jsonb, $2::uuid', [JSON.stringify(data), id]))
+    // A client (old form / CSV / direct API) still tries to force FULL on a 7-char fragment.
+    const spoofId = await save(
+      bike({ frame_number: 'SHORT51', license_plate: '27K6-111.22', frame_input_kind: 'FULL' }),
+    )
+    assert.equal(
+      (await frameCols(spoofId)).frame_input_kind,
+      'PARTIAL',
+      'a short frame can never be forced to FULL by payload — length is the only source',
+    )
+    // Editing an unrelated field on a legacy hand-flagged FULL row (frame untouched)
+    // must preserve the stored classification so history / UNIQUE guards are not rewritten.
+    await db.query("UPDATE public.vehicles SET frame_input_kind='FULL' WHERE id=$1", [spoofId])
+    await saveWithId(bike({ license_plate: '27K6-111.22', color: 'Xanh' }), spoofId)
+    assert.equal(
+      (await frameCols(spoofId)).frame_input_kind,
+      'FULL',
+      'an edit that leaves the real frame unchanged keeps the historical classification',
+    )
+
     await pass('FULL frame collision is RED (DUPLICATE_FRAME_NUMBER) without a plain UNIQUE')
     const fullVin = 'RLCE32P1234567' // 14 alnum ⇒ FULL
     await save(bike({ frame_number: fullVin, license_plate: '30B1-555.55' }))
@@ -121,17 +144,27 @@ export async function runVehicleDuplicateDetectionTests(externalDb, { engine = '
       /DUPLICATE_VEHICLE_SUSPECTED/,
     )
 
-    await pass('stored PARTIAL vs newly-entered FULL sharing the last-5 is RED (NEED_VERIFY)')
+    await pass('stored PARTIAL vs newly-entered FULL sharing the last-5 ⇒ YELLOW (NEED_VERIFY), not a hard block')
     await save(bike({ frame_number: 'AB012345', license_plate: '14B1-111.11' })) // PARTIAL tail 12345
-    await assert.rejects(
-      () =>
-        save(
-          bike({
-            frame_number: 'QQQQQQQQ12345', // FULL, same tail 12345, different plate ⇒ RED3
-            license_plate: '18C2-222.22',
-          }),
-        ),
-      /DUPLICATE_VEHICLE_SUSPECTED/,
+    // Two-way cross-kind same tail is only a hint now: blocked until ack, then allowed.
+    const crossAttempt = bike({
+      frame_number: 'QQQQQQQQ12345', // FULL, same tail 12345, different plate ⇒ YELLOW1
+      license_plate: '18C2-222.22',
+    })
+    await assert.rejects(() => save(crossAttempt), /DUPLICATE_VEHICLE_NEEDS_CONFIRM/)
+    const crossPreview = await preview({
+      frame_number: 'QQQQQQQQ12345',
+      license_plate: '18C2-222.22',
+    })
+    assert.equal(crossPreview.level, 'YELLOW', 'preview agrees the cross-kind tail match is YELLOW')
+    assert.equal(crossPreview.reason, 'NEED_VERIFY_PARTIAL_FULL')
+    const crossAckedId = await save({ ...crossAttempt, duplicate_ack: true })
+    assert.ok(crossAckedId, 'an acknowledged cross-kind YELLOW save succeeds')
+    assert.ok(
+      (await checkRows('SAVE')).some(
+        (r) => r.level === 'YELLOW' && r.reason === 'NEED_VERIFY_PARTIAL_FULL' && r.acknowledged,
+      ),
+      'the acknowledged cross-kind save records a verification-history row',
     )
 
     await pass('only the last-5 matches (same kind) ⇒ YELLOW: blocked without ack, allowed with ack')

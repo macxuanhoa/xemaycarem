@@ -394,6 +394,46 @@ export const api = {
       p_reason: reason ?? null,
     }),
   /**
+   * STAFF/MANAGER gặp nghi trùng PLATE_AND_LAST5 (RED): KHÔNG lưu xe, gửi đúng dữ
+   * liệu đang soạn sang hàng đợi xác minh của OWNER/MANAGER. Server tự phân loại
+   * số khung và bỏ qua yêu cầu nếu tín hiệu đã mất. request_id chống gửi trùng.
+   * Trả về id của đơn chờ vừa tạo. `requested_data` đi kèm ảnh/trường bắt buộc để
+   * Chủ/Quản lý duyệt rồi ghi đúng bản nhân viên đã nhập.
+   */
+  requestVehicleDuplicateReview: async (
+    data: Record<string, unknown>,
+    requestId: string,
+  ) =>
+    call<string>("request_vehicle_duplicate_review", {
+      p_data: { ...data, request_id: requestId },
+    }),
+  /**
+   * OWNER/MANAGER quyết định đơn nghi trùng. APPROVE bắt buộc lý do và server kiểm
+   * lại dữ liệu/ứng viên/trùng trong cùng transaction rồi lưu ngoại lệ (trả về
+   * vehicle_id mới); REJECT không tạo gì. Không lộ giá vốn riêng tư qua phản hồi.
+   */
+  resolveVehicleDuplicateReview: async (
+    approvalId: string,
+    action: "APPROVE" | "REJECT",
+    reason: string | undefined,
+    requestId: string,
+  ) =>
+    call<{ approval_id: string; action: string; vehicle_id: string | null }>(
+      "resolve_vehicle_duplicate_review",
+      {
+        p_approval_id: approvalId,
+        p_action: action,
+        p_reason: reason ?? null,
+        p_request_id: requestId,
+      },
+    ),
+  /** Hàng đợi nghi trùng riêng cho OWNER + MANAGER (không đụng hàng đợi tài chính). */
+  listVehicleDuplicateReviews: async (filters: Record<string, unknown> = {}) =>
+    call<{ items: import("@/types").ApprovalRequest[]; total: number }>(
+      "list_vehicle_duplicate_reviews",
+      { p_filters: filters },
+    ),
+  /**
    * Danh mục loại xe (bảng vehicle_types). Mọi role đang công tác đọc được;
    * `save_vehicle_type`/`delete_vehicle_type` là OWNER tuyệt đối — server từ
    * chối trùng tên sau chuẩn hoá và chặn xoá loại đang có xe tham chiếu.
@@ -414,11 +454,11 @@ export const api = {
    * Phát hiện nghi trùng THÔNG MINH cho một hồ sơ xe đang soạn (ba mức
    * GREEN/YELLOW/RED). Server là nguồn chân lý: cùng bộ máy `detect` sẽ chạy
    * lại khi lưu, nên kết quả xem trước ở đây khớp từng chữ ký với lúc ghi.
+   * Không có trường loại số khung — server tự suy từ độ dài (`private.frame_kind`).
    */
   checkVehicleDuplicates: async (input: {
     frame_number: string;
     license_plate: string;
-    frame_input_kind?: string;
     exclude_vehicle_id?: string | null;
   }) =>
     call<import("./vehicleDuplicateCheck").DuplicateCheckResult>(
@@ -505,6 +545,111 @@ export const api = {
     call<import("@/types").VietQrPaymentRequest | null>("get_active_vietqr_request", {
       p_vehicle_id: vehicleId,
       p_sale_id: saleId ?? null,
+    }),
+  /**
+   * Trạng thái đối soát của một yêu cầu VietQR (tiền ngân hàng đã về chưa).
+   */
+  getVietQrMatchingStatus: async (qrRequestId: string) =>
+    call<import("@/types").VietQrMatchingStatus | null>("get_vietqr_matching_status", {
+      p_qr_request_id: qrRequestId,
+    }),
+  listBankTransactions: async (filters: {
+    status?: string;
+    limit?: number;
+    offset?: number;
+  } = {}) =>
+    call<import("@/types").BankTransactionList>("list_bank_transactions", {
+      p_filters: filters,
+    }),
+  confirmBankTransaction: async (data: {
+    id: string;
+    request_id?: string;
+    payment_date?: string;
+    notes?: string;
+  }) =>
+    call<{ id: string; status: string; payment_id: string | null }>(
+      "confirm_bank_transaction",
+      { p_data: data },
+    ),
+  linkBankTransaction: async (data: {
+    id: string;
+    qr_request_id?: string;
+    reference?: string;
+  }) =>
+    call<{ id: string; status: string; qr_request_id: string }>(
+      "link_bank_transaction",
+      { p_data: data },
+    ),
+  ignoreBankTransaction: async (data: { id: string; reason: string }) =>
+    call<{ id: string; status: string }>("ignore_bank_transaction", {
+      p_data: data,
+    }),
+  getBankWebhookState: async () =>
+    call<{
+      provider: string;
+      webhook_enabled: boolean;
+      auto_match_enabled: boolean;
+      account_configured: boolean;
+    }>("get_bank_webhook_state"),
+  /** Probe sức khỏe webhook ngân hàng qua Edge (chỉ CONFIGURED/NOT_CONFIGURED). */
+  checkBankWebhookHealth: async (): Promise<"CONFIGURED" | "NOT_CONFIGURED" | "UNREACHABLE"> => {
+    ensureOnline();
+    if (!supabase) return "UNREACHABLE";
+    try {
+      const { data } = await supabase.functions.invoke("bank-webhook", {
+        method: "GET",
+      });
+      return data?.status === "CONFIGURED" ? "CONFIGURED" : "NOT_CONFIGURED";
+    } catch {
+      return "UNREACHABLE";
+    }
+  },
+  listSaleContacts: async (saleId: string) =>
+    call<import("@/types").CustomerContact[]>("list_sale_contacts", {
+      p_sale_id: saleId,
+    }),
+  saveSaleContact: async (data: {
+    id?: string;
+    sale_id?: string;
+    channel: string;
+    handle?: string;
+    phone?: string;
+    display_name?: string;
+    note?: string;
+  }) => call<import("@/types").CustomerContact>("save_sale_contact", { p_data: data }),
+  verifySaleContact: async (id: string, verified: boolean) =>
+    call<import("@/types").CustomerContact>("verify_sale_contact", {
+      p_data: { id, verified },
+    }),
+  deleteSaleContact: async (id: string) =>
+    call<void>("delete_sale_contact", { p_id: id }),
+  listSaleThankYouQueue: async (saleId: string) =>
+    call<import("@/types").ThankYouQueueItem[]>("list_sale_thank_you_queue", {
+      p_sale_id: saleId,
+    }),
+  markThankYouCopied: async (saleId: string) =>
+    call<Record<string, unknown>>("mark_thank_you_copied", { p_sale_id: saleId }),
+  markPersonalThankYouSent: async (data: {
+    sale_id: string;
+    channel: string;
+    evidence_note?: string;
+  }) =>
+    call<{ id: string; status: string; channel: string }>(
+      "mark_personal_thank_you_sent",
+      { p_data: data },
+    ),
+  listMessageTemplates: async () =>
+    call<import("@/types").MessageTemplate[]>("list_message_templates"),
+  saveMessageTemplate: async (data: {
+    code: string;
+    name?: string;
+    channel?: string;
+    body: string;
+    is_active?: boolean;
+  }) => call<import("@/types").MessageTemplate>("save_message_template", { p_data: data }),
+  previewMessageTemplate: async (data: { code: string; sale_id?: string }) =>
+    call<{ code: string; rendered: string }>("preview_message_template", {
+      p_data: data,
     }),
 };
 

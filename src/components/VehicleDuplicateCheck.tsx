@@ -7,67 +7,24 @@ import {
 } from "lucide-react";
 import { vehicleTitle } from "@/lib/vehicleDisplay";
 import { duplicateReasonCopy, type FrameInputKind } from "@/lib/frameNumber";
+import { decideDuplicateAction } from "@/lib/duplicateReviewDecision";
 import type { DuplicateCheckResult } from "@/lib/vehicleDuplicateCheck";
-
-/** Cách chọn loại dữ liệu số khung: "AUTO" để hệ thống tự nhận theo độ dài. */
-export type FrameKindSelection = "AUTO" | FrameInputKind;
+import type { Role } from "@/types";
 
 /**
- * Ô số khung CHỈ có một; hệ thống TỰ nhận FULL (VIN đầy đủ ≥ 11 ký tự, giữ
- * danh tính cứng UNIQUE) hay PARTIAL (mảnh 5 ký tự cuối, chỉ nghi trùng). Nút
- * chọn tay được ẩn vào "Nâng cao", dùng cho ngoại lệ — ví dụ số khung hợp lệ
- * nhưng ngắn hơn 11 ký tự mà nhân viên muốn ép về "Đầy đủ" để chặn trùng cứng.
+ * Ô số khung CHỈ có một và hệ thống TỰ phân loại: FULL (VIN đầy đủ ≥ 11 ký tự,
+ * giữ danh tính cứng UNIQUE) hay PARTIAL (mảnh 5 ký tự cuối, chỉ nghi trùng).
+ * Nhân viên KHÔNG chọn tay nữa — server là nguồn quyết định duy nhất
+ * (`private.frame_kind`), dòng chữ này chỉ để nhân viên hiểu mức cảnh báo sẽ ra.
  */
-export function FrameKindAdvanced({
-  kind,
-  selection,
-  onSelect,
-  disabled,
-}: {
-  kind: FrameInputKind;
-  selection: FrameKindSelection;
-  onSelect: (value: FrameKindSelection) => void;
-  disabled?: boolean;
-}) {
-  const options: { value: FrameKindSelection; label: string }[] = [
-    { value: "AUTO", label: "Tự động" },
-    { value: "FULL", label: "Đầy đủ" },
-    { value: "PARTIAL", label: "Rút gọn" },
-  ];
+export function FrameKindHint({ kind }: { kind: FrameInputKind }) {
   return (
-    <div className="frame-kind-advanced">
-      <span className="frame-kind-detected muted small">
-        Nhận diện:{" "}
-        {kind === "FULL" ? "số khung đầy đủ" : "5 ký tự cuối (rút gọn)"}
-        {selection !== "AUTO" ? " · chọn thủ công" : ""}
-      </span>
-      <details className="frame-kind-details">
-        <summary>Loại số khung (nâng cao)</summary>
-        <div
-          className="frame-kind-segmented"
-          role="radiogroup"
-          aria-label="Loại dữ liệu số khung"
-        >
-          {options.map((option) => (
-            <button
-              key={option.value}
-              type="button"
-              role="radio"
-              aria-checked={selection === option.value}
-              disabled={disabled}
-              className={`frame-kind-option${selection === option.value ? " active" : ""}`}
-              onClick={() => onSelect(option.value)}
-            >
-              {option.label}
-            </button>
-          ))}
-        </div>
-        <p className="frame-kind-hint muted small">
-          Hệ thống tự nhận số khung từ 11 ký tự là đầy đủ. Chọn "Đầy đủ" nếu đây
-          là số khung hợp lệ nhưng ngắn hơn, để áp dụng chặn trùng tuyệt đối.
-        </p>
-      </details>
-    </div>
+    <span className="frame-kind-detected muted small">
+      Nhận diện:{" "}
+      {kind === "FULL"
+        ? "số khung đầy đủ (chặn trùng tuyệt đối)"
+        : "5 ký tự cuối (rút gọn · chỉ báo nghi trùng)"}
+    </span>
   );
 }
 
@@ -114,6 +71,7 @@ export function DuplicateInspector({
   result,
   hasSignal,
   acknowledged,
+  role,
   onAcknowledge,
   onRetry,
 }: {
@@ -122,6 +80,7 @@ export function DuplicateInspector({
   result?: DuplicateCheckResult;
   hasSignal: boolean;
   acknowledged: boolean;
+  role: Role;
   onAcknowledge: (value: boolean) => void;
   onRetry?: () => void;
 }) {
@@ -174,14 +133,37 @@ export function DuplicateInspector({
     );
   }
 
-  // RED — chặn cứng cho tới khi nhập số khung đầy đủ hoặc xử lý xong ở hồ sơ khác.
+  // RED: FULL_FRAME_MATCH là chặn tuyệt đối với mọi vai trò; PLATE_AND_LAST5 là
+  // nghi trùng xử lý theo vai trò (Nhân viên gửi yêu cầu, Chủ/Quản lý lưu ngoại lệ).
+  const action = decideDuplicateAction({
+    level: "RED",
+    reason: result.reason,
+    role,
+    acknowledged,
+  });
+  const redCopy =
+    action.kind === "hard-block"
+      ? {
+          title: "Trùng số khung đầy đủ — không lưu được",
+          hint: "Số khung trùng chính xác một xe đang quản lý. Kể cả Chủ cửa hàng cũng không thể lưu trùng; hãy mở hồ sơ hiện có để cập nhật.",
+        }
+      : action.kind === "request-review"
+        ? {
+            title: "Nghi trùng — cần Chủ/Quản lý xác minh",
+            hint: "Xe chưa được lưu. Mở hồ sơ nghi trùng để đối chiếu, rồi bấm «Gửi yêu cầu xác minh» chuyển Chủ/Quản lý.",
+          }
+        : {
+            title: "Nghi trùng — Chủ/Quản lý có thể lưu ngoại lệ",
+            hint: "Mở hồ sơ nghi trùng, đối chiếu thực tế, rồi bấm Lưu để nhập lý do ngoại lệ (được ghi vào kiểm toán).",
+          };
   return (
     <div className="notice danger duplicate-panel" role="alert">
       <div className="duplicate-panel-head">
         <ShieldAlert size={16} aria-hidden="true" />
-        <strong>Nghi trùng xe đang quản lý — chưa cho lưu</strong>
+        <strong>{redCopy.title}</strong>
       </div>
       <p className="duplicate-panel-reason">{duplicateReasonCopy(result.reason)}</p>
+      <p className="muted small">{redCopy.hint}</p>
       <CandidateList candidates={result.candidates} />
     </div>
   );

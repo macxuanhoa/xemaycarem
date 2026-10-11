@@ -41,11 +41,24 @@ export default defineConfig({
         globPatterns: ["**/*.{js,css,html,svg,png,woff2}"],
         // The Tesseract WASM runtime (~13 MB) must never be precached with the
         // app shell; the OCR worker fetches it on demand and CacheFirst keeps
-        // it for offline scanning afterwards.
-        globIgnores: ["**/tesseract/**"],
+        // it for offline scanning afterwards. The Dê Lái cinematic artwork
+        // (2.3 MB — over workbox's 2 MiB precap) belongs to the optional Tết
+        // opening only: it loads on demand the first time the OWNER enables the
+        // cinematic, then the same runtime pattern keeps that device's opener
+        // playable offline. DEFAULT sessions never fetch any of it.
+        globIgnores: ["**/tesseract/**", "**/tet-de-lai.png"],
         navigateFallback: "/index.html",
         cleanupOutdatedCaches: true,
         runtimeCaching: [
+          {
+            urlPattern: ({ url, sameOrigin }) =>
+              sameOrigin && url.pathname === "/tet-de-lai.png",
+            handler: "CacheFirst",
+            options: {
+              cacheName: "tet-cinematic-art",
+              expiration: { maxEntries: 2, maxAgeSeconds: 60 * 60 * 24 * 120 },
+            },
+          },
           {
             urlPattern: ({ url, sameOrigin }) => sameOrigin && url.pathname.startsWith("/tesseract/"),
             handler: "CacheFirst",

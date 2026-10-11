@@ -9,12 +9,6 @@ export interface RecentVehicleItem {
   updated_at: number;
 }
 
-export interface LastExpenseRecord {
-  type: string;
-  description: string;
-  timestamp: number;
-}
-
 // v3: bản nháp xe cũ lưu Hãng/Dòng xe/Số máy/Số km/Giá dự kiến — nay các trường đó
 // không còn nữa, đổi khoá để chúng bị loại thay vì nạp lại vào form mới.
 const PREFIX = "xe_crm_ux_v3";
@@ -108,7 +102,7 @@ export function clearRecentVehicles(userId?: string): void {
 }
 
 function safeCategory(category: string) {
-  return /^(vehicle_type|color|expense_desc|payment_method)$/.test(
+  return /^(vehicle_type|color|payment_method)$/.test(
     category,
   );
 }
@@ -137,37 +131,6 @@ export function saveRecentValue(
     (v) => v.toLowerCase() !== trimmed.toLowerCase(),
   );
   write(`values:${category}`, [trimmed, ...existing].slice(0, 6), userId);
-}
-
-export function getLastExpense(userId?: string): LastExpenseRecord | null {
-  const value = read("expense", userId) as Partial<LastExpenseRecord> | null;
-  return value &&
-    typeof value.type === "string" &&
-    typeof value.description === "string" &&
-    value.description.length <= 250 &&
-    Number.isFinite(value.timestamp)
-    ? {
-        type: value.type,
-        description: value.description,
-        timestamp: value.timestamp!,
-      }
-    : null;
-}
-
-export function saveLastExpense(
-  expense: { type: string; description: string },
-  userId?: string,
-): void {
-  // Repeat only the description/category. Every expense requires a newly entered amount.
-  write(
-    "expense",
-    {
-      type: expense.type,
-      description: expense.description,
-      timestamp: Date.now(),
-    },
-    userId,
-  );
 }
 
 export function formatRelativeTime(timestamp: number): string {

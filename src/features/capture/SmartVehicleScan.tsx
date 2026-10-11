@@ -8,6 +8,7 @@ import {
   CircleAlert,
   Cpu,
   Images,
+  Power,
   QrCode,
   RotateCcw,
   ScanLine,
@@ -1238,61 +1239,6 @@ export default function SmartVehicleScan() {
                 aria-hidden="true"
               />
             )}
-            {running && !frozenPreview && zoomRange && (
-              <div
-                className="smartcam-zoom-pill"
-                role="group"
-                aria-label="Thu phóng camera"
-              >
-                <button
-                  type="button"
-                  className={
-                    "smartcam-zoom-btn" + (zoomLevel <= 1.2 ? " active" : "")
-                  }
-                  disabled={zoomBusy}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    const track = streamRef.current?.getVideoTracks()[0];
-                    if (track && zoomRange) {
-                      setZoomBusy(true);
-                      void applyZoom(track, zoomRange.min)
-                        .then(() => setZoomLevel(zoomRange.min))
-                        .catch(() => undefined)
-                        .finally(() => {
-                          if (mounted.current) setZoomBusy(false);
-                        });
-                    }
-                  }}
-                  title="Thu phóng 1x"
-                >
-                  1x
-                </button>
-                <button
-                  type="button"
-                  className={
-                    "smartcam-zoom-btn" + (zoomLevel > 1.2 ? " active" : "")
-                  }
-                  disabled={zoomBusy}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    const track = streamRef.current?.getVideoTracks()[0];
-                    if (track && zoomRange) {
-                      setZoomBusy(true);
-                      const target = Math.min(2, zoomRange.max);
-                      void applyZoom(track, target)
-                        .then(() => setZoomLevel(target))
-                        .catch(() => undefined)
-                        .finally(() => {
-                          if (mounted.current) setZoomBusy(false);
-                        });
-                    }
-                  }}
-                  title="Thu phóng 2x"
-                >
-                  2x
-                </button>
-              </div>
-            )}
             {running && !frozenPreview && (
               <div
                 className={
@@ -1342,29 +1288,70 @@ export default function SmartVehicleScan() {
                   <span>{frozenPreview ? "Chụp tấm khác" : "Chụp ảnh xe"}</span>
                 </Button>
               )}
-              <div className="smartcam-idle-actions">
-                <Button
+              {!running && (
+                <div className="smartcam-idle-actions">
+                  <Button
+                    type="button"
+                    variant="primary"
+                    className="smartcam-btn-primary"
+                    disabled={busy || cameraBusy || torchBusy}
+                    onClick={() => void startCamera()}
+                  >
+                    <Camera size={16} />
+                    {cameraBusy ? "Đang mở camera…" : "Mở camera"}
+                  </Button>
+                  <label
+                    className={
+                      "button button-secondary smartcam-btn-upload" +
+                      (busy || cameraBusy || torchBusy ? " disabled" : "")
+                    }
+                  >
+                    <Images size={16} />
+                    <span>Ảnh thư viện</span>
+                    <input
+                      aria-label={
+                        mode === "identity"
+                          ? "Chọn ảnh CCCD từ thư viện"
+                          : mode === "qr"
+                            ? "Chọn ảnh QR xe từ thư viện"
+                            : "Chọn ảnh xe từ thư viện"
+                      }
+                      type="file"
+                      accept="image/jpeg,image/png,image/webp"
+                      disabled={busy || cameraBusy || torchBusy}
+                      onChange={(event) => void pickFromLibrary(event)}
+                    />
+                  </label>
+                </div>
+              )}
+            </div>
+            {running && (
+              <div
+                className="smartcam-quick-toolbar"
+                role="group"
+                aria-label="Điều khiển camera nhanh"
+              >
+                <button
                   type="button"
+                  className="smartcam-quick-btn active"
                   disabled={busy || cameraBusy || torchBusy}
-                  variant={running ? "secondary" : "primary"}
-                  className={running ? undefined : "smartcam-btn-primary"}
-                  onClick={() => void (running ? stopCamera() : startCamera())}
+                  onClick={() => void stopCamera()}
+                  aria-label="Tắt camera"
+                  title="Tắt camera"
                 >
-                  <Camera size={16} />
-                  {cameraBusy
-                    ? "Đang mở camera…"
-                    : running
-                      ? "Tắt camera"
-                      : "Mở camera"}
-                </Button>
+                  <Power size={20} aria-hidden="true" />
+                  <span className="smartcam-quick-label">Tắt cam</span>
+                </button>
                 <label
                   className={
-                    "button button-secondary smartcam-btn-upload" +
+                    "smartcam-quick-btn smartcam-quick-upload" +
                     (busy || cameraBusy || torchBusy ? " disabled" : "")
                   }
+                  aria-label="Tải ảnh lên"
+                  title="Tải ảnh lên"
                 >
-                  <Images size={16} />
-                  <span>Ảnh thư viện</span>
+                  <Images size={20} aria-hidden="true" />
+                  <span className="smartcam-quick-label">Tải ảnh</span>
                   <input
                     aria-label={
                       mode === "identity"
@@ -1379,80 +1366,76 @@ export default function SmartVehicleScan() {
                     onChange={(event) => void pickFromLibrary(event)}
                   />
                 </label>
-              </div>
-            </div>
-            <div
-              className="smartcam-device-controls"
-              role="group"
-              aria-label="Đèn pin và camera"
-            >
-              <button
-                type="button"
-                className={"smartcam-tool-btn" + (torchOn ? " active" : "")}
-                disabled={
-                  !running || !torchSupported || cameraBusy || torchBusy
-                }
-                onClick={() => void toggleTorch()}
-                aria-pressed={torchOn}
-                aria-describedby={
-                  !running || !torchSupported
-                    ? "smartcam-torch-help"
-                    : undefined
-                }
-              >
-                {torchOn ? (
-                  <ZapOff size={16} aria-hidden="true" />
-                ) : (
-                  <Zap size={16} aria-hidden="true" />
-                )}
-                <span>{torchOn ? "Tắt đèn pin" : "Bật đèn pin"}</span>
-              </button>
-              {zoomRange && (
                 <button
                   type="button"
-                  className={
-                    "smartcam-tool-btn" + (zoomLevel > 1.2 ? " active" : "")
+                  className={"smartcam-quick-btn" + (torchOn ? " active" : "")}
+                  disabled={!torchSupported || cameraBusy || torchBusy}
+                  onClick={() => void toggleTorch()}
+                  aria-pressed={torchOn}
+                  aria-label={torchOn ? "Tắt đèn pin" : "Bật đèn pin"}
+                  aria-describedby={
+                    !torchSupported ? "smartcam-torch-help" : undefined
                   }
-                  disabled={!running || zoomBusy || cameraBusy}
-                  onClick={() => void toggleZoom()}
-                  aria-pressed={zoomLevel > 1.2}
-                  title={
-                    zoomLevel > 1.2
-                      ? "Đang phóng to 2x. Bấm để về 1x"
-                      : "Đang ở 1x. Bấm để phóng to 2x"
-                  }
+                  title={torchOn ? "Tắt đèn pin" : "Bật đèn pin"}
                 >
-                  <ZoomIn size={16} aria-hidden="true" />
-                  <span>
-                    {zoomLevel > 1.2 ? "Thu phóng: 2x" : "Thu phóng: 1x"}
+                  {torchOn ? (
+                    <ZapOff size={20} aria-hidden="true" />
+                  ) : (
+                    <Zap size={20} aria-hidden="true" />
+                  )}
+                  <span className="smartcam-quick-label">
+                    {torchOn ? "Tắt đèn" : "Đèn pin"}
                   </span>
                 </button>
-              )}
-              <button
-                type="button"
-                className="smartcam-tool-btn"
-                disabled={busy || cameraBusy || torchBusy}
-                onClick={() => void switchCamera()}
-                title={
-                  running
-                    ? `Đang dùng ${activeFacing === "user" ? "camera trước" : "camera sau"}`
-                    : `Sẽ mở ${activeFacing === "user" ? "camera trước" : "camera sau"}`
-                }
-              >
-                <SwitchCamera size={16} aria-hidden="true" />
-                <span>{cameraFlipLabel(activeFacing)}</span>
-              </button>
-            </div>
-            {(!running || !torchSupported) && (
+                {zoomRange && (
+                  <button
+                    type="button"
+                    className={
+                      "smartcam-quick-btn" + (zoomLevel > 1.2 ? " active" : "")
+                    }
+                    disabled={zoomBusy || cameraBusy}
+                    onClick={() => void toggleZoom()}
+                    aria-pressed={zoomLevel > 1.2}
+                    aria-label={
+                      zoomLevel > 1.2 ? "Thu phóng 2x" : "Thu phóng 1x"
+                    }
+                    title={
+                      zoomLevel > 1.2
+                        ? "Đang phóng to 2x. Bấm để về 1x"
+                        : "Đang ở 1x. Bấm để phóng to 2x"
+                    }
+                  >
+                    <ZoomIn size={20} aria-hidden="true" />
+                    <span className="smartcam-quick-label">
+                      {zoomLevel > 1.2 ? "2x" : "1x"}
+                    </span>
+                  </button>
+                )}
+                <button
+                  type="button"
+                  className="smartcam-quick-btn"
+                  disabled={busy || cameraBusy || torchBusy}
+                  onClick={() => void switchCamera()}
+                  aria-label={cameraFlipLabel(activeFacing)}
+                  title={
+                    `Đang dùng ${activeFacing === "user" ? "camera trước" : "camera sau"}`
+                  }
+                >
+                  <SwitchCamera size={20} aria-hidden="true" />
+                  <span className="smartcam-quick-label">
+                    {cameraFlipLabel(activeFacing)}
+                  </span>
+                </button>
+              </div>
+            )}
+            {running && !torchSupported && (
               <p
                 className="smartcam-device-help muted small"
                 id="smartcam-torch-help"
               >
                 {cameraBusy
                   ? "Đang mở camera…"
-                  : running
-                    ? "Camera này không hỗ trợ đèn pin. Có thể đổi sang camera sau."
-                    : "Mở camera để bật đèn pin khi cần thêm ánh sáng."}
+                  : "Camera này không hỗ trợ đèn pin. Có thể đổi sang camera sau."}
               </p>
             )}
           </div>

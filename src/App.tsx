@@ -60,11 +60,17 @@ const ExpensesPage = lazy(() =>
 const UsersPage = lazy(() => import("@/features/users/UsersPage"));
 const AuditPage = lazy(() => import("@/features/audit/AuditPage"));
 const ApprovalsPage = lazy(() => import("@/features/approvals/ApprovalsPage"));
+const DuplicateReviewsPage = lazy(
+  () => import("@/features/approvals/DuplicateReviewsPage"),
+);
 const SettingsPage = lazy(() => import("@/features/settings/SettingsPage"));
 const ReceivablesPage = lazy(() =>
   import("@/features/sales/ReceivablesPage").then((m) => ({
     default: m.ReceivablesPage,
   })),
+);
+const BankReconciliationPage = lazy(
+  () => import("@/features/reconciliation/BankReconciliationPage"),
 );
 const CustomersPage = lazy(() =>
   import("@/features/customers/CustomersPage").then((m) => ({
@@ -79,6 +85,10 @@ const ReplyAssistantPage = lazy(() => import("@/features/replyassistant/ReplyAss
 const BrandMemoryPage = lazy(() => import("@/features/poststudio/BrandMemoryPage"));
 const DocsPage = lazy(() => import("@/features/docs/DocsPage"));
 const ShowroomPage = lazy(() => import("@/features/showroom/ShowroomPage"));
+/* Unapproved prototype stays available for local review only. */
+const LoadingDemoPage = import.meta.env.DEV
+  ? lazy(() => import("@/components/loader/LoadingDemoPage"))
+  : null;
 function Protected({
   access = "read",
 }: {
@@ -163,6 +173,7 @@ export default function App() {
         <Routes>
           <Route path="/login" element={<LoginPage />} />
           <Route path="/showroom" element={<ShowroomPage />} />
+          {LoadingDemoPage && <Route path="/loading-demo" element={<LoadingDemoPage />} />}
           {/* Password recovery is OWNER/admin-initiated; this route is the
               Supabase Auth recovery callback where the signed-in user sets a new
               password. Self-service email reset is obsolete for internal accounts. */}
@@ -203,8 +214,19 @@ export default function App() {
               </Route>
               <Route element={<Protected access="manage" />}>
                 <Route path="expenses" element={<ExpensesPage />} />
+                <Route
+                  path="bank-reconciliation"
+                  element={<BankReconciliationPage />}
+                />
                 {/* Managers reach Nhân sự only to set roles of their juniors. */}
                 <Route path="users" element={<UsersPage />} />
+                {/* Nghi trùng PLATE_AND_LAST5: hàng đợi riêng cho Chủ + Quản lý
+                    (migration 20261011000400), tách khỏi /approvals OWNER-only để
+                    giữ kín giá vốn và cho Quản lý cùng xác minh. */}
+                <Route
+                  path="duplicate-reviews"
+                  element={<DuplicateReviewsPage />}
+                />
               </Route>
               <Route element={<Protected access="owner" />}>
                 <Route path="audit" element={<AuditPage />} />

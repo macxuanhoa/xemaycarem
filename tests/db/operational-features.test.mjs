@@ -26,7 +26,8 @@ export async function runOperationalTests(externalDb, { engine = 'postgres' } = 
     let sequence = 0
     const vehicle = async (overrides = {}) => {
       sequence++
-      return call('owner', 'save_vehicle', { request_id: randomUUID(), vehicle_type: 'Xe tay ga', frame_number: `${suite}-FRAME-${sequence}`, license_plate: `${suite}-PLATE-${sequence}`, color: `${suite}-MAU-${sequence}`, purchase_date: intake, purchase_price: 10_000_000, ...overrides })
+      // Accounting fixtures use STAFF provenance; owner-private prices have a separate security matrix.
+      return call('staff', 'save_vehicle', { request_id: randomUUID(), vehicle_type: 'Xe tay ga', frame_number: `${suite}-FRAME-${sequence}`, license_plate: `${suite}-PLATE-${sequence}`, color: `${suite}-MAU-${sequence}`, purchase_date: intake, purchase_price: 10_000_000, ...overrides })
     }
     const sale = async (price, date, initial = 0, overrides = {}) => {
       const vehicleId = await vehicle()

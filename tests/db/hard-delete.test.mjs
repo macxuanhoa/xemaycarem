@@ -85,7 +85,7 @@ export async function runHardDeleteTests(externalDb, { engine = 'postgres' } = {
     pass('Missing or short reasons are rejected before any deletion happens')
 
     // 4. A vehicle that was ever sold keeps its history even after the sale is cancelled.
-    const soldVehicle = await call('owner', 'save_vehicle', vehicleData())
+    const soldVehicle = await call('staff', 'save_vehicle', vehicleData())
     const saleId = await run('staff', (client) => rpc(client, 'sell_vehicle', '$1::jsonb', [JSON.stringify({ vehicle_id: soldVehicle, customer_name: 'Khách xóa thử', customer_phone: '0000000001', sale_price: 90_000_000, sale_date: day, initial_payment: 10_000_000, payment_method: 'CASH' })]))
     await deny(() => run('owner', (client) => rpc(client, 'delete_vehicle', '$1::uuid,$2::text', [soldVehicle, 'Xe đã bán']) ), /SALE_HISTORY_EXISTS/)
     await run('manager', (client) => rpc(client, 'cancel_sale', '$1::uuid,$2::text', [saleId, 'Khách trả xe kiểm thử']))

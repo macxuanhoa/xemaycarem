@@ -84,7 +84,6 @@ export function entryToImportRow(entry: IntakeEntry): Record<string, unknown> {
   const frame = (f.frame_number ?? "").trim().toUpperCase();
   const row: Record<string, unknown> = {
     frame_number: frame,
-    frame_input_kind: frameKindFromCompact(compactFrame(frame)),
     license_plate: canonicalizePlate(f.license_plate ?? ""),
     vehicle_type: (f.vehicle_type ?? "").trim(),
     color: (f.color ?? "").trim(),
@@ -108,7 +107,6 @@ export function entryToAcquisitionDraft(
   const frame = (f.frame_number ?? "").trim().toUpperCase();
   const draft: Record<string, unknown> = {
     frame_number: frame,
-    frame_input_kind: frameKindFromCompact(compactFrame(frame)),
     license_plate: canonicalizePlate(f.license_plate ?? ""),
     vehicle_type: (f.vehicle_type ?? "").trim(),
     color: (f.color ?? "").trim(),

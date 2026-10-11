@@ -5,6 +5,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { ArrowLeft, ArrowRight, CreditCard, MoreVertical, QrCode } from "lucide-react";
 import { VietQrPaymentModal } from "./VietQrPaymentModal";
+import { SaleAutomationPanel } from "./SaleAutomationPanel";
 import { api } from "@/lib/api";
 import { confirmPayment, pendingPayment, retainPayment } from "@/lib/paymentRecovery";
 import { AppError } from "@/lib/errors";
@@ -84,7 +85,7 @@ export function SaleDetailPage() {
         actions={
           <>
             <Badge status={sale.status} />
-            {sale.status === "COMPLETED" && (
+            {sale.status === "COMPLETED" && !sale.sale_price_hidden && (
               <Button variant="secondary" onClick={() => setReceipt("sale")}>
                 In phiếu bán xe
               </Button>
@@ -174,7 +175,7 @@ export function SaleDetailPage() {
           )}
         </Card>
       )}
-      {receipt && (
+      {receipt && !sale.sale_price_hidden && (
         <CustomerReceipt
           sale={sale}
           payment={receipt === "sale" ? undefined : receipt}
@@ -249,18 +250,18 @@ export function SaleDetailPage() {
                 <dt>
                   Đã thu {sale.status === "CANCELLED" ? "(đã vô hiệu)" : ""}
                 </dt>
-                <dd>{money(sale.paid_amount)}</dd>
+                <dd>{sale.sale_price_hidden ? "Đã ẩn" : money(sale.paid_amount)}</dd>
               </div>
               <div className="summary-total">
                 <dt>Còn phải thu</dt>
                 <dd>
-                  {sale.status === "CANCELLED"
+                  {sale.sale_price_hidden ? "Đã ẩn" : sale.status === "CANCELLED"
                     ? "—"
                     : money(sale.remaining_amount)}
                 </dd>
               </div>
             </dl>
-            {sale.status === "COMPLETED" && sale.remaining_amount === 0 && (
+            {!sale.sale_price_hidden && sale.status === "COMPLETED" && sale.remaining_amount === 0 && (
               <p className="notice success">Đã thanh toán đủ</p>
             )}
           </Card>
@@ -275,7 +276,7 @@ export function SaleDetailPage() {
           <Card>
             <div className="row between">
               <h2 className="section-title">Lịch sử thanh toán</h2>
-              {canOperate(profile) &&
+              {!sale.sale_price_hidden && canOperate(profile) &&
                 sale.status === "COMPLETED" &&
                 sale.remaining_amount > 0 && (
                   <div style={{ display: "flex", gap: "8px" }}>
@@ -294,7 +295,7 @@ export function SaleDetailPage() {
                   </div>
                 )}
             </div>
-            {sale.payments?.length ? (
+            {!sale.sale_price_hidden && sale.payments?.length ? (
               <div className="compact-list">
                 {sale.payments.map((payment) => (
                   <div className="compact-row" key={payment.id}>
@@ -328,9 +329,11 @@ export function SaleDetailPage() {
                 ))}
               </div>
             ) : (
-              <p className="muted">Chưa ghi nhận thanh toán.</p>
+              <p className="muted">{sale.sale_price_hidden
+                ? "Thông tin thanh toán do chủ cửa hàng quản lý."
+                : "Chưa ghi nhận thanh toán."}</p>
             )}
-            {showPayment && sale.status === "COMPLETED" && (
+            {showPayment && !sale.sale_price_hidden && sale.status === "COMPLETED" && (
               <PaymentEditor
                 key={`${sale.id}-${sale.paid_amount}`}
                 sale={sale}
@@ -338,7 +341,10 @@ export function SaleDetailPage() {
               />
             )}
           </Card>
-          {sale.status === "COMPLETED" && <PaymentReceiptReview saleId={sale.id} />}
+          {!sale.sale_price_hidden && sale.status === "COMPLETED" && <PaymentReceiptReview saleId={sale.id} />}
+          {sale.status !== "CANCELLED" && (
+            <SaleAutomationPanel saleId={sale.id} customerName={sale.customer_name} />
+          )}
         </div>
         {canFinance(profile) && (
           <aside className="stack">
@@ -369,7 +375,7 @@ export function SaleDetailPage() {
           </aside>
         )}
       </div>
-      {showVietQr && (
+      {showVietQr && !sale.sale_price_hidden && (
         <VietQrPaymentModal
           vehicle={{
             id: sale.vehicle_id,

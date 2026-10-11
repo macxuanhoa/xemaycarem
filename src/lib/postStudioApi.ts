@@ -131,8 +131,14 @@ const friendlyAssistMessage = (data: Record<string, unknown>) => {
   const code = String(data.error ?? "POST_AI_UNAVAILABLE");
   if (code === "GEMINI_QUOTA" || code === "POST_AI_RATE_LIMITED")
     return "Trợ lý AI tạm hết hạn mức hôm nay. Bạn vẫn dùng được mẫu caption có sẵn.";
-  if (code.startsWith("AI_OUTPUT_UNSAFE"))
-    return "AI viết ra câu chứa thông tin không được phép đăng công khai (giá/số điện thoại/liên kết). Đã chặn — hãy thử lại hoặc sửa tay.";
+  if (code.startsWith("AI_OUTPUT_UNSAFE")) {
+    const base = "AI viết ra câu chứa thông tin không được phép đăng công khai (giá/số điện thoại/liên kết). Đã chặn — hãy thử lại hoặc sửa tay.";
+    // Máy chủ nói rõ nguyên nhân nằm ở MÔ TẢ tự do (nếu có) → ghép vào để người
+    // bán biết sửa chỗ nào, thay vì đoán mò.
+    const server = typeof data.message === "string" ? data.message : "";
+    const briefHint = server.match(/Mô tả của bạn[^.]*\./)?.[0];
+    return briefHint ? `${base} ${briefHint}` : base;
+  }
   if (code === "VEHICLE_UNAVAILABLE")
     return "Chiếc xe này không còn trong trạng thái phù hợp để đăng bài. Chọn xe khác hoặc tải lại danh sách.";
   if (code === "AI_NOT_CONFIGURED")

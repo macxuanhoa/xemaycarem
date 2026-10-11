@@ -25,6 +25,8 @@ import {
 import { AnnouncementManager } from "./AnnouncementManager";
 import { RuntimeHealthCard } from "./RuntimeHealthCard";
 import { PaymentSettingsCard } from "./PaymentSettingsCard";
+import { SmartSalesAutomationCard } from "./SmartSalesAutomationCard";
+import { SeasonalThemeCard } from "./SeasonalThemeCard";
 interface InstallPrompt extends Event {
   prompt: () => Promise<void>;
   userChoice: Promise<{ outcome: string }>;
@@ -48,7 +50,7 @@ export default function SettingsPage() {
     [currentPassword, setCurrentPassword] = useState(""),
     [prompt, setPrompt] = useState<InstallPrompt | null>(null);
   const [activeTab, setActiveTab] = useState<
-    "PROFILE" | "STORE" | "PAYMENT" | "SCHEDULE" | "MESSAGES" | "VEHICLE_TYPES" | "DEVICE"
+    "PROFILE" | "STORE" | "PAYMENT" | "SCHEDULE" | "MESSAGES" | "AUTOMATION" | "VEHICLE_TYPES" | "THEME" | "DEVICE"
   >("PROFILE");
 
   const client = useQueryClient();
@@ -103,7 +105,9 @@ export default function SettingsPage() {
   const showPayment = isOwner(profile) && activeTab === "PAYMENT";
   const showSchedule = isOwner(profile) && activeTab === "SCHEDULE";
   const showMessages = isOwner(profile) && activeTab === "MESSAGES";
+  const showAutomation = isOwner(profile) && activeTab === "AUTOMATION";
   const showVehicleTypes = isOwner(profile) && activeTab === "VEHICLE_TYPES";
+  const showTheme = isOwner(profile) && activeTab === "THEME";
 
   return (
     <div className="stack settings-shell">
@@ -169,11 +173,31 @@ export default function SettingsPage() {
         {isOwner(profile) && (
           <button
             type="button"
+            aria-pressed={activeTab === "AUTOMATION"}
+            className={`settings-nav-item ${activeTab === "AUTOMATION" ? "active" : ""}`}
+            onClick={() => setActiveTab("AUTOMATION")}
+          >
+            <span>Tự động bán hàng</span>
+          </button>
+        )}
+        {isOwner(profile) && (
+          <button
+            type="button"
             aria-pressed={activeTab === "VEHICLE_TYPES"}
             className={`settings-nav-item ${activeTab === "VEHICLE_TYPES" ? "active" : ""}`}
             onClick={() => setActiveTab("VEHICLE_TYPES")}
           >
             <span>Loại xe</span>
+          </button>
+        )}
+        {isOwner(profile) && (
+          <button
+            type="button"
+            aria-pressed={activeTab === "THEME"}
+            className={`settings-nav-item ${activeTab === "THEME" ? "active" : ""}`}
+            onClick={() => setActiveTab("THEME")}
+          >
+            <span>Giao diện hệ thống</span>
           </button>
         )}
         <button
@@ -291,7 +315,11 @@ export default function SettingsPage() {
 
       {showMessages && <AnnouncementManager />}
 
+      {showAutomation && <SmartSalesAutomationCard />}
+
       {showVehicleTypes && <VehicleTypeCatalogEditor />}
+
+      {showTheme && <SeasonalThemeCard />}
 
       {activeTab === "DEVICE" && (
         <div className="settings-balance-grid">

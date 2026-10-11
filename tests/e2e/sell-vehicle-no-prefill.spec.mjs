@@ -108,6 +108,9 @@ test("sell form opens with an empty sale price despite a purchase cost on file",
   const price = page.getByRole("textbox", { name: "Bán với giá" });
   await expect(price).toBeVisible();
   await expect(price).toHaveValue("");
+  await expect(page.getByRole("button", { name: "Thêm chi tiết thanh toán" }))
+    .toHaveAttribute("aria-expanded", "false");
+  await expect(page.getByText("Nhập số tiền hợp lệ.", { exact: true })).toHaveCount(0);
 
   // Advance payment lives behind the toggle and is likewise blank (never a
   // pre-filled figure and never the literal "NaN") until the clerk types it.

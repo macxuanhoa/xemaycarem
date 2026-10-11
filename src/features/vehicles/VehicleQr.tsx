@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
-import { Button, Card, ErrorState } from "@/components/ui";
+import { Button, ErrorState } from "@/components/ui";
 import { generateQrSvg, vehicleQrPayload } from "@/lib/qrcode";
-import { vehicleSubtitle, vehicleTitle } from "@/lib/vehicleDisplay";
+import { QrCode, Printer, Download } from "lucide-react";
 import type { Vehicle } from "@/types";
 
 export function VehicleQr({ vehicle }: { vehicle: Vehicle }) {
@@ -17,7 +17,7 @@ export function VehicleQr({ vehicle }: { vehicle: Vehicle }) {
     );
     const link = document.createElement("a");
     link.href = url;
-    link.download = `${vehicle.internal_code}-QR.svg`;
+    link.download = `${vehicle.internal_code || "vehicle"}-QR.svg`;
     link.click();
     setTimeout(() => URL.revokeObjectURL(url), 1000);
   };
@@ -27,31 +27,43 @@ export function VehicleQr({ vehicle }: { vehicle: Vehicle }) {
     delete document.body.dataset.printTarget;
   };
   return (
-    <Card>
-      <h2 className="section-title">QR xe</h2>
-      <div className="vehicle-label print-vehicle-label">
-        <strong>{vehicle.internal_code}</strong>
-        <strong>{vehicleTitle(vehicle)}</strong>
-        <span>{vehicleSubtitle(vehicle)}</span>
-        {query.data && (
+    <div className="vehicle-qr-compact">
+      <div className="vehicle-qr-header">
+        <QrCode size={16} />
+        <span>{vehicle.internal_code || "Mã xe"}</span>
+      </div>
+      <div className="vehicle-qr-body print-vehicle-label">
+        {query.data ? (
           <img
-            width={240}
-            height={240}
-            alt={`QR mở xe ${vehicleTitle(vehicle)}`}
+            width={140}
+            height={140}
+            alt="Mã QR xe"
             src={`data:image/svg+xml;charset=utf-8,${encodeURIComponent(query.data)}`}
           />
+        ) : query.error ? (
+          <ErrorState error={query.error} />
+        ) : (
+          <div className="vehicle-qr-skeleton" />
         )}
-        <span className="small">Quét bằng Camera trong Cà Rem</span>
       </div>
-      {query.error && <ErrorState error={query.error} />}
-      <div className="row">
-        <Button variant="secondary" disabled={!query.data} onClick={download}>
-          Tải QR
+      <div className="vehicle-qr-actions">
+        <Button
+          variant="ghost"
+          className="btn-xs"
+          disabled={!query.data}
+          onClick={download}
+        >
+          <Download size={14} /> Tải
         </Button>
-        <Button variant="secondary" disabled={!query.data} onClick={print}>
-          In tem xe
+        <Button
+          variant="ghost"
+          className="btn-xs"
+          disabled={!query.data}
+          onClick={print}
+        >
+          <Printer size={14} /> In tem
         </Button>
       </div>
-    </Card>
+    </div>
   );
 }

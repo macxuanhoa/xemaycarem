@@ -5,15 +5,13 @@ import { compactFrame } from "@/lib/frameNumber";
 
 export const acquisitionSchema = z
   .object({
-    // Số khung: FULL = VIN đầy đủ (có thể để trống → server sinh GEN placeholder);
-    // PARTIAL = mảnh rút gọn (thường 5 ký tự cuối), bắt buộc đủ 5 ký tự chữ+số.
+    // Số khung: máy chủ TỰ suy loại theo độ dài chuỗi nén (`private.frame_kind`):
+    // rỗng hoặc ≥ 11 ký tự = FULL (VIN đầy đủ, có thể để trống → server sinh GEN
+    // placeholder); 5–10 ký tự = PARTIAL (mảnh rút gọn, chỉ báo nghi trùng).
     frame_number: z
       .string()
       .trim()
       .max(100, "Số khung tối đa 100 ký tự."),
-    // Optional: forms always send it; absent ⇒ server derives FULL/PARTIAL from
-    // the compact length (private.frame_kind), so a fragment never gets mis-stored.
-    frame_input_kind: z.enum(["FULL", "PARTIAL"]).optional(),
     // Bật khi nhân viên đã đối chiếu danh sách xe tương tự ở mức YELLOW.
     duplicate_ack: z.boolean().optional(),
     license_plate: z
@@ -55,11 +53,9 @@ export const acquisitionSchema = z
       });
     }
     const compact = compactFrame(values.frame_number);
-    if (
-      values.frame_input_kind === "PARTIAL" &&
-      compact.length > 0 &&
-      compact.length < 5
-    ) {
+    // Mảnh dưới 5 ký tự quá mơ hồ để đối chiếu (server coi 1–10 ký tự là PARTIAL);
+    // chặn ngay ở form thay vì để nhân viên lưu một mẩu dễ gây nghi trùng giả.
+    if (compact.length > 0 && compact.length < 5) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         path: ["frame_number"],

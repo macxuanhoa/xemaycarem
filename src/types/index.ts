@@ -501,7 +501,10 @@ export type NotificationAction =
  * RPC shape and /approvals screen. Vehicle fields are denormalized so the
  * OWNER reads biển số/số khung without a second round trip.
  */
-export type ApprovalKind = "VEHICLE_DELETION" | "SALE_BELOW_COST";
+export type ApprovalKind =
+  | "VEHICLE_DELETION"
+  | "SALE_BELOW_COST"
+  | "VEHICLE_DUPLICATE_REVIEW";
 /**
  * Bản đề xuất bán dưới giá thu do server sinh (STEP 7). Client không bao giờ
  * tự viết; đây là đúng dữ liệu OWNER duyệt và giao dịch sẽ được ghi theo.
@@ -521,13 +524,31 @@ export type SaleApprovalPayload = {
   snapshot_expense_total?: number;
   shortfall?: number;
 };
+/**
+ * Nghi vấn trùng (PLATE_AND_LAST5) do server sinh lúc nhân viên gửi yêu cầu xác
+ * minh (migration 20261011000400). `requested_data` là đúng dữ liệu xe nhân viên
+ * đã nhập (chưa tạo xe); KHÔNG chứa giá vốn riêng tư của xe đối chiếu — chỉ chữ
+ * ký biển số / 5 ký tự cuối / danh sách ứng viên để Chủ/Quản lý mở hồ sơ đối chiếu.
+ */
+export type DuplicateReviewPayload = {
+  mode?: "ACQUIRE" | "SAVE";
+  edit_id?: string | null;
+  frame_number?: string;
+  license_plate?: string;
+  frame_last5?: string | null;
+  plate_compact?: string | null;
+  candidate_ids?: string[];
+  candidate_code?: string | null;
+  requested_data?: Record<string, unknown> | null;
+  snapshot_by?: string;
+};
 export type ApprovalRequest = {
   id: string;
   kind: ApprovalKind;
   subject_id: string;
   reason: string;
   status?: "PENDING" | "APPROVED" | "REJECTED";
-  payload?: SaleApprovalPayload | null;
+  payload?: (SaleApprovalPayload & DuplicateReviewPayload) | null;
   requested_by: string;
   requester_name: string | null;
   created_at: string;
@@ -570,3 +591,4 @@ export type NotificationGroup = {
 };
 
 export * from "./vietqr";
+export * from "./automation";

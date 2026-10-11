@@ -10,12 +10,14 @@ import {
 } from "react-router-dom";
 import {
   ArrowDownLeft,
+  Banknote,
   BookMarked,
   BookOpen,
   Bot,
   Camera,
   ChevronDown,
   ExternalLink,
+  Fingerprint,
   House,
   Inbox,
   LogOut,
@@ -36,8 +38,9 @@ import {
   WifiOff,
   X,
 } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 import { useAuth } from "@/features/auth/AuthProvider";
-import { canManage, canOperate, isOwner, roleLabels } from "@/lib/permissions";
+import { canFinance, canManage, canOperate, isOwner, roleLabels } from "@/lib/permissions";
 import { Loading } from "@/components/ui";
 import { useMobileDrawer } from "@/lib/useMobileDrawer";
 import { GlobalSearchPalette } from "@/components/search/GlobalSearchPalette";
@@ -58,12 +61,17 @@ function RouteLoadingFallback() {
   );
 }
 
-const mainNav = [
+type NavItem = { to: string; label: string; icon: LucideIcon; staffOnly?: boolean };
+
+const mainNav: NavItem[] = [
   { to: "/", label: "Tổng quan", icon: House },
   { to: "/acquisitions", label: "Thu vào", icon: ArrowDownLeft },
   { to: "/vehicles", label: "Tồn kho", icon: Bike },
   { to: "/sales", label: "Bán hàng & Thu nợ", icon: Receipt },
   { to: "/customers", label: "Khách hàng", icon: Users },
+  // Công cụ đăng bài đi thẳng từ Kho xe sang Facebook, là việc hằng ngày của
+  // nhân viên bán hàng nên đứng thành mục riêng — không giấu sau accordion TRỢ LÝ AI.
+  { to: "/posts", label: "Đăng bài từ kho xe", icon: Megaphone, staffOnly: true },
   { to: "/expenses", label: "Chi phí", icon: ClipboardList },
 ];
 export function AppLayout() {
@@ -126,7 +134,9 @@ export function AppLayout() {
     };
   }, []);
   const visibleNav = mainNav.filter(
-    (n) => n.to !== "/expenses" || canManage(profile),
+    (n) =>
+      (n.to !== "/expenses" || canManage(profile)) &&
+      (!n.staffOnly || canOperate(profile)),
   );
 
   const currentPageTitle = useMemo(() => {
@@ -135,15 +145,18 @@ export function AppLayout() {
     const item = mainNav.find((n) => pathname.startsWith(n.to) && n.to !== "/");
     if (item) return item.label;
     if (pathname.startsWith("/receivables")) return "Bán hàng & Thu nợ";
+    if (pathname.startsWith("/bank-reconciliation"))
+      return "Đối soát chuyển khoản";
     if (pathname.startsWith("/expenses")) return "Chi phí";
     if (pathname.startsWith("/settings")) return "Cài đặt";
     if (pathname.startsWith("/audit")) return "Lịch sử thao tác";
     if (pathname.startsWith("/approvals")) return "Chờ duyệt";
+    if (pathname.startsWith("/duplicate-reviews"))
+      return "Xác minh nghi trùng";
     if (pathname.startsWith("/users")) return "Nhân sự";
     if (pathname.startsWith("/capture")) return "Camera thông minh";
     if (pathname.startsWith("/intake")) return "Thu xe tốc ký";
     if (pathname.startsWith("/copilot")) return "Trợ lý AI";
-    if (pathname.startsWith("/posts")) return "Studio bài đăng";
     if (pathname.startsWith("/reply")) return "Trợ lý trả lời tin nhắn";
     if (pathname.startsWith("/brand-memory")) return "Bộ nhớ thương hiệu";
     if (pathname.startsWith("/docs")) return "Tài liệu cửa hàng";
@@ -251,15 +264,6 @@ export function AppLayout() {
                   <span>Tài liệu cửa hàng</span>
                 </NavLink>
                 <NavLink
-                  to="/posts"
-                  onClick={drawer.close}
-                  onMouseEnter={() => preloadRoute("/posts")}
-                  onFocus={() => preloadRoute("/posts")}
-                >
-                  <Megaphone size={20} />
-                  <span>Studio bài đăng</span>
-                </NavLink>
-                <NavLink
                   to="/reply"
                   onClick={drawer.close}
                   onMouseEnter={() => preloadRoute("/reply")}
@@ -296,6 +300,27 @@ export function AppLayout() {
                   <Users size={20} />
                   Nhân sự
                 </NavLink>
+                {/* Nghi trùng biển số + 5 ký tự cuối: Chủ và Quản lý cùng xác minh. */}
+                <NavLink
+                  to="/duplicate-reviews"
+                  onClick={drawer.close}
+                  onMouseEnter={() => preloadRoute("/duplicate-reviews")}
+                  onFocus={() => preloadRoute("/duplicate-reviews")}
+                >
+                  <Fingerprint size={20} />
+                  Xác minh nghi trùng
+                </NavLink>
+                {canFinance(profile) && (
+                  <NavLink
+                    to="/bank-reconciliation"
+                    onClick={drawer.close}
+                    onMouseEnter={() => preloadRoute("/bank-reconciliation")}
+                    onFocus={() => preloadRoute("/bank-reconciliation")}
+                  >
+                    <Banknote size={20} />
+                    Đối soát chuyển khoản
+                  </NavLink>
+                )}
                 {isOwner(profile) && (
                   <NavLink
                     to="/approvals"

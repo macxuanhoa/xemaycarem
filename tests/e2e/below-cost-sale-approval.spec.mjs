@@ -89,10 +89,11 @@ async function installMock(
     canViewFinancials = false,
     vehicle = baseVehicle,
     approvals = [saleApprovalRow],
+    sale = {},
   } = {},
 ) {
   const userId = role === "OWNER" ? ownerId : staffId;
-  const calls = { sell: [], request: [], cancel: [], resolve: [] };
+  const calls = { sell: [], request: [], cancel: [], resolve: [], approvals: [], receipts: [] };
   const session = {
     access_token: `eyJhbGciOiJIUzI1NiJ9.${Buffer.from(
       JSON.stringify({ sub: userId, exp: Math.floor(Date.now() / 1000) + 3600 }),
@@ -154,8 +155,18 @@ async function installMock(
       return reply({ store_name: "Cửa hàng kiểm thử" });
     if (name === "get_vehicle") return reply(vehicle);
     if (name === "list_vehicles") return reply({ items: [vehicle], total: 1 });
-    if (name === "list_pending_approvals")
-      return reply({ items: approvals, total: approvals.length });
+    if (name === "list_pending_approvals") {
+      const filters = body().p_filters ?? {};
+      calls.approvals.push(filters);
+      // Legacy response: intentionally ignores exclude_kind so the pager must
+      // still allow reaching later finance requests during a rolling upgrade.
+      const offset = filters.offset ?? 0;
+      return reply({ items: approvals.slice(offset, offset + (filters.limit ?? 50)), total: approvals.length });
+    }
+    if (name === "list_payment_receipts") {
+      calls.receipts.push(body());
+      return reply([]);
+    }
     if (name === "sell_vehicle") {
       calls.sell.push(body());
       return reply(saleId);
@@ -173,6 +184,8 @@ async function installMock(
       return reply({ approval_id: approvalId, action: "APPROVE", sale_id: saleId });
     }
     if (name === "get_sale_communication") return reply(null);
+    if (name === "list_sale_contacts" || name === "list_sale_thank_you_queue")
+      return reply([]);
     if (name === "get_sale")
       return reply({
         id: saleId,
@@ -186,6 +199,7 @@ async function installMock(
         gross_profit: -7000000,
         status: "COMPLETED",
         payments: [],
+        ...sale,
       });
     return reply({});
   });
@@ -201,6 +215,40 @@ async function fillSale(page, price) {
 }
 
 const submitButton = (page) => page.locator("form button[type=submit]");
+
+test("Chờ duyệt vẫn tới được yêu cầu tiền sau một trang chỉ gồm xác minh nghi trùng", async ({ page }) => {
+  const duplicates = Array.from({ length: 50 }, (_, index) => ({
+    ...saleApprovalRow, id: `duplicate-${index}`, kind: "VEHICLE_DUPLICATE_REVIEW",
+  }));
+  const calls = await installMock(page, {
+    role: "OWNER", approvals: [...duplicates, saleApprovalRow],
+  });
+  await page.goto("/approvals");
+  await expect(page.getByText("Không có gì chờ duyệt", { exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Trang sau", exact: true })).toBeEnabled();
+  await page.getByRole("button", { name: "Trang sau", exact: true }).click();
+  await expect(page.getByRole("button", { name: "Phê duyệt", exact: true })).toBeVisible();
+  expect(calls.approvals).toContainEqual({
+    limit: 50, offset: 50, exclude_kind: "VEHICLE_DUPLICATE_REVIEW",
+  });
+});
+
+test("giao dịch riêng tư không trưng số tiền, phiếu in hoặc trạng thái thanh toán giả", async ({ page }) => {
+  const errors = [];
+  page.on("pageerror", error => errors.push(error.message));
+  const calls = await installMock(page, {
+    role: "STAFF", sale: { sale_price_hidden: true },
+  });
+  await page.goto(`/sales/${saleId}`);
+  await expect(page.getByRole("heading", { name: "Thông tin giao dịch" })).toBeVisible();
+  await expect(page.getByText("Thông tin thanh toán do chủ cửa hàng quản lý.", { exact: true })).toBeVisible();
+  await expect(page.getByText("Đã ẩn", { exact: true })).toHaveCount(3);
+  await expect(page.getByText(/18\.000\.000/)).toHaveCount(0);
+  await expect(page.getByText("Đã thanh toán đủ", { exact: true })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "In phiếu bán xe", exact: true })).toHaveCount(0);
+  expect(calls.receipts).toHaveLength(0);
+  expect(errors).toEqual([]);
+});
 
 test("STAFF bán dưới giá thu: cảnh báo chênh lệch + gửi yêu cầu, không sell_vehicle", async ({
   page,

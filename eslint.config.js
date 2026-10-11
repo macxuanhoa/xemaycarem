@@ -46,4 +46,14 @@ export default tseslint.config(
     ],
     languageOptions: { globals: { ...globals.node, ...globals.browser } },
   },
+  {
+    // MV3 extension: chạy trong trình duyệt (service worker + content script),
+    // không phải Node và không phải source của app → khai báo `chrome` tường minh.
+    files: ["extension/**/*.js"],
+    languageOptions: {
+      ecmaVersion: 2022,
+      sourceType: "script",
+      globals: { ...globals.browser, chrome: "readonly" },
+    },
+  },
 );

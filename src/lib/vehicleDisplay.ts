@@ -16,6 +16,8 @@
  * chỉ nắm dữ liệu thô (form đang soạn, bản nháp tốc ký, danh sách xe gần đây).
  */
 
+import { displayFrame } from "@/lib/frameNumber";
+
 /** Mọi object mô tả một xe đều khớp hình dạng này (Vehicle, Acquisition, Sale…). */
 export type VehicleIdentity = {
   vehicle_title?: string | null;
@@ -45,7 +47,9 @@ export function vehicleTitle(vehicle?: VehicleIdentity | null): string {
   const provided = clean(vehicle.vehicle_title);
   if (provided) return provided;
   const plate = clean(vehicle.license_plate);
-  const frame = clean(vehicle.frame_number);
+  // Placeholder GEN-<uuid> server tự sinh khi thiếu khung KHÔNG được lộ ra —
+  // hiển thị "chưa có khung" đúng như private.vehicle_label_text (migration 20261011000200).
+  const frame = displayFrame(vehicle.frame_number);
   if (plate && frame) return `${plate}${SEPARATOR}${frame}`;
   if (plate) return `${plate}${SEPARATOR}${NO_FRAME_LABEL}`;
   if (frame) return `${NO_PLATE_LABEL}${SEPARATOR}${frame}`;

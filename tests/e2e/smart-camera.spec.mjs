@@ -152,13 +152,15 @@ async function mockCameraHardware(page, enumeration = 'multiple') {
   }, { enumeration })
 }
 
-test('smart camera: visible torch controls change the live track and switching restarts automatic scanning', async ({ page }) => {
+test('smart camera: device tools appear only once the camera runs and drive the live track', async ({ page }) => {
   const calls = await setup(page, { result: scanDraft({}) })
   await mockCameraHardware(page)
   await page.goto('/capture')
-  await expect(page.getByRole('button', { name: 'Bật đèn pin', exact: true })).toBeVisible()
-  await expect(page.getByRole('button', { name: 'Bật đèn pin', exact: true })).toBeDisabled()
-  await expect(page.getByRole('button', { name: 'Camera trước', exact: true })).toBeVisible()
+  // Before the camera opens there is no torch, lens-flip or zoom tooling to
+  // show — the quick toolbar only exists while a stream is live.
+  await expect(page.getByRole('button', { name: 'Bật đèn pin', exact: true })).toBeHidden()
+  await expect(page.getByRole('button', { name: 'Camera trước', exact: true })).toBeHidden()
+  await expect(page.getByRole('button', { name: 'Mở camera', exact: true })).toBeVisible()
   await page.getByRole('button', { name: 'Mở camera', exact: true }).click()
   await expect(page.getByRole('button', { name: 'Bật đèn pin', exact: true })).toBeEnabled()
   await page.getByRole('button', { name: 'Bật đèn pin', exact: true }).click()
@@ -190,6 +192,7 @@ test('smart camera: visible torch controls change the live track and switching r
   ])
   await page.getByRole('button', { name: 'Tắt camera', exact: true }).click()
   await expect(page.getByRole('button', { name: 'Mở camera', exact: true })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Bật đèn pin', exact: true })).toBeHidden()
   expect(await page.evaluate(() => window.__smartcamHardware.streams.every(stream => stream.stopped))).toBe(true)
   expect(calls.writes).toEqual([])
 })
@@ -198,19 +201,22 @@ for (const enumeration of ['single', 'unavailable']) test(`smart camera: front a
   await setup(page)
   await mockCameraHardware(page, enumeration)
   await page.goto('/capture')
-  // Choosing the front lens before opening only selects the camera; it does
-  // not request permission or start a stream until the user opens the camera.
-  await page.getByRole('button', { name: 'Camera trước', exact: true }).click()
-  await expect(page.getByRole('button', { name: 'Camera sau', exact: true })).toBeVisible()
+  // Lens tools are hidden until the camera opens; choosing remains a live
+  // action on the running stream, never a permission request beforehand.
+  await expect(page.getByRole('button', { name: 'Camera trước', exact: true })).toBeHidden()
   expect(await page.evaluate(() => window.__smartcamHardware.requests)).toEqual([])
   await page.getByRole('button', { name: 'Mở camera', exact: true }).click()
   await expect(page.getByRole('button', { name: 'Tắt camera', exact: true })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Camera trước', exact: true })).toBeEnabled()
+  await page.getByRole('button', { name: 'Camera trước', exact: true }).click()
+  await expect(page.getByRole('button', { name: 'Camera sau', exact: true })).toBeVisible()
   await expect(page.getByRole('button', { name: 'Bật đèn pin', exact: true })).toBeDisabled()
   await page.getByRole('button', { name: 'Camera sau', exact: true }).click()
   await expect(page.getByRole('button', { name: 'Bật đèn pin', exact: true })).toBeEnabled()
   await expect(page.getByRole('button', { name: 'Camera trước', exact: true })).toBeVisible()
-  expect(await page.evaluate(() => window.__smartcamHardware.requests.map(request => request.video.facingMode?.ideal))).toEqual(['user', 'environment'])
+  expect(await page.evaluate(() => window.__smartcamHardware.requests.map(request => request.video.facingMode?.ideal))).toEqual(['environment', 'user', 'environment'])
   expect(await page.evaluate(() => window.__smartcamHardware.streams.map(({ facing, stopped }) => ({ facing, stopped })))).toEqual([
+    { facing: 'environment', stopped: true },
     { facing: 'user', stopped: true },
     { facing: 'environment', stopped: false },
   ])
@@ -459,12 +465,26 @@ async function waitForCameraLayout(page, width) {
 
 async function expectCameraControlsAboveNavigation(page, running = false) {
   const navigation = await page.locator('.bottom-nav').boundingBox()
-  const controls = [
-    page.getByRole('button', { name: running ? 'Tắt camera' : 'Mở camera', exact: true }),
-    page.locator('.smartcam-btn-upload'),
-    page.getByRole('button', { name: 'Bật đèn pin', exact: true }),
-    page.getByRole('button', { name: 'Camera trước', exact: true }),
-  ]
+  // Idle: the open/upload text buttons. Running: the icon quick toolbar
+  // (tắt cam, tải ảnh, đèn pin, đổi cam) sits directly under the stage.
+  const controls = running
+    ? [
+        page.getByRole('button', { name: 'Tắt camera', exact: true }),
+        page.locator('.smartcam-quick-upload'),
+        page.getByRole('button', { name: 'Bật đèn pin', exact: true }),
+        page.getByRole('button', { name: 'Camera trước', exact: true }),
+      ]
+    : [
+        page.getByRole('button', { name: 'Mở camera', exact: true }),
+        page.locator('.smartcam-btn-upload'),
+      ]
+  if (running) {
+    await expect(page.getByRole('button', { name: 'Mở camera', exact: true })).toBeHidden()
+    await expect(page.locator('.smartcam-btn-upload')).toBeHidden()
+  } else {
+    await expect(page.getByRole('button', { name: 'Bật đèn pin', exact: true })).toBeHidden()
+    await expect(page.getByRole('button', { name: 'Camera trước', exact: true })).toBeHidden()
+  }
   const boxes = []
   for (const control of controls) {
     await expect(control).toBeVisible()
@@ -480,8 +500,12 @@ async function expectCameraControlsAboveNavigation(page, running = false) {
     })).toBe(true)
     boxes.push(box)
   }
-  expect(Math.abs(boxes[0].y - boxes[1].y)).toBeLessThanOrEqual(1)
-  expect(Math.abs(boxes[2].y - boxes[3].y)).toBeLessThanOrEqual(1)
+  if (running) {
+    expect(Math.abs(boxes[0].y - boxes[1].y)).toBeLessThanOrEqual(1)
+    expect(Math.abs(boxes[2].y - boxes[3].y)).toBeLessThanOrEqual(1)
+  } else {
+    expect(Math.abs(boxes[0].y - boxes[1].y)).toBeLessThanOrEqual(1)
+  }
 }
 
 test('smart camera: desktop workspace and mobile controls stay accessible at responsive sizes', async ({ page }) => {

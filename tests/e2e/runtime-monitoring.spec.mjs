@@ -20,6 +20,7 @@ async function setup(page, { role = 'OWNER', unavailable = false } = {}) {
     const name = path.split('/').at(-1)
     if (name === 'check_user_access') return reply({ allowed: true, role, must_change_password: false })
     if (name === 'get_settings') return reply({ store_name: 'Xe Máy Cà Rem', phone: '', address: '' })
+    if (name === 'get_seasonal_theme') return reply({ mode: 'DEFAULT', tet_start: null, tet_end: null, cinematic_enabled: false, is_active: false })
     if (name === 'list_notifications') return reply({ items: [], total: 0, unread_count: 0 })
     if (name === 'list_active_announcements') return reply([])
     if (name === 'report_client_issue') { calls.reports.push(body.p_data); return reply({ recorded: true }) }

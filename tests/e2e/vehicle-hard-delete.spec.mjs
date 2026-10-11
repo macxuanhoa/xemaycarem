@@ -188,7 +188,7 @@ test("delete button is hidden once the vehicle has sale history", async ({
     },
   });
   await page.goto(`/vehicles/${vehicleId}`);
-  await expect(page.getByRole("heading", { name: /59X1-123\.45/ })).toBeVisible();
+  await expect(page.locator(".identity-chip-plate strong")).toHaveText(baseVehicle.license_plate);
   const trigger = page.getByRole("button", { name: "Thao tác trên xe" });
   if (await trigger.count()) await trigger.click();
   await expect(

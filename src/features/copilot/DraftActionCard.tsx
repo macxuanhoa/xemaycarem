@@ -142,8 +142,6 @@ export function DraftActionCard({ action }: { action: DraftAction }) {
         (
           <QuickExpenseModal
             vehicleId={vehicle.id}
-            vehicleName={vehicleTitle(vehicle)}
-            vehicleCode={vehicle.license_plate || vehicle.frame_number}
             isOpen
             initialDraft={{
               expense_type: action.expense_type,

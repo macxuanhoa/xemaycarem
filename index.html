@@ -53,6 +53,16 @@
         } catch (e) {
           /* default to light */
         }
+        // The seasonal layer (Tết 2027) is an orthogonal axis written by
+        // src/lib/seasonalTheme.ts. Replay its last known value pre-paint so a
+        // refresh does not flash ordinary chrome back over festive chrome (or the
+        // other way round); the JS re-syncs with the server right after mount.
+        try {
+          document.documentElement.dataset.seasonal =
+            localStorage.getItem("xe-seasonal") === "tet" ? "tet" : "default";
+        } catch (e) {
+          /* default look */
+        }
       })();
     </script>
   </head>

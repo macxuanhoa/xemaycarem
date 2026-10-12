@@ -7,12 +7,14 @@ import {
   Bike,
   Camera,
   CirclePlus,
+  Copy,
+  Hash,
   ImagePlus,
   MoreHorizontal,
   Pencil,
   SendHorizontal,
+  ShieldCheck,
   ShoppingBag,
-  Copy,
   Trash2,
   TriangleAlert,
 } from "lucide-react";
@@ -388,45 +390,67 @@ export function VehicleDetailPage() {
           </div>
         </div>
 
-        {/* Biển số and Số khung Highlight Cards */}
-        <div className="vehicle-id-highlight-grid">
-          <div className="vehicle-id-highlight-card plate-card">
-            <div className="vehicle-id-card-top">
-              <span className="vehicle-id-tag plate-tag">BIỂN SỐ</span>
+        {/* Thanh định danh xe chuẩn mực, đẳng cấp: Biển số & Số khung */}
+        <div className="vehicle-id-showcase">
+          {/* Cột Biển số */}
+          <div className="vehicle-id-item vehicle-id-item-plate">
+            <div className="vehicle-id-item-header">
+              <span className="vehicle-id-item-label">
+                <Hash size={12} className="vehicle-id-item-icon" />
+                Biển số đăng ký
+              </span>
               {vehicle.license_plate && (
                 <button
-                  className="icon-button copy-button vehicle-id-copy"
                   type="button"
+                  className="vehicle-id-item-copy"
                   aria-label="Sao chép biển số"
                   title="Sao chép biển số"
                   onClick={() => void copyValue("Biển số", vehicle.license_plate)}
                 >
-                  <Copy size={16} />
+                  <Copy size={12} />
+                  <span>Sao chép</span>
                 </button>
               )}
             </div>
-            <div className="vehicle-id-value plate-value identity-chip-plate">
-              <strong>{vehicle.license_plate || "Chưa có biển"}</strong>
+            <div className={`vehicle-plate-badge${!vehicle.license_plate ? " is-empty" : ""}`}>
+              {vehicle.license_plate && (
+                <span className="vehicle-plate-screw vehicle-plate-screw-left" aria-hidden="true" />
+              )}
+              <span className="vehicle-plate-text">
+                {vehicle.license_plate || "Chưa đăng ký biển"}
+              </span>
+              {vehicle.license_plate && (
+                <span className="vehicle-plate-screw vehicle-plate-screw-right" aria-hidden="true" />
+              )}
             </div>
           </div>
 
-          <div className="vehicle-id-highlight-card frame-card">
-            <div className="vehicle-id-card-top">
-              <span className="vehicle-id-tag frame-tag">SỐ KHUNG</span>
+          <div className="vehicle-id-showcase-divider" aria-hidden="true" />
+
+          {/* Cột Số khung */}
+          <div className="vehicle-id-item vehicle-id-item-frame">
+            <div className="vehicle-id-item-header">
+              <span className="vehicle-id-item-label">
+                <ShieldCheck size={12} className="vehicle-id-item-icon" />
+                Số khung (VIN)
+              </span>
               {!!displayFrame(vehicle.frame_number) && (
                 <button
-                  className="icon-button copy-button vehicle-id-copy"
                   type="button"
+                  className="vehicle-id-item-copy"
                   aria-label="Sao chép số khung"
                   title="Sao chép số khung"
                   onClick={() => void copyValue("Số khung", displayFrame(vehicle.frame_number))}
                 >
-                  <Copy size={16} />
+                  <Copy size={12} />
+                  <span>Sao chép</span>
                 </button>
               )}
             </div>
-            <div className="vehicle-id-value frame-value">
-              {displayFrame(vehicle.frame_number) || "Chưa có số khung"}
+            <div className={`vehicle-frame-badge${!displayFrame(vehicle.frame_number) ? " is-empty" : ""}`}>
+              <span className="vehicle-frame-text">
+                {displayFrame(vehicle.frame_number) || "Chưa có số khung"}
+              </span>
             </div>
           </div>
         </div>

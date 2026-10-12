@@ -14049,148 +14049,261 @@ html[data-theme="dark"] .header-theme-toggle {
   }
 }
 
-/* ─── Prominent License Plate and Frame Number Highlight Cards ─────────── */
-.vehicle-id-highlight-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(260px, 100%), 1fr));
-  gap: 12px;
-  margin-top: 6px;
+/* ─── Executive Vehicle Identity Showcase (Biển số & Số khung) ────────── */
+.vehicle-id-showcase {
+  display: flex;
+  align-items: stretch;
+  gap: 16px;
+  background: var(--surface, #ffffff);
+  border: 1px solid var(--line, #e2e8f0);
+  border-radius: 14px;
+  padding: 12px 18px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+  margin-top: 4px;
   width: 100%;
 }
 
-.vehicle-id-highlight-card {
+.vehicle-id-item {
+  flex: 1 1 0%;
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  padding: 12px 16px;
-  border-radius: 12px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+  gap: 8px;
+  min-width: 0;
 }
 
-.vehicle-id-card-top {
+.vehicle-id-item-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 8px;
 }
 
-.vehicle-id-tag {
+.vehicle-id-item-label {
   display: inline-flex;
   align-items: center;
-  padding: 3px 8px;
-  border-radius: 6px;
-  font-size: 11px;
-  font-weight: 750;
-  letter-spacing: 0.8px;
+  gap: 5px;
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--readable-muted, #64748b);
+  letter-spacing: 0.4px;
   text-transform: uppercase;
 }
 
-.vehicle-id-value {
+.vehicle-id-item-icon {
+  color: var(--readable-muted, #64748b);
+  flex-shrink: 0;
+}
+
+.vehicle-id-item-copy {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  height: 24px;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--readable-muted, #64748b);
+  background: var(--surface-raised, #f1f5f9);
+  border: 1px solid var(--line, #e2e8f0);
+  border-radius: 6px;
+  cursor: pointer;
+  transition:
+    background-color 150ms ease,
+    border-color 150ms ease,
+    color 150ms ease;
+}
+
+.vehicle-id-item-copy:hover {
+  background: var(--surface-hover, #e2e8f0);
+  color: var(--readable, #0f172a);
+  border-color: #cbd5e1;
+}
+
+.vehicle-id-item-copy:active {
+  transform: scale(0.96);
+}
+
+.vehicle-id-showcase-divider {
+  width: 1px;
+  background: var(--line, #e2e8f0);
+  align-self: stretch;
+  flex-shrink: 0;
+}
+
+/* Biển số mô phỏng biển số xe máy thực tế cao cấp */
+.vehicle-plate-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 6px 14px;
+  background: #ffffff;
+  border: 1.5px solid #1e293b;
+  border-radius: 8px;
+  box-shadow:
+    inset 0 0 0 1px #cbd5e1,
+    0 1px 3px rgba(0, 0, 0, 0.08);
+  min-height: 42px;
+  width: fit-content;
+  max-width: 100%;
+}
+
+.vehicle-plate-text {
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 17px;
+  font-weight: 800;
+  letter-spacing: 1.2px;
+  color: #0f172a;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.vehicle-plate-badge.is-empty {
+  border: 1.5px dashed #cbd5e1;
+  box-shadow: none;
+  background: #f8fafc;
+}
+
+.vehicle-plate-badge.is-empty .vehicle-plate-text {
+  color: #94a3b8;
+  font-size: 13.5px;
+  font-weight: 600;
+  font-family: inherit;
+  letter-spacing: normal;
+}
+
+.vehicle-plate-screw {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: #cbd5e1;
+  border: 1px solid #94a3b8;
+  flex-shrink: 0;
+}
+
+/* Số khung kỹ thuật sắc nét, dập nổi */
+.vehicle-frame-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 6px 14px;
+  background: var(--surface-raised, #f8fafc);
+  border: 1px solid var(--line, #e2e8f0);
+  border-radius: 8px;
+  min-height: 42px;
+  width: fit-content;
+  max-width: 100%;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
+}
+
+.vehicle-frame-text {
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: 0.6px;
+  color: #1e293b;
   font-variant-numeric: tabular-nums;
   overflow-wrap: anywhere;
-  min-width: 0;
-  line-height: 1.25;
 }
 
-.vehicle-id-copy {
-  width: 32px;
-  height: 32px;
-  border-radius: 8px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  transition: all 150ms ease;
+.vehicle-frame-badge.is-empty {
+  border-style: dashed;
+  color: #94a3b8;
 }
 
-/* Biển số Card: Deep Royal / Navy Highlight */
-.vehicle-id-highlight-card.plate-card {
-  background: linear-gradient(135deg, #f0f7ff 0%, #e0effe 100%);
-  border: 1.5px solid #93c5fd;
+.vehicle-frame-badge.is-empty .vehicle-frame-text {
+  color: #94a3b8;
+  font-size: 13.5px;
+  font-weight: 600;
+  font-family: inherit;
+  letter-spacing: normal;
 }
 
-.plate-card .vehicle-id-tag.plate-tag {
-  background: #1d4ed8;
-  color: #ffffff;
+/* Mobile responsive */
+@media (max-width: 640px) {
+  .vehicle-id-showcase {
+    flex-direction: column;
+    gap: 14px;
+    padding: 12px 14px;
+  }
+  .vehicle-id-showcase-divider {
+    width: 100%;
+    height: 1px;
+  }
+  .vehicle-plate-badge,
+  .vehicle-frame-badge {
+    width: 100%;
+    justify-content: center;
+  }
 }
 
-.plate-card .vehicle-id-value.plate-value {
-  font-size: clamp(20px, 3.5vw, 24px);
-  font-weight: 850;
-  letter-spacing: 0.8px;
-  color: #1e3a8a;
+/* Dark mode theme matching */
+[data-theme="dark"] .vehicle-id-showcase {
+  background: #151821;
+  border-color: #272b3a;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3);
 }
 
-.plate-card .vehicle-id-copy {
-  background: rgba(30, 64, 175, 0.08);
-  border: 1px solid rgba(30, 64, 175, 0.15);
-  color: #1d4ed8;
+[data-theme="dark"] .vehicle-id-showcase-divider {
+  background: #272b3a;
 }
 
-.plate-card .vehicle-id-copy:hover {
-  background: rgba(30, 64, 175, 0.16);
-  border-color: #1d4ed8;
+[data-theme="dark"] .vehicle-id-item-label {
+  color: #9aa3b5;
 }
 
-/* Số khung Card: Technical Mint / Emerald Highlight */
-.vehicle-id-highlight-card.frame-card {
-  background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%);
-  border: 1.5px solid #86efac;
+[data-theme="dark"] .vehicle-id-item-icon {
+  color: #9aa3b5;
 }
 
-.frame-card .vehicle-id-tag.frame-tag {
-  background: #15803d;
-  color: #ffffff;
+[data-theme="dark"] .vehicle-id-item-copy {
+  background: #1c202d;
+  border-color: #2e3346;
+  color: #9aa3b5;
 }
 
-.frame-card .vehicle-id-value.frame-value {
-  font-size: clamp(18px, 3.2vw, 21px);
-  font-weight: 800;
-  font-family: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
-  letter-spacing: 0.8px;
-  color: #14532d;
+[data-theme="dark"] .vehicle-id-item-copy:hover {
+  background: #262c3e;
+  border-color: #3f4760;
+  color: #e2e8f0;
 }
 
-.frame-card .vehicle-id-copy {
-  background: rgba(21, 128, 61, 0.08);
-  border: 1px solid rgba(21, 128, 61, 0.15);
-  color: #15803d;
+[data-theme="dark"] .vehicle-plate-badge {
+  background: #1a1e2a;
+  border-color: #475569;
+  box-shadow: inset 0 0 0 1px #334155;
 }
 
-.frame-card .vehicle-id-copy:hover {
-  background: rgba(21, 128, 61, 0.16);
-  border-color: #15803d;
+[data-theme="dark"] .vehicle-plate-text {
+  color: #f8fafc;
 }
 
-/* Dark Theme Contrast */
-[data-theme="dark"] .vehicle-id-highlight-card.plate-card {
-  background: linear-gradient(135deg, #0b192e 0%, #112240 100%);
-  border-color: #1d4ed8;
+[data-theme="dark"] .vehicle-plate-screw {
+  background: #475569;
+  border-color: #64748b;
 }
 
-[data-theme="dark"] .plate-card .vehicle-id-value.plate-value {
-  color: #bfdbfe;
+[data-theme="dark"] .vehicle-plate-badge.is-empty {
+  background: #12141c;
+  border-color: #2a2e3d;
 }
 
-[data-theme="dark"] .plate-card .vehicle-id-copy {
-  background: rgba(191, 219, 254, 0.1);
-  border-color: rgba(191, 219, 254, 0.2);
-  color: #93c5fd;
+[data-theme="dark"] .vehicle-frame-badge {
+  background: #12141c;
+  border-color: #272b3a;
 }
 
-[data-theme="dark"] .vehicle-id-highlight-card.frame-card {
-  background: linear-gradient(135deg, #092316 0%, #0d3221 100%);
-  border-color: #16a34a;
-}
-
-[data-theme="dark"] .frame-card .vehicle-id-value.frame-value {
-  color: #bbf7d0;
-}
-
-[data-theme="dark"] .frame-card .vehicle-id-copy {
-  background: rgba(187, 247, 208, 0.1);
-  border-color: rgba(187, 247, 208, 0.2);
+[data-theme="dark"] .vehicle-frame-text {
   color: #86efac;
+}
+
+[data-theme="dark"] .vehicle-frame-badge.is-empty {
+  border-color: #2a2e3d;
+}
+
+[data-theme="dark"] .vehicle-frame-badge.is-empty .vehicle-frame-text {
+  color: #64748b;
 }
 
 /* ─── Photo Choice Dialog ─────────────────────────────────────────────── */

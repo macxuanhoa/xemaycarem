@@ -11,7 +11,27 @@ import type { User } from "@supabase/supabase-js";
 import { useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
 import { AppError } from "@/lib/errors";
+import { getNetworkStatus, subscribeNetworkStatus } from "@/lib/networkStatus";
 import type { Profile } from "@/types";
+
+// Only a transport interruption may keep an already verified screen open.
+// Responses from the server (including 401/403/503) must still close access.
+function isTransportInterruption(error: unknown, httpStatus = 0): boolean {
+  if (httpStatus > 0 || error instanceof AppError) return false;
+  if (!error || typeof error !== "object") return false;
+  const value = error as {
+    status?: number;
+    code?: string;
+    name?: string;
+    message?: string;
+    details?: string;
+  };
+  if (value.status && value.status > 0) return false;
+  if (value.code && value.code !== "0") return false;
+  return /Failed to fetch|fetch failed|NetworkError|NetworkRequestError|Network request failed|Load failed|AbortError|TimeoutError|AuthRetryableFetchError|request (?:timed out|timeout)|network (?:error|connection)/i.test(
+    `${value.name ?? ""} ${value.message ?? ""} ${value.details ?? ""}`,
+  );
+}
 type AuthContextValue = {
   user: User | null;
   profile: Profile | null;
@@ -35,16 +55,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const signingOut = useRef(false);
   const refresh = useCallback(async () => {
     if (signedOutLocally.current) return;
+    // Do not let getSession attempt to refresh an expired token during a known
+    // outage and tear down a verified form. Auth events still clear identity on
+    // sign-out/account changes, and reconnection rechecks server permissions.
+    if (identity.current && !getNetworkStatus().online) return;
     const version = ++refreshVersion.current;
     if (!supabase) {
       setLoading(false);
       return;
     }
+    const previouslyVerifiedIdentity = identity.current;
+    let resolvedUserId: string | null = null;
     try {
       const { data, error: sessionError } = await supabase.auth.getSession();
       if (version !== refreshVersion.current) return;
       if (sessionError) throw sessionError;
       const sessionUserId = data.session?.user.id ?? null;
+      resolvedUserId = sessionUserId;
       const verifiedUserId = identity.current?.split(":", 1)[0] ?? null;
       if (verifiedUserId && sessionUserId !== verifiedUserId) {
         identity.current = null;
@@ -59,7 +86,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setError(null);
         return;
       }
-      if (!navigator.onLine) {
+      if (!navigator.onLine || !getNetworkStatus().online) {
         if (identity.current?.startsWith(data.session.user.id + ":")) return;
         throw new AppError(
           "Không thể kết nối. Hãy mở lại ứng dụng khi có mạng để kiểm tra quyền truy cập.",
@@ -82,7 +109,32 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       ]);
       if (version !== refreshVersion.current) return;
       const { data: row, error: profileError } = profileRes;
-      if (profileError) throw profileError;
+      if (profileError) {
+        // A concurrent transport failure must never hide an access denial
+        // that the other request successfully received from the server.
+        if (
+          accessRes.error &&
+          !isTransportInterruption(accessRes.error, accessRes.status)
+        ) {
+          throw new AppError(
+            "Không thể kiểm tra quyền truy cập. Vui lòng thử lại khi có kết nối.",
+          );
+        }
+        if (!accessRes.error) {
+          if (!accessRes.data || typeof accessRes.data.allowed !== "boolean") {
+            throw new AppError(
+              "Không thể xác nhận quyền truy cập. Vui lòng thử lại.",
+            );
+          }
+          if (!accessRes.data.allowed) {
+            throw new AppError(
+              accessRes.data.message || "Tài khoản không được phép truy cập.",
+            );
+          }
+        }
+        if (profileRes.status > 0) throw new AppError(profileError.message);
+        throw profileError;
+      }
 
       // Check if profile exists
       if (!row) {
@@ -114,9 +166,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         );
       }
 
+      const nextIdentity = `${row.id}:${row.role}:${row.can_view_financials}:${row.must_change_password}:${row.disabled_until}:${row.deleted_at}:${row.active}`;
+      if (identity.current && identity.current !== nextIdentity) {
+        identity.current = null;
+        setProfile(null);
+        client.clear();
+      }
+
       // Check authoritative server access evaluation
       const { data: accessData, error: accessErr } = accessRes;
       if (accessErr) {
+        if (isTransportInterruption(accessErr, accessRes.status))
+          throw accessErr;
         throw new AppError(
           "Không thể kiểm tra quyền truy cập. Vui lòng thử lại khi có kết nối.",
         );
@@ -135,13 +196,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         );
       }
 
-      const nextIdentity = `${row.id}:${row.role}:${row.can_view_financials}:${row.must_change_password}:${row.disabled_until}:${row.deleted_at}:${row.active}`;
-      if (identity.current && identity.current !== nextIdentity) client.clear();
       identity.current = nextIdentity;
       setProfile(row as Profile);
       setError(null);
     } catch (e) {
       if (version !== refreshVersion.current) return;
+      if (
+        !signedOutLocally.current &&
+        previouslyVerifiedIdentity &&
+        identity.current === previouslyVerifiedIdentity &&
+        (!resolvedUserId ||
+          identity.current.startsWith(`${resolvedUserId}:`)) &&
+        isTransportInterruption(e)
+      ) {
+        // A failed transport cannot revoke permissions or destroy unsent input.
+        // Fresh sessions and actual server denials still take the closed path.
+        setError(null);
+        return;
+      }
       setError(e);
       setProfile(null);
       identity.current = null;
@@ -178,10 +250,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const id = setInterval(() => void refresh(), 60000);
     const focus = () => void refresh();
     window.addEventListener("focus", focus);
+    let wasOnline = getNetworkStatus().online;
+    const stopNetworkSubscription = subscribeNetworkStatus(() => {
+      const online = getNetworkStatus().online;
+      const recovered = online && !wasOnline;
+      wasOnline = online;
+      if (recovered) void refresh();
+    });
     return () => {
       data?.subscription.unsubscribe();
       clearInterval(id);
       window.removeEventListener("focus", focus);
+      stopNetworkSubscription();
     };
   }, [refresh, client]);
   async function signOut() {

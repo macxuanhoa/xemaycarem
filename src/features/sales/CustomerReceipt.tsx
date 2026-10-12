@@ -82,7 +82,7 @@ export function CustomerReceipt({
               </div>
               <div>
                 <dt>Loại xe · đời · màu</dt>
-                <dd>{vehicleSubtitle(sale) || "Chưa phân loại"}</dd>
+                <dd>{vehicleSubtitle(sale) || "—"}</dd>
               </div>
               <div>
                 <dt>Giá bán</dt>

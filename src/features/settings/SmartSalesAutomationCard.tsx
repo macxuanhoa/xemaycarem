@@ -116,7 +116,7 @@ export function SmartSalesAutomationCard() {
 
         {stateQuery.isPending ? (
           <Loading />
-        ) : stateQuery.error ? (
+        ) : stateQuery.error && !stateQuery.data ? (
           <ErrorState error={stateQuery.error} />
         ) : (
           <>
@@ -261,7 +261,7 @@ function MessageTemplateEditor({
   });
 
   if (templates.isPending) return <Loading />;
-  if (templates.error) return <ErrorState error={templates.error} />;
+  if (templates.error && !templates.data) return <ErrorState error={templates.error} />;
   const items = templates.data ?? [];
 
   return (

@@ -77,6 +77,7 @@ export const RUNTIME_OPERATIONS = [
   "get_identity_document",
   "save_identity_document",
   "remove_identity_document_image",
+  "delete_identity_document_image",
   "list_notifications",
   "mark_notifications_read",
   "mark_all_notifications_read",

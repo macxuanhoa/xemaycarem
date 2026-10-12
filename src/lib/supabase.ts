@@ -1,5 +1,6 @@
 import { createClient } from "@supabase/supabase-js";
 import { AppError } from "./errors";
+import { networkFetch } from "./networkRequest";
 const url = import.meta.env.VITE_SUPABASE_URL?.trim();
 const key = import.meta.env.VITE_SUPABASE_ANON_KEY?.trim();
 export const isConfigured = !!url && /^https?:\/\//.test(url) && !!key;
@@ -76,6 +77,8 @@ export const authStorage: Storage = {
 };
 export const supabase = isConfigured
   ? createClient(url, key, {
+      global: { fetch: networkFetch },
+      db: { retry: false },
       auth: {
         persistSession: true,
         autoRefreshToken: true,

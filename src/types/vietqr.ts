@@ -6,7 +6,8 @@ export type VietQrConfig = {
   vietqr_enabled: boolean;
 };
 
-export type VietQrRequestStatus = "PENDING" | "CONFIRMED" | "CANCELLED";
+export type VietQrRequestStatus =
+  "PENDING" | "RECEIVED" | "CONFIRMED" | "EXPIRED" | "CANCELLED";
 
 export type VietQrPaymentRequest = {
   id: string;
@@ -19,6 +20,18 @@ export type VietQrPaymentRequest = {
   bank_account_no: string;
   bank_account_name: string;
   qr_payload: string;
+  /** Server snapshots; closing/reopening never extends these timestamps. */
+  expires_at: string;
+  replace_available_at: string;
+  server_now: string;
+  monitoring_available: boolean;
+  transfer_content: string;
+  agreement_text: string;
+  payer_name: string;
+  contract_reference: string;
+  vehicle_label: string;
+  bank_transaction_id: string | null;
+  receipt_id: string | null;
   status: VietQrRequestStatus;
   payment_id: string | null;
   superseded?: boolean;

@@ -79,7 +79,7 @@ export async function runSecurityIntegrationTests(externalDb, { engine = 'postgr
     })
 
     await call('owner', 'save_settings', { bank_bin: '970422', bank_name: 'Synthetic', bank_account_no: '0987654321', bank_account_name: 'SYNTHETIC ONLY', vietqr_enabled: true, bank_provider: 'SEPAY', bank_webhook_enabled: false })
-    const event = (extra = {}) => ({ provider: 'SEPAY', provider_txn_id: randomUUID(), amount: 100, direction: 'in', account_number: '0987654321', transfer_content: 'Synthetic bank', ...extra })
+    const event = (extra = {}) => ({ provider: 'SEPAY', provider_txn_id: randomUUID(), amount: 100, direction: 'in', account_number: '0987654321', transfer_content: 'Synthetic bank', transfer_at: new Date().toISOString(), ...extra })
     await check('bank ingest fails closed for disabled, wrong provider/account, outgoing and invalid IDs', async () => {
       await assert.rejects(() => ingest(event()), /BANK_WEBHOOK_NOT_CONFIGURED/)
       await call('owner', 'save_settings', { bank_webhook_enabled: true })
@@ -119,7 +119,7 @@ export async function runSecurityIntegrationTests(externalDb, { engine = 'postgr
     await check('amount mismatch stays in manual review and cannot record the larger QR amount', async () => {
       assert.equal(wrong.status, 'MANUAL_REVIEW')
       const before = Number((await row('SELECT count(*) AS n FROM public.payments WHERE sale_id=$1', [privateSale])).n)
-      await assert.rejects(() => call('owner', 'confirm_bank_transaction', { id: wrong.id, request_id: randomUUID() }), /BANK_TRANSACTION_AMOUNT_MISMATCH/)
+      await assert.rejects(() => call('owner', 'confirm_bank_transaction', { id: wrong.id, request_id: randomUUID() }), /VIETQR_BANK_EVIDENCE_REQUIRED/)
       assert.equal(Number((await row('SELECT count(*) AS n FROM public.payments WHERE sale_id=$1', [privateSale])).n), before)
       assert.equal((await row('SELECT status FROM public.bank_transactions WHERE id=$1', [wrong.id])).status, 'MANUAL_REVIEW')
       const unmatched = await ingest(event({ amount: 98 }))
@@ -130,21 +130,28 @@ export async function runSecurityIntegrationTests(externalDb, { engine = 'postgr
     await check('one QR cannot credit two independent bank transactions even when both amounts match', async () => {
       const first = await ingest(event({ transfer_content: qr.qr_reference }))
       const second = await ingest(event({ transfer_content: qr.qr_reference }))
+      assert.equal(first.status, 'RECORDED')
+      assert.equal(second.status, 'MANUAL_REVIEW')
       const recorded = await call('owner', 'confirm_bank_transaction', { id: first.id, request_id: randomUUID() })
       assert.equal(Number((await row('SELECT amount FROM public.payments WHERE id=$1', [recorded.payment_id])).amount), 100)
-      await assert.rejects(() => call('owner', 'confirm_bank_transaction', { id: second.id, request_id: randomUUID() }), /VIETQR_REQUEST_NOT_PENDING/)
-      assert.equal((await row('SELECT status FROM public.bank_transactions WHERE id=$1', [second.id])).status, 'MATCHED_PENDING')
+      await assert.rejects(() => call('owner', 'confirm_bank_transaction', { id: second.id, request_id: randomUUID() }), /VIETQR_BANK_EVIDENCE_REQUIRED/)
+      assert.equal((await row('SELECT status FROM public.bank_transactions WHERE id=$1', [second.id])).status, 'MANUAL_REVIEW')
+      assert.equal(Number((await row('SELECT count(*) AS n FROM public.payments WHERE sale_id=$1 AND amount=100', [privateSale])).n), 1)
       assert.equal((await call('owner', 'confirm_bank_transaction', { id: first.id })).payment_id, recorded.payment_id)
     })
 
     await check('financial access revoked while confirmation waits is rechecked after the database lock', async () => {
+      await db.query("UPDATE public.vietqr_requests SET replace_available_at=clock_timestamp()-interval '1 second' WHERE id=$1", [qr.id])
       const nextQr = await call('owner', 'create_vietqr_payment_request', { sale_id: privateSale, amount: 101, qr_payload: 'Synthetic revoke' })
-      const transaction = await ingest(event({ amount: 101, transfer_content: nextQr.qr_reference }))
+      // A real credit with the wrong amount remains in review. Confirmation must
+      // recheck access after waiting even when it will later reject the evidence.
+      const transaction = await ingest(event({ amount: 100, transfer_content: nextQr.qr_reference }))
+      assert.equal(transaction.status, 'MANUAL_REVIEW')
       const lock = await db.connection(), worker = await db.connection()
       let pending
       try {
         await lock.exec('BEGIN')
-        await lock.query('SELECT id FROM public.bank_transactions WHERE id=$1 FOR UPDATE', [transaction.id])
+        await lock.query('SELECT id FROM public.vehicles WHERE id=$1 FOR UPDATE', [nextQr.vehicle_id])
         pending = asUser(worker, users.finance, c => rpc(c, 'confirm_bank_transaction', '$1::jsonb', [JSON.stringify({ id: transaction.id, request_id: randomUUID() })])).then(value => ({ value }), error => ({ error }))
         let waiting = false
         for (let attempt = 0; attempt < 100; attempt++) {
@@ -156,7 +163,7 @@ export async function runSecurityIntegrationTests(externalDb, { engine = 'postgr
         await lock.exec('COMMIT')
         const outcome = await pending
         assert.match(outcome.error?.message ?? '', /ACCESS_DENIED/)
-        assert.equal((await row('SELECT status FROM public.bank_transactions WHERE id=$1', [transaction.id])).status, 'MATCHED_PENDING')
+        assert.equal((await row('SELECT status FROM public.bank_transactions WHERE id=$1', [transaction.id])).status, 'MANUAL_REVIEW')
         assert.equal(Number((await row("SELECT count(*) AS n FROM public.payments WHERE sale_id=$1 AND amount=101", [privateSale])).n), 0)
       } finally {
         await lock.exec('ROLLBACK').catch(() => {})

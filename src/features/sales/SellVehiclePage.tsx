@@ -31,7 +31,7 @@ import {
   Pagination,
 } from "@/components/ui";
 import { Highlight } from "@/components/search/Highlight";
-import type { Paged, Vehicle } from "@/types";
+import type { Paged, Vehicle, VietQrPaymentRequest } from "@/types";
 import { AVAILABLE_VEHICLE_FILTER } from "@/lib/vehicleFilters";
 import { vehicleSubtitle, vehicleTitle } from "@/lib/vehicleDisplay";
 import { paymentLabels } from "@/features/vehicles/vehicleSchema";
@@ -172,7 +172,7 @@ export function SellVehiclePage() {
     );
 
   if (vehicle.isPending) return <Loading />;
-  if (vehicle.isError)
+  if (vehicle.isError && !vehicle.data)
     return (
       <ErrorState error={vehicle.error} retry={() => void vehicle.refetch()} />
     );
@@ -252,6 +252,7 @@ function SaleEditor({ vehicle }: { vehicle: Vehicle }) {
   const paidField = form.register("initial_payment");
   const [showPaymentDetails, setShowPaymentDetails] = useState(false);
   const [showVietQrModal, setShowVietQrModal] = useState(false);
+  const [receivedQr, setReceivedQr] = useState<VietQrPaymentRequest | null>(null);
   // Nhân viên chỉ "nói" số tiền khách trả trước khi tự sửa ô trả trước. Cho tới
   // lúc đó, bán xe mặc định là KHÁCH ĐÃ TRẢ ĐỦ — xem effect đồng bộ bên dưới.
   const [paymentEdited, setPaymentEdited] = useState(false);
@@ -261,6 +262,12 @@ function SaleEditor({ vehicle }: { vehicle: Vehicle }) {
       toast.warning("Vui lòng nhập giá bán hoặc số tiền khách trả trước để tạo mã VietQR.");
       return;
     }
+    if (!form.getValues("customer_name").trim()) {
+      toast.warning("Nhập tên người thanh toán trước khi tạo mã chuyển khoản.");
+      form.setFocus("customer_name");
+      return;
+    }
+    form.setValue("payment_method", "BANK_TRANSFER", { shouldDirty: true });
     setShowVietQrModal(true);
   };
   const reviewPending = useRef(false);
@@ -279,12 +286,26 @@ function SaleEditor({ vehicle }: { vehicle: Vehicle }) {
   const shortfall = isBelowCost ? purchaseCost! - price : 0;
   const needsApproval = !owner && (isBelowCost || costHidden);
   const awaitingApproval = !!vehicle.pending_sale_approval;
+  const qrRequiresApproval = needsApproval || awaitingApproval;
 
   type Submission = { kind: "sale" | "approval"; id: string };
 
   const mutation = useMutation({
     mutationFn: (values: SaleFormValues): Promise<Submission> => {
       if (!profile) throw new AppError("Vui lòng đăng nhập lại trước khi bán xe.");
+      if (values.payment_method === "BANK_TRANSFER" && values.initial_payment > 0 && !receivedQr) {
+        throw new AppError("Chưa có xác nhận tiền vào từ ngân hàng. Mở phần thanh toán chuyển khoản để kiểm tra trước khi ghi nhận khoản thu.");
+      }
+      if (receivedQr && !owner && (belowCost(values.sale_price) || vehicle.purchase_price_hidden)) {
+        throw new AppError("Khoản chuyển đã nhận cần được đối soát với chủ cửa hàng trước khi thay đổi giao dịch sang chờ duyệt.");
+      }
+      if (receivedQr && (
+        values.initial_payment !== receivedQr.amount ||
+        values.payment_method !== "BANK_TRANSFER" ||
+        values.customer_name.trim() !== receivedQr.payer_name
+      )) {
+        throw new AppError("Thông tin thanh toán khác với khoản tiền ngân hàng đã nhận. Kiểm tra lại tên người thanh toán, số tiền trả trước và hình thức chuyển khoản trước khi bán xe.");
+      }
       if (!owner && (belowCost(values.sale_price) || vehicle.purchase_price_hidden)) {
         // Dưới giá thu, hoặc giá thu bị ẩn (chủ nhập/dữ liệu cũ): KHÔNG ghi giao
         // dịch. Đề xuất đi vào hàng đợi "Chờ duyệt" của OWNER; xe vẫn trong kho và
@@ -302,7 +323,9 @@ function SaleEditor({ vehicle }: { vehicle: Vehicle }) {
       }
       return executeOperation<string>(profile.id, "sell_vehicle", vehicle.id, requestId =>
         api.call<string>("sell_vehicle", {
-          p_data: { ...values, vehicle_id: vehicle.id, request_id: requestId },
+          p_data: { ...values, vehicle_id: vehicle.id, request_id: requestId,
+            ...(receivedQr ? { vietqr_request_id: receivedQr.id } : {}),
+          },
         }),
       ).then((saleId): Submission => ({ kind: "sale", id: saleId }));
     },
@@ -429,6 +452,12 @@ function SaleEditor({ vehicle }: { vehicle: Vehicle }) {
 
   const reviewSale = async (values: SaleFormValues) => {
     if (reviewPending.current || mutation.isPending) return;
+    if (values.payment_method === "BANK_TRANSFER" && values.initial_payment > 0 && !receivedQr) {
+      toast.warning("Chưa xác nhận tiền vào từ ngân hàng", {
+        description: "Mở thanh toán chuyển khoản để kiểm tra. Chỉ ghi nhận khoản thu sau khi ngân hàng xác nhận.",
+      });
+      return;
+    }
     reviewPending.current = true;
     setReviewing(true);
     // Review and send the same validated values, even if form state later changes.
@@ -450,7 +479,9 @@ function SaleEditor({ vehicle }: { vehicle: Vehicle }) {
             {/* 1. Tên xe to rõ */}
             <div className="sale-confirm-vehicle-header">
               <h3 className="sale-confirm-vehicle-title">
-                {vehicle.vehicle_type || "Xe chưa phân loại"}
+                {(vehicle.vehicle_type && vehicle.vehicle_type !== "Chưa phân loại" && vehicle.vehicle_type !== "Xe chưa phân loại" ? vehicle.vehicle_type : "") ||
+                  vehicle.license_plate ||
+                  "Xe máy"}
               </h3>
               {(vehicle.year || vehicle.color) && (
                 <div className="sale-confirm-vehicle-tags">
@@ -702,36 +733,6 @@ function SaleEditor({ vehicle }: { vehicle: Vehicle }) {
                 />
               </Field>
             </div>
-            {/* Khối thanh toán chuyển khoản VietQR – bố cục chuyên nghiệp, tách biệt rõ ràng */}
-            <div className="sale-vietqr-card">
-              <div className="sale-vietqr-card-main">
-                <div className="sale-vietqr-card-icon" aria-hidden="true">
-                  <QrCode size={20} />
-                </div>
-                <div className="sale-vietqr-card-content">
-                  <div className="sale-vietqr-card-header">
-                    <span className="sale-vietqr-card-title">Thanh toán chuyển khoản VietQR</span>
-                    {targetAmount > 0 && (
-                      <span className="sale-vietqr-amount-tag">
-                        {money(targetAmount)}
-                      </span>
-                    )}
-                  </div>
-                  <p className="sale-vietqr-card-desc">
-                    Tạo mã QR động Napas 24/7 tự động điền số tiền và khớp tiền về tài khoản.
-                  </p>
-                </div>
-              </div>
-              <Button
-                type="button"
-                variant="secondary"
-                className="sale-vietqr-btn"
-                onClick={handleOpenVietQr}
-              >
-                <QrCode size={15} /> Tạo mã QR
-              </Button>
-            </div>
-
             {/* Nút toggle mở rộng chi tiết thanh toán – độc lập, toàn chiều ngang, nét đứt nhã nhặn */}
             <Button
               type="button"
@@ -782,15 +783,6 @@ function SaleEditor({ vehicle }: { vehicle: Vehicle }) {
                       </option>
                     ))}
                   </select>
-                  {form.watch("payment_method") === "BANK_TRANSFER" && (
-                    <button
-                      type="button"
-                      className="sale-field-inline-vietqr"
-                      onClick={handleOpenVietQr}
-                    >
-                      <QrCode size={13} /> Mở mã VietQR chuyển khoản
-                    </button>
-                  )}
                 </Field>
                 <Field
                   label="Hạn thanh toán (nếu còn nợ)"
@@ -900,15 +892,22 @@ function SaleEditor({ vehicle }: { vehicle: Vehicle }) {
                 </dd>
               </div>
             </dl>
+          </Card>
+        </aside>
+        <Card className="sale-final-actions">
             <div className="sale-action-footer">
               <Button
                 type="button"
                 variant="secondary"
                 className="full-width sale-aside-vietqr-btn"
                 onClick={handleOpenVietQr}
+                disabled={qrRequiresApproval}
+                title={qrRequiresApproval ? "Chờ chủ cửa hàng duyệt giao dịch trước khi thu tiền chuyển khoản." : undefined}
               >
-                <QrCode size={15} /> Tạo mã VietQR thu tiền
+                <QrCode size={15} /> {receivedQr ? "Xem khoản chuyển đã nhận" : "Thanh toán chuyển khoản"}
               </Button>
+              {qrRequiresApproval && <p className="muted small">Chờ duyệt giao dịch trước khi tạo mã thu tiền.</p>}
+              {receivedQr && <p className="notice success" role="status">Ngân hàng đã nhận {money(receivedQr.amount)}. Khoản tiền sẽ gắn với hợp đồng khi bạn xác nhận bán xe.</p>}
               <Button
                 type="submit"
                 className="full-width"
@@ -935,24 +934,20 @@ function SaleEditor({ vehicle }: { vehicle: Vehicle }) {
                 Quay lại
               </Link>
             </div>
-          </Card>
-        </aside>
+        </Card>
       </form>
       {showVietQrModal && (
         <VietQrPaymentModal
           vehicle={vehicle}
-          amount={Number.isFinite(paid) && paid > 0 ? paid : (Number.isFinite(price) ? price : 0)}
+          amount={receivedQr?.amount ?? targetAmount}
+          payerName={form.watch("customer_name").trim()}
           onClose={() => setShowVietQrModal(false)}
-          onPaymentConfirmed={() => {
+          onPaymentConfirmed={(confirmedRequest) => {
+            setReceivedQr(confirmedRequest);
             setShowVietQrModal(false);
+            setPaymentEdited(true);
             form.setValue("payment_method", "BANK_TRANSFER", { shouldDirty: true });
-            const currentPaid = form.getValues("initial_payment");
-            if (!Number.isFinite(currentPaid) || currentPaid <= 0) {
-              const currentPrice = form.getValues("sale_price");
-              if (Number.isFinite(currentPrice)) {
-                form.setValue("initial_payment", currentPrice, { shouldDirty: true, shouldValidate: true });
-              }
-            }
+            form.setValue("initial_payment", confirmedRequest.amount, { shouldDirty: true, shouldValidate: true });
           }}
         />
       )}

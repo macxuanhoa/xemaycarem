@@ -6,11 +6,13 @@ import {
 import { supabase } from "./supabase";
 import { AppError } from "./errors";
 import { reportRuntimeIssue } from "./runtimeMonitoring";
+import { ensureNetworkOnline } from "./networkRequest";
 import {
   IDENTITY_DOCUMENT_BUCKET,
   IDENTITY_DOCUMENT_URL_TTL_SECONDS,
   VEHICLE_IMAGE_BUCKET,
   VEHICLE_IMAGE_URL_TTL_SECONDS,
+  deleteImage,
   signedImageUrl,
   uploadImage,
 } from "./storageGateway";
@@ -101,7 +103,7 @@ async function handleEdgeFunctionError(
       });
     }
     throw new AppError(
-      "Không thể kết nối đến Edge Function (lỗi mạng hoặc cấu hình CORS). Vui lòng kiểm tra kết nối mạng.",
+      "Không thể kết nối dịch vụ. Kết quả thao tác chưa được xác nhận; hãy kiểm tra lại dữ liệu trước khi thử lại.",
     );
   }
 
@@ -118,12 +120,7 @@ async function handleEdgeFunctionError(
   throw new AppError("Đã xảy ra lỗi không xác định khi kết nối dịch vụ.");
 }
 
-const ensureOnline = () => {
-  if (!navigator.onLine)
-    throw new AppError(
-      "Đang mất kết nối. Giao dịch chưa được gửi. Hãy kết nối mạng để tiếp tục.",
-    );
-};
+const ensureOnline = ensureNetworkOnline;
 async function call<T>(
   name: string,
   args: Record<string, unknown> = {},
@@ -231,6 +228,61 @@ async function identityImageUrl(path: string) {
     path,
     IDENTITY_DOCUMENT_URL_TTL_SECONDS,
   );
+}
+/**
+ * Gỡ một ảnh CCCD: trình duyệt xóa object trong kho trước, rồi RPC rút đường dẫn
+ * khỏi hồ sơ kèm ghi audit. Thứ tự này là bắt buộc chứ không phải tùy hứng: Postgres
+ * áp cả điều kiện của policy SELECT lẫn policy DELETE khi thực thi DELETE, nên một
+ * object đã bị rút tham chiếu sẽ không còn xóa được từ trình duyệt (đúng ý đồ
+ * retention của bucket CCCD). Bù lại, nếu bước rút tham chiếu lỗi thì ảnh đã biến
+ * mất khỏi kho và hồ sơ chỉ còn trỏ vào một đường dẫn hỏng — bấm "Gỡ ảnh" lần nữa
+ * là hoàn tất. Kết quả trả về cho giao diện phân biệt "xóa sạch" và "chưa xóa được
+ * tệp trong kho".
+ */
+async function removeIdentityDocumentImage(
+  subjectType: "acquisition" | "sale",
+  subjectId: string,
+  side: "front" | "back",
+  path: string,
+): Promise<{ detached: boolean; purged: boolean }> {
+  ensureOnline();
+  let purged = false;
+  try {
+    await deleteImage(IDENTITY_DOCUMENT_BUCKET, path);
+    purged = true;
+  } catch (error) {
+    if (import.meta.env.DEV)
+      console.error("CCCD purge failed", {
+        side,
+        errorClass:
+          error instanceof Error ? error.constructor.name : typeof error,
+      });
+  }
+  // Server là nguồn thật về đường dẫn đang được tham chiếu tại thời điểm gỡ.
+  const detachedPath = await call<string | null>(
+    "delete_identity_document_image",
+    {
+      p_subject_type: subjectType,
+      p_subject_id: subjectId,
+      p_side: side,
+    },
+  );
+  // Hiếm khi ảnh đã bị một phiên khác thay thế giữa hai bước: dọn luôn object mới
+  // nhận được để không để lại tham chiếu trỏ vào ảnh vẫn còn đọc được.
+  if (detachedPath && detachedPath !== path) {
+    try {
+      await deleteImage(IDENTITY_DOCUMENT_BUCKET, detachedPath);
+      purged = true;
+    } catch (error) {
+      if (import.meta.env.DEV)
+        console.error("CCCD purge failed", {
+          side,
+          errorClass:
+            error instanceof Error ? error.constructor.name : typeof error,
+        });
+    }
+  }
+  return { detached: true, purged };
 }
 async function createUser(input: {
   username: string;
@@ -466,6 +518,7 @@ export const api = {
       { p_data: input },
     ),
   processMessage: async (messageId: string): Promise<void> => {
+    ensureOnline();
     if (!supabase) return;
     const { error } = await supabase.functions.invoke("process-message", {
       body: { message_id: messageId },
@@ -475,6 +528,7 @@ export const api = {
   uploadVehicleImage,
   imageUrl,
   uploadIdentityDocumentImage,
+  removeIdentityDocumentImage,
   identityImageUrl,
   createUser,
   manageUser,
@@ -519,45 +573,71 @@ export const api = {
     sale_id?: string;
     amount: number;
     qr_payload?: string;
+    payer_name?: string;
+    contract_reference?: string;
   }) =>
-    call<import("@/types").VietQrPaymentRequest>("create_vietqr_payment_request", {
-      p_data: data,
-    }),
+    call<import("@/types").VietQrPaymentRequest>(
+      "create_vietqr_payment_request",
+      {
+        p_data: data,
+      },
+    ),
+  replaceVietQrPaymentRequest: async (
+    id: string,
+    data: { amount: number; payer_name?: string; contract_reference?: string },
+  ) =>
+    call<import("@/types").VietQrPaymentRequest>(
+      "replace_vietqr_payment_request",
+      {
+        p_data: { ...data, replace_request_id: id },
+      },
+    ),
   getVietQrPaymentRequest: async (id: string) =>
     call<import("@/types").VietQrPaymentRequest>("get_vietqr_payment_request", {
       p_id: id,
     }),
   cancelVietQrPaymentRequest: async (id: string, reason = "") =>
-    call<import("@/types").VietQrPaymentRequest>("cancel_vietqr_payment_request", {
-      p_id: id,
-      p_reason: reason,
-    }),
+    call<import("@/types").VietQrPaymentRequest>(
+      "cancel_vietqr_payment_request",
+      {
+        p_id: id,
+        p_reason: reason,
+      },
+    ),
   confirmVietQrPayment: async (data: {
     qr_request_id: string;
     request_id?: string;
     payment_date?: string;
     notes?: string;
   }) =>
-    call<string>("confirm_vietqr_payment", {
+    call<string | null>("confirm_vietqr_payment", {
       p_data: data,
     }),
   getActiveVietQrRequest: async (vehicleId: string, saleId?: string) =>
-    call<import("@/types").VietQrPaymentRequest | null>("get_active_vietqr_request", {
-      p_vehicle_id: vehicleId,
-      p_sale_id: saleId ?? null,
-    }),
+    call<import("@/types").VietQrPaymentRequest | null>(
+      "get_active_vietqr_request",
+      {
+        p_vehicle_id: vehicleId,
+        p_sale_id: saleId ?? null,
+      },
+    ),
   /**
    * Trạng thái đối soát của một yêu cầu VietQR (tiền ngân hàng đã về chưa).
    */
   getVietQrMatchingStatus: async (qrRequestId: string) =>
-    call<import("@/types").VietQrMatchingStatus | null>("get_vietqr_matching_status", {
-      p_qr_request_id: qrRequestId,
-    }),
-  listBankTransactions: async (filters: {
-    status?: string;
-    limit?: number;
-    offset?: number;
-  } = {}) =>
+    call<import("@/types").VietQrMatchingStatus | null>(
+      "get_vietqr_matching_status",
+      {
+        p_qr_request_id: qrRequestId,
+      },
+    ),
+  listBankTransactions: async (
+    filters: {
+      status?: string;
+      limit?: number;
+      offset?: number;
+    } = {},
+  ) =>
     call<import("@/types").BankTransactionList>("list_bank_transactions", {
       p_filters: filters,
     }),
@@ -592,7 +672,9 @@ export const api = {
       account_configured: boolean;
     }>("get_bank_webhook_state"),
   /** Probe sức khỏe webhook ngân hàng qua Edge (chỉ CONFIGURED/NOT_CONFIGURED). */
-  checkBankWebhookHealth: async (): Promise<"CONFIGURED" | "NOT_CONFIGURED" | "UNREACHABLE"> => {
+  checkBankWebhookHealth: async (): Promise<
+    "CONFIGURED" | "NOT_CONFIGURED" | "UNREACHABLE"
+  > => {
     ensureOnline();
     if (!supabase) return "UNREACHABLE";
     try {
@@ -616,7 +698,10 @@ export const api = {
     phone?: string;
     display_name?: string;
     note?: string;
-  }) => call<import("@/types").CustomerContact>("save_sale_contact", { p_data: data }),
+  }) =>
+    call<import("@/types").CustomerContact>("save_sale_contact", {
+      p_data: data,
+    }),
   verifySaleContact: async (id: string, verified: boolean) =>
     call<import("@/types").CustomerContact>("verify_sale_contact", {
       p_data: { id, verified },
@@ -628,7 +713,9 @@ export const api = {
       p_sale_id: saleId,
     }),
   markThankYouCopied: async (saleId: string) =>
-    call<Record<string, unknown>>("mark_thank_you_copied", { p_sale_id: saleId }),
+    call<Record<string, unknown>>("mark_thank_you_copied", {
+      p_sale_id: saleId,
+    }),
   markPersonalThankYouSent: async (data: {
     sale_id: string;
     channel: string;
@@ -646,10 +733,12 @@ export const api = {
     channel?: string;
     body: string;
     is_active?: boolean;
-  }) => call<import("@/types").MessageTemplate>("save_message_template", { p_data: data }),
+  }) =>
+    call<import("@/types").MessageTemplate>("save_message_template", {
+      p_data: data,
+    }),
   previewMessageTemplate: async (data: { code: string; sale_id?: string }) =>
     call<{ code: string; rendered: string }>("preview_message_template", {
       p_data: data,
     }),
 };
-

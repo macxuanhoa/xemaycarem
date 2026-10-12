@@ -375,6 +375,7 @@ Toàn bộ hàm `public` mà ứng dụng gọi được, lấy từ định ngh
 | dashboard | p_from date DEFAULT (date_trunc(''month''::text, (now() AT TIME ZONE ''Asia/Ho_Chi_Minh''::text)))::date, p_to date DEFAULT ((now() AT TIME ZONE ''Asia/Ho_Chi_Minh''::text))::date | OWNER, MANAGER, STAFF |
 | delete_acquisition | p_id uuid, p_reason text | OWNER, MANAGER |
 | delete_announcement | p_id uuid | OWNER |
+| delete_identity_document_image | p_subject_type text, p_subject_id uuid, p_side text | OWNER, MANAGER |
 | delete_sale_contact | p_id uuid | OWNER, MANAGER, STAFF |
 | delete_vehicle | p_id uuid, p_reason text | OWNER, MANAGER |
 | delete_vehicle_type | p_id uuid | OWNER |
@@ -383,7 +384,7 @@ Toàn bộ hàm `public` mà ứng dụng gọi được, lấy từ định ngh
 | finish_message | p_message_id uuid,p_provider_message_id text,p_lease_token uuid | kiểm tra quyền riêng trong hàm |
 | finish_mock_message | p_message_id uuid,p_provider_message_id text | OWNER, MANAGER, STAFF |
 | get_acquisition_for_vehicle | p_vehicle_id uuid | OWNER, MANAGER |
-| get_active_vietqr_request | p_vehicle_id uuid, p_sale_id uuid DEFAULT NULL | kiểm tra quyền riêng trong hàm |
+| get_active_vietqr_request | p_vehicle_id uuid,p_sale_id uuid DEFAULT NULL | kiểm tra quyền riêng trong hàm |
 | get_bank_webhook_state | không tham số | OWNER |
 | get_customer_history | p_phone text | OWNER, MANAGER, STAFF |
 | get_identity_document | p_subject_type text, p_subject_id uuid | OWNER, MANAGER |
@@ -398,7 +399,7 @@ Toàn bộ hàm `public` mà ứng dụng gọi được, lấy từ định ngh
 | get_settings | không tham số | OWNER, MANAGER, STAFF |
 | get_vehicle | p_id uuid | OWNER, MANAGER, STAFF |
 | get_vietqr_matching_status | p_qr_request_id uuid | kiểm tra quyền riêng trong hàm |
-| get_vietqr_payment_request | p_data jsonb | kiểm tra quyền riêng trong hàm |
+| get_vietqr_payment_request | p_id uuid | kiểm tra quyền riêng trong hàm |
 | global_search | p_query text, p_limit integer DEFAULT 10 | OWNER, MANAGER, STAFF |
 | ignore_bank_transaction | p_data jsonb | kiểm tra quyền riêng trong hàm |
 | import_vehicles | p_vehicles jsonb | OWNER, MANAGER, STAFF |
@@ -450,6 +451,7 @@ Toàn bộ hàm `public` mà ứng dụng gọi được, lấy từ định ngh
 | remove_identity_document_image | p_subject_type text, p_subject_id uuid, p_side text | OWNER, MANAGER |
 | remove_vehicle_image | p_id uuid | OWNER, MANAGER, STAFF |
 | renew_message_lease | p_message_id uuid,p_lease_token uuid | kiểm tra quyền riêng trong hàm |
+| replace_vietqr_payment_request | p_data jsonb | kiểm tra quyền riêng trong hàm |
 | report | p_kind text, p_filters jsonb DEFAULT ''{}'' | OWNER, MANAGER |
 | report_client_issue | p_data jsonb | OWNER, MANAGER, STAFF |
 | request_delete_vehicle | p_id uuid, p_reason text | OWNER, MANAGER, STAFF |
@@ -504,8 +506,6 @@ Trích từ cây route trong `src/App.tsx` (thành phần `Protected` kế thừ
 | `/capture` | đăng nhập |
 | `/assist` | đăng nhập |
 | `/copilot` | đăng nhập |
-| `/posts` | đăng nhập |
-| `/brand-memory` | đăng nhập |
 | `/docs` | đăng nhập |
 | `/docs/:slug` | đăng nhập |
 | `/receivables` | đăng nhập |
@@ -2268,6 +2268,7 @@ All operations require a verified Supabase session and an active profile. Functi
 | save_settings | p_data jsonb | void |
 | register_vehicle_image | p_vehicle_id uuid, p_storage_path text, p_display_order int = 0 | UUID |
 | remove_vehicle_image | p_id uuid | void |
+| delete_identity_document_image | p_subject_type text, p_subject_id uuid, p_side text (`front`/`back`) | text — the detached Storage path, or NULL when the side was already empty; OWNER/MANAGER only; detaches one CCCD card photo and records `DELETE_IDENTITY_DOCUMENT_IMAGE` with `purged_path`; the browser is expected to have deleted that object first under the `identity_document_purge` storage policy; unknown subject fails `IDENTITY_DOCUMENT_NOT_FOUND`, bad side `INVALID_SIDE` |
 | search_knowledge | p_query text, p_limit int = 8 (max 20) | Ranked sections: slug,title,section,audience,source_path,rank,excerpt |
 | list_knowledge | none | {items:[slug,title,section,audience,source_path],total} |
 | get_knowledge_article | p_slug text | Article with body_md,audience,source_path,updated_at |
@@ -2289,7 +2290,9 @@ Vehicle purchase cost is optional only for operational users. Missing cost is st
 
 Sale creation data: `request_id,vehicle_id,customer_name,customer_phone,sale_price,sale_date,initial_payment,payment_method,notes`. `sale_price` and `initial_payment` have no server-side source: the sale form always opens empty and the cashier types the figures, so no other record, draft, AI task or showroom view can prefill a selling price. Receipt proposal data: `request_id,sale_id,amount,payment_method,payment_date,reference,notes` plus optional evidence fields described below; `add_payment` records only a manager-verified proposal. Required VND amounts are exact nonnegative integers, single-entry cap 1,000,000,000,000. Payment amounts must be positive, and total payments may not exceed the sale price. Payments remain immutable; cancelling a sale excludes its retained payments from active collection totals and marks them `VOIDED`, preserving their history. Actual bank/cash refunds are handled outside this V1 app and must be reconciled separately.
 
-Vehicle images use the private `vehicle-images` bucket, JPEG/PNG/WebP/AVIF only, max 8 MiB. Path is `<vehicle UUID>/<random UUID>.<extension>`. Register metadata after successful upload, then generate short-lived signed URLs. Removing metadata soft-deletes it and removes read access through the storage policy. Objects are retained for audit/backup and can be pruned administratively after the retention period.', 'MANAGER', 'supabase/API.md'),
+Vehicle images use the private `vehicle-images` bucket, JPEG/PNG/WebP/AVIF only, max 8 MiB. Path is `<vehicle UUID>/<random UUID>.<extension>`. Register metadata after successful upload, then generate short-lived signed URLs. Removing metadata soft-deletes it and removes read access through the storage policy. Objects are retained for audit/backup and can be pruned administratively after the retention period.
+
+CCCD card photos live in the private `identity-documents` bucket with the same path rule under the acquisition or sale UUID. `remove_identity_document_image` only detaches a side and leaves the object for retention. `delete_identity_document_image` is the PII path and runs in two ordered steps: the browser deletes the object first under `identity_document_purge`, a DELETE policy that reuses `can_read_identity_document_image` and therefore acts only while the record still references the photo, then the RPC detaches the side and audits the path. The order is forced by PostgreSQL, which applies the SELECT policies together with the DELETE policy when running DELETE: once the side is detached the object is unreadable and can no longer be deleted from any browser role. If the RPC fails after the purge, the record temporarily keeps a broken path and a second tap on "Gỡ ảnh" finishes the job; the reverse state (a record pointing at a still-readable photo) never happens.', 'MANAGER', 'supabase/API.md'),
   ('api-1', 'Hợp đồng database và RPC', 'Write protocol and verified receipts (forward migrations 009–012)', '## Write protocol and verified receipts (forward migrations 009–012)
 
 `acquire_vehicle(p_data)` and inventory creation `save_vehicle(p_data,NULL)` require a durable `request_id` UUID. `import_vehicles(p_vehicles)` requires `{request_id,rows}`. Reuse the UUID after timeout; `get_operation_result(operation,request_id)` reconciles the actor-scoped receipt. Missing IDs fail closed with `CLIENT_UPGRADE_REQUIRED`. Inventory creation uses operation `create_vehicle`; intake, batch and sale use `acquire_vehicle`, `import_vehicles`, `sell_vehicle`. Existing sale UUID recovery remains available.
@@ -2353,7 +2356,9 @@ Modern key configuration is also supported: `SUPABASE_PUBLISHABLE_KEY` / `SUPABA
 The `ai-assist` function answers shop questions (`task: ''copilot''`) with a read-only evidence engine. It holds no service-role credential: every figure and document section is fetched with the caller''s own JWT through the existing read RPCs and the knowledge search, so the assistant cannot widen what a STAFF account may already see. Financial keys simply disappear from the payload rather than rendering as zero. Retrieval is deterministic by default and needs no provider configuration. OWNER may request an `llm` summary, which is constrained to re-word the evidence already retrieved for that request; `copilotSchema` and `validateGroundedAnswer` discard any answer citing an unknown evidence id, stating an ungrounded figure or linking outside the app, and the handler falls back to the deterministic answer with a warning. The provider receives no credentials and no raw rows beyond those facts, and images/documents are never sent for copilot. There is no write, draft-application or command endpoint in this path.', 'OWNER', 'supabase/SECURITY.md'),
   ('security-5', 'Mô hình bảo mật Supabase', 'Storage', '## Storage
 
-The `vehicle-images` bucket is private, permits JPEG/PNG/WebP/AVIF, and caps each object at 8 MiB. Object paths must belong to an existing vehicle. No object can be overwritten by a browser. Unregistered objects are not readable. Soft-deleted metadata denies new read requests; already issued signed URLs remain usable until their short expiration. Avoid long-lived signed URLs. Metadata removal retains the physical object for retention/backup. Review abandoned upload objects periodically with a trusted administrator; do not enable broad public policies to make images render.', 'OWNER', 'supabase/SECURITY.md'),
+The `vehicle-images` bucket is private, permits JPEG/PNG/WebP/AVIF, and caps each object at 8 MiB. Object paths must belong to an existing vehicle. No object can be overwritten by a browser. Unregistered objects are not readable. Soft-deleted metadata denies new read requests; already issued signed URLs remain usable until their short expiration. Avoid long-lived signed URLs. Metadata removal retains the physical object for retention/backup. Review abandoned upload objects periodically with a trusted administrator; do not enable broad public policies to make images render.
+
+The `identity-documents` bucket holds CCCD card photos, which are personal data about a real person rather than showroom content. Read stays OWNER/MANAGER-only through a short 120-second signed URL, and unlike vehicle images it carries exactly one browser DELETE policy (`identity_document_purge`) so an owner or manager can erase a mis-shot or withdrawn photo instead of only detaching it. Its predicate reuses `can_read_identity_document_image`, so a delete is possible only while the record still references that path, never for an unregistered or unrelated object, and STAFF, disabled and anonymous sessions match no row at all. Because PostgreSQL also applies the SELECT policies to a DELETE, the file is purged before the record is detached: a photo already detached from the record is unreadable and remains solely for administrative retention.', 'OWNER', 'supabase/SECURITY.md'),
   ('security-6', 'Mô hình bảo mật Supabase', 'Production checklist', '## Production checklist
 
 - Deploy the migrations, Edge Function, and static web build; set HTTPS Auth site URL and exact reset-password redirect URL.

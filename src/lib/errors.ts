@@ -26,7 +26,10 @@ export function friendlyError(error: unknown): string {
   if (passwordMin)
     return `Mật khẩu phải có ít nhất ${passwordMin[1]} ký tự.`;
   if (error instanceof AppError) return error.message;
-  if (!navigator.onLine || /fetch|network/i.test(value))
+  if (
+    (typeof navigator !== "undefined" && !navigator.onLine) ||
+    /fetch|network|load failed|failed to load|timeout|timed out/i.test(value)
+  )
     return "Không thể kết nối. Giao dịch chưa được xác nhận; hãy kiểm tra lại danh sách trước khi thử lại.";
   if (/invalid login credentials/i.test(value))
     return "Email hoặc mật khẩu không chính xác.";
@@ -133,6 +136,24 @@ export function friendlyError(error: unknown): string {
     return "Số tiền ngân hàng nhận không khớp yêu cầu VietQR. Hãy đối chiếu tiền thực nhận và tạo yêu cầu với đúng số tiền.";
   if (/VIETQR_REQUEST_NOT_PENDING/i.test(value))
     return "Yêu cầu VietQR đã được xử lý hoặc không còn chờ thanh toán. Tải lại giao dịch trước khi đối soát.";
+  if (/VIETQR_BANK_EVIDENCE_REQUIRED/i.test(value))
+    return "Chưa có khoản chuyển được ngân hàng xác minh. Chưa ghi nhận đã thu tiền; hãy kiểm tra trạng thái thanh toán.";
+  if (/VIETQR_PAYER_REQUIRED/i.test(value))
+    return "Nhập tên người thanh toán trước khi tạo mã chuyển khoản.";
+  if (/VIETQR_REPLACEMENT_COOLDOWN/i.test(value))
+    return "Chưa đến thời gian thay mã. Mỗi mã cần chờ ít nhất 60 giây trước khi thay mã mới.";
+  if (/VIETQR_RATE_LIMITED/i.test(value))
+    return "Đã tạo quá nhiều mã thanh toán. Giữ mã đang có và thử lại sau để tránh nhầm khoản chuyển.";
+  if (/VIETQR_REPLACE_REQUIRED/i.test(value))
+    return "Thông tin thanh toán đã thay đổi. Mở mã hiện tại và dùng nút thay mã mới sau thời gian chờ.";
+  if (/VIETQR_REPLACEMENT_CONFLICT/i.test(value))
+    return "Mã thanh toán đã được thay ở màn hình khác. Đóng và mở lại để xem đúng mã hiện tại.";
+  if (/VIETQR_FUNDS_ALREADY_RECEIVED/i.test(value))
+    return "Mã này đã có tiền vào tài khoản. Không thay mã hoặc sửa khoản thu; hãy kiểm tra và gắn khoản tiền với đúng hợp đồng.";
+  if (/VIETQR_SALE_BINDING_MISMATCH/i.test(value))
+    return "Thông tin xe, người thanh toán hoặc số tiền khác với khoản chuyển đã nhận. Chưa hoàn tất bán xe; hãy đối soát lại.";
+  if (/VIETQR_CONTENT_TOO_LONG/i.test(value))
+    return "Không tạo được nội dung chuyển khoản chuẩn. Kiểm tra thông tin xe và tài khoản nhận tiền trước khi tạo mã.";
   if (/OPERATION_REQUEST_CONFLICT/i.test(value))
     return "Mã giao dịch này đã được dùng với thông tin khác. Hãy đối soát giao dịch trước và kiểm tra lịch sử trước khi tạo giao dịch mới.";
   if (/VEHICLE_EDIT_CONFLICT/i.test(value))

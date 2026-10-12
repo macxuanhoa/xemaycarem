@@ -1,6 +1,6 @@
 import { useState, type ReactNode } from "react";
 import { Link } from "react-router-dom";
-import { ShieldAlert } from "lucide-react";
+import { AlertTriangle, ExternalLink, ShieldAlert, ShoppingBag } from "lucide-react";
 import { Button, ErrorState, Field } from "@/components/ui";
 import { useDialog } from "@/lib/useDialog";
 import { vehicleTitle } from "@/lib/vehicleDisplay";
@@ -28,15 +28,67 @@ const STATUS_LABEL: Record<string, string> = {
   CANCELLED: "đã hủy",
 };
 
+function isVehicleInStock(status?: string): boolean {
+  return status === "IN_STOCK" || status === "RESERVED";
+}
+
+function isVehicleSold(status?: string): boolean {
+  return status === "SOLD";
+}
+
+function statusBadgeClass(status?: string) {
+  switch (status) {
+    case "IN_STOCK":
+      return "status-in-stock";
+    case "RESERVED":
+      return "status-reserved";
+    case "SOLD":
+      return "status-sold";
+    case "CANCELLED":
+      return "status-cancelled";
+    default:
+      return "status-in-stock";
+  }
+}
+
 function CandidateLine({ candidate }: { candidate: DuplicateCandidate }) {
+  const inStock = isVehicleInStock(candidate.status);
+  const sold = isVehicleSold(candidate.status);
+
   return (
     <div className="duplicate-candidate-main">
-      <strong>{vehicleTitle(candidate)}</strong>
-      <span className="muted small">
-        {candidate.internal_code} · biển {candidate.license_plate || "chưa có"} ·
-        khung {candidate.frame_number || "chưa có"} ·{" "}
-        {STATUS_LABEL[candidate.status] ?? candidate.status}
-      </span>
+      {inStock ? (
+        <div className="duplicate-candidate-status-strip instock">
+          <AlertTriangle size={13} aria-hidden="true" />
+          <span>XE ĐANG TRONG KHO (Chưa bán · Kiểm tra kỹ)</span>
+        </div>
+      ) : sold ? (
+        <div className="duplicate-candidate-status-strip sold">
+          <ShoppingBag size={13} aria-hidden="true" />
+          <span>XE ĐÃ BÁN TRONG QUÁ KHỨ (Có thể là xe khách bán lại)</span>
+        </div>
+      ) : (
+        <div className="duplicate-candidate-status-strip cancelled">
+          <span>HỒ SƠ ĐÃ HỦY</span>
+        </div>
+      )}
+      <div className="duplicate-candidate-top">
+        <span className="duplicate-plate-badge">
+          {candidate.license_plate || "Chưa có biển"}
+        </span>
+        <span className={`duplicate-status-badge ${statusBadgeClass(candidate.status)}`}>
+          {STATUS_LABEL[candidate.status] ?? candidate.status}
+        </span>
+      </div>
+      <strong className="duplicate-candidate-title">{vehicleTitle(candidate)}</strong>
+      <div className="duplicate-candidate-meta">
+        <span>Mã: <strong>{candidate.internal_code}</strong></span>
+        <span>·</span>
+        <span>
+          Số khung: <strong>{candidate.frame_number || "Chưa có"}</strong>{" "}
+          ({candidate.frame_input_kind === "PARTIAL" ? "khung rút gọn" : "khung đầy đủ"})
+        </span>
+      </div>
     </div>
   );
 }
@@ -45,8 +97,12 @@ function SuspectHeader({ reason }: { reason: string }) {
   return (
     <div className="notice danger duplicate-panel" role="alert">
       <div className="duplicate-panel-head">
-        <ShieldAlert size={16} aria-hidden="true" />
-        <strong>Hồ sơ nghi trùng — cùng biển số &amp; 5 ký tự cuối số khung</strong>
+        <div className="duplicate-panel-title-wrap">
+          <span className="duplicate-panel-icon">
+            <ShieldAlert size={16} aria-hidden="true" />
+          </span>
+          <strong>Hồ sơ nghi trùng — cùng biển số &amp; 5 ký tự cuối số khung</strong>
+        </div>
       </div>
       <p className="duplicate-panel-reason">{duplicateReasonCopy(reason)}</p>
     </div>
@@ -135,9 +191,19 @@ export function RequestReviewDialog({
           {candidates.map((candidate) => (
             <li key={candidate.id} className="duplicate-candidate">
               <CandidateLine candidate={candidate} />
-              <Link to={`/vehicles/${candidate.id}`} className="text-link">
-                Mở hồ sơ
-              </Link>
+              <div className="duplicate-candidate-actions">
+                <Link
+                  to={`/vehicles/${candidate.id}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="duplicate-btn duplicate-btn-open"
+                  aria-label="Mở hồ sơ"
+                  title="Mở hồ sơ xe trong tab mới"
+                >
+                  <ExternalLink size={14} aria-hidden="true" />
+                  <span>Mở hồ sơ</span>
+                </Link>
+              </div>
             </li>
           ))}
         </ul>
@@ -218,9 +284,19 @@ export function OverrideSaveDialog({
                   />
                   <CandidateLine candidate={candidate} />
                 </label>
-                <Link to={`/vehicles/${candidate.id}`} className="text-link">
-                  Mở hồ sơ
-                </Link>
+                <div className="duplicate-candidate-actions">
+                  <Link
+                    to={`/vehicles/${candidate.id}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="duplicate-btn duplicate-btn-open"
+                    aria-label="Mở hồ sơ"
+                    title="Mở hồ sơ xe trong tab mới"
+                  >
+                    <ExternalLink size={14} aria-hidden="true" />
+                    <span>Mở hồ sơ</span>
+                  </Link>
+                </div>
               </li>
             ))}
           </ul>

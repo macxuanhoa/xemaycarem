@@ -32,6 +32,7 @@ import { runPostStudioAiTests } from '../tests/db/post-studio-ai.test.mjs'
 import { verifiedPayment } from '../tests/db/payment-fixtures.mjs'
 import { runPaymentReceiptSecurityTests } from '../tests/db/payment-receipt-security.test.mjs'
 import { runVietQrPaymentTests } from '../tests/db/vietqr-payment.test.mjs'
+import { runVietQrLifecycleTests } from '../tests/db/vietqr-lifecycle.test.mjs'
 import { runSmartSalesAutomationTests } from '../tests/db/smart-sales-automation.test.mjs'
 import { runSeasonalThemeTetTests } from '../tests/db/seasonal-theme-tet2027.test.mjs'
 import { runSecurityIntegrationTests } from '../tests/db/security-integration.test.mjs'
@@ -69,6 +70,7 @@ await runVehicleLabelPlaceholderTests(null, { engine })
 await runRuntimeMonitoringTests(null, { engine })
 await runPostStudioAiTests(null, { engine })
 await runVietQrPaymentTests(null, { engine })
+await runVietQrLifecycleTests(null, { engine })
 await runSmartSalesAutomationTests(null, { engine })
 await runSeasonalThemeTetTests(null, { engine })
 await runSecurityIntegrationTests(null, { engine })

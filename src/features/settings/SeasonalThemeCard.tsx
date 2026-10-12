@@ -29,17 +29,17 @@ const MODE_OPTIONS: { value: SeasonalMode; label: string; hint: string }[] = [
   {
     value: "DEFAULT",
     label: "Mặc định",
-    hint: "Giao diện thường ngày của cửa hàng.",
+    hint: "Giao diện thường ngày.",
   },
   {
     value: "TET_2027",
     label: "Tết 2027 — bật ngay",
-    hint: "Áo Tết cho tất cả tài khoản ngay sau khi lưu.",
+    hint: "Bật áo Tết ngay cho tất cả.",
   },
   {
     value: "AUTO",
     label: "Tự động theo lịch",
-    hint: "Bật/tắt theo ngày bắt đầu và kết thúc bên dưới.",
+    hint: "Bật/tắt theo khoảng ngày bên dưới.",
   },
 ];
 
@@ -49,18 +49,18 @@ function seasonalErrorText(error: unknown): string {
   if (error instanceof AppError) return error.message;
   const message = error instanceof Error ? error.message : String(error ?? "");
   if (message.includes("SEASONAL_WINDOW_REQUIRED"))
-    return "Chế độ tự động cần cả ngày bắt đầu và ngày kết thúc.";
+    return "Chế độ tự động cần cả ngày bắt đầu và kết thúc.";
   if (message.includes("SEASONAL_WINDOW_REVERSED"))
-    return "Ngày kết thúc phải từ ngày bắt đầu trở đi.";
+    return "Ngày kết thúc phải sau ngày bắt đầu.";
   if (message.includes("SEASONAL_WINDOW_TOO_LONG"))
-    return "Khoảng Tết tự động không được dài quá một năm.";
+    return "Khoảng Tết không được quá 1 năm.";
   if (message.includes("SEASONAL_MODE_INVALID"))
-    return "Chế độ giao diện không hợp lệ.";
+    return "Chế độ không hợp lệ.";
   if (message.includes("INVALID_DATE"))
-    return "Ngày nhập chưa đúng định dạng.";
+    return "Ngày nhập sai định dạng.";
   if (message.includes("ACCESS_DENIED"))
-    return "Chỉ OWNER mới được thay đổi giao diện toàn hệ thống.";
-  return "Không lưu được cấu hình giao diện. Vui lòng thử lại.";
+    return "Chỉ OWNER mới được thay đổi.";
+  return "Không lưu được. Vui lòng thử lại.";
 }
 
 export function SeasonalThemeCard() {
@@ -89,11 +89,11 @@ export function SeasonalThemeCard() {
     mutationFn: () => {
       if (mode === "AUTO" && (!start || !end)) {
         throw new AppError(
-          "Chế độ tự động cần cả ngày bắt đầu và ngày kết thúc.",
+          "Chế độ tự động cần cả ngày bắt đầu và kết thúc.",
         );
       }
       if (mode === "AUTO" && end < start) {
-        throw new AppError("Ngày kết thúc phải từ ngày bắt đầu trở đi.");
+        throw new AppError("Ngày kết thúc phải sau ngày bắt đầu.");
       }
       return api.call<SeasonalTheme>("save_seasonal_theme", {
         p_data: {
@@ -105,13 +105,10 @@ export function SeasonalThemeCard() {
       });
     },
     onSuccess: (fresh) => {
-      // The RPC echoes the resolved row; seeding the shared cache makes the OWNER's
-      // own screen flip instantly while Realtime handles everyone else.
       client.setQueryData(SEASONAL_THEME_QUERY_KEY, fresh);
       setDirty(false);
-      toast.success("Đã lưu giao diện hệ thống", {
-        description:
-          "Tất cả các phiên đang mở sẽ nhận thay đổi trong vài giây, không cần tải lại hay triển khai lại.",
+      toast.success("Đã lưu giao diện", {
+        description: "Mọi phiên đang mở sẽ tự cập nhật.",
       });
     },
   });
@@ -124,11 +121,9 @@ export function SeasonalThemeCard() {
     <Card className="stack">
       <div className="row between wrap gap-sm">
         <div>
-          <h2 className="section-title">Giao diện hệ thống — Tết 2027</h2>
-          <p className="muted">
-            Cấu hình chung cho mọi tài khoản (OWNER, MANAGER, STAFF). Đây là lớp
-            áo ngoài, không ảnh hưởng chế độ Sáng/Tối của từng người và không
-            thay đổi bất kỳ nghiệp vụ nào.
+          <h2 className="section-title">Giao diện hệ thống</h2>
+          <p className="muted small">
+            Áo ngoài chung — không ảnh hưởng Sáng/Tối hay nghiệp vụ.
           </p>
         </div>
         <div>
@@ -137,22 +132,22 @@ export function SeasonalThemeCard() {
               className="badge badge-success"
               style={{ display: "inline-flex", alignItems: "center", gap: 4 }}
             >
-              <CheckCircle2 size={14} /> Đang bật áo Tết
+              <CheckCircle2 size={14} /> Áo Tết
             </span>
           ) : (
             <span
               className="badge badge-warning"
               style={{ display: "inline-flex", alignItems: "center", gap: 4 }}
             >
-              <CalendarDays size={14} /> Giao diện thường ngày
+              <CalendarDays size={14} /> Thường ngày
             </span>
           )}
         </div>
       </div>
 
       {pending ? (
-        <p className="muted small">Đang tải cấu hình giao diện…</p>
-      ) : theme.isError ? (
+        <p className="muted small">Đang tải…</p>
+      ) : theme.isError && !theme.data ? (
         <ErrorState error={theme.error} />
       ) : (
         <>
@@ -170,10 +165,6 @@ export function SeasonalThemeCard() {
                 <input
                   type="radio"
                   name="seasonal-mode"
-                  // The app's form reset gives every <input> width:100% and a 44px
-                  // box, which is right for text fields but turns a radio into a
-                  // full-width circle. Size this one back down here rather than in
-                  // the shared stylesheet.
                   style={{
                     width: 18,
                     height: 18,
@@ -200,7 +191,7 @@ export function SeasonalThemeCard() {
 
           {mode === "AUTO" && (
             <div className="form-grid">
-              <Field label="Ngày bắt đầu (âm lịch nên để vùng Tết)">
+              <Field label="Ngày bắt đầu">
                 <input
                   type="date"
                   value={start}
@@ -226,7 +217,7 @@ export function SeasonalThemeCard() {
           <div
             style={{
               background: "var(--surface-sunken, #f8fafc)",
-              padding: "16px",
+              padding: "14px 16px",
               borderRadius: 8,
               border: "1px solid var(--border-soft, #e2e8f0)",
             }}
@@ -248,17 +239,14 @@ export function SeasonalThemeCard() {
                   setCinematic(e.target.checked);
                 }}
               />
-              <span>Cho phép màn chào Tết điện ảnh khi mở ứng dụng</span>
+              <span>Màn chào Tết khi mở app</span>
             </label>
             <p
               className="muted"
-              style={{ margin: "6px 0 0 28px", fontSize: "0.875rem" }}
+              style={{ margin: "4px 0 0 28px", fontSize: "0.8125rem" }}
             >
               <Sparkles size={13} style={{ marginRight: 4 }} />
-              Chỉ chiếu khi mở ứng dụng (F5 hay chuyển trang không chiếu lại), bỏ
-              qua nếu máy bật giảm chuyển động. Theme Tết thay đổi giữa phiên chỉ
-              cập nhật giao diện, không cắt ngang màn hình. Không ảnh hưởng khi
-              Theme Tết đang tắt.
+              Chỉ chiếu lần đầu mở app, bỏ qua nếu giảm chuyển động.
             </p>
           </div>
 
@@ -273,7 +261,7 @@ export function SeasonalThemeCard() {
               }}
             >
               <Eye size={16} />
-              <span>Xem thử trên máy này</span>
+              <span>Xem thử</span>
             </label>
             <div className="row gap-sm">
               <Button
@@ -289,7 +277,7 @@ export function SeasonalThemeCard() {
                   );
                 }}
               >
-                {preview === "on" ? "Đang xem thử" : "Áo Tết"}
+                {preview === "on" ? "Đang xem Tết" : "Áo Tết"}
               </Button>
               <Button
                 type="button"
@@ -304,20 +292,17 @@ export function SeasonalThemeCard() {
                   );
                 }}
               >
-                {preview === "off" ? "Đang khóa thường" : "Giao diện thường"}
+                {preview === "off" ? "Đang khóa" : "Thường ngày"}
               </Button>
             </div>
           </div>
           <p className="muted small">
-            Xem thử chỉ áp dụng trên thiết bị này, trong phiên này — không gửi
-            lên máy chủ, không ảnh hưởng tài khoản khác. Đóng tab là tự hủy.
+            Chỉ trên máy này, đóng tab tự hủy.
           </p>
 
-          {/* Requirement 8: the opening has its own switch and its own explicit
-              replay. Previewing the áo Tết never summons the full-screen story —
-              only this deliberate click does, on this device only. */}
+          {/* Replay cinematic on this device only */}
           {theme.data?.cinematic_enabled && (
-            <div className="row gap-sm wrap">
+            <div className="row gap-sm wrap" style={{ alignItems: "center" }}>
               <Button
                 type="button"
                 variant="secondary"
@@ -331,12 +316,9 @@ export function SeasonalThemeCard() {
                 }}
               >
                 <Sparkles size={16} />
-                <span>Xem lại màn chào Tết trên máy này</span>
+                <span>Xem lại màn chào Tết</span>
               </Button>
-              <span className="muted small">
-                Chỉ chiếu cho riêng máy đang bấm; không đổi cấu hình, không gửi
-                lên máy chủ.
-              </span>
+              <span className="muted small">Chỉ trên máy này.</span>
             </div>
           )}
 
@@ -351,7 +333,7 @@ export function SeasonalThemeCard() {
             >
               {saveMutation.isPending
                 ? "Đang lưu…"
-                : "Lưu giao diện cho toàn hệ thống"}
+                : "Lưu giao diện"}
             </Button>
           </div>
         </>

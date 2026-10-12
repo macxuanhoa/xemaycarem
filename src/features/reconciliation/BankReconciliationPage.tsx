@@ -34,6 +34,7 @@ const STATUS_LABEL: Record<BankTxnStatus, string> = {
   UNMATCHED: "Chưa khớp",
   MATCHED_PENDING: "Khớp tự động — chờ xác nhận",
   MANUAL_REVIEW: "Cần rà soát thủ công",
+  RECEIVED: "Đã nhận tiền — chờ lập hợp đồng",
   RECORDED: "Đã ghi nhận tiền",
   IGNORED: "Đã bỏ qua",
 };
@@ -46,6 +47,12 @@ const REASON_LABEL: Record<string, string> = {
   NO_REFERENCE: "Không đọc được mã tham chiếu",
   MANUAL_LINK: "Nhân viên gán tay",
   AUTO_MATCH_DISABLED: "Tắt đối soát tự động",
+  REQUEST_EXPIRED: "Mã thanh toán đã hết hạn",
+  TRANSFER_OUTSIDE_WINDOW: "Chuyển ngoài thời hạn của mã",
+  ACCOUNT_SNAPSHOT_MISMATCH: "Tài khoản nhận khác với mã thanh toán",
+  DUPLICATE_REQUEST_CREDIT: "Mã đã có khoản chuyển được ghi nhận",
+  AMBIGUOUS_REFERENCE: "Nội dung chứa nhiều mã thanh toán",
+  RECORDING_REVIEW_REQUIRED: "Tiền đã về, cần đối soát trước khi ghi nhận",
   "": "—",
 };
 
@@ -53,6 +60,7 @@ const FILTERS: { key: string; label: string; status?: BankTxnStatus }[] = [
   { key: "all", label: "Tất cả" },
   { key: "MATCHED_PENDING", label: "Chờ xác nhận", status: "MATCHED_PENDING" },
   { key: "MANUAL_REVIEW", label: "Rà soát", status: "MANUAL_REVIEW" },
+  { key: "RECEIVED", label: "Chờ hợp đồng", status: "RECEIVED" },
   { key: "UNMATCHED", label: "Chưa khớp", status: "UNMATCHED" },
   { key: "RECORDED", label: "Đã ghi nhận", status: "RECORDED" },
   { key: "IGNORED", label: "Đã bỏ qua", status: "IGNORED" },

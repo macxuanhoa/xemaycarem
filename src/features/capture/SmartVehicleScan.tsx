@@ -1015,6 +1015,13 @@ export default function SmartVehicleScan() {
     saveCameraSettings(updated);
   };
 
+  // Hand every field read so far to the existing intake workflow — the draft
+  // travels both in router state and as a sessionStorage fallback.
+  const goIntake = (recognition: Recognition) => {
+    saveRecognitionDraft(profile?.id, recognition);
+    navigate("/intake", { state: { recognition } });
+  };
+
   const toggleTorch = async () => {
     if (changingTorch.current || starting.current || switching.current) return;
     const track = streamRef.current?.getVideoTracks()[0];
@@ -1490,9 +1497,18 @@ export default function SmartVehicleScan() {
         </p>
       )}
       {identityMatch?.state === "none" && (
-        <p role="status" className="notice">
-          Không có xe trong kho đang lưu CCCD này.
-        </p>
+        <div className="smartcam-followup">
+          <p>
+            Không có xe trong kho đang lưu số CCCD này. Nếu là xe của cửa hàng,
+            mở hồ sơ xe và nhập đủ 12 số căn cước — chỉ có ảnh thì camera chưa
+            tìm được.
+          </p>
+          <div className="smartcam-actions">
+            <Button type="button" variant="secondary" onClick={continueIdentifiers}>
+              Quét biển số / số khung để tìm xe
+            </Button>
+          </div>
+        </div>
       )}
       {identityMatch?.state === "ambiguous" && (
         <p role="status" className="notice">
@@ -1575,8 +1591,34 @@ export default function SmartVehicleScan() {
               </div>
             </div>
           )}
+          {mode === "scan" && match.state === "none" && !photoReady && (
+            <div className="smartcam-followup">
+              <p>
+                {result.fields.frame_number && result.fields.license_plate
+                  ? "Bạn muốn thu xe này vào kho?"
+                  : "Bạn muốn thu xe này, hay quét tiếp " +
+                    (result.fields.frame_number ? "biển số" : "số khung") +
+                    "?"}
+              </p>
+              <div className="smartcam-actions">
+                <Button type="button" onClick={() => goIntake(result)}>
+                  Thu xe mới
+                </Button>
+                {(!result.fields.frame_number || !result.fields.license_plate) && (
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    onClick={continueIdentifiers}
+                  >
+                    Quét tiếp {result.fields.frame_number ? "biển số" : "số khung"}
+                  </Button>
+                )}
+              </div>
+            </div>
+          )}
           <div className="smartcam-actions">
             {mode === "scan" &&
+              match.state !== "none" &&
               (!result.fields.frame_number || !result.fields.license_plate) && (
                 <Button
                   type="button"
@@ -1594,20 +1636,16 @@ export default function SmartVehicleScan() {
                 Mở hồ sơ xe
               </Button>
             )}
-            {!photoReady && (
-              <Button
-                type="button"
-                variant="secondary"
-                onClick={() => {
-                  saveRecognitionDraft(profile?.id, result);
-                  navigate("/intake", { state: { recognition: result } });
-                }}
-              >
-                {match.state === "none"
-                  ? "Thu xe mới"
-                  : "Thu xe mới (sau khi đã kiểm tra)"}
-              </Button>
-            )}
+            {!photoReady &&
+              !(mode === "scan" && match.state === "none") && (
+                <Button
+                  type="button"
+                  variant="secondary"
+                  onClick={() => goIntake(result)}
+                >
+                  Thu xe mới (sau khi đã kiểm tra)
+                </Button>
+              )}
             <Button
               type="button"
               variant="ghost"

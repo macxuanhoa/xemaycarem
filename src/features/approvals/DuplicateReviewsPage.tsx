@@ -200,7 +200,7 @@ function DuplicateReviewsBoard() {
   });
 
   if (query.isPending) return <Loading />;
-  if (query.isError)
+  if (query.isError && !query.data)
     return <ErrorState error={query.error} retry={() => void query.refetch()} />;
 
   const items = query.data?.items ?? [];

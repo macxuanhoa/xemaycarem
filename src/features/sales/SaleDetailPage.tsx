@@ -66,7 +66,7 @@ export function SaleDetailPage() {
   });
 
   if (query.isPending) return <Loading />;
-  if (query.isError)
+  if (query.isError && !query.data)
     return (
       <ErrorState error={query.error} retry={() => void query.refetch()} />
     );
@@ -443,6 +443,7 @@ export function SaleDetailPage() {
           }}
           saleId={sale.id}
           saleCode={sale.sale_code}
+          payerName={sale.customer_name}
           amount={sale.remaining_amount}
           onClose={() => setShowVietQr(false)}
           onPaymentConfirmed={async () => {

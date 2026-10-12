@@ -53,10 +53,7 @@ export async function uploadImage(
   file: File,
 ): Promise<string> {
   const client = requireClient();
-  if (
-    !ACCEPTED_IMAGE_TYPES.includes(file.type) ||
-    file.size > MAX_UPLOAD_BYTES
-  )
+  if (!ACCEPTED_IMAGE_TYPES.includes(file.type) || file.size > MAX_UPLOAD_BYTES)
     throw new AppError("Chọn ảnh JPG, PNG hoặc WebP, tối đa 5 MB.");
   const path = objectPathFor(subjectId, file);
   const { error } = await client.storage
@@ -64,7 +61,8 @@ export async function uploadImage(
     .upload(path, file, { upsert: false, contentType: file.type });
   if (error) throw error;
   // Object chưa đăng ký vẫn riêng tư; quản trị viên dọn orphan theo chính sách
-  // retention. Vai trò trình duyệt cố ý không được hard-delete.
+  // retention. Vai trò trình duyệt không được hard-delete tùy hứng: ngoại lệ duy
+  // nhất là ảnh CCCD, nơi OWNER/MANAGER gỡ được hẳn qua deleteImage() bên dưới.
   return path;
 }
 
@@ -96,4 +94,17 @@ export async function signedImageUrl(
     expiresAt: now + ttlSeconds * 1000,
   });
   return data.signedUrl;
+}
+
+/**
+ * Gỡ hẳn một object khỏi bucket. Đường dẫn nào xóa được là do Storage RLS quyết
+ * (hiện chỉ `identity-documents` có policy DELETE, cấp cho OWNER/MANAGER với
+ * `identity_document_purge`); file này chỉ là cổng gọi, không tự nới quyền.
+ * Xong thì loại luôn signed URL còn cache để không còn ảnh "sống" trong RAM.
+ */
+export async function deleteImage(bucket: string, path: string): Promise<void> {
+  const client = requireClient();
+  const { error } = await client.storage.from(bucket).remove([path]);
+  signedUrlCache.delete(`${bucket}:${path}`);
+  if (error) throw error;
 }

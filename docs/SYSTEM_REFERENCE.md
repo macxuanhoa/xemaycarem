@@ -29,6 +29,7 @@ Toàn bộ hàm `public` mà ứng dụng gọi được, lấy từ định ngh
 | dashboard | p_from date DEFAULT (date_trunc('month'::text, (now() AT TIME ZONE 'Asia/Ho_Chi_Minh'::text)))::date, p_to date DEFAULT ((now() AT TIME ZONE 'Asia/Ho_Chi_Minh'::text))::date | OWNER, MANAGER, STAFF |
 | delete_acquisition | p_id uuid, p_reason text | OWNER, MANAGER |
 | delete_announcement | p_id uuid | OWNER |
+| delete_identity_document_image | p_subject_type text, p_subject_id uuid, p_side text | OWNER, MANAGER |
 | delete_sale_contact | p_id uuid | OWNER, MANAGER, STAFF |
 | delete_vehicle | p_id uuid, p_reason text | OWNER, MANAGER |
 | delete_vehicle_type | p_id uuid | OWNER |
@@ -37,7 +38,7 @@ Toàn bộ hàm `public` mà ứng dụng gọi được, lấy từ định ngh
 | finish_message | p_message_id uuid,p_provider_message_id text,p_lease_token uuid | kiểm tra quyền riêng trong hàm |
 | finish_mock_message | p_message_id uuid,p_provider_message_id text | OWNER, MANAGER, STAFF |
 | get_acquisition_for_vehicle | p_vehicle_id uuid | OWNER, MANAGER |
-| get_active_vietqr_request | p_vehicle_id uuid, p_sale_id uuid DEFAULT NULL | kiểm tra quyền riêng trong hàm |
+| get_active_vietqr_request | p_vehicle_id uuid,p_sale_id uuid DEFAULT NULL | kiểm tra quyền riêng trong hàm |
 | get_bank_webhook_state | không tham số | OWNER |
 | get_customer_history | p_phone text | OWNER, MANAGER, STAFF |
 | get_identity_document | p_subject_type text, p_subject_id uuid | OWNER, MANAGER |
@@ -52,7 +53,7 @@ Toàn bộ hàm `public` mà ứng dụng gọi được, lấy từ định ngh
 | get_settings | không tham số | OWNER, MANAGER, STAFF |
 | get_vehicle | p_id uuid | OWNER, MANAGER, STAFF |
 | get_vietqr_matching_status | p_qr_request_id uuid | kiểm tra quyền riêng trong hàm |
-| get_vietqr_payment_request | p_data jsonb | kiểm tra quyền riêng trong hàm |
+| get_vietqr_payment_request | p_id uuid | kiểm tra quyền riêng trong hàm |
 | global_search | p_query text, p_limit integer DEFAULT 10 | OWNER, MANAGER, STAFF |
 | ignore_bank_transaction | p_data jsonb | kiểm tra quyền riêng trong hàm |
 | import_vehicles | p_vehicles jsonb | OWNER, MANAGER, STAFF |
@@ -104,6 +105,7 @@ Toàn bộ hàm `public` mà ứng dụng gọi được, lấy từ định ngh
 | remove_identity_document_image | p_subject_type text, p_subject_id uuid, p_side text | OWNER, MANAGER |
 | remove_vehicle_image | p_id uuid | OWNER, MANAGER, STAFF |
 | renew_message_lease | p_message_id uuid,p_lease_token uuid | kiểm tra quyền riêng trong hàm |
+| replace_vietqr_payment_request | p_data jsonb | kiểm tra quyền riêng trong hàm |
 | report | p_kind text, p_filters jsonb DEFAULT '{}' | OWNER, MANAGER |
 | report_client_issue | p_data jsonb | OWNER, MANAGER, STAFF |
 | request_delete_vehicle | p_id uuid, p_reason text | OWNER, MANAGER, STAFF |
@@ -159,8 +161,6 @@ Trích từ cây route trong `src/App.tsx` (thành phần `Protected` kế thừ
 | `/capture` | đăng nhập |
 | `/assist` | đăng nhập |
 | `/copilot` | đăng nhập |
-| `/posts` | đăng nhập |
-| `/brand-memory` | đăng nhập |
 | `/docs` | đăng nhập |
 | `/docs/:slug` | đăng nhập |
 | `/receivables` | đăng nhập |

@@ -31,7 +31,25 @@ export async function runOperationalTests(externalDb, { engine = 'postgres' } = 
     }
     const sale = async (price, date, initial = 0, overrides = {}) => {
       const vehicleId = await vehicle()
-      const id = await call('staff', 'sell_vehicle', { vehicle_id: vehicleId, customer_name: 'Khách kiểm thử', customer_phone: `000${sequence.toString().padStart(7, '0')}`, sale_price: price, sale_date: date, initial_payment: initial, payment_method: 'CASH', ...overrides })
+      const input = { vehicle_id: vehicleId, customer_name: 'Khách kiểm thử', customer_phone: `000${sequence.toString().padStart(7, '0')}`, sale_price: price, sale_date: date, initial_payment: initial, payment_method: 'CASH', ...overrides }
+      if (input.payment_method === 'BANK_TRANSFER' && initial > 0) {
+        // Retain bank/cash reconciliation coverage through a genuine trusted credit.
+        await call('owner', 'save_settings', {
+          bank_bin: '970422', bank_name: 'Synthetic Bank', bank_account_no: '0000000000',
+          bank_account_name: 'SYNTHETIC RECEIVER', vietqr_enabled: true,
+          bank_provider: 'SEPAY', bank_webhook_enabled: true, bank_auto_match_enabled: true,
+        })
+        const qr = await call('owner', 'create_vietqr_payment_request', {
+          vehicle_id: vehicleId, amount: initial, payer_name: input.customer_name,
+        })
+        const credit = await asUser(db, null, client => rpc(client, 'ingest_bank_transaction', '$1::jsonb', [JSON.stringify({
+          provider: 'SEPAY', provider_txn_id: randomUUID(), direction: 'in', account_number: '0000000000',
+          transfer_at: new Date().toISOString(), amount: initial, transfer_content: qr.transfer_content,
+        })]), 'service_role')
+        assert.equal(credit.status, 'RECEIVED')
+        input.vietqr_request_id = qr.id
+      }
+      const id = await call('staff', 'sell_vehicle', input)
       return { id, vehicleId }
     }
     const unpaid = await sale(100_000_000, yesterday, 0, { due_date: yesterday })

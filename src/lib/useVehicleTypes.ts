@@ -22,7 +22,10 @@ export function useVehicleTypes(enabled = true) {
     enabled,
   });
 
-  const items: VehicleTypeItem[] = query.data ?? [];
+  const rawItems: VehicleTypeItem[] = query.data ?? [];
+  const items: VehicleTypeItem[] = rawItems.filter(
+    (item) => item.name.trim().toLowerCase() !== "chưa phân loại",
+  );
   const chips: VehicleTypeChip[] = items.map((item) => ({
     value: item.id,
     label: item.name,

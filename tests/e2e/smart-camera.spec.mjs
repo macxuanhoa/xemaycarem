@@ -408,6 +408,32 @@ test('smart camera: STAFF cannot select the restricted CCCD mode', async ({ page
   expect(calls.reads.filter(entry => entry.name === 'lookup_identity_document_vehicles')).toEqual([])
 })
 
+test('smart camera: unknown plate scan asks to collect the vehicle or keep scanning the frame', async ({ page }) => {
+  const calls = await setup(page, { result: scanDraft({ license_plate: '61B1-777.77' }) })
+  await page.goto('/capture')
+  await scanFromLibrary(page)
+  await expect(page.getByText('Bạn muốn thu xe này, hay quét tiếp số khung?', { exact: false })).toBeVisible()
+  const continueButton = page.getByRole('button', { name: 'Quét tiếp số khung', exact: true })
+  await expect(continueButton).toBeVisible()
+  await page.getByRole('button', { name: 'Thu xe mới', exact: true }).click()
+  await expect(page).toHaveURL(/\/intake$/)
+  // Thu xe carries every field the camera has read so far into the intake cards.
+  await expect(page.getByPlaceholder('59A1-234.56')).toHaveValue('61B1-777.77')
+  expect(calls.writes).toEqual([])
+})
+
+test('smart camera: CCCD with no stored number explains the missing card number instead of stopping', async ({ page }) => {
+  const calls = await setup(page, { result: scanDraft({ identity_number: '079090123456' }), identityVehicles: [] })
+  await page.goto('/capture')
+  await page.getByRole('button', { name: /CCCD/ }).click()
+  await page.getByLabel('Chọn ảnh CCCD từ thư viện').setInputFiles({ name: 'cccd.png', mimeType: 'image/png', buffer: pixel })
+  await expect(page.getByText('Không có xe trong kho đang lưu số CCCD này', { exact: false })).toBeVisible()
+  await expect(page.getByText('nhập đủ 12 số căn cước', { exact: false })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Quét biển số / số khung để tìm xe', exact: true })).toBeVisible()
+  await expect(page).toHaveURL(/\/capture$/)
+  expect(calls.writes).toEqual([])
+})
+
 test('smart camera: successive plate and frame followups detect either input and retain the same photo vehicle draft', async ({ page }) => {
   let identifierScanCount = 0
   const calls = await setup(page, { result: body => body.scan_mode === 'vehicle'
@@ -422,7 +448,7 @@ test('smart camera: successive plate and frame followups detect either input and
   await scanFromLibrary(page)
   await expect(page.locator('.smartcam-fields')).toContainText('61B1-777.77')
   await expectUnifiedIdentifierScan(page)
-  await page.getByRole('button', { name: 'Quét bổ sung', exact: true }).click()
+  await page.getByRole('button', { name: 'Quét tiếp số khung', exact: true }).click()
   await scanFromLibrary(page)
   await expect(page.locator('.smartcam-fields')).toContainText('61B1-777.77')
   await expect(page.locator('.smartcam-fields')).toContainText('RLHNEWTARGET12345')

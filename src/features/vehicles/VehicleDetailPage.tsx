@@ -122,7 +122,7 @@ export function VehicleDetailPage() {
   }
 
   if (query.isPending) return <Loading />;
-  if (query.isError)
+  if (query.isError && !query.data)
     return (
       <ErrorState error={query.error} retry={() => void query.refetch()} />
     );
@@ -152,7 +152,7 @@ export function VehicleDetailPage() {
           <div className="sold-sale-first-head">
             <div className="sold-sale-first-title">
               <span className="muted small">
-                Đã bán · {vehicle.vehicle_type || "Chưa phân loại"}
+                Đã bán{vehicle.vehicle_type && vehicle.vehicle_type !== "Chưa phân loại" ? ` · ${vehicle.vehicle_type}` : ""}
               </span>
               <h1>
                 {vehicle.license_plate ||
@@ -292,9 +292,20 @@ export function VehicleDetailPage() {
           <div className="vehicle-title-row">
             <div className="vehicle-title-left">
               <div className="vehicle-title-with-tags">
-                <h1 className="carem-led-title" title={vehicle.vehicle_type || "Chưa phân loại"}>
+                <h1
+                  className="carem-led-title"
+                  title={
+                    (vehicle.vehicle_type && vehicle.vehicle_type !== "Chưa phân loại" ? vehicle.vehicle_type : "") ||
+                    vehicle.license_plate ||
+                    vehicle.internal_code ||
+                    "Chi tiết xe"
+                  }
+                >
                   <span className="carem-led-title-text">
-                    {vehicle.vehicle_type || "Chưa phân loại"}
+                    {(vehicle.vehicle_type && vehicle.vehicle_type !== "Chưa phân loại" ? vehicle.vehicle_type : "") ||
+                      vehicle.license_plate ||
+                      vehicle.internal_code ||
+                      "Chi tiết xe"}
                   </span>
                 </h1>
                 <div className="vehicle-title-badges">
@@ -590,7 +601,7 @@ export function VehicleDetailPage() {
                 hero now; mã xe và ngày trong kho dời từ đầu trang xuống đây. */}
             <dl className="details-list">
               {([
-                ["Loại xe", vehicle.vehicle_type],
+                ["Loại xe", vehicle.vehicle_type && vehicle.vehicle_type !== "Chưa phân loại" ? vehicle.vehicle_type : "—"],
                 ["Mã xe", vehicle.internal_code],
                 ["Năm sản xuất", vehicle.year],
                 ["Màu sắc", vehicle.color],

@@ -265,7 +265,7 @@ export function ApprovalsPage() {
     return <Loading />;
   }
 
-  if (owner && approvalsQuery.isError) {
+  if (owner && approvalsQuery.isError && !approvalsQuery.data) {
     return (
       <ErrorState
         error={approvalsQuery.error}
@@ -274,7 +274,7 @@ export function ApprovalsPage() {
     );
   }
 
-  if (duplicateQuery.isError && (!owner || activeTab === "duplicate")) {
+  if (duplicateQuery.isError && !duplicateQuery.data && (!owner || activeTab === "duplicate")) {
     return (
       <ErrorState
         error={duplicateQuery.error}

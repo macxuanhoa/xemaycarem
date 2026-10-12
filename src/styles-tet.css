@@ -18,6 +18,13 @@
 /* Họa tiết hoa mai 5 cánh — data-URI, texture nền tinh tế */
 :root {
   --mai-flower: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 60 60'%3E%3Cg fill='%23d4a24e' fill-opacity='0.14'%3E%3Cellipse cx='30' cy='21' rx='6' ry='8.5'/%3E%3Cellipse cx='30' cy='21' rx='6' ry='8.5' transform='rotate(72 30 30)'/%3E%3Cellipse cx='30' cy='21' rx='6' ry='8.5' transform='rotate(144 30 30)'/%3E%3Cellipse cx='30' cy='21' rx='6' ry='8.5' transform='rotate(216 30 30)'/%3E%3Cellipse cx='30' cy='21' rx='6' ry='8.5' transform='rotate(288 30 30)'/%3E%3C/g%3E%3Ccircle cx='30' cy='30' r='2.6' fill='%23a32636' fill-opacity='0.22'/%3E%3C/svg%3E");
+  /* DECISION #15 (OWNER 12/10/2026): "thêm nhiều hoa mai, nhiều vật trang trí
+     Tết, lớp phủ linh vật Dê". Mật độ mai dày rải khắp nền giấy dó. */
+  --mai-flower-dense: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 48 48'%3E%3Cg fill='%23d4a24e' fill-opacity='0.13'%3E%3Cellipse cx='24' cy='17' rx='4.6' ry='6.6'/%3E%3Cellipse cx='24' cy='17' rx='4.6' ry='6.6' transform='rotate(72 24 24)'/%3E%3Cellipse cx='24' cy='17' rx='4.6' ry='6.6' transform='rotate(144 24 24)'/%3E%3Cellipse cx='24' cy='17' rx='4.6' ry='6.6' transform='rotate(216 24 24)'/%3E%3Cellipse cx='24' cy='17' rx='4.6' ry='6.6' transform='rotate(288 24 24)'/%3E%3C/g%3E%3Ccircle cx='24' cy='24' r='2' fill='%23a32636' fill-opacity='0.2'/%3E%3C/svg%3E");
+  /* nhành mai đậm góc màn hình (cành nâu + hoa vàng + nụ đỏ + nhị vàng) */
+  --mai-branch: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 360 360'%3E%3Cg fill='none' stroke='%235d2a12' stroke-opacity='0.4' stroke-linecap='round'%3E%3Cpath d='M0 20C70 42 122 62 162 106' stroke-width='9'/%3E%3Cpath d='M96 55C122 80 138 112 146 148' stroke-width='5'/%3E%3Cpath d='M162 106C196 126 220 138 258 146' stroke-width='6'/%3E%3Cpath d='M212 134C222 162 228 184 226 212' stroke-width='4'/%3E%3C/g%3E%3Cg fill='%23e9bd6a' fill-opacity='0.5'%3E%3Cg transform='translate(150 102) scale(0.9)'%3E%3Cellipse cx='0' cy='-9' rx='5.4' ry='7.6'/%3E%3Cellipse cx='0' cy='-9' rx='5.4' ry='7.6' transform='rotate(72)'/%3E%3Cellipse cx='0' cy='-9' rx='5.4' ry='7.6' transform='rotate(144)'/%3E%3Cellipse cx='0' cy='-9' rx='5.4' ry='7.6' transform='rotate(216)'/%3E%3Cellipse cx='0' cy='-9' rx='5.4' ry='7.6' transform='rotate(288)'/%3E%3C/g%3E%3Cg transform='translate(146 152) scale(0.6)'%3E%3Cellipse cx='0' cy='-9' rx='5.4' ry='7.6'/%3E%3Cellipse cx='0' cy='-9' rx='5.4' ry='7.6' transform='rotate(72)'/%3E%3Cellipse cx='0' cy='-9' rx='5.4' ry='7.6' transform='rotate(144)'/%3E%3Cellipse cx='0' cy='-9' rx='5.4' ry='7.6' transform='rotate(216)'/%3E%3Cellipse cx='0' cy='-9' rx='5.4' ry='7.6' transform='rotate(288)'/%3E%3C/g%3E%3Cg transform='translate(256 144) scale(0.8)'%3E%3Cellipse cx='0' cy='-9' rx='5.4' ry='7.6'/%3E%3Cellipse cx='0' cy='-9' rx='5.4' ry='7.6' transform='rotate(72)'/%3E%3Cellipse cx='0' cy='-9' rx='5.4' ry='7.6' transform='rotate(144)'/%3E%3Cellipse cx='0' cy='-9' rx='5.4' ry='7.6' transform='rotate(216)'/%3E%3Cellipse cx='0' cy='-9' rx='5.4' ry='7.6' transform='rotate(288)'/%3E%3C/g%3E%3Cg transform='translate(226 210) scale(0.55)'%3E%3Cellipse cx='0' cy='-9' rx='5.4' ry='7.6'/%3E%3Cellipse cx='0' cy='-9' rx='5.4' ry='7.6' transform='rotate(72)'/%3E%3Cellipse cx='0' cy='-9' rx='5.4' ry='7.6' transform='rotate(144)'/%3E%3Cellipse cx='0' cy='-9' rx='5.4' ry='7.6' transform='rotate(216)'/%3E%3Cellipse cx='0' cy='-9' rx='5.4' ry='7.6' transform='rotate(288)'/%3E%3C/g%3E%3C/g%3E%3Cg fill='%238c2b4a' fill-opacity='0.45'%3E%3Ccircle cx='96' cy='52' r='5'/%3E%3Ccircle cx='212' cy='132' r='4'/%3E%3Ccircle cx='246' cy='170' r='3.5'/%3E%3C/g%3E%3Cg fill='%23f2c14e' fill-opacity='0.5'%3E%3Ccircle cx='120' cy='80' r='2.5'/%3E%3Ccircle cx='186' cy='120' r='2.5'/%3E%3Ccircle cx='232' cy='196' r='2'/%3E%3C/g%3E%3C/svg%3E");
+  /* linh vật Dê (Đinh Mùi 2027) — phù điêu SVG nội tuyến, chờ asset ImageGen được OWNER duyệt */
+  --tet-goat: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 120 120'%3E%3Cg fill='none' stroke='%23c9953f' stroke-width='8' stroke-linecap='round'%3E%3Cpath d='M50 44C46 28 38 19 25 15C21 14 18 16 18 20C18 27 23 35 31 41'/%3E%3Cpath d='M70 44C74 28 82 19 95 15C99 14 102 16 102 20C102 27 97 35 89 41'/%3E%3C/g%3E%3Cg fill='%23e9bd6a'%3E%3Cellipse cx='22' cy='64' rx='11' ry='5.5' transform='rotate(18 22 64)'/%3E%3Cellipse cx='98' cy='64' rx='11' ry='5.5' transform='rotate(-18 98 64)'/%3E%3C/g%3E%3Cpath d='M60 39C73 39 81 49 81 63C81 78 72 90 60 96C48 90 39 78 39 63C39 49 47 39 60 39Z' fill='%23f2c14e'/%3E%3Cellipse cx='60' cy='80' rx='13' ry='10' fill='%23fbe39f'/%3E%3Cg fill='none' stroke='%236d1220' stroke-width='3.4' stroke-linecap='round'%3E%3Cpath d='M49 65Q53 69 57 65'/%3E%3Cpath d='M63 65Q67 69 71 65'/%3E%3C/g%3E%3Cg fill='%23a32636'%3E%3Ccircle cx='56' cy='78' r='1.7'/%3E%3Ccircle cx='64' cy='78' r='1.7'/%3E%3C/g%3E%3Cpath d='M53 95Q60 104 67 95L60 92Z' fill='%23c9953f'/%3E%3C/svg%3E");
 }
 
 [data-seasonal="tet"] {
@@ -59,11 +66,35 @@
 [data-seasonal="tet"] .revenue-total,
 [data-seasonal="tet"] .brand { font-family: "Playfair Display", "Times New Roman", serif; }
 
-/* Nền giấy dó + texture hoa mai rải mờ */
+/* ═══ Nền (DECISION #15): hoa mai dày + nhành mai góc + dải đèn lồng đầu trang ═══ */
 [data-seasonal="tet"] body {
-  background: var(--tet-paper) var(--mai-flower);
-  background-size: auto, 190px 190px;
+  background:
+    var(--tet-paper)
+    var(--mai-flower-dense) left top / 120px 120px repeat,
+    var(--mai-flower) right 8% bottom 6% / 240px 240px repeat;
   color: var(--tet-ink);
+}
+/* Nhành mai hai góc màn hình — pointer-events:none, không ảnh hưởng tương tác */
+[data-seasonal="tet"] body::before {
+  content: ""; position: fixed; inset: 0; z-index: 0; pointer-events: none;
+  background:
+    var(--mai-branch) right -24px top -24px / 360px 360px no-repeat,
+    var(--mai-branch) left -24px bottom -24px / 360px 360px no-repeat scaleX(-1);
+  opacity: .7;
+}
+/* Dải đèn lồng đỏ + sao vàng đầu trang (lưới đèn + giả lập dây treo) */
+[data-seasonal="tet"] body::after {
+  content: ""; position: fixed; left: 0; right: 0; top: 0; height: 76px; z-index: 0; pointer-events: none;
+  background:
+    radial-gradient(circle at 50% 24%, #f2c14e 0 1.6px, rgba(242, 193, 78, 0) 2.6px),
+    radial-gradient(circle at 50% 47%, #d9483b 0 7px, rgba(217, 72, 59, 0) 8px),
+    radial-gradient(circle at 50% 47%, #8fd0c0 0 7px, rgba(143, 208, 192, 0) 8px),
+    repeating-linear-gradient(90deg, rgba(201, 149, 63, 0) 0 62px, rgba(201, 149, 63, .5) 62px 63px),
+    linear-gradient(180deg, rgba(201, 149, 63, .28) 0 1.5px, rgba(201, 149, 63, 0) 2px);
+  background-size: auto, 124px 66px, 124px 66px, 124px 100%, 100% 100%;
+  background-position: 31px 0, 0 0, 62px 0, 0 0, 0 0;
+  background-repeat: no-repeat, repeat-x, repeat-x, repeat-x, no-repeat;
+  opacity: .8;
 }
 
 /* ─── Sidebar: sơn mài đỏ thẫm, chữ vàng ─── */
@@ -260,10 +291,14 @@
   background: var(--tet-paper);
 }
 [data-seasonal="tet"][data-theme="dark"] body {
-  background: var(--tet-paper) var(--mai-flower);
-  background-size: auto, 190px 190px;
+  background:
+    var(--tet-paper)
+    var(--mai-flower-dense) left top / 120px 120px repeat,
+    var(--mai-flower) right 8% bottom 6% / 240px 240px repeat;
   color: var(--tet-ink);
 }
+/* Đêm: dải đèn đầu trang trầm hơn để không chói trên nền tối */
+[data-seasonal="tet"][data-theme="dark"] body::after { opacity: .55; }
 [data-seasonal="tet"][data-theme="dark"] .topbar { background: rgba(21, 15, 14, .9); border-bottom-color: rgba(217, 173, 95, .18); }
 [data-seasonal="tet"][data-theme="dark"] .global-search { background: #241a17; border-color: #43302a; color: #9c8768; }
 [data-seasonal="tet"][data-theme="dark"] .global-search:focus-within { background: #2b1f1b; border-color: #6b4f36; }
@@ -306,4 +341,67 @@
 @media (prefers-reduced-motion: reduce) {
   [data-seasonal="tet"] .carem-hero-banner::after { animation: none; }
   [data-seasonal="tet"] .carem-btn-lime { animation: none; }
+  [data-seasonal="tet"] .carem-banner-inner::after { animation: none; }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   TRANG TRÍ NGÀY TẾT — DECISION #15 (OWNER 12/10/2026):
+   "thêm nhiều hoa mai, nhiều vật trang trí Tết, lớp phủ linh vật Dê".
+   Thuần trang trí: absolute/fixed + pointer-events:none, KHÔNG đổi layout
+   hay nghiệp vụ; mobile (<=1000px) ẩn lớp phủ lớn để không che dữ liệu.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* Hero banner: dải đèn lồng đỏ treo trên mép banner (dưới lớp hoa mai hiện có) */
+[data-seasonal="tet"] .carem-hero-banner::before {
+  content: ""; position: absolute; left: 0; right: 0; top: 0; height: 34px; z-index: 1; pointer-events: none;
+  background:
+    radial-gradient(circle at 50% 13px, #f2c14e 0 1.4px, rgba(242, 193, 78, 0) 2.4px),
+    radial-gradient(circle at 50% 24px, rgba(217, 72, 59, .9) 0 6px, rgba(217, 72, 59, 0) 7px),
+    linear-gradient(180deg, rgba(242, 193, 78, .55) 0 1.5px, rgba(242, 193, 78, 0) 2px);
+  background-size: 58px 100%, 58px 100%, 100% 100%;
+  background-position: 29px 0, 0 0, 0 0;
+  background-repeat: repeat-x, repeat-x, no-repeat;
+  filter: drop-shadow(0 2px 5px rgba(0, 0, 0, .45));
+  opacity: .85;
+}
+
+/* Khối "Cần xử lý tức thời": đóa mai mờ phía sau góc phải trên */
+[data-seasonal="tet"] .digest-support-grid { position: relative; }
+[data-seasonal="tet"] .digest-support-grid::before {
+  content: ""; position: absolute; top: -16px; right: 4%; width: 90px; height: 90px; z-index: 0; pointer-events: none;
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 80 80'%3E%3Cg fill='%23d4a24e' fill-opacity='0.35'%3E%3Cellipse cx='40' cy='28' rx='7' ry='10'/%3E%3Cellipse cx='40' cy='28' rx='7' ry='10' transform='rotate(72 40 40)'/%3E%3Cellipse cx='40' cy='28' rx='7' ry='10' transform='rotate(144 40 40)'/%3E%3Cellipse cx='40' cy='28' rx='7' ry='10' transform='rotate(216 40 40)'/%3E%3Cellipse cx='40' cy='28' rx='7' ry='10' transform='rotate(288 40 40)'/%3E%3C/g%3E%3Ccircle cx='40' cy='40' r='3.4' fill='%23a32636' fill-opacity='0.4'/%3E%3C/svg%3E") no-repeat center / contain;
+  transform: rotate(-14deg);
+}
+
+/* ═══ LỚP PHỦ LINH VẬT DÊ (Đinh Mùi 2027) ═══
+   1) Phù điêu huy hiệu Dê trong khung hào quang vàng — góc phải hero banner */
+[data-seasonal="tet"] .carem-banner-inner { position: relative; }
+[data-seasonal="tet"] .carem-banner-inner::after {
+  content: ""; position: absolute; right: 2%; top: -18px; width: 178px; height: 178px; z-index: 4; pointer-events: none;
+  background:
+    var(--tet-goat) center 40% / 96px 96px no-repeat,
+    radial-gradient(circle at 50% 46%, rgba(61, 18, 6, .5) 0 44%, rgba(61, 18, 6, 0) 72%),
+    radial-gradient(circle at 50% 46%, rgba(242, 193, 78, 0) 46%, rgba(242, 193, 78, .3) 52%, rgba(242, 193, 78, .55) 55%, rgba(242, 193, 78, 0) 60%);
+  filter: drop-shadow(0 10px 26px rgba(0, 0, 0, .55));
+  animation: tetDeLaiSway 8s ease-in-out infinite;
+  transform-origin: 50% 8%;
+}
+@keyframes tetDeLaiSway { 0%, 100% { transform: rotate(-2deg); } 50% { transform: rotate(2.2deg); } }
+/* 2) Dải Dê lặp mờ dọc mép dưới trang (lưới nền giấy, phía sau nội dung) */
+[data-seasonal="tet"] .app-shell::after {
+  content: ""; position: fixed; left: 0; right: 0; bottom: 0; height: 120px; z-index: 0; pointer-events: none;
+  background:
+    var(--tet-goat) repeat-x 15% 108% / 84px 84px,
+    linear-gradient(180deg, rgba(243, 233, 210, 0) 0%, rgba(243, 233, 210, .92) 55%);
+  opacity: .05;
+}
+[data-seasonal="tet"][data-theme="dark"] .app-shell::after { opacity: .07; }
+
+/* Mobile: ẩn lớp phủ lớn để không che dữ liệu (nghiệm thu "không che nội dung") */
+@media (max-width: 1000px) {
+  [data-seasonal="tet"] .carem-banner-inner::after,
+  [data-seasonal="tet"] .app-shell::after,
+  [data-seasonal="tet"] .digest-support-grid::before,
+  [data-seasonal="tet"] body::after { display: none; }
+  [data-seasonal="tet"] body::before { opacity: .38; background-size: 240px 240px, 240px 240px; }
 }

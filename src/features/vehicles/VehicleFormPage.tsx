@@ -66,7 +66,7 @@ export function VehicleFormPage() {
       />
     );
   if (id && query.isPending) return <Loading />;
-  if (id && query.isError)
+  if (id && query.isError && !query.data)
     return (
       <ErrorState error={query.error} retry={() => void query.refetch()} />
     );

@@ -1,4 +1,5 @@
 import { Suspense, useEffect, useMemo, useState } from "react";
+import { useNetworkStatus } from "@/lib/networkStatus";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import {
@@ -31,13 +32,13 @@ import {
   Store,
   Sun,
   Users,
-  WifiOff,
   X,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { useAuth } from "@/features/auth/AuthProvider";
 import { canFinance, canManage, canOperate, isOwner, roleLabels } from "@/lib/permissions";
 import { Loading } from "@/components/ui";
+import { NetworkGuard } from "@/components/NetworkGuard";
 import { useMobileDrawer } from "@/lib/useMobileDrawer";
 import { GlobalSearchPalette } from "@/components/search/GlobalSearchPalette";
 import { AnnouncementBar } from "@/components/AnnouncementBar";
@@ -76,7 +77,7 @@ export function AppLayout() {
     queryFn: () => api.call<{ store_name: string }>("get_settings"),
   });
   const drawer = useMobileDrawer();
-  const [online, setOnline] = useState(navigator.onLine);
+  const net = useNetworkStatus();
   const { pathname, state } = useLocation();
   // The AI section stays collapsed until opened, but is revealed on its pages.
   // Seeded from the router location so server-render tests never touch window.
@@ -117,15 +118,7 @@ export function AppLayout() {
     window.scrollTo({ top: 0, behavior: "instant" });
   }, [pathname, navigationType, state]);
 
-  useEffect(() => {
-    const update = () => setOnline(navigator.onLine);
-    window.addEventListener("online", update);
-    window.addEventListener("offline", update);
-    return () => {
-      window.removeEventListener("online", update);
-      window.removeEventListener("offline", update);
-    };
-  }, []);
+
   const visibleNav = mainNav.filter(
     (n) =>
       (n.to !== "/expenses" || canManage(profile)) &&
@@ -361,8 +354,8 @@ export function AppLayout() {
               <small>{roleLabels[profile!.role]}</small>
             </div>
             <span
-              className={`connection-dot ${online ? "" : "offline"}`}
-              title={online ? "Đã kết nối" : "Mất kết nối"}
+              className={`connection-dot ${net.online ? "" : "offline"}`}
+              title={net.online ? "Đã kết nối" : "Mất kết nối"}
             />
           </div>
         </div>
@@ -454,12 +447,7 @@ export function AppLayout() {
             Môi trường thử nghiệm · Dữ liệu dùng để kiểm tra
           </div>
         )}
-        {!online && (
-          <div className="offline-banner" role="alert">
-            <WifiOff size={18} /> Mất kết nối. Các giao dịch mới chưa được gửi;
-            hãy kết nối mạng để tiếp tục.
-          </div>
-        )}
+        <NetworkGuard />
         <main className="main-content" id="main-content" tabIndex={-1}>
           <Suspense fallback={<RouteLoadingFallback />}>
             <Outlet />

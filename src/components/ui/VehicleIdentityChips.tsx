@@ -3,7 +3,7 @@ import { displayFrame } from "@/lib/frameNumber";
 import {
   NO_FRAME_LABEL,
   NO_PLATE_LABEL,
-  UNCLASSIFIED_VEHICLE_TYPE,
+  vehicleTitle,
   type VehicleIdentity,
 } from "@/lib/vehicleDisplay";
 
@@ -64,7 +64,11 @@ export function VehicleIdentityChips({
   );
 }
 
-/** Tên loại xe đứng đầu thẻ — chữ đậm, fallback đúng nhãn danh mục. */
+/** Tên loại xe đứng đầu thẻ — chữ đậm, fallback biển số/số khung khi thiếu hoặc chưa phân loại. */
 export function vehicleTypeName(vehicle: VehicleIdentity | null | undefined): string {
-  return (vehicle?.vehicle_type ?? "").trim() || UNCLASSIFIED_VEHICLE_TYPE;
+  const name = (vehicle?.vehicle_type ?? "").trim();
+  if (name && name.toLowerCase() !== "chưa phân loại") {
+    return name;
+  }
+  return vehicleTitle(vehicle);
 }

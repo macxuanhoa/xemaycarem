@@ -72,6 +72,35 @@ describe("VietQR EMVCo & Banks", () => {
     expect(dataUrl).toMatch(/^data:image\/png;base64,/);
   });
 
+  it("preserves the entire standardized transfer reference inside the QR", () => {
+    const description = "CAREM GD100000 XE123 HD123 AN CHO CAREM";
+    const payload = buildVietQrEmvCoPayload({
+      bankBin: "970422", accountNo: "0987654321", amount: 35000000,
+      description,
+    });
+    let position = 0;
+    const fields = new Map<string, string>();
+    while (position < payload.length) {
+      const id = payload.slice(position, position + 2);
+      const length = Number(payload.slice(position + 2, position + 4));
+      fields.set(id, payload.slice(position + 4, position + 4 + length));
+      position += 4 + length;
+    }
+    const additional = fields.get("62")!;
+    expect(additional.slice(0, 2)).toBe("08");
+    expect(additional.slice(4)).toBe(description);
+    expect(fields.get("63")).toBe(calculateCrc16(payload.slice(0, -4)));
+  });
+
+  it("rejects long transfer contents instead of silently removing reconciliation information", () => {
+    const input = {
+      bankBin: "970422", accountNo: "0987654321", amount: 35000000,
+      description: "XE HOP DONG TEN NGUOI THANH TOAN ".repeat(3) + "CAREM GD100000",
+    };
+    expect(() => buildVietQrEmvCoPayload(input)).toThrow("không cắt mã đối soát");
+    expect(() => buildVietQrQuickLink(input)).toThrow("không cắt mã đối soát");
+  });
+
   it("searches banks catalog by code, BIN or name", () => {
     expect(VIETNAM_BANKS.length).toBeGreaterThan(20);
 

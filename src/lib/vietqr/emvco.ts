@@ -33,6 +33,14 @@ function emvFormat(id: string, value: string): string {
   return `${id}${len}${value}`;
 }
 
+function transferDescription(description: string): string {
+  const clean = removeVietnameseTones(description);
+  if (clean.length > 50) {
+    throw new Error("Nội dung chuyển khoản quá dài. Hãy tạo lại mã với nội dung chuẩn; không cắt mã đối soát ngân hàng.");
+  }
+  return clean;
+}
+
 /**
  * Thuật toán tính CRC16-CCITT (Polynomial 0x1021, Init 0xFFFF)
  * Chuẩn quốc tế theo EMVCo Specification
@@ -61,7 +69,7 @@ export function buildVietQrEmvCoPayload(options: VietQrPayloadOptions): string {
   const { bankBin, accountNo, amount, description } = options;
   const cleanBin = bankBin.trim();
   const cleanAccount = accountNo.trim();
-  const cleanDesc = removeVietnameseTones(description).slice(0, 50);
+  const cleanDesc = transferDescription(description);
 
   // Tag 00: Format Indicator (01)
   const tag00 = emvFormat("00", "01");
@@ -117,7 +125,7 @@ export function buildVietQrQuickLink(
   const { bankBin, accountNo, amount, description, accountName } = options;
   const cleanBin = bankBin.trim();
   const cleanAccount = accountNo.trim();
-  const cleanDesc = removeVietnameseTones(description).slice(0, 50);
+  const cleanDesc = transferDescription(description);
   const cleanName = accountName ? removeVietnameseTones(accountName).toUpperCase() : "";
 
   const params = new URLSearchParams();

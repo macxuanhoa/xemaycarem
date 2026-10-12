@@ -46,6 +46,8 @@ The `ai-assist` function answers shop questions (`task: 'copilot'`) with a read-
 
 The `vehicle-images` bucket is private, permits JPEG/PNG/WebP/AVIF, and caps each object at 8 MiB. Object paths must belong to an existing vehicle. No object can be overwritten by a browser. Unregistered objects are not readable. Soft-deleted metadata denies new read requests; already issued signed URLs remain usable until their short expiration. Avoid long-lived signed URLs. Metadata removal retains the physical object for retention/backup. Review abandoned upload objects periodically with a trusted administrator; do not enable broad public policies to make images render.
 
+The `identity-documents` bucket holds CCCD card photos, which are personal data about a real person rather than showroom content. Read stays OWNER/MANAGER-only through a short 120-second signed URL, and unlike vehicle images it carries exactly one browser DELETE policy (`identity_document_purge`) so an owner or manager can erase a mis-shot or withdrawn photo instead of only detaching it. Its predicate reuses `can_read_identity_document_image`, so a delete is possible only while the record still references that path, never for an unregistered or unrelated object, and STAFF, disabled and anonymous sessions match no row at all. Because PostgreSQL also applies the SELECT policies to a DELETE, the file is purged before the record is detached: a photo already detached from the record is unreadable and remains solely for administrative retention.
+
 ## Production checklist
 
 - Deploy the migrations, Edge Function, and static web build; set HTTPS Auth site URL and exact reset-password redirect URL.

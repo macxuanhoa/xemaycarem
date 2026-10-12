@@ -557,7 +557,7 @@ pre {
   border-color: #efd5cd;
   color: #9c493d;
 }
-.notice.warning {
+.notice.warning:not(.duplicate-panel) {
   display: flex;
   align-items: center;
   gap: 8px;
@@ -1441,6 +1441,119 @@ pre {
   font-size: 13px;
   padding: 10px 25px;
   line-height: 1.6;
+}
+/* ── Network Guard Banner ────────────────────────────────────────────── */
+.network-banner {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 20px;
+  font-size: 13px;
+  line-height: 1.55;
+  animation: networkBannerSlideIn 180ms ease-out;
+}
+@keyframes networkBannerSlideIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+.network-banner--offline {
+  background: linear-gradient(135deg, #fff0d9 0%, #ffeccc 100%);
+  color: #7c4e1a;
+  border-bottom: 1px solid rgba(180, 120, 40, 0.18);
+}
+.network-banner--offline > svg {
+  flex-shrink: 0;
+  color: #c07d2c;
+}
+.network-banner--recovered {
+  background: linear-gradient(135deg, #e6f9ed 0%, #d4f5e0 100%);
+  color: #1a6b3a;
+  border-bottom: 1px solid rgba(40, 160, 80, 0.15);
+}
+.network-banner--recovered > svg {
+  flex-shrink: 0;
+  color: #22a855;
+}
+.network-banner-body {
+  flex: 1;
+  min-width: 0;
+}
+.network-banner-body strong {
+  display: block;
+  font-size: 13px;
+  font-weight: 650;
+  margin-bottom: 2px;
+}
+.network-banner-body > span,
+.network-banner-description {
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+.network-banner-feedback {
+  display: block;
+  margin-top: 3px;
+  font-size: 12px;
+  font-weight: 600;
+}
+.network-banner-elapsed {
+  display: block;
+  margin-top: 3px;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  font-weight: 500;
+}
+.network-banner-retry {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 44px;
+  padding: 8px 12px;
+  border: 1px solid rgba(180, 120, 40, 0.3);
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.65);
+  color: #7c4e1a;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 150ms, border-color 150ms;
+  flex-shrink: 0;
+}
+.network-banner-retry:hover {
+  background: rgba(255, 255, 255, 0.9);
+  border-color: rgba(180, 120, 40, 0.5);
+}
+.network-banner-retry:focus-visible {
+  outline: 2px solid currentColor;
+  outline-offset: 3px;
+}
+.network-banner-retry:disabled {
+  opacity: 0.75;
+  cursor: wait;
+}
+.network-banner-retry .spin {
+  animation: networkRetrySpin 0.8s linear infinite;
+}
+@keyframes networkRetrySpin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .network-banner,
+  .network-banner-retry .spin {
+    animation: none;
+  }
+  .network-banner-retry {
+    transition: none;
+  }
 }
 /* Dashboard */
 .dashboard-period {
@@ -4592,6 +4705,30 @@ pre {
     padding: 10px 17px;
     align-items: flex-start;
   }
+  .network-banner {
+    display: grid;
+    grid-template-columns: 18px minmax(0, 1fr);
+    font-size: 12px;
+    padding: 12px 14px;
+    gap: 8px 10px;
+    align-items: start;
+  }
+  .network-banner > svg {
+    margin-top: 2px;
+  }
+  .network-banner-body strong {
+    font-size: 12px;
+  }
+  .network-banner-body > span,
+  .network-banner-description {
+    font-size: 12px;
+  }
+  .network-banner-retry {
+    grid-column: 2;
+    justify-self: start;
+    font-size: 12px;
+    padding: 8px 12px;
+  }
   .field > input,
   .field > select,
   .field > textarea,
@@ -5109,6 +5246,27 @@ mark.search-hit {
   gap: 14px;
   margin-top: 6px;
 }
+/* Số CCCD + nút lưu trên một hàng ngang ổn định: ô nhập co giãn, nút giữ
+   nguyên bề rộng — cùng tinh thần `.identity-action-bar`, không nhảy bố cục
+   khi đổi nhãn trạng thái. */
+.identity-number-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+  gap: 8px 12px;
+}
+.identity-number-row .field {
+  min-width: 0;
+  margin-bottom: 0;
+}
+@media (max-width: 389px) {
+  .identity-number-row {
+    grid-template-columns: 1fr;
+  }
+  .identity-number-row > .button {
+    width: 100%;
+  }
+}
 .identity-upload-slot {
   display: grid;
   gap: 8px;
@@ -5121,7 +5279,6 @@ mark.search-hit {
   background: transparent;
   border: 1px solid var(--border, #d9d9d9);
   border-radius: 12px;
-  cursor: pointer;
   transition:
     border-color 0.15s ease,
     box-shadow 0.15s ease;
@@ -5133,6 +5290,48 @@ mark.search-hit {
   border-color: var(--accent, #6b835a);
   box-shadow: 0 0 0 2px
     color-mix(in srgb, var(--accent, #6b835a) 22%, transparent);
+}
+/* The slot is a card holding two separate controls: picking a side to capture
+   and purging the photo already there. Only the pick target points a cursor. */
+.identity-slot-body {
+  display: grid;
+  gap: 8px;
+  justify-items: stretch;
+  width: 100%;
+  padding: 0;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  background: transparent;
+  border: 0;
+  border-radius: 8px;
+  cursor: pointer;
+}
+/* Destructive, so it reads apart from the neutral pick/retake cluster without
+   shouting: dashed hairline, muted ruby ink, full-width 44px touch floor. */
+.identity-slot-remove {
+  justify-self: stretch;
+  min-height: var(--touch-target, 44px);
+  padding: 6px 10px;
+  color: #b91c1c;
+  background: transparent;
+  border: 1px dashed rgba(185, 28, 28, 0.32);
+}
+.identity-slot-remove:hover {
+  color: #991b1b;
+  background: rgba(185, 28, 28, 0.07);
+  border-color: rgba(185, 28, 28, 0.5);
+}
+.identity-slot-remove:disabled {
+  opacity: 0.55;
+}
+[data-theme="dark"] .identity-slot-remove {
+  color: #f87171;
+  border-color: rgba(248, 113, 113, 0.32);
+}
+[data-theme="dark"] .identity-slot-remove:hover {
+  color: #fca5a5;
+  background: rgba(239, 68, 68, 0.14);
 }
 .identity-upload-slot .image-placeholder {
   width: 100%;
@@ -8016,71 +8215,576 @@ mark.search-hit {
 }
 
 /* Duplicate tri-state panel */
-.duplicate-panel {
-  margin-top: 8px;
-  display: block;
+.duplicate-panel,
+.notice.duplicate-panel,
+.notice.warning.duplicate-panel,
+.notice.danger.duplicate-panel {
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: stretch !important;
+  gap: 12px !important;
+  margin-top: 10px;
+  padding: 14px 16px;
+  border-radius: 12px;
+  box-sizing: border-box;
+  width: 100%;
+}
+
+.notice.warning.duplicate-panel {
+  background: #fffdf5;
+  border: 1.5px solid #fde68a;
+  color: #854d0e;
+  box-shadow: 0 2px 10px rgba(245, 158, 11, 0.06);
+}
+
+.notice.danger.duplicate-panel {
+  background: #fef8f8;
+  border: 1.5px solid #fecaca;
+  color: #991b1b;
+  box-shadow: 0 2px 10px rgba(239, 68, 68, 0.06);
+}
+
+[data-theme="dark"] .notice.warning.duplicate-panel {
+  background: rgba(245, 158, 11, 0.1);
+  border-color: rgba(245, 158, 11, 0.3);
+  color: #fef3c7;
+}
+
+[data-theme="dark"] .notice.danger.duplicate-panel {
+  background: rgba(239, 68, 68, 0.1);
+  border-color: rgba(239, 68, 68, 0.3);
+  color: #fee2e2;
 }
 
 .duplicate-panel-head {
   display: flex;
   align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  width: 100%;
+}
+
+.duplicate-panel-title-wrap {
+  display: flex;
+  align-items: center;
   gap: 8px;
-  font-size: 13px;
+  min-width: 0;
+  font-size: 13.5px;
+  font-weight: 700;
+  color: inherit;
+}
+
+.duplicate-panel-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 8px;
+  flex-shrink: 0;
+}
+
+.notice.warning.duplicate-panel .duplicate-panel-icon {
+  background: #fef3c7;
+  color: #b45309;
+}
+
+.notice.danger.duplicate-panel .duplicate-panel-icon {
+  background: #fee2e2;
+  color: #dc2626;
+}
+
+.duplicate-count-badge {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.06);
+  color: inherit;
+  white-space: nowrap;
+}
+
+.duplicate-count-badge.warning-count {
+  background: #fee2e2;
+  color: #b91c1c;
+}
+
+.duplicate-count-badge.sold-count {
+  background: #e0e7ff;
+  color: #3730a3;
+}
+
+[data-theme="dark"] .duplicate-count-badge {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+[data-theme="dark"] .duplicate-count-badge.warning-count {
+  background: rgba(239, 68, 68, 0.25);
+  color: #fca5a5;
+}
+
+[data-theme="dark"] .duplicate-count-badge.sold-count {
+  background: rgba(99, 102, 241, 0.25);
+  color: #c7d2fe;
 }
 
 .duplicate-panel-reason {
-  margin: 6px 0 0;
+  margin: 0;
   font-size: 12.5px;
-  line-height: 1.55;
+  line-height: 1.5;
+  color: inherit;
+  opacity: 0.95;
+}
+
+/* Phân biệt rõ xe trong kho vs xe đã bán */
+.duplicate-inventory-summary {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  font-size: 12.5px;
+  line-height: 1.5;
+  box-sizing: border-box;
+}
+
+.duplicate-inventory-summary.has-instock {
+  background: #fff1f2;
+  border: 1px solid #fecdd3;
+  color: #9f1239;
+}
+
+[data-theme="dark"] .duplicate-inventory-summary.has-instock {
+  background: rgba(225, 29, 72, 0.12);
+  border-color: rgba(225, 29, 72, 0.3);
+  color: #fecdd3;
+}
+
+.duplicate-inventory-summary.only-sold {
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  color: #1e40af;
+}
+
+[data-theme="dark"] .duplicate-inventory-summary.only-sold {
+  background: rgba(59, 130, 246, 0.12);
+  border-color: rgba(59, 130, 246, 0.3);
+  color: #bfdbfe;
+}
+
+.duplicate-candidate-status-strip {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11.5px;
+  font-weight: 700;
+  padding: 5px 9px;
+  border-radius: 6px;
+  letter-spacing: 0.2px;
+}
+
+.duplicate-candidate-status-strip.instock {
+  background: #fee2e2;
+  color: #b91c1c;
+  border-left: 3.5px solid #dc2626;
+}
+
+[data-theme="dark"] .duplicate-candidate-status-strip.instock {
+  background: rgba(239, 68, 68, 0.18);
+  color: #fca5a5;
+  border-left-color: #ef4444;
+}
+
+.duplicate-candidate-status-strip.sold {
+  background: #eff6ff;
+  color: #1d4ed8;
+  border-left: 3.5px solid #3b82f6;
+}
+
+[data-theme="dark"] .duplicate-candidate-status-strip.sold {
+  background: rgba(59, 130, 246, 0.18);
+  color: #93c5fd;
+  border-left-color: #60a5fa;
+}
+
+.duplicate-candidate-status-strip.cancelled {
+  background: #f1f5f9;
+  color: #475569;
+  border-left: 3.5px solid #94a3b8;
+}
+
+.duplicate-candidate-card.is-instock {
+  border-color: #fca5a5;
+  background: #fffdfd;
+}
+
+[data-theme="dark"] .duplicate-candidate-card.is-instock {
+  border-color: rgba(239, 68, 68, 0.4);
+  background: #1f2530;
+}
+
+.duplicate-candidate-card.is-sold {
+  border-color: #bfdbfe;
+  background: #fafcff;
+}
+
+[data-theme="dark"] .duplicate-candidate-card.is-sold {
+  border-color: rgba(59, 130, 246, 0.4);
+  background: #192231;
 }
 
 .duplicate-candidate-list {
   list-style: none;
-  margin: 10px 0 0;
+  margin: 0;
   padding: 0;
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 8px;
+  width: 100%;
 }
 
+.duplicate-candidate-card,
 .duplicate-candidate {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px 14px;
+  border-radius: 10px;
+  background: #ffffff;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.03);
+  width: 100%;
+  box-sizing: border-box;
+}
+
+[data-theme="dark"] .duplicate-candidate-card,
+[data-theme="dark"] .duplicate-candidate {
+  background: #1e293b;
+  border-color: rgba(255, 255, 255, 0.1);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.2);
+}
+
+.duplicate-candidate-top {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
-  padding: 8px 10px;
-  border-radius: 8px;
-  background: rgba(255, 255, 255, 0.7);
-  border: 1px solid rgba(0, 0, 0, 0.06);
+  gap: 10px;
+  width: 100%;
+  flex-wrap: wrap;
+}
+
+.duplicate-plate-badge {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-weight: 700;
+  font-size: 13px;
+  padding: 3px 8px;
+  border-radius: 6px;
+  background: #f8fafc;
+  color: #0f172a;
+  border: 1.5px solid #cbd5e1;
+  letter-spacing: 0.5px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+[data-theme="dark"] .duplicate-plate-badge {
+  background: #0f172a;
+  color: #f8fafc;
+  border-color: #475569;
+}
+
+.duplicate-status-badge {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2.5px 8px;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.duplicate-status-badge.status-in-stock {
+  background: #ecfdf5;
+  color: #065f46;
+  border: 1px solid #a7f3d0;
+}
+
+.duplicate-status-badge.status-reserved {
+  background: #fffbeb;
+  color: #92400e;
+  border: 1px solid #fde68a;
+}
+
+.duplicate-status-badge.status-sold {
+  background: #f1f5f9;
+  color: #475569;
+  border: 1px solid #cbd5e1;
+}
+
+.duplicate-status-badge.status-cancelled {
+  background: #fef2f2;
+  color: #991b1b;
+  border: 1px solid #fecaca;
+}
+
+[data-theme="dark"] .duplicate-status-badge.status-in-stock {
+  background: rgba(16, 185, 129, 0.15);
+  color: #6ee7b7;
+  border-color: rgba(16, 185, 129, 0.3);
+}
+
+[data-theme="dark"] .duplicate-status-badge.status-reserved {
+  background: rgba(245, 158, 11, 0.15);
+  color: #fcd34d;
+  border-color: rgba(245, 158, 11, 0.3);
+}
+
+[data-theme="dark"] .duplicate-status-badge.status-sold {
+  background: rgba(148, 163, 184, 0.15);
+  color: #cbd5e1;
+  border-color: rgba(148, 163, 184, 0.3);
 }
 
 .duplicate-candidate-main {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 4px;
   min-width: 0;
+  width: 100%;
 }
 
-.duplicate-candidate-main strong {
-  font-size: 13px;
-  overflow-wrap: anywhere;
+.duplicate-candidate-title {
+  font-size: 13.5px;
+  font-weight: 650;
+  color: #0f172a;
+  word-break: break-word;
+}
+
+[data-theme="dark"] .duplicate-candidate-title {
+  color: #f8fafc;
+}
+
+.duplicate-candidate-meta {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  font-size: 12px;
+  color: #64748b;
+  line-height: 1.4;
+}
+
+[data-theme="dark"] .duplicate-candidate-meta {
+  color: #94a3b8;
+}
+
+.duplicate-candidate-meta strong {
+  font-weight: 600;
+  color: #334155;
+}
+
+[data-theme="dark"] .duplicate-candidate-meta strong {
+  color: #e2e8f0;
+}
+
+.duplicate-candidate-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-top: 8px;
+  border-top: 1px solid rgba(0, 0, 0, 0.05);
+  width: 100%;
+}
+
+[data-theme="dark"] .duplicate-candidate-actions {
+  border-top-color: rgba(255, 255, 255, 0.06);
+}
+
+.duplicate-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  font-size: 12.5px;
+  font-weight: 600;
+  padding: 7px 12px;
+  border-radius: 7px;
+  text-decoration: none;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  min-height: 36px;
+  box-sizing: border-box;
+}
+
+.duplicate-btn-open {
+  background: #0f766e;
+  color: #ffffff !important;
+  border: 1px solid #0f766e;
+  box-shadow: 0 1px 2px rgba(15, 118, 110, 0.15);
+}
+
+.duplicate-btn-open:hover {
+  background: #115e59;
+  border-color: #115e59;
+  color: #ffffff !important;
+}
+
+.duplicate-btn-preview {
+  background: #f8fafc;
+  color: #334155;
+  border: 1px solid #cbd5e1;
+}
+
+.duplicate-btn-preview:hover {
+  background: #f1f5f9;
+  color: #0f172a;
+  border-color: #94a3b8;
+}
+
+[data-theme="dark"] .duplicate-btn-preview {
+  background: #1e293b;
+  color: #e2e8f0;
+  border-color: #475569;
+}
+
+[data-theme="dark"] .duplicate-btn-preview:hover {
+  background: #334155;
+  color: #ffffff;
+  border-color: #64748b;
 }
 
 .duplicate-ack {
   display: flex;
   align-items: center;
-  gap: 8px;
-  margin-top: 10px;
+  gap: 10px;
+  margin-top: 2px;
+  padding: 10px 12px;
+  background: rgba(255, 255, 255, 0.9);
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  border-radius: 8px;
   font-size: 12.5px;
-  font-weight: 550;
+  font-weight: 600;
   cursor: pointer;
+  color: #1e293b;
+  user-select: none;
+}
+
+[data-theme="dark"] .duplicate-ack {
+  background: rgba(30, 41, 59, 0.85);
+  border-color: rgba(255, 255, 255, 0.1);
+  color: #f1f5f9;
+}
+
+.duplicate-ack:hover {
+  background: #ffffff;
+}
+
+[data-theme="dark"] .duplicate-ack:hover {
+  background: #334155;
 }
 
 .duplicate-ack input {
-  width: 16px;
-  height: 16px;
-  accent-color: #1f7a4d;
+  width: 18px;
+  height: 18px;
+  accent-color: #0f766e;
   cursor: pointer;
+  flex-shrink: 0;
+  margin: 0;
+}
+
+/* Duplicate quick preview modal */
+.duplicate-quick-modal {
+  max-width: 520px;
+  width: 100%;
+}
+
+.duplicate-quick-header-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.duplicate-quick-content {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.duplicate-quick-photo-wrap {
+  width: 100%;
+  height: 200px;
+  border-radius: 10px;
+  overflow: hidden;
+  background: #f1f5f9;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+}
+
+.duplicate-quick-photo {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.duplicate-quick-top-badges {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.duplicate-quick-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 10px 14px;
+  background: #f8fafc;
+  padding: 12px 14px;
+  border-radius: 10px;
+  border: 1px solid rgba(0, 0, 0, 0.06);
+}
+
+[data-theme="dark"] .duplicate-quick-grid {
+  background: rgba(15, 23, 42, 0.5);
+  border-color: rgba(255, 255, 255, 0.08);
+}
+
+.duplicate-quick-field {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.duplicate-quick-label {
+  font-size: 11px;
+  font-weight: 500;
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+[data-theme="dark"] .duplicate-quick-label {
+  color: #94a3b8;
+}
+
+.duplicate-quick-value {
+  font-size: 13px;
+  font-weight: 600;
+  color: #0f172a;
+  word-break: break-word;
+}
+
+[data-theme="dark"] .duplicate-quick-value {
+  color: #f8fafc;
+}
+
+.duplicate-quick-open-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  text-decoration: none;
 }
 
 .duplicate-review-modal {
@@ -14677,156 +15381,124 @@ html[data-theme="dark"] .header-theme-toggle {
 /* Nút mở/đóng khu "chi tiết thanh toán" – tách khỏi hàng giá/ngày bán bên trên
    bằng khoảng thở + viền đứt nét, để nhân viên nhìn thấy ngay khu tuỳ chọn
    mà vẫn nhẹ nhàng, không cướp sự chú ý khỏi giá bán. */
-/* Khối thanh toán chuyển khoản VietQR trong trang Bán xe – sang trọng, chuyên nghiệp */
-.sale-vietqr-card {
+/* VietQR: one clear code with server-controlled expiry and bank status. */
+.vietqr-modal-panel {
+  width: min(520px, 100%);
+  padding: 22px;
+  animation: modalFadeIn 0.18s ease-out;
+}
+.vietqr-modal-heading {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
-  gap: 16px;
-  margin-top: var(--space-md, 16px);
-  margin-bottom: var(--space-xs, 4px);
-  padding: 12px 16px;
-  background: var(--surface-raised, #f8fafc);
-  border: 1px solid rgba(16, 185, 129, 0.28);
-  border-radius: var(--radius, 10px);
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.03);
-  box-sizing: border-box;
-}
-
-[data-theme="dark"] .sale-vietqr-card {
-  background: #141b24;
-  border-color: rgba(16, 185, 129, 0.35);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
-}
-
-.sale-vietqr-card-main {
-  display: flex;
-  align-items: center;
   gap: 12px;
-  min-width: 0;
+  margin-bottom: 18px;
 }
-
-.sale-vietqr-card-icon {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 40px;
-  height: 40px;
-  border-radius: 10px;
-  background: rgba(16, 185, 129, 0.12);
-  color: #059669;
-  border: 1px solid rgba(16, 185, 129, 0.25);
-  flex-shrink: 0;
-}
-
-[data-theme="dark"] .sale-vietqr-card-icon {
-  background: rgba(16, 185, 129, 0.2);
-  color: #34d399;
-  border-color: rgba(16, 185, 129, 0.4);
-}
-
-.sale-vietqr-card-content {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  min-width: 0;
-}
-
-.sale-vietqr-card-header {
+.vietqr-modal-heading h2 {
   display: flex;
   align-items: center;
   gap: 8px;
-  flex-wrap: wrap;
-}
-
-.sale-vietqr-card-title {
-  font-size: 13.5px;
-  font-weight: 750;
-  color: var(--readable, #0f172a);
-  letter-spacing: -0.01em;
-}
-
-[data-theme="dark"] .sale-vietqr-card-title {
-  color: #f1f5f9;
-}
-
-.sale-vietqr-amount-tag {
-  display: inline-flex;
-  align-items: center;
-  padding: 1px 8px;
-  font-size: 12px;
-  font-weight: 750;
-  font-variant-numeric: tabular-nums;
-  border-radius: 999px;
-  background: rgba(16, 185, 129, 0.12);
-  color: #047857;
-  border: 1px solid rgba(16, 185, 129, 0.28);
-}
-
-[data-theme="dark"] .sale-vietqr-amount-tag {
-  background: rgba(16, 185, 129, 0.22);
-  color: #34d399;
-  border-color: rgba(16, 185, 129, 0.45);
-}
-
-.sale-vietqr-card-desc {
   margin: 0;
-  font-size: 12px;
+  font-size: 18px;
+  font-weight: 750;
   line-height: 1.4;
-  color: var(--readable-muted, #64748b);
 }
-
-[data-theme="dark"] .sale-vietqr-card-desc {
-  color: #94a3b8;
+.vietqr-modal-heading h2 svg { color: #047857; flex-shrink: 0; }
+.vietqr-modal-heading p {
+  margin: 4px 0 0;
+  color: var(--muted);
+  font-size: 12px;
 }
-
-.sale-vietqr-btn {
-  display: inline-flex;
+.vietqr-close {
+  flex-shrink: 0;
+  width: 44px;
+  min-height: 44px;
+  padding: 0;
+}
+.vietqr-content { display: grid; gap: 14px; }
+.vietqr-state { padding-block: 20px; text-align: center; }
+.vietqr-bank-status {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: #f7f8fa;
+  color: #475569;
+}
+.vietqr-bank-status > svg { margin-top: 2px; flex-shrink: 0; }
+.vietqr-bank-status strong { font-size: 13px; }
+.vietqr-bank-status p { margin: 3px 0 0; font-size: 12px; line-height: 1.5; }
+.vietqr-bank-status--success { color: #047857; background: #ecfdf5; border-color: #a7f3d0; }
+.vietqr-bank-status--warning { color: #92400e; background: #fffbeb; border-color: #fcd34d; }
+.vietqr-display-box {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: #fff;
+}
+.vietqr-display-box > img { display: block; width: min(220px, 100%); height: auto; }
+.vietqr-countdown {
+  display: flex;
   align-items: center;
   gap: 6px;
-  padding: 8px 14px;
-  font-size: 13px;
-  font-weight: 650;
-  white-space: nowrap;
-  flex-shrink: 0;
-  border-radius: 8px;
-  color: #047857;
-  background: rgba(16, 185, 129, 0.1);
-  border: 1px solid rgba(16, 185, 129, 0.35);
-  cursor: pointer;
-  transition: all 120ms ease;
+  color: #475569;
+  font-size: 12px;
 }
-
-.sale-vietqr-btn:hover {
-  background: rgba(16, 185, 129, 0.18);
-  border-color: #059669;
-  color: #065f46;
+.vietqr-countdown strong { color: #0f172a; font-variant-numeric: tabular-nums; }
+.vietqr-download { align-self: center; min-height: 44px; }
+.vietqr-unavailable {
+  display: grid;
+  justify-items: center;
+  gap: 8px;
+  padding: 20px 0;
+  text-align: center;
+  color: #64748b;
 }
-
-[data-theme="dark"] .sale-vietqr-btn {
-  background: rgba(16, 185, 129, 0.18);
-  border-color: rgba(16, 185, 129, 0.45);
-  color: #34d399;
+.vietqr-unavailable strong { color: #334155; }
+.vietqr-unavailable span { font-size: 12px; }
+.vietqr-changed { margin: 0; font-size: 12px; }
+.vietqr-details-card {
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: #f8fafc;
 }
-
-[data-theme="dark"] .sale-vietqr-btn:hover {
-  background: rgba(16, 185, 129, 0.28);
-  border-color: #34d399;
-  color: #6ee7b7;
+.vietqr-amount { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; padding-bottom: 12px; }
+.vietqr-amount > span { color: var(--muted); font-size: 12px; }
+.vietqr-amount > strong { color: #047857; font-size: 23px; font-variant-numeric: tabular-nums; }
+.vietqr-detail-list { display: grid; gap: 7px; margin: 0; padding-block: 12px; border-block: 1px solid var(--line); font-size: 12px; }
+.vietqr-detail-list > div { display: grid; grid-template-columns: 105px minmax(0, 1fr); gap: 10px; align-items: start; }
+.vietqr-detail-list dt { color: var(--muted); }
+.vietqr-detail-list dd { margin: 0; font-weight: 600; overflow-wrap: anywhere; }
+.vietqr-copy-account { width: 36px; min-height: 36px; padding: 0; margin: -6px 0 -6px 4px; vertical-align: middle; }
+.vietqr-transfer-content { display: grid; gap: 3px; padding-top: 12px; }
+.vietqr-transfer-content > span { color: var(--muted); font-size: 12px; }
+.vietqr-transfer-content > div { display: flex; align-items: center; gap: 10px; }
+.vietqr-transfer-content strong { flex: 1; font-size: 13px; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.vietqr-transfer-content .button { flex-shrink: 0; width: 44px; min-height: 44px; padding: 0; }
+.vietqr-agreement { margin: 10px 0 0; color: var(--muted); font-size: 12px; line-height: 1.6; overflow-wrap: anywhere; }
+.vietqr-actions { display: flex; justify-content: flex-end; flex-wrap: wrap; gap: 8px; }
+.vietqr-actions .button { min-height: 44px; }
+.vietqr-footnote { margin: 0; color: var(--muted); font-size: 11px; line-height: 1.5; }
+[data-theme="dark"] .vietqr-modal-heading h2 svg,
+[data-theme="dark"] .vietqr-amount > strong { color: #6ee7b7; }
+[data-theme="dark"] .vietqr-details-card { background: #171a24; }
+[data-theme="dark"] .vietqr-bank-status { background: #1b2130; color: #cbd5e1; }
+[data-theme="dark"] .vietqr-bank-status--success { color: #a7f3d0; background: #10352b; border-color: #23634e; }
+[data-theme="dark"] .vietqr-bank-status--warning { color: #fcd34d; background: #342818; border-color: #72551d; }
+@media (max-width: 540px) {
+  .vietqr-backdrop { padding: 10px; }
+  .vietqr-modal-panel { padding: 16px; max-height: 94dvh; }
+  .vietqr-modal-heading h2 { font-size: 16px; }
+  .vietqr-detail-list > div { grid-template-columns: 92px minmax(0, 1fr); gap: 8px; }
+  .vietqr-actions .button { flex: 1; }
 }
-
-@media (max-width: 640px) {
-  .sale-vietqr-card {
-    flex-direction: column;
-    align-items: stretch;
-    gap: 12px;
-  }
-  .sale-vietqr-btn {
-    width: 100%;
-    justify-content: center;
-  }
-}
-
 /* Nút mở/đóng khu "chi tiết thanh toán" – độc lập, toàn chiều ngang, nét đứt nhã nhặn */
 .sale-payment-details-toggle {
   display: flex;
@@ -14867,32 +15539,6 @@ html[data-theme="dark"] .header-theme-toggle {
   color: #c7d2fe;
   border-color: rgba(129, 140, 248, 0.35);
   background: rgba(129, 140, 248, 0.08);
-}
-
-/* Phím tắt inline mở VietQR khi chọn hình thức chuyển khoản */
-.sale-field-inline-vietqr {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  margin-top: 6px;
-  padding: 4px 10px;
-  font-size: 12px;
-  font-weight: 600;
-  color: #047857;
-  background: rgba(16, 185, 129, 0.08);
-  border: 1px solid rgba(16, 185, 129, 0.25);
-  border-radius: 6px;
-  cursor: pointer;
-  transition: all 120ms ease;
-}
-.sale-field-inline-vietqr:hover {
-  background: rgba(16, 185, 129, 0.16);
-  border-color: #059669;
-}
-[data-theme="dark"] .sale-field-inline-vietqr {
-  color: #34d399;
-  background: rgba(16, 185, 129, 0.16);
-  border-color: rgba(16, 185, 129, 0.35);
 }
 
 /* Nút Tạo VietQR nhanh ở cột aside bên phải */
@@ -14954,6 +15600,14 @@ html[data-theme="dark"] .header-theme-toggle {
   margin-top: var(--space-xl);
   padding-top: var(--space-lg);
   border-top: 1px solid var(--line);
+}
+.sale-final-actions {
+  grid-column: 1 / -1;
+}
+.sale-final-actions .sale-action-footer {
+  margin-top: 0;
+  padding-top: 0;
+  border-top: 0;
 }
 /* Layout dialog kiểm tra bán xe: đưa xe + biển số + số khung + giá bán lên
    hàng đầu, phần còn lại (khách / ngày / hình thức / trả trước / còn thu /
@@ -15536,6 +16190,31 @@ html[data-theme="dark"] .header-theme-toggle {
 [data-theme="dark"] .offline-banner {
   background: rgba(245, 158, 11, 0.12);
   color: #fcd34d;
+}
+[data-theme="dark"] .network-banner--offline {
+  background: rgba(245, 158, 11, 0.1);
+  color: #fcd34d;
+  border-bottom-color: rgba(245, 158, 11, 0.18);
+}
+[data-theme="dark"] .network-banner--offline > svg {
+  color: #f59e0b;
+}
+[data-theme="dark"] .network-banner--recovered {
+  background: rgba(34, 197, 94, 0.1);
+  color: #86efac;
+  border-bottom-color: rgba(34, 197, 94, 0.15);
+}
+[data-theme="dark"] .network-banner--recovered > svg {
+  color: #4ade80;
+}
+[data-theme="dark"] .network-banner-retry {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(245, 158, 11, 0.3);
+  color: #fcd34d;
+}
+[data-theme="dark"] .network-banner-retry:hover {
+  background: rgba(255, 255, 255, 0.14);
+  border-color: rgba(245, 158, 11, 0.5);
 }
 /* Ảnh & biểu tượng xe */
 [data-theme="dark"] .vehicle-icon {

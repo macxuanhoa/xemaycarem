@@ -17,7 +17,7 @@ export function vehicleSuggestions(
   const counts = new Map<string, { value: string; count: number }>();
   for (const vehicle of vehicles) {
     const value = vehicle[field]?.trim();
-    if (!value) continue;
+    if (!value || value.toLowerCase() === "chưa phân loại") continue;
     const key = value.toLowerCase();
     const old = counts.get(key);
     counts.set(key, {
@@ -26,7 +26,7 @@ export function vehicleSuggestions(
     });
   }
   const values = [
-    ...recent,
+    ...recent.filter((v) => v.trim().toLowerCase() !== "chưa phân loại"),
     ...[...counts.values()]
       .sort((a, b) => b.count - a.count)
       .map((item) => item.value),

@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import type { FieldValues, UseFormReturn } from "react-hook-form";
 import { clearFormDraft, readFormDraft, saveFormDraft } from "./formDrafts";
 import { confirmAction } from "@/components/ui/ConfirmDialog";
+import { getNetworkStatus, subscribeNetworkStatus } from "./networkStatus";
 
 export function useFormDraft<T extends FieldValues>(
   kind: string,
@@ -22,12 +23,23 @@ export function useFormDraft<T extends FieldValues>(
     };
     const subscription = form.watch(() => {
       clearTimeout(timer);
+      setSaved(false);
       timer = setTimeout(persist, 350);
+    });
+    const flush = () => {
+      clearTimeout(timer);
+      persist();
+    };
+    const hidden = () => {
+      if (document.visibilityState === "hidden") flush();
+    };
+    const stopNetworkSubscription = subscribeNetworkStatus(() => {
+      if (!getNetworkStatus().online) flush();
     });
     const unload = (event: BeforeUnloadEvent) => {
       if (!dirtyRef.current || completed.current) return;
-      // Every business field now persists to the local draft; only warn when
-      // storage itself is unavailable, because then the edits would be lost.
+      // This form stores its allowed draft fields locally. Warn when storage
+      // fails, because then even those fields would be lost on departure.
       if (!saveFormDraft(kind, userId, form.getValues())) {
         event.preventDefault();
         event.returnValue = "";
@@ -86,6 +98,9 @@ export function useFormDraft<T extends FieldValues>(
       }
     };
     window.addEventListener("beforeunload", unload);
+    window.addEventListener("offline", flush);
+    window.addEventListener("pagehide", flush);
+    document.addEventListener("visibilitychange", hidden);
     document.addEventListener("click", leaving, true);
     return () => {
       subscription.unsubscribe();
@@ -93,6 +108,10 @@ export function useFormDraft<T extends FieldValues>(
       if (!completed.current && dirtyRef.current)
         saveFormDraft(kind, userId, form.getValues());
       window.removeEventListener("beforeunload", unload);
+      window.removeEventListener("offline", flush);
+      window.removeEventListener("pagehide", flush);
+      document.removeEventListener("visibilitychange", hidden);
+      stopNetworkSubscription();
       document.removeEventListener("click", leaving, true);
     };
   }, [form, kind, userId]);

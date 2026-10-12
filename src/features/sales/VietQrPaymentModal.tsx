@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
@@ -8,31 +8,26 @@ import {
   Clock,
   Copy,
   Download,
-  Image as ImageIcon,
   QrCode,
+  RefreshCw,
+  WifiOff,
   X,
 } from "lucide-react";
 import { Button, ErrorState, Loading } from "@/components/ui";
 import { api } from "@/lib/api";
 import { money } from "@/lib/format";
+import { useNetworkStatus } from "@/lib/networkStatus";
 import { toast } from "@/lib/toast";
-import { confirmAction } from "@/components/ui/ConfirmDialog";
+import { useDialog } from "@/lib/useDialog";
 import { getBankByBin } from "@/lib/vietqr/banks";
-import {
-  buildVietQrEmvCoPayload,
-  buildVietQrQuickLink,
-  renderQrToDataUrl,
-} from "@/lib/vietqr/emvco";
+import { buildVietQrEmvCoPayload, renderQrToDataUrl } from "@/lib/vietqr/emvco";
 import type { VietQrPaymentRequest } from "@/types";
 
 type ShopSettings = {
   bank_bin?: string;
-  bank_name?: string;
   bank_account_no?: string;
-  bank_account_name?: string;
   vietqr_enabled?: boolean;
 };
-
 type VehicleSummary = {
   id: string;
   license_plate?: string | null;
@@ -41,11 +36,35 @@ type VehicleSummary = {
   vehicle_subtitle?: string;
   vehicle_type?: string;
 };
+const formatCountdown = (seconds: number) =>
+  `${Math.floor(seconds / 60)
+    .toString()
+    .padStart(2, "0")}:${(seconds % 60).toString().padStart(2, "0")}`;
+
+function paymentQrPayload(request: VietQrPaymentRequest | null) {
+  if (!request) return { payload: null, invalid: false };
+  if (!request.transfer_content) return { payload: null, invalid: true };
+  try {
+    return {
+      payload: buildVietQrEmvCoPayload({
+        bankBin: request.bank_bin,
+        accountNo: request.bank_account_no,
+        amount: request.amount,
+        description: request.transfer_content,
+        accountName: request.bank_account_name,
+      }),
+      invalid: false,
+    };
+  } catch {
+    return { payload: null, invalid: true };
+  }
+}
 
 export function VietQrPaymentModal({
   vehicle,
   saleId,
   saleCode,
+  payerName,
   amount,
   onClose,
   onPaymentConfirmed,
@@ -53,511 +72,585 @@ export function VietQrPaymentModal({
   vehicle: VehicleSummary;
   saleId?: string;
   saleCode?: string;
+  payerName?: string;
   amount: number;
   onClose: () => void;
-  onPaymentConfirmed?: (paymentIdOrRef: string) => void;
+  onPaymentConfirmed?: (request: VietQrPaymentRequest) => void;
 }) {
   const client = useQueryClient();
-  const [request, setRequest] = useState<VietQrPaymentRequest | null>(null);
-  const [qrDataUrl, setQrDataUrl] = useState<string | null>(null);
-  const [viewCardMode, setViewCardMode] = useState(false);
-  const [supersededWarning, setSupersededWarning] = useState(false);
+  const network = useNetworkStatus();
+  const titleId = useId();
+  const descriptionId = useId();
+  const panelRef = useDialog(true, onClose);
+  const initialized = useRef(false);
+  const announcedReceipt = useRef<string | null>(null);
+  const [selectedRequest, setSelectedRequest] =
+    useState<VietQrPaymentRequest | null>(null);
+  const [qrImage, setQrImage] = useState<{
+    payload: string;
+    url: string;
+  } | null>(null);
+  const [qrError, setQrError] = useState(false);
+  const [, refreshClock] = useState(0);
+  const [serverClock, setServerClock] = useState<{
+    id: string;
+    serverMs: number;
+    monotonicMs: number;
+  } | null>(null);
 
-  // 1. Kiểm tra cấu hình ngân hàng của cửa hàng
+  useEffect(() => {
+    const timer = window.setInterval(
+      () => refreshClock((value) => value + 1),
+      1_000,
+    );
+    return () => window.clearInterval(timer);
+  }, []);
+
   const settingsQuery = useQuery({
     queryKey: ["settings"],
     queryFn: () => api.call<ShopSettings>("get_settings"),
   });
-
   const settings = settingsQuery.data;
   const isConfigured = !!(
     settings?.vietqr_enabled &&
-    settings?.bank_bin &&
-    settings?.bank_account_no
+    settings.bank_bin &&
+    settings.bank_account_no
   );
 
-  // 2. Mutation tạo hoặc lấy yêu cầu VietQR động
+  // Load the existing request before creating one. Reopening an expired request
+  // must never create a fresh 15-minute window implicitly.
+  const activeQuery = useQuery({
+    queryKey: ["vietqr-active", vehicle.id, saleId ?? null],
+    queryFn: () => api.getActiveVietQrRequest(vehicle.id, saleId),
+    enabled: isConfigured,
+    staleTime: 0,
+    refetchOnMount: "always",
+    retry: false,
+  });
+  const selectRequest = (data: VietQrPaymentRequest) => {
+    setSelectedRequest(data);
+    const serverNow = Date.parse(data.server_now);
+    setServerClock(
+      Number.isFinite(serverNow)
+        ? { id: data.id, serverMs: serverNow, monotonicMs: performance.now() }
+        : null,
+    );
+  };
   const createMutation = useMutation({
-    mutationFn: async () => {
-      if (!isConfigured) return null;
-      // Sinh payload EMVCo tạm thời phía client
-      const emvCo = buildVietQrEmvCoPayload({
-        bankBin: settings.bank_bin!,
-        accountNo: settings.bank_account_no!,
-        amount,
-        description: "CAREM DRAFT",
-        accountName: settings.bank_account_name,
-      });
-
-      return api.createVietQrPaymentRequest({
+    mutationFn: () =>
+      api.createVietQrPaymentRequest({
         vehicle_id: vehicle.id,
         sale_id: saleId,
         amount,
-        qr_payload: emvCo,
-      });
-    },
-    onSuccess: (data) => {
-      if (!data) return;
-      setRequest(data);
-      if (data.superseded) {
-        setSupersededWarning(true);
-      }
-    },
+        payer_name: payerName,
+        contract_reference: saleCode,
+      }),
+    onSuccess: selectRequest,
   });
-
-  // Tự động tạo mã QR khi settings đã tải xong
   useEffect(() => {
-    if (settingsQuery.isSuccess && isConfigured && !request && !createMutation.isPending) {
-      createMutation.mutate();
-    }
-  }, [settingsQuery.isSuccess, isConfigured, request, createMutation]);
+    if (
+      initialized.current ||
+      !network.online ||
+      !isConfigured ||
+      !activeQuery.isFetchedAfterMount ||
+      !activeQuery.isSuccess
+    )
+      return;
+    initialized.current = true;
+    if (activeQuery.data) selectRequest(activeQuery.data);
+    else createMutation.mutate();
+  }, [
+    network.online,
+    isConfigured,
+    activeQuery.isFetchedAfterMount,
+    activeQuery.isSuccess,
+    activeQuery.data,
+    createMutation,
+  ]);
 
-  // 3. Render mã QR khi có request hợp lệ
+  const requestQuery = useQuery({
+    queryKey: ["vietqr-request", selectedRequest?.id],
+    queryFn: () => api.getVietQrPaymentRequest(selectedRequest!.id),
+    enabled: !!selectedRequest && network.online,
+    refetchInterval: 5_000,
+    refetchIntervalInBackground: false,
+    refetchOnWindowFocus: "always",
+    staleTime: 0,
+    retry: false,
+  });
+  const request =
+    requestQuery.data?.id === selectedRequest?.id
+      ? (requestQuery.data ?? selectedRequest)
+      : selectedRequest;
   useEffect(() => {
-    if (!request || !settings?.bank_bin || !settings?.bank_account_no) return;
+    if (!requestQuery.data) return;
+    const serverNow = Date.parse(requestQuery.data.server_now);
+    setServerClock(
+      Number.isFinite(serverNow)
+        ? {
+            id: requestQuery.data.id,
+            serverMs: serverNow,
+            monotonicMs: performance.now(),
+          }
+        : null,
+    );
+  }, [requestQuery.data, requestQuery.dataUpdatedAt]);
 
-    const payload = buildVietQrEmvCoPayload({
-      bankBin: request.bank_bin,
-      accountNo: request.bank_account_no,
-      amount: request.amount,
-      description: request.qr_reference,
-      accountName: request.bank_account_name,
-    });
-
-    renderQrToDataUrl(payload, 300)
-      .then((url) => setQrDataUrl(url))
-      .catch(() => setQrDataUrl(null));
-  }, [request, settings]);
-
-  // 4. Mutation xác nhận đã nhận tiền
-  const confirmMutation = useMutation({
-    mutationFn: async () => {
-      if (!request) throw new Error("Chưa có yêu cầu thanh toán hợp lệ.");
-      return api.confirmVietQrPayment({
-        qr_request_id: request.id,
-        notes: `Khách quét chuyển khoản VietQR ${request.qr_reference}`,
-      });
-    },
-    onSuccess: async (paymentId) => {
-      await Promise.all([
-        client.invalidateQueries({ queryKey: ["sale"] }),
-        client.invalidateQueries({ queryKey: ["sales"] }),
-        client.invalidateQueries({ queryKey: ["receivables"] }),
-        client.invalidateQueries({ queryKey: ["dashboard"] }),
-      ]);
-      toast.success("Đã xác nhận tiền vào tài khoản thành công!");
-      if (request) {
-        setRequest({ ...request, status: "CONFIRMED", payment_id: paymentId });
-      }
-      onPaymentConfirmed?.(paymentId);
-    },
-  });
-
-  // 5. Mutation hủy yêu cầu QR
-  const cancelMutation = useMutation({
-    mutationFn: async () => {
-      if (!request) return;
-      return api.cancelVietQrPaymentRequest(request.id, "USER_CLOSED_MODAL");
-    },
-    onSuccess: () => {
-      toast.info("Đã hủy yêu cầu thanh toán VietQR.");
-      onClose();
-    },
-  });
-
-  // Live-match: soi xem webhook ngân hàng đã phát hiện tiền về cho QR này chưa.
-  // Chỉ hiển thị trạng thái (không lộ số tiền từ phía ngân hàng) — chống suy luận giá.
+  const verifiedReceipt =
+    !!request?.bank_transaction_id &&
+    (request.status === "RECEIVED" || request.status === "CONFIRMED");
   const matchQuery = useQuery({
     queryKey: ["vietqr-match", request?.id],
     queryFn: () => api.getVietQrMatchingStatus(request!.id),
-    enabled: !!request && request.status === "PENDING",
-    refetchInterval: 15_000,
+    enabled:
+      !!request &&
+      !verifiedReceipt &&
+      request.status !== "CANCELLED" &&
+      network.online,
+    refetchInterval: 5_000,
+    refetchIntervalInBackground: false,
+    retry: false,
   });
-  const bankState = matchQuery.data?.state;
-
-  const handleConfirmPayment = async () => {
-    if (!request) return;
-    const ok = await confirmAction({
-      title: "Xác nhận tiền đã vào tài khoản?",
-      description: `Kiểm tra ứng dụng ngân hàng đã nhận đúng số tiền ${money(request.amount)} với nội dung "${request.qr_reference}" trước khi xác nhận.`,
-      confirmLabel: "Đã nhận tiền, xác nhận",
-      cancelLabel: "Chưa nhận được, kiểm tra lại",
+  useEffect(() => {
+    if (!request || !verifiedReceipt || announcedReceipt.current === request.id)
+      return;
+    announcedReceipt.current = request.id;
+    toast.success("Đã nhận tiền vào tài khoản", {
+      description:
+        "Ngân hàng đã xác minh đúng tài khoản, số tiền và nội dung chuyển khoản.",
     });
-    if (ok) {
-      confirmMutation.mutate();
+    for (const queryKey of [
+      ["sale"],
+      ["sales"],
+      ["receivables"],
+      ["dashboard"],
+      ["payments"],
+    ]) {
+      void client.invalidateQueries({ queryKey });
+    }
+  }, [request, verifiedReceipt, client]);
+
+  // A monotonic clock preserves the server deadline even if the workstation's
+  // date or timezone changes while this dialog is open.
+  const serverNow = serverClock
+    ? serverClock.serverMs + performance.now() - serverClock.monotonicMs
+    : NaN;
+  const expiresAt = request ? Date.parse(request.expires_at) : NaN;
+  const replacementAt = request
+    ? Date.parse(request.replace_available_at)
+    : NaN;
+  const hasServerTime =
+    !!request && serverClock?.id === request.id && Number.isFinite(expiresAt);
+  const remainingSeconds = hasServerTime
+    ? Math.max(0, Math.ceil((expiresAt - serverNow) / 1_000))
+    : 0;
+  const cooldownSeconds =
+    hasServerTime && Number.isFinite(replacementAt)
+      ? Math.max(0, Math.ceil((replacementAt - serverNow) / 1_000))
+      : 0;
+  const expired =
+    !!request &&
+    (request.status === "EXPIRED" || (hasServerTime && remainingSeconds === 0));
+  const canShowQr =
+    !!request &&
+    request.status === "PENDING" &&
+    hasServerTime &&
+    !expired &&
+    !verifiedReceipt;
+  const changedDetails =
+    !!request &&
+    (request.amount !== amount ||
+      (!!payerName?.trim() && request.payer_name !== payerName.trim()));
+
+  const replaceMutation = useMutation({
+    mutationFn: () =>
+      api.replaceVietQrPaymentRequest(request!.id, {
+        amount,
+        payer_name: payerName,
+        contract_reference: saleCode,
+      }),
+    onSuccess: (data) => {
+      selectRequest(data);
+      toast.info("Đã tạo mã QR mới", {
+        description: "Mã trước đã hết hiệu lực trên Cà Rem.",
+      });
+    },
+  });
+  const qrResult = paymentQrPayload(request);
+  const qrPayload = qrResult.payload;
+  useEffect(() => {
+    if (!qrPayload || !canShowQr) return;
+    let current = true;
+    setQrError(false);
+    void renderQrToDataUrl(qrPayload, 300)
+      .then((url) => {
+        if (current) setQrImage({ payload: qrPayload, url });
+      })
+      .catch(() => {
+        if (current) setQrError(true);
+      });
+    return () => {
+      current = false;
+    };
+  }, [qrPayload, canShowQr]);
+
+  const handleCopy = async (value: string, label: string) => {
+    try {
+      await navigator.clipboard.writeText(value);
+      toast.success(`Đã sao chép ${label}`);
+    } catch {
+      toast.error("Chưa thể sao chép", {
+        description: "Hãy chọn và sao chép thông tin trực tiếp.",
+      });
     }
   };
-  const handleCopy = (text: string, label: string) => {
-    void navigator.clipboard.writeText(text);
-    toast.success(`Đã sao chép ${label}: ${text}`);
-  };
-
   const handleDownloadQr = () => {
-    if (!qrDataUrl || !request) return;
+    if (!canShowQr || !qrImage || qrImage.payload !== qrPayload || !request)
+      return;
     const link = document.createElement("a");
-    link.href = qrDataUrl;
+    link.href = qrImage.url;
     link.download = `VietQR-${request.qr_reference.replace(/\s+/g, "_")}.png`;
     link.click();
-    toast.success("Đã tải mã QR về máy.");
+    toast.success("Đã tải mã QR");
   };
-
-  const selectedBank = settings?.bank_bin ? getBankByBin(settings.bank_bin) : undefined;
-  const quickLinkUrl =
-    request && settings?.bank_bin && settings?.bank_account_no
-      ? buildVietQrQuickLink(
-          {
-            bankBin: request.bank_bin,
-            accountNo: request.bank_account_no,
-            amount: request.amount,
-            description: request.qr_reference,
-            accountName: request.bank_account_name,
-          },
-          "compact2",
-        )
-      : null;
+  const acknowledgeReceipt = () => {
+    if (!request || !verifiedReceipt) return;
+    onPaymentConfirmed?.(request);
+    onClose();
+  };
+  const selectedBank = request ? getBankByBin(request.bank_bin) : undefined;
+  const status = verifiedReceipt
+    ? {
+        tone: "success",
+        icon: CheckCircle2,
+        title: "Đã nhận tiền vào tài khoản",
+        detail: "Đã khớp tài khoản nhận, số tiền và nội dung chuyển khoản.",
+      }
+    : !network.online
+      ? {
+          tone: "warning",
+          icon: WifiOff,
+          title: "Tạm dừng kiểm tra kết nối",
+          detail:
+            "Chưa thể xác minh tiền vào tài khoản. Hệ thống sẽ kiểm tra khi có mạng.",
+        }
+      : expired || request?.status === "CANCELLED"
+        ? {
+            tone: "warning",
+            icon: Clock,
+            title: expired ? "Mã QR đã hết hạn" : "Mã QR đã được thay thế",
+            detail:
+              "Chưa có khoản tiền được xác minh cho mã này. Chuyển tiền trễ cần được đối soát.",
+          }
+        : request?.monitoring_available === false ||
+            matchQuery.data?.monitoring_available === false
+          ? {
+              tone: "warning",
+              icon: AlertTriangle,
+              title: "Chưa kết nối thông báo ngân hàng",
+              detail:
+                "Cấu hình kết nối ngân hàng trong Cài đặt để tự xác minh tiền vào tài khoản.",
+            }
+          : requestQuery.isError || matchQuery.isError
+            ? {
+                tone: "warning",
+                icon: AlertTriangle,
+                title: "Chưa kiểm tra được giao dịch",
+                detail:
+                  "Chưa thể xác nhận thanh toán. Hệ thống đang thử kiểm tra lại.",
+              }
+            : matchQuery.data?.state === "REVIEW"
+              ? {
+                  tone: "warning",
+                  icon: AlertTriangle,
+                  title: "Giao dịch cần đối soát",
+                  detail:
+                    "Thông tin chuyển tiền chưa khớp. Chưa ghi nhận thanh toán thành công.",
+                }
+              : {
+                  tone: "pending",
+                  icon: Clock,
+                  title: "Chưa nhận được tiền",
+                  detail: "Tự động kiểm tra thông báo từ ngân hàng.",
+                };
+  const StatusIcon = status.icon;
 
   return (
     <div
-      className="dialog-backdrop"
-      onClick={(e) => {
-        if (e.target === e.currentTarget) onClose();
+      className="dialog-backdrop vietqr-backdrop"
+      onClick={(event) => {
+        if (event.target === event.currentTarget) onClose();
       }}
       role="presentation"
     >
       <div
+        ref={panelRef}
         className="dialog-panel vietqr-modal-panel"
-        style={{ width: "min(520px, 100%)", padding: "20px" }}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={titleId}
+        aria-describedby={descriptionId}
       >
-        <div className="row between gap-sm" style={{ marginBottom: "16px" }}>
+        <div className="vietqr-modal-heading">
           <div>
-            <h2 className="section-title" style={{ margin: 0, display: "flex", alignItems: "center", gap: 8 }}>
-              <QrCode size={20} color="var(--brand-emerald-dark, #059669)" />
-              Thanh toán VietQR động
+            <h2 id={titleId}>
+              <QrCode size={20} aria-hidden="true" /> Thanh toán chuyển khoản
             </h2>
-            <p className="muted small" style={{ margin: "2px 0 0" }}>
-              Cà Rem CRM · Quét mã chuyển nhanh Napas 24/7
-            </p>
+            <p id={descriptionId}>Cà Rem · Mỗi mã có thời hạn 15 phút</p>
           </div>
-          <button
-            type="button"
-            className="button ghost"
-            style={{ padding: "6px" }}
+          <Button
+            variant="ghost"
+            className="vietqr-close"
             aria-label="Đóng hộp thoại"
             onClick={onClose}
           >
-            <X size={18} />
-          </button>
+            <X size={20} />
+          </Button>
         </div>
-
-        {/* Chưa cấu hình tài khoản nhận tiền */}
-        {settingsQuery.isSuccess && !isConfigured && (
-          <div className="stack" style={{ gap: 14 }}>
-            <div
-              className="notice warning"
-              style={{ display: "flex", alignItems: "flex-start", gap: 10, padding: "14px" }}
+        {settingsQuery.isError && (
+          <div className="vietqr-state stack">
+            <ErrorState error={settingsQuery.error} />
+            <Button
+              variant="secondary"
+              onClick={() => void settingsQuery.refetch()}
+              disabled={!network.online}
             >
-              <AlertTriangle size={20} style={{ flexShrink: 0, marginTop: 2 }} />
-              <div>
-                <strong>Chưa cấu hình tài khoản nhận tiền</strong>
-                <p style={{ margin: "4px 0 0", fontSize: "0.875rem" }}>
-                  Để tự tạo mã VietQR theo từng giao dịch, chủ cửa hàng cần vào
-                  Cài đặt để cấu hình thông tin ngân hàng và bật tính năng VietQR.
-                </p>
-              </div>
-            </div>
-            <div className="form-actions" style={{ marginTop: 8 }}>
-              <Button variant="secondary" onClick={onClose}>
-                Đóng
-              </Button>
-              <Link className="button" to="/settings" onClick={onClose}>
-                Vào Cài đặt thanh toán <ArrowRight size={15} />
-              </Link>
-            </div>
+              Thử tải lại cấu hình
+            </Button>
           </div>
         )}
-
-        {/* Đang tải cấu hình hoặc đang tạo mã */}
-        {(settingsQuery.isPending || createMutation.isPending) && (
-          <div style={{ padding: "30px 0", textAlign: "center" }}>
-            <Loading />
-            <p className="muted" style={{ marginTop: 10 }}>Đang tạo mã VietQR động theo giao dịch…</p>
+        {settingsQuery.isSuccess && !isConfigured && (
+          <div className="vietqr-state stack">
+            <div className="notice warning">
+              <strong>Chưa cấu hình tài khoản nhận tiền</strong>
+              <p>
+                Vào Cài đặt thanh toán để bật VietQR và chọn tài khoản ngân
+                hàng.
+              </p>
+            </div>
+            <Link className="button" to="/settings" onClick={onClose}>
+              Cài đặt thanh toán <ArrowRight size={15} />
+            </Link>
           </div>
         )}
-
-        {/* Lỗi tạo mã */}
-        {createMutation.isError && (
-          <div className="stack">
+        {!request &&
+          (settingsQuery.isPending ||
+            (isConfigured &&
+              (activeQuery.isPending || createMutation.isPending))) && (
+            <div className="vietqr-state">
+              <Loading />
+              <p className="muted">Đang kiểm tra mã thanh toán…</p>
+            </div>
+          )}
+        {!request && activeQuery.isError && (
+          <div className="vietqr-state stack">
+            <ErrorState error={activeQuery.error} />
+            <Button
+              variant="secondary"
+              onClick={() => void activeQuery.refetch()}
+              disabled={!network.online}
+            >
+              Thử kiểm tra lại mã QR
+            </Button>
+          </div>
+        )}
+        {!request && createMutation.isError && (
+          <div className="vietqr-state stack">
             <ErrorState error={createMutation.error} />
-            <Button variant="secondary" onClick={() => createMutation.mutate()}>
+            <Button
+              variant="secondary"
+              onClick={() => createMutation.mutate()}
+              disabled={!network.online || createMutation.isPending}
+            >
               Thử tạo lại mã QR
             </Button>
           </div>
         )}
-
-        {/* Đã có request VietQR hợp lệ */}
         {request && (
-          <div className="stack" style={{ gap: 16 }}>
-            {/* Cảnh báo hủy QR cũ nếu số tiền vừa thay đổi */}
-            {supersededWarning && (
-              <div
-                className="notice warning"
-                style={{ fontSize: "0.8125rem", padding: "10px 12px", display: "flex", gap: 8, alignItems: "flex-start" }}
-              >
-                <AlertTriangle size={16} style={{ flexShrink: 0, marginTop: 2 }} />
-                <span>
-                  <strong>Số tiền thanh toán đã thay đổi:</strong> Mã VietQR cũ đã
-                  được hệ thống tự động hủy hiệu lực. Nếu khách quét mã cũ, hãy đối
-                  soát thủ công.
-                </span>
-              </div>
-            )}
-
-            {/* Trạng thái thanh toán */}
+          <div className="vietqr-content">
             <div
-              style={{
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "space-between",
-                padding: "8px 12px",
-                borderRadius: "6px",
-                background: request.status === "CONFIRMED" ? "rgba(16, 185, 129, 0.1)" : "rgba(245, 158, 11, 0.1)",
-                border: `1px solid ${request.status === "CONFIRMED" ? "rgba(16, 185, 129, 0.3)" : "rgba(245, 158, 11, 0.3)"}`,
-              }}
+              className={`vietqr-bank-status vietqr-bank-status--${status.tone}`}
+              role="status"
+              aria-live="polite"
             >
-              <span style={{ fontSize: "0.875rem", fontWeight: 600, display: "flex", alignItems: "center", gap: 6, color: request.status === "CONFIRMED" ? "#047857" : "#b45309" }}>
-                {request.status === "CONFIRMED" ? (
+              <StatusIcon size={20} aria-hidden="true" />
+              <div>
+                <strong>{status.title}</strong>
+                <p>{status.detail}</p>
+              </div>
+            </div>
+            {!verifiedReceipt && (
+              <div className="vietqr-display-box">
+                {canShowQr ? (
                   <>
-                    <CheckCircle2 size={16} /> Đã nhận tiền thành công
+                    {qrImage?.payload === qrPayload ? (
+                      <img
+                        src={qrImage.url}
+                        width={220}
+                        height={220}
+                        alt="Mã QR chuyển khoản"
+                      />
+                    ) : qrResult.invalid ? (
+                      <p className="notice warning">
+                        Thông tin mã QR cũ không hợp lệ. Hãy tạo mã mới để tiếp
+                        tục.
+                      </p>
+                    ) : qrError ? (
+                      <p className="notice warning">
+                        Chưa hiển thị được mã QR. Hãy đóng và mở lại để thử lại.
+                      </p>
+                    ) : (
+                      <Loading />
+                    )}
+                    <div className="vietqr-countdown">
+                      <Clock size={15} aria-hidden="true" />
+                      <span>
+                        Hiệu lực còn{" "}
+                        <strong
+                          aria-label={`Thời gian còn lại ${formatCountdown(remainingSeconds)}`}
+                        >
+                          {formatCountdown(remainingSeconds)}
+                        </strong>
+                      </span>
+                    </div>
+                    <Button
+                      variant="secondary"
+                      className="vietqr-download"
+                      onClick={handleDownloadQr}
+                      disabled={!qrImage || qrImage.payload !== qrPayload}
+                    >
+                      <Download size={16} /> Tải mã QR
+                    </Button>
                   </>
                 ) : (
-                  <>
-                    <Clock size={16} /> Đang chờ khách quét mã & chuyển khoản
-                  </>
+                  <div className="vietqr-unavailable">
+                    <Clock size={28} aria-hidden="true" />
+                    <strong>
+                      {expired
+                        ? "Mã này đã hết hạn"
+                        : "Mã QR tạm thời không khả dụng"}
+                    </strong>
+                    <span>Tạo mã mới để tiếp tục chuyển khoản.</span>
+                  </div>
                 )}
-              </span>
-              <span className="small muted">
-                {saleCode ? `Đơn ${saleCode}` : (vehicle.license_plate ? `Biển ${vehicle.license_plate}` : vehicle.internal_code || "Bán xe")}
-              </span>
-            </div>
-
-            {/* Cờ hiệu đối soát ngân hàng — xác nhận webhook đã thấy tiền về */}
-            {request.status === "PENDING" && bankState && bankState !== "NONE" && (
-              <div
-                className="notice"
-                style={{
-                  display: "flex",
-                  alignItems: "flex-start",
-                  gap: 10,
-                  padding: "10px 12px",
-                  fontSize: "0.8125rem",
-                  border: "1px solid rgba(16,185,129,0.35)",
-                  background: "rgba(16,185,129,0.08)",
-                  color: "#047857",
-                }}
-                role="status"
-              >
-                <CheckCircle2 size={18} style={{ flexShrink: 0, marginTop: 1 }} />
-                <span>
-                  {bankState === "MATCHED" && (
-                    <>
-                      <strong>Ngân hàng báo tiền đã về</strong> và khớp mã{" "}
-                      <code>{request.qr_reference}</code>. Bạn có thể bấm xác nhận
-                      ghi nhận, hoặc để đối soát tự động xử lý.
-                    </>
-                  )}
-                  {bankState === "REVIEW" && (
-                    <>
-                      <strong>Đã thấy giao dịch nhưng cần rà soát</strong> (có thể
-                      lệch số tiền). Hãy kiểm tra lại trước khi ghi nhận.
-                    </>
-                  )}
-                  {bankState === "RECORDED" && (
-                    <>
-                      <strong>Giao dịch này đã được ghi nhận</strong> qua đối soát
-                      ngân hàng. Không cần xác nhận thủ công lần nữa.
-                    </>
-                  )}
-                </span>
               </div>
             )}
-
-            {/* Vùng hiển thị QR Code */}
-            <div
-              className="vietqr-display-box"
-              style={{
-                display: "flex",
-                flexDirection: "column",
-                alignItems: "center",
-                background: "#ffffff",
-                padding: "16px",
-                borderRadius: "12px",
-                border: "1px solid var(--border-soft, #e2e8f0)",
-                boxShadow: "0 4px 12px rgba(0,0,0,0.04)",
-              }}
-            >
-              {viewCardMode && quickLinkUrl ? (
-                <img
-                  src={quickLinkUrl}
-                  alt="Thẻ VietQR có logo"
-                  style={{ width: "100%", maxWidth: 320, borderRadius: 8 }}
-                />
-              ) : qrDataUrl ? (
-                <div style={{ textAlign: "center" }}>
-                  <img
-                    src={qrDataUrl}
-                    alt="Mã VietQR động"
-                    style={{ width: 220, height: 220, margin: "0 auto", display: "block" }}
-                  />
-                  <div style={{ fontSize: "0.75rem", color: "#64748b", marginTop: 4 }}>
-                    Quét bằng ứng dụng của bất kỳ ngân hàng nào
-                  </div>
-                </div>
-              ) : (
-                <Loading />
-              )}
-
-              {/* Toggle chế độ xem thẻ / mã đơn */}
-              <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
-                <button
-                  type="button"
-                  className={`button ghost small ${!viewCardMode ? "active" : ""}`}
-                  style={{ fontSize: "0.75rem", padding: "4px 8px" }}
-                  onClick={() => setViewCardMode(false)}
-                >
-                  <QrCode size={13} /> Mã QR đơn
-                </button>
-                {quickLinkUrl && (
-                  <button
-                    type="button"
-                    className={`button ghost small ${viewCardMode ? "active" : ""}`}
-                    style={{ fontSize: "0.75rem", padding: "4px 8px" }}
-                    onClick={() => setViewCardMode(true)}
-                  >
-                    <ImageIcon size={13} /> Thẻ có logo ngân hàng
-                  </button>
-                )}
-                <button
-                  type="button"
-                  className="button ghost small"
-                  style={{ fontSize: "0.75rem", padding: "4px 8px" }}
-                  onClick={handleDownloadQr}
-                >
-                  <Download size={13} /> Tải mã QR
-                </button>
+            {changedDetails && !verifiedReceipt && (
+              <p className="notice warning vietqr-changed">
+                Thông tin trên biểu mẫu đã thay đổi. Hãy tạo mã mới để cập nhật
+                đúng tên người thanh toán và số tiền {money(amount)}.
+              </p>
+            )}
+            <div className="vietqr-details-card">
+              <div className="vietqr-amount">
+                <span>Số tiền thanh toán</span>
+                <strong>{money(request.amount)}</strong>
               </div>
-            </div>
-
-            {/* Thông tin chuyển khoản chi tiết */}
-            <div
-              className="vietqr-details-card"
-              style={{
-                background: "var(--surface-sunken, #f8fafc)",
-                padding: "14px",
-                borderRadius: "8px",
-                border: "1px solid var(--border-soft, #e2e8f0)",
-                fontSize: "0.875rem",
-              }}
-            >
-              {/* Số tiền cần thanh toán */}
-              <div
-                style={{
-                  display: "flex",
-                  justifyContent: "space-between",
-                  alignItems: "center",
-                  paddingBottom: "10px",
-                  borderBottom: "1px solid #e2e8f0",
-                  marginBottom: "10px",
-                }}
-              >
-                <span style={{ color: "#64748b" }}>Số tiền thanh toán:</span>
-                <strong style={{ fontSize: "1.25rem", color: "var(--brand-emerald-dark, #059669)", fontVariantNumeric: "tabular-nums" }}>
-                  {money(request.amount)}
-                </strong>
-              </div>
-
-              {/* Nội dung chuyển khoản duy nhất */}
-              <div
-                style={{
-                  display: "flex",
-                  justifyContent: "space-between",
-                  alignItems: "center",
-                  paddingBottom: "10px",
-                  borderBottom: "1px solid #e2e8f0",
-                  marginBottom: "10px",
-                }}
-              >
+              <dl className="vietqr-detail-list">
                 <div>
-                  <span style={{ color: "#64748b", display: "block", fontSize: "0.75rem" }}>
-                    Nội dung chuyển khoản (bắt buộc):
-                  </span>
-                  <strong style={{ fontSize: "1rem", color: "#0f172a", letterSpacing: "0.5px" }}>
-                    {request.qr_reference}
-                  </strong>
+                  <dt>Xe</dt>
+                  <dd>
+                    {request.vehicle_label ||
+                      vehicle.vehicle_title ||
+                      vehicle.vehicle_type ||
+                      "Xe"}
+                  </dd>
                 </div>
-                <Button
-                  variant="secondary"
-                  className="small"
-                  onClick={() => handleCopy(request.qr_reference, "Nội dung chuyển khoản")}
-                >
-                  <Copy size={13} /> Sao chép
-                </Button>
-              </div>
-
-              {/* Ngân hàng và số tài khoản */}
-              <div className="stack" style={{ gap: 6, fontSize: "0.8125rem", color: "#334155" }}>
-                <div className="row between">
-                  <span className="muted">Ngân hàng thụ hưởng:</span>
-                  <strong>{selectedBank ? selectedBank.shortName : request.bank_name}</strong>
+                <div>
+                  <dt>Mã xe</dt>
+                  <dd>{vehicle.internal_code || request.vehicle_id}</dd>
                 </div>
-                <div className="row between">
-                  <span className="muted">Số tài khoản:</span>
-                  <span style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                    <strong>{request.bank_account_no}</strong>
-                    <button
-                      type="button"
-                      style={{ background: "none", border: "none", cursor: "pointer", padding: 2, color: "#64748b" }}
+                <div>
+                  <dt>Hợp đồng</dt>
+                  <dd>{request.contract_reference}</dd>
+                </div>
+                <div>
+                  <dt>Người thanh toán</dt>
+                  <dd>{request.payer_name}</dd>
+                </div>
+                <div>
+                  <dt>Người nhận</dt>
+                  <dd>{request.bank_account_name}</dd>
+                </div>
+                <div>
+                  <dt>Ngân hàng</dt>
+                  <dd>{selectedBank?.shortName || request.bank_name}</dd>
+                </div>
+                <div>
+                  <dt>Số tài khoản</dt>
+                  <dd>
+                    {request.bank_account_no}
+                    <Button
+                      variant="ghost"
+                      className="vietqr-copy-account"
                       aria-label="Sao chép số tài khoản"
-                      onClick={() => handleCopy(request.bank_account_no, "Số tài khoản")}
+                      onClick={() =>
+                        void handleCopy(request.bank_account_no, "số tài khoản")
+                      }
                     >
-                      <Copy size={12} />
-                    </button>
-                  </span>
+                      <Copy size={15} />
+                    </Button>
+                  </dd>
                 </div>
-                <div className="row between">
-                  <span className="muted">Chủ tài khoản:</span>
-                  <strong>{request.bank_account_name}</strong>
+              </dl>
+              <div className="vietqr-transfer-content">
+                <span>Nội dung chuyển khoản</span>
+                <div>
+                  <strong>{request.transfer_content}</strong>
+                  <Button
+                    variant="ghost"
+                    aria-label="Sao chép nội dung chuyển khoản"
+                    onClick={() =>
+                      void handleCopy(
+                        request.transfer_content,
+                        "nội dung chuyển khoản",
+                      )
+                    }
+                  >
+                    <Copy size={16} />
+                  </Button>
                 </div>
               </div>
+              <p className="vietqr-agreement">{request.agreement_text}</p>
             </div>
-
-            {/* Lưu ý nghiệp vụ */}
-            <p className="muted small" style={{ margin: 0, lineHeight: 1.4 }}>
-              * Khách quét mã chuyển tiền qua App ngân hàng. Sau khi kiểm tra tiền
-              đã vào tài khoản, chủ cửa hàng bấm nút bên dưới để hoàn tất ghi nhận.
-            </p>
-
-            {confirmMutation.isError && <ErrorState error={confirmMutation.error} />}
-
-            {/* Các nút hành động */}
-            <div className="form-actions" style={{ marginTop: 4 }}>
-              <Button
-                variant="secondary"
-                disabled={confirmMutation.isPending || cancelMutation.isPending}
-                onClick={onClose}
-              >
+            {replaceMutation.isError && (
+              <ErrorState error={replaceMutation.error} />
+            )}
+            <div className="vietqr-actions">
+              <Button variant="secondary" onClick={onClose}>
                 Đóng
               </Button>
-
-              {request.status !== "CONFIRMED" && (
+              {verifiedReceipt ? (
+                <Button onClick={acknowledgeReceipt}>
+                  <CheckCircle2 size={16} /> Xác nhận và đóng
+                </Button>
+              ) : (
                 <Button
-                  disabled={confirmMutation.isPending}
-                  onClick={handleConfirmPayment}
+                  variant="secondary"
+                  onClick={() => replaceMutation.mutate()}
+                  disabled={
+                    !network.online ||
+                    replaceMutation.isPending ||
+                    !hasServerTime ||
+                    !Number.isFinite(replacementAt) ||
+                    cooldownSeconds > 0
+                  }
                 >
-                  <CheckCircle2 size={16} />
-                  {confirmMutation.isPending ? "Đang ghi nhận…" : "Xác nhận đã nhận tiền"}
+                  <RefreshCw size={16} />{" "}
+                  {replaceMutation.isPending
+                    ? "Đang tạo mã mới…"
+                    : cooldownSeconds > 0
+                      ? `Tạo mã mới (${cooldownSeconds}s)`
+                      : "Tạo mã mới"}
                 </Button>
               )}
             </div>
+            {!verifiedReceipt && (
+              <p className="vietqr-footnote">
+                Đóng hoặc mở lại không gia hạn mã. Cà Rem chỉ xác nhận khi ngân
+                hàng báo tiền đã vào đúng tài khoản.
+              </p>
+            )}
           </div>
         )}
       </div>

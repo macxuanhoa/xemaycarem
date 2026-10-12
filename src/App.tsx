@@ -91,7 +91,7 @@ function Protected({
 }: {
   access?: "read" | "operate" | "manage" | "owner";
 }) {
-  const { loading, profile, user, error, signOut } = useAuth();
+  const { loading, profile, user, error, refresh, signOut } = useAuth();
   const location = useLocation();
   if (loading) return <Loading />;
   if (!user)
@@ -105,7 +105,7 @@ function Protected({
   if (!profile)
     return (
       <div className="auth-simple">
-        <ErrorState error={error} />
+        <ErrorState error={error} retry={() => void refresh()} />
         <Button onClick={() => void signOut()}>Về đăng nhập</Button>
       </div>
     );

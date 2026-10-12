@@ -62,7 +62,7 @@ export function SharedScheduleCard({ onSaved }: { onSaved: (msg: string) => void
     },
   });
 
-  if (q.error) return <ErrorState error={q.error} />;
+  if (q.error && !q.data) return <ErrorState error={q.error} />;
 
   const invalidDays = days.length === 0;
 

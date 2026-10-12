@@ -6,6 +6,7 @@ export type BankTxnStatus =
   | "UNMATCHED"
   | "MATCHED_PENDING"
   | "MANUAL_REVIEW"
+  | "RECEIVED"
   | "RECORDED"
   | "IGNORED";
 
@@ -17,7 +18,13 @@ export type BankTxnMatchReason =
   | "REFERENCE_FOUND_NO_REQUEST"
   | "NO_REFERENCE"
   | "MANUAL_LINK"
-  | "AUTO_MATCH_DISABLED";
+  | "AUTO_MATCH_DISABLED"
+  | "REQUEST_EXPIRED"
+  | "TRANSFER_OUTSIDE_WINDOW"
+  | "ACCOUNT_SNAPSHOT_MISMATCH"
+  | "DUPLICATE_REQUEST_CREDIT"
+  | "AMBIGUOUS_REFERENCE"
+  | "RECORDING_REVIEW_REQUIRED";
 
 export type BankTransaction = {
   id: string;
@@ -50,7 +57,13 @@ export type BankTransactionList = {
 
 /** Trạng thái đối soát của một yêu cầu VietQR (modal soi "tiền đã về chưa"). */
 export type VietQrMatchingStatus = {
-  state: "NONE" | "MATCHED" | "REVIEW" | "RECORDED";
+  state: "NONE" | "MATCHED" | "REVIEW" | "RECEIVED" | "RECORDED";
+  qr_status?: import("./vietqr").VietQrRequestStatus;
+  bank_received?: boolean;
+  monitoring_available?: boolean;
+  expires_at?: string;
+  server_now?: string;
+  payment_id?: string | null;
   bank_transaction_id?: string | null;
   sender_name?: string;
   transfer_at?: string | null;
@@ -125,12 +138,16 @@ export function personalContactLink(
   contact: { handle: string; phone: string },
 ): string | null {
   if (channel === "ZALO_PERSONAL") {
-    if (/^0\d{9,10}$/.test(contact.phone)) return `https://zalo.me/${contact.phone.slice(1)}`;
-    if (contact.handle) return `https://zalo.me/${encodeURIComponent(contact.handle)}`;
+    if (/^0\d{9,10}$/.test(contact.phone))
+      return `https://zalo.me/${contact.phone.slice(1)}`;
+    if (contact.handle)
+      return `https://zalo.me/${encodeURIComponent(contact.handle)}`;
     return null;
   }
   if (channel === "MESSENGER_PERSONAL") {
-    return contact.handle ? `https://m.me/${encodeURIComponent(contact.handle)}` : null;
+    return contact.handle
+      ? `https://m.me/${encodeURIComponent(contact.handle)}`
+      : null;
   }
   return null;
 }

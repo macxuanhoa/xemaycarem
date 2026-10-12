@@ -656,7 +656,7 @@ export function InventoryPage() {
                         </span>
                       </Link>
                     </td>
-                    <td><strong>{vehicle.vehicle_type || "Chưa phân loại"}</strong></td>
+                    <td><strong>{vehicle.vehicle_type && vehicle.vehicle_type !== "Chưa phân loại" ? vehicle.vehicle_type : "—"}</strong></td>
                     <td>
                       <Badge status={vehicle.status} />
                     </td>

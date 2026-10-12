@@ -186,6 +186,19 @@ export async function runBusinessRisksTests(externalDb, { engine = 'postgres' } 
   pass('Business expenses remain completely isolated from vehicle costs and restricted to OWNER/MANAGER')
 
   // 6. SELL VEHICLE ATOMIC TRANSACTION & SNAPSHOTS
+  await call('owner', 'save_settings', {
+    bank_bin: '970422', bank_name: 'Synthetic Bank', bank_account_no: '0000000000',
+    bank_account_name: 'SYNTHETIC RECEIVER', vietqr_enabled: true,
+    bank_provider: 'SEPAY', bank_webhook_enabled: true, bank_auto_match_enabled: true,
+  })
+  const initialBankQr = await call('owner', 'create_vietqr_payment_request', {
+    vehicle_id: v1Id, amount: 30_000_000, payer_name: 'Nguyễn Khách Mua',
+  })
+  const initialBankCredit = await asUser(db, null, (client) => rpc(client, 'ingest_bank_transaction', '$1::jsonb', [JSON.stringify({
+    provider: 'SEPAY', provider_txn_id: randomUUID(), direction: 'in', account_number: '0000000000',
+    transfer_at: new Date().toISOString(), amount: 30_000_000, transfer_content: initialBankQr.transfer_content,
+  })]), 'service_role')
+  assert.equal(initialBankCredit.status, 'RECEIVED')
   const saleId = await call('staff', 'sell_vehicle', {
     vehicle_id: v1Id,
     customer_name: 'Nguyễn Khách Mua',
@@ -194,6 +207,7 @@ export async function runBusinessRisksTests(externalDb, { engine = 'postgres' } 
     sale_date: day,
     initial_payment: 30_000_000,
     payment_method: 'BANK_TRANSFER',
+    vietqr_request_id: initialBankQr.id,
   })
 
   const saleRecord = await run('owner', (c) => rpc(c, 'get_sale', '$1::uuid', [saleId]))

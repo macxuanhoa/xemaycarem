@@ -22,7 +22,7 @@ export function PaymentReceiptReview({ saleId }: { saleId: string }) {
     queryFn: () => api.call<PaymentReceipt[]>("list_payment_receipts", { p_sale_id: saleId }),
     refetchInterval: 15000,
   });
-  if (query.isError) return <ErrorState error={query.error} retry={() => void query.refetch()} />;
+  if (query.isError && !query.data) return <ErrorState error={query.error} retry={() => void query.refetch()} />;
   const pending = query.data?.filter(r => r.status === "PENDING") ?? [];
   if (!pending.length) return null;
   return <Card className="stack">

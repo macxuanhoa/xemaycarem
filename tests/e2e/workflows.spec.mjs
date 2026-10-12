@@ -279,11 +279,11 @@ test("Owner: login, persistent session, add/edit vehicle, expense, sale, payment
   await expect(page.getByText("Thay phụ tùng kiểm thử").first()).toBeVisible();
   await page.goto(`/vehicles/${vehicleId}/sell`);
   await page
-    .getByLabel("Tên khách hàng *", { exact: true })
+    .getByLabel("Tên khách hàng", { exact: true })
     .fill("Khách kiểm thử UI");
   // Giá bán giờ không tự điền từ hồ sơ xe — nhân viên phải nhập tay.
   await page.getByLabel("Bán với giá", { exact: false }).fill("90000000");
-  await page.getByRole("button", { name: "Thêm chi tiết thanh toán", exact: true }).click();
+  await page.getByRole("button", { name: "Thêm chi tiết thanh toán" }).click();
   await page
     .getByLabel("Khách đã trả trước (₫)", { exact: false })
     .fill("20000000");
@@ -311,10 +311,10 @@ test("Owner: login, persistent session, add/edit vehicle, expense, sale, payment
   await page.getByRole("button", { name: "Xác minh và ghi nhận", exact: true }).click();
   await expect(page.getByText("Đã thanh toán đủ")).toBeVisible();
   await page
-    .getByRole("button", { name: "Điều chỉnh giao dịch", exact: true })
+    .getByRole("button", { name: "Thao tác giao dịch", exact: true })
     .click();
   await page
-    .getByRole("button", { name: "Hủy giao dịch bán xe", exact: true })
+    .getByRole("button", { name: "Hủy giao dịch", exact: true })
     .click();
   await page
     .getByLabel("Lý do hủy *", { exact: true })
@@ -467,7 +467,7 @@ test("Offline: sale mutation is not submitted and shows a clear message", async 
   await login(page);
   await page.goto(`/vehicles/${vehicles[0]}/sell`);
   await page
-    .getByLabel("Tên khách hàng *", { exact: true })
+    .getByLabel("Tên khách hàng", { exact: true })
     .fill("Khách offline");
   await page.getByLabel("Bán với giá", { exact: false }).fill("40000000");
   await context.setOffline(true);

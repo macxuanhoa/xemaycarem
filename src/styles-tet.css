@@ -196,6 +196,36 @@
 [data-seasonal="tet"] .carem-digest-col + .carem-digest-col { border-left-color: rgba(242, 193, 78, .18); }
 [data-seasonal="tet"] .digest-row { background: rgba(242, 193, 78, .06); border-color: rgba(242, 193, 78, .14); }
 [data-seasonal="tet"] .digest-row--total { background: rgba(62, 142, 109, .14); border-color: rgba(62, 142, 109, .34); }
+/* Nhịp LED đạt mốc: vàng mai thay amber (cùng họ màu với orbit digest). */
+[data-seasonal="tet"] .led-beat {
+  background: conic-gradient(
+    from var(--led-angle),
+    rgba(242, 193, 78, 0) 0deg,
+    rgba(242, 193, 78, 0) 150deg,
+    rgba(242, 193, 78, 0.55) 230deg,
+    rgba(251, 227, 159, 0.95) 290deg,
+    rgba(242, 193, 78, 0.55) 330deg,
+    rgba(242, 193, 78, 0) 360deg
+  );
+}
+[data-seasonal="tet"] .led-beat::after {
+  box-shadow:
+    0 0 18px -2px rgba(242, 193, 78, 0.5),
+    inset 0 0 12px -6px rgba(242, 193, 78, 0.45);
+}
+/* LED chào mừng ở khung đăng nhập: indigo → vàng mai (data-seasonal được
+   index.html đọc từ localStorage nên trang login cũng nhận lớp Tết). */
+[data-seasonal="tet"] .led-welcome {
+  background: conic-gradient(
+    from var(--led-angle),
+    rgba(242, 193, 78, 0) 0deg,
+    rgba(242, 193, 78, 0) 150deg,
+    rgba(242, 193, 78, 0.55) 230deg,
+    rgba(251, 227, 159, 0.95) 290deg,
+    rgba(242, 193, 78, 0.55) 330deg,
+    rgba(242, 193, 78, 0) 360deg
+  );
+}
 [data-seasonal="tet"] .digest-row-label { color: #e8d3b0; }
 [data-seasonal="tet"] .digest-row-value { color: #fff8e7; }
 /* Bảng màu giá trị digest: app hardcode, canonical-v1 đã chốt các ánh xạ này. */

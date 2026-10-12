@@ -33,6 +33,7 @@ import {
   today,
 } from "@/lib/format";
 import { useAuth } from "@/features/auth/AuthProvider";
+import { useValueLedFlash } from "@/lib/useValueLedFlash";
 import { DashboardExecutiveBanner } from "./DashboardExecutiveBanner";
 import type { DashboardData, DailyReconciliation, DateFilter } from "@/types";
 import { vehicleSubtitle, vehicleTitle } from "@/lib/vehicleDisplay";
@@ -84,6 +85,13 @@ export default function DashboardPage() {
         reserved: d.reserved,
       })
     : null;
+
+  // Một nhịp LED viền khi số liệu mốc nhảy lên (refetch sau đơn mới, đổi kỳ).
+  // Load đầu tiên không nhấp: undefined = "chưa có số" trong hook.
+  const stockCountBeat = useValueLedFlash(
+    d ? d.in_stock + d.reserved : undefined,
+  );
+  const stockValueBeat = useValueLedFlash(d ? d.inventory_cost : undefined);
 
   return (
     <div className="stack page-stack">
@@ -191,6 +199,9 @@ export default function DashboardPage() {
                     Kho xe hiện tại
                   </h3>
                   <div className="digest-row digest-row--total">
+                    {stockCountBeat > 0 && (
+                      <span key={stockCountBeat} className="led-beat" aria-hidden="true" />
+                    )}
                     <span className="digest-row-label">Tồn kho hiện tại</span>
                     <strong className="digest-row-value">
                       {d.in_stock + d.reserved} xe
@@ -228,6 +239,9 @@ export default function DashboardPage() {
                   )}
                   {canFinance(profile) && (
                     <div className="digest-row digest-row--total">
+                      {stockValueBeat > 0 && (
+                        <span key={stockValueBeat} className="led-beat" aria-hidden="true" />
+                      )}
                       <span className="digest-row-label">
                         Tổng giá trị tồn kho
                       </span>

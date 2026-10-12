@@ -63,7 +63,7 @@ test("failed QR creation waits for an explicit retry after connection recovery",
     return route.abort("failed");
   });
   await page.goto(`/sales/${saleId}`);
-  await page.getByRole("button", { name: "Tạo mã VietQR", exact: true }).click();
+  await page.getByRole("button", { name: "VietQR", exact: true }).click();
   const retry = page.getByRole("button", { name: "Thử tạo lại mã QR", exact: true });
   await expect(retry).toBeVisible();
   await expect(page.locator(".network-banner--recovered")).toBeVisible();

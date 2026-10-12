@@ -3045,7 +3045,9 @@ pre {
   gap: 12px;
 }
 /* Vehicle detail actions: a compact ••• in the header that reveals a dropdown
-   menu (replaces the old always-visible "Thao tác" card). */
+   menu (replaces the old always-visible "Thao tác" card). Menu đồng bộ ngôn
+   ngữ thiết kế với sheet kho: icon nằm trong ô màu nhẹ, nhóm "Vùng nguy hiểm"
+   tách rõ, mở ra có hiệu ứng pop tinh tế. */
 .vehicle-actions-menu-wrap {
   position: relative;
 }
@@ -3078,45 +3080,84 @@ pre {
   display: flex;
   flex-direction: column;
   gap: 2px;
-  min-width: 208px;
+  min-width: 226px;
   max-width: 78vw;
   padding: 6px;
   background: #fff;
-  border: 1px solid #e2e8f0;
-  border-radius: 12px;
+  border: 1px solid #e7eaf2;
+  border-radius: 14px;
   box-shadow:
-    0 12px 30px -12px rgba(15, 23, 42, 0.28),
-    0 2px 6px -2px rgba(15, 23, 42, 0.12);
+    0 18px 40px -16px rgba(15, 23, 42, 0.3),
+    0 2px 6px -2px rgba(15, 23, 42, 0.1);
+  animation: vamPop 0.14s ease-out;
+  transform-origin: top right;
+}
+@keyframes vamPop {
+  from {
+    transform: translateY(-4px) scale(0.97);
+    opacity: 0.6;
+  }
+  to {
+    transform: translateY(0) scale(1);
+    opacity: 1;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .vehicle-actions-menu {
+    animation: none;
+  }
 }
 .vehicle-actions-menu-item {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 11px;
   width: 100%;
-  padding: 10px 12px;
+  padding: 8px 9px;
   border: 0;
-  border-radius: 8px;
+  border-radius: 10px;
   background: transparent;
   color: #1e293b;
-  font-size: 13px;
+  font-size: 13.5px;
   font-weight: 600;
   text-align: left;
   cursor: pointer;
   transition: background 0.14s ease;
 }
-.vehicle-actions-menu-item svg {
-  flex: 0 0 auto;
-  color: #64748b;
-}
 .vehicle-actions-menu-item:hover,
 .vehicle-actions-menu-item:focus-visible {
   background: #f1f5f9;
 }
-.vehicle-actions-menu-primary {
-  color: var(--primary, #4f46e5);
+.vam-tile {
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 9px;
 }
-.vehicle-actions-menu-primary svg {
-  color: var(--primary, #4f46e5);
+.vam-tile-neutral {
+  background: #f1f5f9;
+  color: #475569;
+}
+.vam-tile-primary {
+  background: #eef2ff;
+  color: #4f46e5;
+}
+.vam-tile-danger {
+  background: #fef2f2;
+  color: #dc2626;
+}
+.vam-group-label,
+.vas-group-label {
+  padding: 9px 10px 3px;
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: #94a3b8;
+}
+.vehicle-actions-menu-primary {
+  color: #4338ca;
 }
 .vehicle-actions-menu-primary:hover,
 .vehicle-actions-menu-primary:focus-visible {
@@ -3124,6 +3165,9 @@ pre {
 }
 .vehicle-actions-menu-danger,
 .vehicle-actions-menu-danger svg {
+  color: #dc2626;
+}
+.vehicle-actions-menu-danger .vam-tile {
   color: #dc2626;
 }
 .vehicle-actions-menu-danger:hover,
@@ -3147,15 +3191,26 @@ pre {
 [data-theme="dark"] .vehicle-actions-menu-item {
   color: #dcdfe9;
 }
-[data-theme="dark"] .vehicle-actions-menu-item svg {
-  color: #8f96a8;
-}
 [data-theme="dark"] .vehicle-actions-menu-item:hover,
 [data-theme="dark"] .vehicle-actions-menu-item:focus-visible {
   background: #20222c;
 }
-[data-theme="dark"] .vehicle-actions-menu-primary,
-[data-theme="dark"] .vehicle-actions-menu-primary svg {
+[data-theme="dark"] .vam-tile-neutral {
+  background: #23252f;
+  color: #cbd0dd;
+}
+[data-theme="dark"] .vam-tile-primary {
+  background: rgba(99, 102, 241, 0.16);
+  color: #a5b4fc;
+}
+[data-theme="dark"] .vam-tile-danger {
+  background: rgba(239, 68, 68, 0.14);
+  color: #f87171;
+}
+[data-theme="dark"] .vam-group-label {
+  color: #6b7280;
+}
+[data-theme="dark"] .vehicle-actions-menu-primary {
   color: #a5b4fc;
 }
 [data-theme="dark"] .vehicle-actions-menu-primary:hover,
@@ -3163,7 +3218,8 @@ pre {
   background: rgba(99, 102, 241, 0.14);
 }
 [data-theme="dark"] .vehicle-actions-menu-danger,
-[data-theme="dark"] .vehicle-actions-menu-danger svg {
+[data-theme="dark"] .vehicle-actions-menu-danger svg,
+[data-theme="dark"] .vehicle-actions-menu-danger .vam-tile {
   color: #fda4af;
 }
 [data-theme="dark"] .vehicle-actions-menu-danger:hover,
@@ -3171,13 +3227,14 @@ pre {
   background: rgba(244, 63, 94, 0.12);
 }
 /* Xe hành động (VehicleActionsSheet): bảng thao tác mở từ dấu 3 chấm của mỗi
-   chiếc xe trong tồn kho. Đầu sheet là "hero" danh tính: ô màu xe + tên xe to,
-   bên dưới là bộ chip biển số/số khung giống thẻ danh sách. Hàng thao tác
-   đầy đặn: icon khung màu mềm, nhãn đậm, mũi tên cho điều hướng. Desktop là
-   thẻ modal gọn; mobile neo đáy kiểu bottom sheet có tay nắm. */
+   chiếc xe trong tồn kho. Đầu sheet là "hero" danh tính: ô màu xe + tên xe đậm,
+   bên dưới là bộ chip biển số/số khung giống thẻ danh sách. Hàng thao tác gọn
+   gàng: icon ô màu vừa tay, nhãn rõ, mũi tên cho điều hướng; nhóm xóa tách
+   bằng nhãn "Vùng nguy hiểm". Desktop là thẻ modal gọn; mobile neo đáy kiểu
+   bottom sheet có tay nắm. */
 .vehicle-actions-sheet {
-  width: min(460px, 100%);
-  padding: 20px;
+  width: min(440px, 100%);
+  padding: 18px;
 }
 .vas-handle {
   display: none;
@@ -3185,29 +3242,29 @@ pre {
 .vas-header {
   display: flex;
   flex-direction: column;
-  gap: 12px;
-  margin: -4px -4px 16px;
-  padding: 14px;
+  gap: 10px;
+  margin: -2px -2px 12px;
+  padding: 12px;
   border: 1px solid #eef1f7;
-  border-radius: 16px;
+  border-radius: 14px;
   background: linear-gradient(160deg, #f8fafc 0%, #f2f5fa 100%);
 }
 .vas-headline {
   display: flex;
   align-items: center;
-  gap: 13px;
+  gap: 11px;
   width: 100%;
 }
 .vas-avatar {
   flex: 0 0 auto;
   display: grid;
   place-items: center;
-  width: 44px;
-  height: 44px;
-  border-radius: 14px;
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
   color: #fff;
   border: 1px solid rgba(15, 23, 42, 0.12);
-  box-shadow: 0 6px 14px -8px rgba(15, 23, 42, 0.5), inset 0 0 0 1px rgba(255, 255, 255, 0.22);
+  box-shadow: 0 5px 12px -8px rgba(15, 23, 42, 0.5), inset 0 0 0 1px rgba(255, 255, 255, 0.22);
 }
 .vas-heading {
   flex: 1 1 auto;
@@ -3215,10 +3272,10 @@ pre {
 }
 .vas-heading h3 {
   margin: 0;
-  font-size: 18px;
+  font-size: 16.5px;
   font-weight: 800;
-  line-height: 1.28;
-  letter-spacing: -0.35px;
+  line-height: 1.3;
+  letter-spacing: -0.3px;
   color: #0f172a;
   text-wrap: balance;
 }
@@ -3233,20 +3290,20 @@ pre {
 .vas-list {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 3px;
 }
 .vas-row {
   display: flex;
   align-items: center;
-  gap: 13px;
+  gap: 11px;
   width: 100%;
-  min-height: 56px;
-  padding: 11px 12px;
+  min-height: 46px;
+  padding: 7px 10px;
   border: 1px solid transparent;
-  border-radius: 14px;
+  border-radius: 12px;
   background: transparent;
   color: #1e293b;
-  font-size: 15px;
+  font-size: 14px;
   font-weight: 650;
   text-align: left;
   cursor: pointer;
@@ -3264,9 +3321,9 @@ pre {
   flex: 0 0 auto;
   display: grid;
   place-items: center;
-  width: 38px;
-  height: 38px;
-  border-radius: 12px;
+  width: 32px;
+  height: 32px;
+  border-radius: 10px;
 }
 .vas-tile-neutral {
   background: #f1f5f9;
@@ -3311,10 +3368,8 @@ pre {
   flex: 0 0 auto;
   color: #94a3b8;
 }
-.vas-sep {
-  height: 1px;
-  margin: 8px 10px;
-  background: #e8ebf3;
+[data-theme="dark"] .vas-group-label {
+  color: #6b7280;
 }
 [data-theme="dark"] .vas-header {
   background: linear-gradient(160deg, #1b1d26 0%, #17181f 100%);
@@ -3363,9 +3418,6 @@ pre {
   background: rgba(239, 68, 68, 0.1);
   border-color: rgba(239, 68, 68, 0.24);
 }
-[data-theme="dark"] .vas-sep {
-  background: #262833;
-}
 [data-theme="dark"] .vas-chevron {
   color: #6b7280;
 }
@@ -3379,29 +3431,29 @@ pre {
     width: 100%;
     max-height: min(78dvh, calc(100dvh - 96px));
     border-radius: 22px 22px 0 0;
-    padding: 10px 16px calc(16px + env(safe-area-inset-bottom));
+    padding: 10px 16px calc(14px + env(safe-area-inset-bottom));
     animation: vasSheetUp 0.2s cubic-bezier(0.16, 1, 0.3, 1);
   }
   .vas-handle {
     display: block;
     width: 36px;
     height: 4px;
-    margin: 0 auto 12px;
+    margin: 0 auto 10px;
     border-radius: 999px;
     background: #d3d8e2;
   }
   .vas-header {
-    margin: 0 -4px 12px;
-    padding: 12px 10px;
-    gap: 10px;
+    margin: 0 -4px 10px;
+    padding: 10px;
+    gap: 9px;
   }
   .vas-heading h3 {
-    font-size: 17px;
+    font-size: 16px;
   }
   .vas-row {
-    padding: 12px;
-    min-height: 56px;
-    font-size: 15px;
+    padding: 9px 10px;
+    min-height: 48px;
+    font-size: 14px;
   }
   [data-theme="dark"] .vas-handle {
     background: rgba(220, 235, 226, 0.24);
@@ -10754,6 +10806,155 @@ mark.search-hit {
   font-size: 17.5px;
 }
 
+/* ═══ LED one-shot beat — số liệu nhảy lên thì viền nhấp 1 nhịp ═══
+   Nạp qua useValueLedFlash(): span.led-beat (key = số nhịp) tự mount lại để
+   animation chạy đúng một vòng orbit + glow rồi biến mất. Không có loop
+   thường trực; prefers-reduced-motion tắt hẳn (nền opacity 0 → vô hình). */
+@property --led-angle {
+  syntax: "<angle>";
+  initial-value: 0deg;
+  inherits: false;
+}
+
+.digest-row--total,
+.staff-stat-card {
+  position: relative;
+}
+
+.led-beat {
+  position: absolute;
+  inset: -1px;
+  border-radius: inherit;
+  padding: 1.5px;
+  pointer-events: none;
+  opacity: 0;
+  background: conic-gradient(
+    from var(--led-angle),
+    rgba(251, 191, 36, 0) 0deg,
+    rgba(251, 191, 36, 0) 150deg,
+    rgba(253, 224, 71, 0.55) 230deg,
+    rgba(255, 247, 213, 0.95) 290deg,
+    rgba(251, 191, 36, 0.55) 330deg,
+    rgba(251, 191, 36, 0) 360deg
+  );
+  -webkit-mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  mask-composite: exclude;
+  animation: ledBeatSweep 1.15s cubic-bezier(0.4, 0, 0.2, 1) both;
+}
+
+.led-beat::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  box-shadow:
+    0 0 18px -2px rgba(251, 191, 36, 0.5),
+    inset 0 0 12px -6px rgba(251, 191, 36, 0.45);
+  opacity: 0;
+  animation: ledBeatGlow 1.15s ease both;
+}
+
+@keyframes ledBeatSweep {
+  0% {
+    --led-angle: 0deg;
+    opacity: 0;
+  }
+  12% {
+    opacity: 1;
+  }
+  82% {
+    opacity: 1;
+  }
+  100% {
+    --led-angle: 360deg;
+    opacity: 0;
+  }
+}
+
+@keyframes ledBeatGlow {
+  0% {
+    opacity: 0;
+  }
+  20% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .led-beat,
+  .led-beat::after {
+    animation: none;
+  }
+}
+
+/* ═══ LED chào mừng trang đăng nhập ═══
+   Chạy quanh khung đăng nhập đúng ~3 vòng (1.45s/vòng, con nháy brightness
+   ở đầu–cuối mỗi vòng như dải đèn nháp) rồi CSS tự tắt; JS còn cắt sớm hơn
+   ngay khi người dùng focus ô nhập (LoginPage.tsx). Tái dùng --led-angle
+   đã đăng ký ở khối led-beat phía trên. */
+.login-form-wrap {
+  position: relative;
+}
+
+.led-welcome {
+  position: absolute;
+  inset: -1px;
+  border-radius: inherit;
+  padding: 1.5px;
+  pointer-events: none;
+  opacity: 0;
+  background: conic-gradient(
+    from var(--led-angle),
+    rgba(99, 102, 241, 0) 0deg,
+    rgba(99, 102, 241, 0) 150deg,
+    rgba(129, 140, 248, 0.55) 230deg,
+    rgba(165, 180, 252, 0.95) 290deg,
+    rgba(99, 102, 241, 0.55) 330deg,
+    rgba(99, 102, 241, 0) 360deg
+  );
+  -webkit-mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  mask-composite: exclude;
+  animation: loginLedOrbit 1.45s linear 3 both;
+}
+
+@keyframes loginLedOrbit {
+  0% {
+    --led-angle: 0deg;
+    opacity: 0;
+  }
+  10% {
+    opacity: 1;
+  }
+  90% {
+    opacity: 1;
+  }
+  100% {
+    --led-angle: 360deg;
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .led-welcome {
+    animation: none;
+  }
+}
+
 .digest-row-value.cyan {
   color: #7dd3fc;
 }
@@ -17474,11 +17675,23 @@ html[data-theme="dark"] .header-theme-toggle {
   color: #cbd5e1;
 }
 
-.sale-quick-pay-actions {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 8px;
-  margin-top: 14px;
+/* Sale detail payments toolbar: heading and action pair share one clean line
+   (section-title's bottom margin would otherwise push the buttons askew). */
+.sale-payments-head {
+  align-items: center;
+}
+.sale-payments-head .section-title {
+  margin-bottom: 0;
+}
+/* Anchored kebab in a page header sits centered against the one-line title,
+   mirroring the transaction-detail header rule above. */
+.heading-row:has(.heading-actions .vehicle-actions-trigger) {
+  align-items: center;
+}
+/* Cancel-sale dialog: compact centered modal replaces the inline adjust card
+   that used to push the whole page down when the kebab was tapped. */
+.sale-cancel-modal {
+  width: min(480px, 100%);
 }
 
 /* ==========================================================================

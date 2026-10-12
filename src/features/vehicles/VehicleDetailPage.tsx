@@ -346,7 +346,8 @@ export function VehicleDetailPage() {
                           to={`/vehicles/${id}/sell`}
                           onClick={() => setActionsOpen(false)}
                         >
-                          <ShoppingBag size={17} /> Bán xe này
+                          <span className="vam-tile vam-tile-primary"><ShoppingBag size={15} /></span>
+                          Bán xe này
                         </Link>
                       )}
                       {canAddExpense && (
@@ -358,7 +359,8 @@ export function VehicleDetailPage() {
                             setExpenseOpen(true);
                           }}
                         >
-                          <CirclePlus size={16} /> Thêm chi phí
+                          <span className="vam-tile vam-tile-neutral"><CirclePlus size={15} /></span>
+                          Thêm chi phí
                         </button>
                       )}
                       {canEditVehicle && (
@@ -367,11 +369,14 @@ export function VehicleDetailPage() {
                           to={`/vehicles/${id}/edit`}
                           onClick={() => setActionsOpen(false)}
                         >
-                          <Pencil size={16} />
+                          <span className="vam-tile vam-tile-neutral"><Pencil size={15} /></span>
                           {vehicle.status === "CANCELLED"
                             ? "Khôi phục / Sửa"
                             : "Chỉnh sửa"}
                         </Link>
+                      )}
+                      {(canDirectDelete || canRequestDelete) && (
+                        <div className="vam-group-label">Vùng nguy hiểm</div>
                       )}
                       {canDirectDelete && (
                         <button
@@ -382,7 +387,8 @@ export function VehicleDetailPage() {
                             setDeleteOpen(true);
                           }}
                         >
-                          <Trash2 size={16} /> Xóa xe khỏi kho
+                          <span className="vam-tile vam-tile-danger"><Trash2 size={15} /></span>
+                          Xóa xe khỏi kho
                         </button>
                       )}
                       {canRequestDelete && (
@@ -394,7 +400,8 @@ export function VehicleDetailPage() {
                             setRequestOpen(true);
                           }}
                         >
-                          <SendHorizontal size={16} /> Gửi yêu cầu xóa
+                          <span className="vam-tile vam-tile-danger"><SendHorizontal size={15} /></span>
+                          Gửi yêu cầu xóa
                         </button>
                       )}
                     </div>

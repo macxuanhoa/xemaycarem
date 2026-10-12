@@ -534,18 +534,26 @@ export function AppLayout() {
           </span>
           <span className="bottom-nav-label">Tồn kho</span>
         </Link>
+        {/* Bán ra đã rời khỏi bottom nav (OWNER 12/10/2026): luồng bán và xem lại
+            hồ sơ giao dịch đi qua tab Đã bán trong Tồn kho; ô này dành cho Khách hàng. */}
         <Link
-          to="/sales"
-          className={saleRoute ? "active" : ""}
-          data-active={saleRoute ? "true" : undefined}
-          aria-current={saleRoute ? "location" : undefined}
-          onMouseEnter={() => preloadRoute("/sales")}
-          onTouchStart={() => preloadRoute("/sales")}
+          to="/customers"
+          className={navRouteActive("/customers") ? "active" : ""}
+          data-active={navRouteActive("/customers") ? "true" : undefined}
+          aria-current={
+            navRouteActive("/customers")
+              ? pathname === "/customers"
+                ? "page"
+                : "location"
+              : undefined
+          }
+          onMouseEnter={() => preloadRoute("/customers")}
+          onTouchStart={() => preloadRoute("/customers")}
         >
           <span className="bottom-nav-icon">
-            <Receipt size={22} />
+            <Users size={22} />
           </span>
-          <span className="bottom-nav-label">Bán ra</span>
+          <span className="bottom-nav-label">Khách hàng</span>
         </Link>
       </nav>
     </div>

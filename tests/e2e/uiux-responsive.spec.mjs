@@ -16,7 +16,9 @@ for (const width of [320, 360, 375, 390, 430]) {
       ["/intake", "Thu xe"],
       ["/acquisitions", "Thu xe"],
       [`/vehicles/${vehicleId}`, "Tồn kho"],
-      [`/vehicles/${vehicleId}/sell`, "Bán ra"],
+      // Trang bán xe không còn mục "Bán ra" trong bottom nav (đã thay bằng
+      // Khách hàng) nên không có tab nào sáng ở route này.
+      [`/vehicles/${vehicleId}/sell`, null],
     ]) {
       await page.goto(path);
       await expect(page.locator("h1").first()).toBeVisible();

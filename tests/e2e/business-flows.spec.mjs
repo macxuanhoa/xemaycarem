@@ -307,7 +307,7 @@ test("FLOW A: OWNER full lifecycle (create vehicle -> inventory -> expense -> se
 
   // 4. Sell vehicle
   await page.goto(`/vehicles/${vehicleId}/sell`);
-  await page.getByLabel("Tên khách hàng *", { exact: true }).fill("Khách hàng Flow A");
+  await page.getByLabel("Tên khách hàng", { exact: true }).fill("Khách hàng Flow A");
   await page.getByLabel("Bán với giá", { exact: false }).fill("48000000");
   await page.getByRole("button", { name: "Thêm chi tiết thanh toán" }).click();
   await page.getByLabel("Khách đã trả trước (₫)", { exact: false }).fill("20000000");
@@ -315,7 +315,9 @@ test("FLOW A: OWNER full lifecycle (create vehicle -> inventory -> expense -> se
   await page.getByRole("alertdialog").getByRole("button", { name: "Xác nhận bán xe", exact: true }).click();
   await expect(page).toHaveURL(/\/sales\/[a-f0-9-]{36}$/);
   await expect(page.getByRole("heading", { name: "Thông tin giao dịch" })).toBeVisible();
+  await page.getByRole("button", { name: "Thao tác giao dịch", exact: true }).click();
   await expect(page.getByRole("button", { name: "In phiếu bán xe", exact: true })).toBeVisible();
+  await page.keyboard.press("Escape");
 
   // 5. Record remaining payment
   await expect(page.getByText(/28\.000\.000/)).toBeVisible(); // Remaining amount 48M - 20M = 28M
@@ -344,7 +346,7 @@ test("FLOW B: Partial payment -> second payment -> fully paid", async ({ page })
 
   // Sell with initial partial payment of 20M (30M remaining)
   await page.goto(`/vehicles/${vehicleId}/sell`);
-  await page.getByLabel("Tên khách hàng *", { exact: true }).fill("Khách trả góp Flow B");
+  await page.getByLabel("Tên khách hàng", { exact: true }).fill("Khách trả góp Flow B");
   await page.getByLabel("Bán với giá", { exact: false }).fill("50000000");
   await page.getByRole("button", { name: "Thêm chi tiết thanh toán" }).click();
   await page.getByLabel("Khách đã trả trước (₫)", { exact: false }).fill("20000000");
@@ -368,15 +370,15 @@ test("FLOW C: Sell vehicle -> cancel sale -> vehicle returns to inventory", asyn
 
   // Sell vehicle
   await page.goto(`/vehicles/${vehicleId}/sell`);
-  await page.getByLabel("Tên khách hàng *", { exact: true }).fill("Khách hủy đơn Flow C");
+  await page.getByLabel("Tên khách hàng", { exact: true }).fill("Khách hủy đơn Flow C");
   await page.getByLabel("Bán với giá", { exact: false }).fill("18000000");
   await page.getByRole("button", { name: "Xác nhận bán xe", exact: true }).click();
   await page.getByRole("alertdialog").getByRole("button", { name: "Xác nhận bán xe", exact: true }).click();
   await expect(page).toHaveURL(/\/sales\/[a-f0-9-]{36}$/);
 
   // Cancel sale
-  await page.getByRole("button", { name: "Điều chỉnh giao dịch", exact: true }).click();
-  await page.getByRole("button", { name: "Hủy giao dịch bán xe", exact: true }).click();
+  await page.getByRole("button", { name: "Thao tác giao dịch", exact: true }).click();
+  await page.getByRole("button", { name: "Hủy giao dịch", exact: true }).click();
   await page.getByLabel("Lý do hủy *", { exact: true }).fill("Khách hàng không đủ tiền");
   await page.getByRole("button", { name: "Xác nhận hủy giao dịch", exact: true }).click();
   await expect(page.getByText("Đã hủy", { exact: true })).toBeVisible();
@@ -605,7 +607,7 @@ test("Recovery: committed sale with initial payment reconciles from the sold veh
   await loginAs(page, "owner");
   const vehicleId = createdVehicles[0];
   await page.goto(`/vehicles/${vehicleId}/sell`);
-  await page.getByLabel("Tên khách hàng *", { exact: true }).fill("Synthetic sale recovery");
+  await page.getByLabel("Tên khách hàng", { exact: true }).fill("Synthetic sale recovery");
   await page.getByLabel("Bán với giá", { exact: false }).fill("18000000");
   await page.getByRole("button", { name: "Thêm chi tiết thanh toán" }).click();
   await page.getByLabel("Khách đã trả trước (₫)", { exact: false }).fill("3000000");
@@ -628,13 +630,13 @@ test("Failure: a 503 before sale commit preserves input and manual retry records
   await loginAs(page, "owner");
   const vehicleId = createdVehicles[0];
   await page.goto(`/vehicles/${vehicleId}/sell`);
-  await page.getByLabel("Tên khách hàng *", { exact: true }).fill("Synthetic outage recovery");
+  await page.getByLabel("Tên khách hàng", { exact: true }).fill("Synthetic outage recovery");
   await page.getByLabel("Bán với giá", { exact: false }).fill("18000000");
   failBeforeCommit = "sell_vehicle";
   await page.getByRole("button", { name: "Xác nhận bán xe", exact: true }).click();
   await page.getByRole("alertdialog").getByRole("button", { name: "Xác nhận bán xe", exact: true }).click();
   await expect(page.getByText(/Giao dịch chưa được xác nhận/)).toBeVisible();
-  await expect(page.getByLabel("Tên khách hàng *", { exact: true })).toHaveValue("Synthetic outage recovery");
+  await expect(page.getByLabel("Tên khách hàng", { exact: true })).toHaveValue("Synthetic outage recovery");
   expect(Number((await db.query("SELECT count(*) AS n FROM public.sales WHERE vehicle_id=$1", [vehicleId])).rows[0].n)).toBe(0);
   await page.getByRole("button", { name: "Xác nhận bán xe", exact: true }).click();
   await page.getByRole("alertdialog").getByRole("button", { name: "Xác nhận bán xe", exact: true }).click();
@@ -646,7 +648,7 @@ test("Failure: slow sale remains pending without false success or duplicate requ
   await loginAs(page, "owner");
   const vehicleId = createdVehicles[0];
   await page.goto(`/vehicles/${vehicleId}/sell`);
-  await page.getByLabel("Tên khách hàng *", { exact: true }).fill("Synthetic slow request");
+  await page.getByLabel("Tên khách hàng", { exact: true }).fill("Synthetic slow request");
   await page.getByLabel("Bán với giá", { exact: false }).fill("18000000");
   let release;
   slowMutation = { name: "sell_vehicle", wait: new Promise(resolve => { release = resolve; }) };
@@ -731,6 +733,7 @@ test("Operational: sale/payment receipts print customer-only allowlist with clea
   const saleId = await seedSale({ notes: "INTERNAL_NOTE_SHOULD_NEVER_PRINT" });
   await loginAs(page, "owner");
   await page.goto(`/sales/${saleId}`);
+  await page.getByRole("button", { name: "Thao tác giao dịch", exact: true }).click();
   await page.getByRole("button", { name: "In phiếu bán xe", exact: true }).click();
   const receipt = page.locator(".customer-receipt");
   await expect(receipt.getByRole("heading", { name: "PHIẾU BÁN XE", exact: true })).toBeVisible();

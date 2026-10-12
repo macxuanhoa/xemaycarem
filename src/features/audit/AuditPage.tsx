@@ -14,6 +14,7 @@ import { api } from "@/lib/api";
 import { dateLabel, monthRange } from "@/lib/format";
 import { Highlight } from "@/components/search/Highlight";
 import { useDebouncedValue } from "@/lib/useDebouncedValue";
+import { useValueLedFlash } from "@/lib/useValueLedFlash";
 import type { Activity } from "@/types";
 import {
   actionChip,
@@ -133,6 +134,11 @@ export default function AuditPage() {
 
   const items = filtered.slice((page - 1) * pageSize, page * pageSize);
 
+  // Một nhịp LED viền khi hai con số thống kê nhảy lên (đổi kỳ, đổi lọc,
+  // thao tác mới được ghi nhận). Load đầu tiên im lặng.
+  const auditTotalBeat = useValueLedFlash(q.data ? q.data.total : undefined);
+  const auditFilteredBeat = useValueLedFlash(q.data ? filtered.length : undefined);
+
   const getActionChipClass = (action: string) => {
     const act = action.toUpperCase();
     if (act.includes("CREATE") || act.includes("ACQUIRE") || act.includes("ADD"))
@@ -162,6 +168,9 @@ export default function AuditPage() {
       {/* STATS HUD */}
       <div className="audit-stats-row">
         <div className="staff-stat-card">
+          {auditTotalBeat > 0 && (
+            <span key={auditTotalBeat} className="led-beat" aria-hidden="true" />
+          )}
           <div className="staff-stat-icon indigo">
             <History size={20} />
           </div>
@@ -172,6 +181,9 @@ export default function AuditPage() {
         </div>
 
         <div className="staff-stat-card">
+          {auditFilteredBeat > 0 && (
+            <span key={auditFilteredBeat} className="led-beat" aria-hidden="true" />
+          )}
           <div className="staff-stat-icon emerald">
             <FileClock size={20} />
           </div>

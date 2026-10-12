@@ -79,7 +79,7 @@ export function VehicleActionsSheet({
               }}
               aria-hidden="true"
             >
-              <Bike size={20} strokeWidth={1.7} />
+              <Bike size={18} strokeWidth={1.7} />
             </span>
             <div className="vas-heading">
               <h3>{nameParts.join(" · ")}</h3>
@@ -101,7 +101,7 @@ export function VehicleActionsSheet({
             to={`/vehicles/${vehicle.id}`}
             state={state}
           >
-            <span className="vas-tile vas-tile-neutral"><Eye size={17} /></span>
+            <span className="vas-tile vas-tile-neutral"><Eye size={15} /></span>
             <span className="vas-label">Xem chi tiết</span>
             <ChevronRight className="vas-chevron" size={16} />
           </Link>
@@ -111,7 +111,7 @@ export function VehicleActionsSheet({
               className={rowClass("neutral")}
               onClick={onExpense}
             >
-              <span className="vas-tile vas-tile-neutral"><CirclePlus size={17} /></span>
+              <span className="vas-tile vas-tile-neutral"><CirclePlus size={15} /></span>
               <span className="vas-label">Chi phí</span>
             </button>
           )}
@@ -126,7 +126,7 @@ export function VehicleActionsSheet({
                   pendingSale ? "vas-tile vas-tile-neutral" : "vas-tile vas-tile-primary"
                 }
               >
-                {pendingSale ? <SendHorizontal size={17} /> : <ShoppingBag size={17} />}
+                {pendingSale ? <SendHorizontal size={15} /> : <ShoppingBag size={15} />}
               </span>
               <span className="vas-label">
                 {pendingSale ? "Chờ chủ duyệt bán" : "Bán xe"}
@@ -135,7 +135,7 @@ export function VehicleActionsSheet({
             </Link>
           )}
           {(canDirectDelete || canRequestDelete) && (
-            <div className="vas-sep" role="presentation" />
+            <div className="vas-group-label">Vùng nguy hiểm</div>
           )}
           {canDirectDelete && (
             <button
@@ -143,7 +143,7 @@ export function VehicleActionsSheet({
               className={rowClass("danger")}
               onClick={onDelete}
             >
-              <span className="vas-tile vas-tile-danger"><Trash2 size={17} /></span>
+              <span className="vas-tile vas-tile-danger"><Trash2 size={15} /></span>
               <span className="vas-label">Xóa xe khỏi kho</span>
             </button>
           )}
@@ -153,7 +153,7 @@ export function VehicleActionsSheet({
               className={rowClass("danger")}
               onClick={onRequestDelete}
             >
-              <span className="vas-tile vas-tile-danger"><SendHorizontal size={17} /></span>
+              <span className="vas-tile vas-tile-danger"><SendHorizontal size={15} /></span>
               <span className="vas-label">Gửi yêu cầu xóa</span>
             </button>
           )}

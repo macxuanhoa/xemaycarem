@@ -161,7 +161,7 @@ async function installQrMock(
 async function openSaleQr(page) {
   await page.goto(`/sales/${saleId}`);
   await page
-    .getByRole("button", { name: "Tạo mã VietQR", exact: true })
+    .getByRole("button", { name: "VietQR", exact: true })
     .click();
   const dialog = page.getByRole("dialog", {
     name: "Thanh toán chuyển khoản",
@@ -261,7 +261,7 @@ test("closing and reopening preserves the deadline; expiry hides QR and replacem
   await dialog.getByRole("button", { name: "Đóng", exact: true }).click();
   await page.clock.fastForward(65_000);
   await page
-    .getByRole("button", { name: "Tạo mã VietQR", exact: true })
+    .getByRole("button", { name: "VietQR", exact: true })
     .click();
   dialog = page.getByRole("dialog", {
     name: "Thanh toán chuyển khoản",

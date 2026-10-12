@@ -21,6 +21,7 @@ import { useAuth } from "@/features/auth/AuthProvider";
 import { Highlight } from "@/components/search/Highlight";
 import { api } from "@/lib/api";
 import { isOwner } from "@/lib/permissions";
+import { useValueLedFlash } from "@/lib/useValueLedFlash";
 import type { Profile } from "@/types";
 import { CreateUserModal } from "./components/CreateUserModal";
 import { StaffSettingsModal } from "./components/StaffSettingsModal";
@@ -48,6 +49,11 @@ export default function UsersPage() {
     ).length ?? 0;
   const managerCount = q.data?.filter((p) => p.role === "MANAGER").length ?? 0;
   const staffCount = q.data?.filter((p) => p.role === "STAFF").length ?? 0;
+
+  // Một nhịp LED viền khi số tài khoản / số đang hoạt động nhảy lên
+  // (thêm – khóa – mở tài khoản khiến danh sách refetch). Load đầu im lặng.
+  const totalStaffBeat = useValueLedFlash(q.data ? totalStaff : undefined);
+  const activeStaffBeat = useValueLedFlash(q.data ? activeStaff : undefined);
 
   const filteredStaff = q.data?.filter((p) => {
     const matchesSearch =
@@ -83,6 +89,9 @@ export default function UsersPage() {
       {/* STATS HUD */}
       <div className="staff-stats-grid">
         <div className="staff-stat-card">
+          {totalStaffBeat > 0 && (
+            <span key={totalStaffBeat} className="led-beat" aria-hidden="true" />
+          )}
           <div className="staff-stat-icon indigo">
             <Users size={20} />
           </div>
@@ -95,6 +104,9 @@ export default function UsersPage() {
         </div>
 
         <div className="staff-stat-card">
+          {activeStaffBeat > 0 && (
+            <span key={activeStaffBeat} className="led-beat" aria-hidden="true" />
+          )}
           <div className="staff-stat-icon emerald">
             <CalendarClock size={20} />
           </div>

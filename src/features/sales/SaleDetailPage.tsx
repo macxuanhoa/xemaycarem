@@ -1,9 +1,9 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { ArrowLeft, ArrowRight, CreditCard, MoreVertical, QrCode } from "lucide-react";
+import { ArrowLeft, ArrowRight, Ban, CreditCard, MoreHorizontal, Printer, QrCode } from "lucide-react";
 import { VietQrPaymentModal } from "./VietQrPaymentModal";
 import { api } from "@/lib/api";
 import { confirmPayment, pendingPayment, retainPayment } from "@/lib/paymentRecovery";
@@ -44,7 +44,7 @@ export function SaleDetailPage() {
   const client = useQueryClient();
   const [showPayment, setShowPayment] = useState(false);
   const [showCancel, setShowCancel] = useState(false);
-  const [showAdjust, setShowAdjust] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
   const [reason, setReason] = useState("");
   const [receipt, setReceipt] = useState<Payment | "sale" | null>(null);
   const [showVietQr, setShowVietQr] = useState(false);
@@ -59,11 +59,24 @@ export function SaleDetailPage() {
       api.call("cancel_sale", { p_id: id, p_reason: reason.trim() }),
     onSuccess: async () => {
       setShowCancel(false);
-      setShowAdjust(false);
+      setMenuOpen(false);
       setShowPayment(false);
       await client.invalidateQueries();
     },
   });
+
+  // Escape đóng cả menu kebab lẫn hộp thoại hủy, giống menu chi tiết xe.
+  useEffect(() => {
+    if (!menuOpen && !showCancel) return;
+    const onKey = (event: globalThis.KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setMenuOpen(false);
+        setShowCancel(false);
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [menuOpen, showCancel]);
 
   if (query.isPending) return <Loading />;
   if (query.isError && !query.data)
@@ -74,106 +87,142 @@ export function SaleDetailPage() {
   const sale = query.data;
   if (!sale) return <EmptyState title="Không tìm thấy giao dịch" />;
 
+  const canPrintReceipt = sale.status === "COMPLETED" && !sale.sale_price_hidden;
+  const canCancelSale = canManage(profile) && sale.status === "COMPLETED";
+
   return (
     <div className="stack">
       <Link className="back-link" to="/sales">
         <ArrowLeft size={16} /> Bán ra
       </Link>
+      {/* Title là mã giao dịch trần (một token, không dấu cách) nên không bao giờ
+          bị cắt dòng xấu; nhãn "Mã giao dịch" chuyển xuống dòng mô tả. */}
       <PageHeader
-        title={`Mã giao dịch: ${sale.sale_code}`}
-        description={`Giao dịch ngày ${dateLabel(sale.sale_date)}`}
+        title={sale.sale_code}
+        description={`Mã giao dịch bán xe · Ngày ${dateLabel(sale.sale_date)}`}
         actions={
           <>
             <Badge status={sale.status} />
-            {sale.status === "COMPLETED" && !sale.sale_price_hidden && (
-              <Button variant="secondary" onClick={() => setReceipt("sale")}>
-                In phiếu bán xe
-              </Button>
-            )}
-            {canManage(profile) && sale.status === "COMPLETED" && (
-              <Button
-                variant="ghost"
-                className="heading-kebab"
-                aria-label="Điều chỉnh giao dịch"
-                aria-haspopup="true"
-                aria-expanded={showAdjust}
-                onClick={() => setShowAdjust((open) => !open)}
-              >
-                <MoreVertical size={18} />
-              </Button>
+            {(canPrintReceipt || canCancelSale) && (
+              /* Kebab mở menu nổi neo ngay dưới nút (đúng kiểu chi tiết xe),
+                 không đẩy nội dung trang xuống như thẻ điều chỉnh cũ. */
+              <div className="vehicle-actions-menu-wrap">
+                <button
+                  type="button"
+                  className="icon-button vehicle-actions-trigger"
+                  aria-label="Thao tác giao dịch"
+                  aria-haspopup="true"
+                  aria-expanded={menuOpen}
+                  onClick={() => setMenuOpen((open) => !open)}
+                >
+                  <MoreHorizontal size={22} />
+                </button>
+                {menuOpen && (
+                  <>
+                    <div
+                      className="vehicle-actions-scrim"
+                      role="presentation"
+                      onClick={() => setMenuOpen(false)}
+                    />
+                    <div className="vehicle-actions-menu">
+                      {canPrintReceipt && (
+                        <button
+                          type="button"
+                          className="vehicle-actions-menu-item vehicle-actions-menu-primary"
+                          onClick={() => {
+                            setMenuOpen(false);
+                            setReceipt("sale");
+                          }}
+                        >
+                          <Printer size={16} /> In phiếu bán xe
+                        </button>
+                      )}
+                      {canCancelSale && (
+                        <button
+                          type="button"
+                          className="vehicle-actions-menu-item vehicle-actions-menu-danger"
+                          onClick={() => {
+                            setMenuOpen(false);
+                            setShowCancel(true);
+                          }}
+                        >
+                          <Ban size={16} /> Hủy giao dịch
+                        </button>
+                      )}
+                    </div>
+                  </>
+                )}
+              </div>
             )}
           </>
         }
       />
-      {canManage(profile) && sale.status === "COMPLETED" && showAdjust && (
-        <Card className="sale-adjust-panel">
-          <div className="row between">
-            <h2 className="section-title">Điều chỉnh giao dịch</h2>
-            <Button
-              variant="ghost"
-              onClick={() => {
-                setShowAdjust(false);
-                setShowCancel(false);
-              }}
-            >
-              Đóng
-            </Button>
-          </div>
-          {!showCancel ? (
-            <>
-              <p className="muted">
-                Hủy giao dịch khi nhập nhầm hoặc khách trả xe. Xe sẽ trở lại tồn
-                kho, lịch sử vẫn được giữ lại.
-              </p>
-              <Button variant="danger" onClick={() => setShowCancel(true)}>
-                Hủy giao dịch bán xe
+      {showCancel && (
+        <div
+          className="modal-backdrop"
+          role="presentation"
+          onClick={() => setShowCancel(false)}
+        >
+          <div
+            className="modal-card sale-cancel-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-label="Hủy giao dịch bán xe"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="modal-header">
+              <h3>Hủy giao dịch bán xe</h3>
+              <Button variant="ghost" onClick={() => setShowCancel(false)}>
+                Đóng
               </Button>
-            </>
-          ) : (
-            <form
-              className="stack"
-              onSubmit={(event) => {
-                event.preventDefault();
-                if (reason.trim().length >= 5) cancel.mutate();
-              }}
-            >
+            </div>
+            <div className="modal-body">
               <p className="notice">
-                Sau khi hủy, đối chiếu và hoàn trả tiền đã nhận bên ngoài hệ
-                thống nếu có. Thao tác này được ghi vào nhật ký.
+                Sau khi hủy, xe trở lại tồn kho, lịch sử vẫn được giữ. Đối
+                chiếu và hoàn trả tiền đã nhận ngoài hệ thống nếu có. Thao tác
+                này được ghi vào nhật ký.
               </p>
-              <Field label="Lý do hủy *">
-                <textarea
-                  autoFocus
-                  required
-                  minLength={5}
-                  maxLength={1000}
-                  value={reason}
-                  onChange={(event) => setReason(event.target.value)}
-                  placeholder="Nhập lý do cụ thể (ít nhất 5 ký tự)"
-                />
-              </Field>
-              {cancel.isError && <ErrorState error={cancel.error} />}
-              <div className="form-actions">
-                <Button
-                  type="button"
-                  variant="secondary"
-                  onClick={() => setShowCancel(false)}
-                >
-                  Giữ giao dịch
-                </Button>
-                <Button
-                  variant="danger"
-                  type="submit"
-                  disabled={cancel.isPending || reason.trim().length < 5}
-                >
-                  {cancel.isPending
-                    ? "Đang hủy…"
-                    : "Xác nhận hủy giao dịch"}
-                </Button>
-              </div>
-            </form>
-          )}
-        </Card>
+              <form
+                className="stack"
+                onSubmit={(event) => {
+                  event.preventDefault();
+                  if (reason.trim().length >= 5) cancel.mutate();
+                }}
+              >
+                <Field label="Lý do hủy *">
+                  <textarea
+                    autoFocus
+                    required
+                    minLength={5}
+                    maxLength={1000}
+                    value={reason}
+                    onChange={(event) => setReason(event.target.value)}
+                    placeholder="Nhập lý do cụ thể (ít nhất 5 ký tự)"
+                  />
+                </Field>
+                {cancel.isError && <ErrorState error={cancel.error} />}
+                <div className="modal-footer">
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    onClick={() => setShowCancel(false)}
+                  >
+                    Giữ giao dịch
+                  </Button>
+                  <Button
+                    variant="danger"
+                    type="submit"
+                    disabled={cancel.isPending || reason.trim().length < 5}
+                  >
+                    {cancel.isPending
+                      ? "Đang hủy…"
+                      : "Xác nhận hủy giao dịch"}
+                  </Button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
       )}
       {receipt && !sale.sale_price_hidden && (
         <CustomerReceipt
@@ -270,17 +319,14 @@ export function SaleDetailPage() {
           </Card>
 
           <Card>
-            <div className="row between">
+            <div className="row between sale-payments-head">
               <h2 className="section-title">Lịch sử thanh toán</h2>
               {!sale.sale_price_hidden && canOperate(profile) &&
                 sale.status === "COMPLETED" &&
                 sale.remaining_amount > 0 && (
-                  <div style={{ display: "flex", gap: "8px" }}>
-                    <Button
-                      variant="secondary"
-                      onClick={() => setShowVietQr(true)}
-                    >
-                      <QrCode size={16} /> Tạo mã VietQR
+                  <div className="row" style={{ gap: "8px" }}>
+                    <Button variant="ghost" onClick={() => setShowVietQr(true)}>
+                      <QrCode size={16} /> VietQR
                     </Button>
                     <Button
                       variant="secondary"
@@ -383,24 +429,6 @@ export function SaleDetailPage() {
                 </dd>
               </div>
             </dl>
-            {!sale.sale_price_hidden && canOperate(profile) &&
-              sale.status === "COMPLETED" &&
-              sale.remaining_amount > 0 && (
-                <div className="sale-quick-pay-actions">
-                  <Button
-                    variant="primary"
-                    onClick={() => setShowPayment(!showPayment)}
-                  >
-                    <CreditCard size={16} /> Thu tiền
-                  </Button>
-                  <Button
-                    variant="secondary"
-                    onClick={() => setShowVietQr(true)}
-                  >
-                    <QrCode size={16} /> VietQR
-                  </Button>
-                </div>
-              )}
           </Card>
 
           {canFinance(profile) && (

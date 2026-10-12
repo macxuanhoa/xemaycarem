@@ -43,8 +43,8 @@ export function CustomerReceipt({
         <>
           <article className="customer-receipt print-customer-receipt">
             <header>
-              <h2>{settings.data?.store_name}</h2>
-              {settings.data?.address && <p>{settings.data.address}</p>}
+              <h2>Cửa Hàng Xe Máy Cà Rem</h2>
+              <p>107 Nguyễn Tất Thành, Hội An</p>
               {settings.data?.phone && <p>Điện thoại: {settings.data.phone}</p>}
             </header>
             <h1>{payment ? "PHIẾU THU TIỀN" : "PHIẾU BÁN XE"}</h1>

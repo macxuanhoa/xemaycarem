@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link, Navigate } from "react-router-dom";
 import {
   ArrowRight,
@@ -42,6 +42,15 @@ export default function LoginPage() {
     resolver: zodResolver(loginSchema),
     defaultValues: { remember: true },
   });
+  // Đèn LED chào mừng chạy quanh khung đăng nhập ~3 vòng rồi tự tắt.
+  // Mọi tương tác đầu tiên với ô nhập (focus) cắt luôn để không phân
+  // tán khi người dùng bắt đầu gõ mật khẩu.
+  const [ledWelcome, setLedWelcome] = useState(true);
+  useEffect(() => {
+    if (!ledWelcome) return;
+    const t = window.setTimeout(() => setLedWelcome(false), 4600);
+    return () => window.clearTimeout(t);
+  }, [ledWelcome]);
   if (profile) return <Navigate to="/" replace />;
   const login = handleSubmit(async (values) => {
     setError(null);
@@ -101,6 +110,7 @@ export default function LoginPage() {
       </div>
       <div className="login-panel">
         <div className="login-form-wrap">
+          {ledWelcome && <span className="led-welcome" aria-hidden="true" />}
           <span className="login-lock">
             <LockKeyhole size={22} />
           </span>
@@ -124,7 +134,11 @@ export default function LoginPage() {
               </div>
             </div>
           ) : null}
-          <form onSubmit={login} className="stack">
+          <form
+            onSubmit={login}
+            onFocusCapture={() => setLedWelcome(false)}
+            className="stack"
+          >
             <Field
               label="Tên đăng nhập hoặc email"
               error={errors.identifier?.message}

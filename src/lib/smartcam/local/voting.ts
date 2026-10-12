@@ -15,18 +15,18 @@ export type SamplerInput = {
 };
 
 export const SAMPLER_LIMITS = {
-  baseMs: 650,
-  busyMs: 250,
-  maxMs: 2400,
+  baseMs: 160,
+  busyMs: 80,
+  maxMs: 1200,
   /** Blurry frames are cheap — re-check fast but not frantically. */
-  blurryMs: 500,
+  blurryMs: 180,
 };
 
 /** Adaptive next-tick delay: fast while productive, slow while starved. */
 export function nextTickMs({ busy, missStreak, sharp }: SamplerInput): number {
   if (busy) return SAMPLER_LIMITS.busyMs;
   if (!sharp) return SAMPLER_LIMITS.blurryMs;
-  const backoff = Math.min(SAMPLER_LIMITS.maxMs, SAMPLER_LIMITS.baseMs + missStreak * 300);
+  const backoff = Math.min(SAMPLER_LIMITS.maxMs, SAMPLER_LIMITS.baseMs + missStreak * 60);
   return backoff;
 }
 

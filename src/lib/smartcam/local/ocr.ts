@@ -285,6 +285,7 @@ export async function localReadFrame(
   options: {
     target?: "plate" | "frame" | "both";
     analysis?: FrameAnalysis | null;
+    fast?: boolean;
   } = {},
 ): Promise<LocalRead | null> {
   const full =
@@ -310,11 +311,25 @@ export async function localReadFrame(
     const linePass = band ? await recognize(band, "line") : null;
     if (linePass) passes.push(linePass);
   }
-  // Always inspect the full photo too. A crop must never hide a conflicting
-  // second plate/frame elsewhere, or prevent reading text the locator missed.
-  const widened = preprocessedFull(full, 1080);
-  const sparsePass = widened ? await recognize(widened, "sparse") : null;
-  if (sparsePass) passes.push(sparsePass);
+  // In fast live-scanning mode, if focused crops/band already found a confident candidate,
+  // skip the expensive full 1080p sparse pass to drastically reduce latency and save CPU.
+  const hasConfidentCandidate =
+    options.fast &&
+    passes.some((p) => {
+      const read = chooseIdentifierRead([p], options.target);
+      return (
+        (read.license_plate && read.plateConfidence >= 55) ||
+        (read.frame_number && read.frameConfidence >= 55)
+      );
+    });
+
+  if (!hasConfidentCandidate) {
+    // Always inspect the full photo too. A crop must never hide a conflicting
+    // second plate/frame elsewhere, or prevent reading text the locator missed.
+    const widened = preprocessedFull(full, 1080);
+    const sparsePass = widened ? await recognize(widened, "sparse") : null;
+    if (sparsePass) passes.push(sparsePass);
+  }
   return passes.length
     ? {
         ...chooseIdentifierRead(passes, options.target),

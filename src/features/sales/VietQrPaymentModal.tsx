@@ -772,32 +772,25 @@ export function VietQrPaymentModal({
                 <span>Số tiền thanh toán</span>
                 <strong>{money(request.amount)}</strong>
               </div>
+              <div className="vietqr-transfer-content">
+                <span>Nội dung chuyển khoản</span>
+                <div>
+                  <strong>{displayTransferContent}</strong>
+                  <Button
+                    variant="ghost"
+                    aria-label="Sao chép nội dung chuyển khoản"
+                    onClick={() =>
+                      void handleCopy(
+                        displayTransferContent,
+                        "nội dung chuyển khoản",
+                      )
+                    }
+                  >
+                    <Copy size={16} />
+                  </Button>
+                </div>
+              </div>
               <dl className="vietqr-detail-list">
-                <div>
-                  <dt>Xe</dt>
-                  <dd>
-                    {request.vehicle_label ||
-                      vehicle.vehicle_title ||
-                      vehicle.vehicle_type ||
-                      "Xe"}
-                  </dd>
-                </div>
-                <div>
-                  <dt>Mã xe</dt>
-                  <dd>{vehicle.internal_code || request.vehicle_id}</dd>
-                </div>
-                <div>
-                  <dt>Hợp đồng</dt>
-                  <dd>{request.contract_reference}</dd>
-                </div>
-                <div>
-                  <dt>Người thanh toán</dt>
-                  <dd>{request.payer_name}</dd>
-                </div>
-                <div>
-                  <dt>Người nhận</dt>
-                  <dd>{displayAccountName || "Chưa có tên chủ tài khoản"}</dd>
-                </div>
                 <div>
                   <dt>Ngân hàng</dt>
                   <dd>{displayBankName}</dd>
@@ -820,25 +813,32 @@ export function VietQrPaymentModal({
                     ) : null}
                   </dd>
                 </div>
-              </dl>
-              <div className="vietqr-transfer-content">
-                <span>Nội dung chuyển khoản</span>
                 <div>
-                  <strong>{displayTransferContent}</strong>
-                  <Button
-                    variant="ghost"
-                    aria-label="Sao chép nội dung chuyển khoản"
-                    onClick={() =>
-                      void handleCopy(
-                        displayTransferContent,
-                        "nội dung chuyển khoản",
-                      )
-                    }
-                  >
-                    <Copy size={16} />
-                  </Button>
+                  <dt>Người nhận</dt>
+                  <dd>{displayAccountName || "Chưa có tên chủ tài khoản"}</dd>
                 </div>
-              </div>
+                <div>
+                  <dt>Người thanh toán</dt>
+                  <dd>{request.payer_name}</dd>
+                </div>
+                <div>
+                  <dt>Xe</dt>
+                  <dd>
+                    {request.vehicle_label ||
+                      vehicle.vehicle_title ||
+                      vehicle.vehicle_type ||
+                      "Xe"}
+                  </dd>
+                </div>
+                <div>
+                  <dt>Mã xe</dt>
+                  <dd>{vehicle.internal_code || request.vehicle_id}</dd>
+                </div>
+                <div>
+                  <dt>Hợp đồng</dt>
+                  <dd>{request.contract_reference}</dd>
+                </div>
+              </dl>
               <p className="vietqr-agreement">{request.agreement_text}</p>
             </div>
             {replaceMutation.isError && (

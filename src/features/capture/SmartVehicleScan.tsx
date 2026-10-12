@@ -15,11 +15,13 @@ import {
   ScanSearch,
   Sparkles,
   SwitchCamera,
+  X,
   Zap,
   ZapOff,
   ZoomIn,
 } from "lucide-react";
 import { api } from "@/lib/api";
+import { toast } from "@/lib/toast";
 import { friendlyError } from "@/lib/errors";
 import { canManage, canOperate } from "@/lib/permissions";
 import { resolveVehicleQr } from "@/lib/qrcode";
@@ -212,7 +214,23 @@ function ResultChips({ recognition }: { recognition: Recognition }) {
   );
 }
 
-export default function SmartVehicleScan() {
+export type SmartVehicleScanProps = {
+  onScanComplete?: (scanned: {
+    license_plate: string;
+    frame_number: string;
+    vehicle_type?: string;
+    color?: string;
+    year?: number;
+  }) => void;
+  onClose?: () => void;
+  isModal?: boolean;
+};
+
+export default function SmartVehicleScan({
+  onScanComplete,
+  onClose,
+  isModal = false,
+}: SmartVehicleScanProps = {}) {
   const { profile } = useAuth();
   const navigate = useNavigate();
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -552,6 +570,19 @@ export default function SmartVehicleScan() {
       if (mode === "photo") setPhotoReady(true);
       setLiveHint("");
       await stopCamera();
+
+      // 1. Khi nhúng trong modal form: gọi callback điền vào form ngay lập tức
+      if (onScanComplete && (fields.license_plate || fields.frame_number)) {
+        onScanComplete({
+          license_plate: fields.license_plate || "",
+          frame_number: fields.frame_number || "",
+          vehicle_type: fields.vehicle_type || "",
+          color: fields.color || "",
+          year: fields.year ? Number(fields.year) : undefined,
+        });
+        return true;
+      }
+
       const safeIdentity = (["license_plate", "frame_number"] as const).every(
         (key) => !fields[key] || recognition.statuses[key] === "VERIFIED",
       );
@@ -561,11 +592,46 @@ export default function SmartVehicleScan() {
         safeIdentity &&
         !uncertain &&
         !continuingPhoto
-      )
+      ) {
         navigate("/vehicles/" + match.vehicle.id);
+        return true;
+      }
+
+      // 2. Khi quét ở màn hình camera chính và xe chưa có trong kho:
+      // Tự động chuyển thẳng vào form thu xe và điền sẵn thông tin vừa quét!
+      if (
+        mode === "scan" &&
+        match.state === "none" &&
+        (fields.license_plate || fields.frame_number) &&
+        !continuingPhoto
+      ) {
+        const queryParams = new URLSearchParams(window.location.search);
+        const returnTo = queryParams.get("returnTo") || "/acquisitions/new";
+        toast.success(
+          "Đã quét thành công " +
+            (fields.license_plate ? `biển số ${fields.license_plate}` : `số khung ${fields.frame_number}`),
+          {
+            description: "Đã tự động điền thông tin vào form thu xe.",
+            duration: 4000,
+          },
+        );
+        navigate(returnTo, {
+          state: {
+            aiDraft: {
+              license_plate: fields.license_plate || "",
+              frame_number: fields.frame_number || "",
+              vehicle_type: fields.vehicle_type || "",
+              color: fields.color || "",
+              year: fields.year ? Number(fields.year) : undefined,
+            },
+            recognition,
+          },
+        });
+        return true;
+      }
       return true;
     },
-    [commitResult, isCurrent, mode, navigate, profile?.id, stopCamera],
+    [commitResult, isCurrent, mode, navigate, onScanComplete, profile?.id, stopCamera],
   );
 
   const cloudRead = useCallback(
@@ -736,7 +802,7 @@ export default function SmartVehicleScan() {
       const gray = toGray(canvas);
       if (gray) {
         const sig = sceneSignature(gray);
-        if (motionScore(previousScene.current, sig) > 0.35) {
+        if (motionScore(previousScene.current, sig) > 0.60) {
           voteRef.current = null;
           frameWindow.current = [];
           misses.current = 0;
@@ -767,6 +833,7 @@ export default function SmartVehicleScan() {
       } else {
         const read = await localReadFrame(canvas, {
           analysis: analysis ?? undefined,
+          fast: true,
         });
         if (!isCurrent(token)) return;
         const key = read ? read.license_plate + "|" + read.frame_number : "";
@@ -779,10 +846,13 @@ export default function SmartVehicleScan() {
         const confidence = read?.license_plate
           ? read.plateConfidence
           : (read?.frameConfidence ?? 0);
+        // Khi độ tin cậy cao (>= 70) và có cấu trúc hợp lệ, settle nhanh chỉ sau 1 frame
+        const isVeryConfident = confidence >= 70;
         const vote = pushVote(
           voteRef.current,
           hasIdentifier ? key : "",
           confidence,
+          isVeryConfident ? 1 : 2,
         );
         voteRef.current = vote.state;
         if (hasIdentifier)
@@ -1133,23 +1203,36 @@ export default function SmartVehicleScan() {
         : [];
 
   return (
-    <Card className="smartcam-card">
+    <Card className={"smartcam-card" + (isModal ? " is-modal" : "")}>
       <div className="smartcam-card-header">
         <div className="smartcam-title-wrap">
-          <h2 className="section-title">
-            <Sparkles size={16} aria-hidden="true" />
-            <span>Quét và nhận diện</span>
-          </h2>
-          <span className={"smartcam-status-pill" + (running ? " active" : "")}>
-            <span className="smartcam-status-dot" aria-hidden="true" />
-            {busy
-              ? "Đang đọc"
-              : running
-                ? mode === "photo"
-                  ? "Sẵn sàng chụp"
-                  : "Đang quét"
-                : "Chờ mở"}
-          </span>
+          <div style={{ display: "flex", alignItems: "center", gap: "10px", flexWrap: "wrap" }}>
+            <h2 className="section-title">
+              <Sparkles size={16} aria-hidden="true" />
+              <span>Quét và nhận diện</span>
+            </h2>
+            <span className={"smartcam-status-pill" + (running ? " active" : "")}>
+              <span className="smartcam-status-dot" aria-hidden="true" />
+              {busy
+                ? "Đang đọc"
+                : running
+                  ? mode === "photo"
+                    ? "Sẵn sàng chụp"
+                    : "Đang quét"
+                  : "Chờ mở"}
+            </span>
+          </div>
+          {onClose && (
+            <button
+              type="button"
+              className="dialog-close"
+              aria-label="Đóng camera"
+              onClick={onClose}
+              style={{ margin: 0, padding: "6px" }}
+            >
+              <X size={18} />
+            </button>
+          )}
         </div>
         <p className="muted small">
           {mode === "photo"

@@ -79,7 +79,7 @@ export function vehicleTypeKey(name: string): string {
 
 /**
  * Tra tên loại xe THẬT trong danh mục đang dùng cho một token tốc ký.
- * Trả chuỗi rỗng khi không khớp: token đó chỉ thành chip lạ + Ghi chú, parser
+ * Trả chuỗi rỗng khi không khớp: token đó chỉ thành chip lạ, parser
  * không bao giờ tự bịa ra một loại xe ngoài danh mục (nhân viên phải chọn).
  */
 export function matchVehicleType(
@@ -133,9 +133,8 @@ export const COLOR_ALIASES: Record<string, string> = {
 
 /**
  * Normalized keyword → field the NEXT token belongs to.
- * `notes` swallows the rest of the line.
- * Không còn khoá nào cho Hãng/Dòng/Phiên bản/Số máy/Số km/Giá bán: các token
- * đó rơi vào hàng đợi chip lạ để nhân viên gán vào Ghi chú hoặc bỏ qua.
+ * Không còn khoá nào cho Hãng/Dòng/Phiên bản/Số máy/Số km/Giá bán hay Ghi chú:
+ * các token đó rơi vào hàng đợi chip lạ và hệ thống bỏ qua khi lưu.
  */
 export const KEYWORD_FIELDS: Record<string, string> = {
   fk: "frame_number",
@@ -166,10 +165,6 @@ export const KEYWORD_FIELDS: Record<string, string> = {
   chi: "supplier_name",
   em: "supplier_name",
   fn: "supplier_name",
-  ghcn: "notes",
-  ghichu: "notes",
-  note: "notes",
-  notes: "notes",
 };
 
 /** Tokens that carry no field meaning and can be dropped silently. */

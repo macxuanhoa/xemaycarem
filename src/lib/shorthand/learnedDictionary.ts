@@ -1,7 +1,7 @@
 /**
- * Per-user learned abbreviations for the shorthand intake parser.
- * Every time the user corrects a token or teaches an abbreviation, the rule
- * is stored locally so the next paste parses smarter automatically.
+ * Per-user abbreviation dictionary for the shorthand intake parser.
+ * Rules are managed in Settings ("Bộ nhớ viết tắt thu xe") and stored locally
+ * so the next paste parses smarter automatically.
  * Storage is keyed by account id and stays on the device (no PII leaves it).
  */
 import type {

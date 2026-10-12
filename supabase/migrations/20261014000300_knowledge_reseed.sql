@@ -229,11 +229,11 @@ Khi có một danh sách nhiều xe cần thu (tin nhắn Notes/Zalo), dùng tra
 
 1. Dán tin nhắn vào ô ghi chú, **mỗi dòng là một xe**, rồi bấm **Tách thành danh sách**. Ví dụ: `ga den bs 29b1-123.45 nam 22 gia 18tr5` → loại xe Xe tay ga, màu Đen, biển số, năm 2022, giá thu 18.500.000₫.
 2. Từ viết tắt nhận diện được hiện nay chỉ còn **loại xe** và **màu**: `so`/`xeso`/`cub` → Xe số, `ga`/`tayga`/`xega`/`auto` → Xe tay ga, `contay`/`con`/`pk`/`sport` → Xe côn tay, `dien`/`ev`/`accu` → Xe điện, `ga50`/`50cc` → Ga 50cc; màu `den`, `trang`, `do`, `xanh`… Từ loại xe chỉ được **gợi ý**: bộ khớp đối chiếu với danh mục thật đang dùng, token không khớp danh mục sẽ không bao giờ được tự chọn (nhân viên phải bấm chọn trên thẻ). Tra cứu không dấu nên `Xe Số`, `xe so`, `Đen`, `den` đều khớp.
-3. Từ khóa đứng trước giá trị cần lấy: `fk`/`khung`/`chassi` (số khung), `bs`/`bien`/`bienso` (biển số), `loai`/`loaixe`/`type` (loại xe), `sdt`/`dt`/`phone`/`tel` (SĐT người bán), `gia`/`giathu`/`thu` (giá thu), `nam`/`yr` (năm), `ngay`/`date` (ngày thu), `ten`/`chu`/`anh`/`chi` (tên người bán), `ghichu`/`ghcn` (ghi chú — nhận hết phần còn lại của dòng). **Không còn** khóa cho số máy, số km, giá bán dự kiến hay hãng/dòng xe.
+3. Từ khóa đứng trước giá trị cần lấy: `fk`/`khung`/`chassi` (số khung), `bs`/`bien`/`bienso` (biển số), `loai`/`loaixe`/`type` (loại xe), `sdt`/`dt`/`phone`/`tel` (SĐT người bán), `gia`/`giathu`/`thu` (giá thu), `nam`/`yr` (năm), `ngay`/`date` (ngày thu), `ten`/`chu`/`anh`/`chi` (tên người bán). **Không còn** khóa cho số máy, số km, giá bán dự kiến, hãng/dòng xe hay ghi chú (`ghichu`/`ghcn` đã gỡ khỏi tốc ký).
 4. Tiền viết tắt: `18tr5` = 18.500.000, `1.2ty` = 1.200.000.000, `450k` = 450.000, hoặc số đầy đủ `18.000.000`.
-5. Từ không nhận diện được **không bao giờ bị đoán vào trường tiền và cũng không còn được đổ vào "Dòng xe"** (quy tắc đó đã bị xoá cùng các trường cũ): chúng hiện ở mục "từ chưa nhận diện" để bạn gán vào Ghi chú hoặc dạy cho máy.
-6. **Dạy viết tắt**: sửa một giá trị (loại xe, màu, tên người bán) khác token gốc sẽ hiện nút dạy; xác nhận là lần sau dán lại tự đúng. Bộ nhớ viết tắt lưu **theo tài khoản ngay trên máy đó** (localStorage), không đồng bộ sang máy khác; xem và xóa từng quy tắc trong bảng "Bộ nhớ viết tắt" cuối trang.
-7. Trước khi lưu, mỗi thẻ xe tự kiểm tra: **bắt buộc có loại xe nằm trong danh mục** (`Chọn loại xe từ danh mục.`) và **bắt buộc giá thu lớn hơn 0** (`Nhập giá thu xe (vd: 18tr5).`) — mọi role đều gõ giá thu vì chính mình là người thu xe; số khung và biển số được phép để trống (khung trống → server tự sinh `GEN-<uuid>`, biển có gõ thì phải đúng format xe máy Việt Nam); năm 1900–2100; ngày thu không ở tương lai.
+5. Từ không nhận diện được **không bao giờ bị đoán vào trường tiền và cũng không còn được đổ vào "Dòng xe"** (quy tắc đó đã bị xoá cùng các trường cũ): chúng chỉ được đếm ở dòng trạng thái và **hệ thống bỏ qua khi lưu** — thiếu thông tin nào thì bổ sung trực tiếp trên thẻ xe đó.
+6. **Bộ nhớ viết tắt thu xe**: trước đây nằm cuối trang tốc ký kèm nút "Học" trên từng thẻ, nay cơ chế dạy tại chỗ đã gỡ khỏi tốc ký và toàn bộ bộ nhớ chuyển vào **Cài đặt → Bộ nhớ viết tắt thu xe** — **mọi role** đều thêm/xoá quy tắc của chính mình (chỉ nhận loại xe, màu, năm). Bộ nhớ lưu **theo tài khoản ngay trên máy đó** (localStorage), không đồng bộ sang máy khác; trang tốc ký nạp lại bộ nhớ này mỗi lần mở.
+7. Trước khi lưu, mỗi thẻ xe tự kiểm tra và **hiện cảnh báo ngay tại ô nhập tương ứng** (không dồn cuối thẻ): **bắt buộc có tên loại xe** (`Nhập loại / dòng xe.` — tên nhập tự do, server tự chuẩn hoá/tạo mới) và **bắt buộc giá thu lớn hơn 0** (`Nhập giá thu xe (vd: 18tr5).`) — mọi role đều gõ giá thu vì chính mình là người thu xe; số khung và biển số được phép để trống (khung trống → server tự sinh `GEN-<uuid>`, biển có gõ thì phải đúng format xe máy Việt Nam); năm 1900–2100; ngày thu không ở tương lai.
 8. Bấm **Xác nhận thu xe**: hệ thống gửi cả lô cho `validate_import_vehicles` kiểm tra trùng lặp và tính hợp lệ phía server. Nếu có bất kỳ lỗi/trùng nào → báo ngay trên từng thẻ, **không lưu gì cả** để bạn sửa. Khi sạch lỗi → `import_vehicles` lưu toàn bộ xe + phiếu thu trong một giao dịch rồi chuyển về danh sách Thu vào.', 'STAFF', 'docs/INTERNAL_SOPS.md'),
   ('internal-sops-7', 'Quy trình nội bộ (SOP)', 'Cập nhật xe trong tồn kho', '## Cập nhật xe trong tồn kho
 
@@ -505,7 +505,6 @@ Trích từ cây route trong `src/App.tsx` (thành phần `Protected` kế thừ
 | `/assist` | đăng nhập |
 | `/copilot` | đăng nhập |
 | `/posts` | đăng nhập |
-| `/reply` | đăng nhập |
 | `/brand-memory` | đăng nhập |
 | `/docs` | đăng nhập |
 | `/docs/:slug` | đăng nhập |
@@ -521,9 +520,9 @@ Trích từ cây route trong `src/App.tsx` (thành phần `Protected` kế thừ
 | `/expenses` | MANAGER hoặc OWNER |
 | `/bank-reconciliation` | MANAGER hoặc OWNER |
 | `/users` | MANAGER hoặc OWNER |
+| `/approvals` | MANAGER hoặc OWNER |
 | `/duplicate-reviews` | MANAGER hoặc OWNER |
 | `/audit` | chỉ OWNER |
-| `/approvals` | chỉ OWNER |
 | `/*` | công khai (không cần đăng nhập) |', 'STAFF', 'docs/SYSTEM_REFERENCE.md'),
   ('system-reference-3', 'Tham chiếu hệ thống (sinh tự động)', 'Edge Functions', '## Edge Functions
 

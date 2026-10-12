@@ -1,6 +1,6 @@
 import { Link } from "react-router-dom";
 import {
-  Camera,
+  Bike,
   ChevronRight,
   CirclePlus,
   Eye,
@@ -10,6 +10,7 @@ import {
   X,
 } from "lucide-react";
 import { useAuth } from "@/features/auth/AuthProvider";
+import { VehicleIdentityChips } from "@/components/ui/VehicleIdentityChips";
 import {
   canDeleteVehicle,
   canOperate,
@@ -17,11 +18,7 @@ import {
 } from "@/lib/permissions";
 import { colorWordToHex } from "@/lib/colorWords";
 import { useDialog } from "@/lib/useDialog";
-import {
-  vehicleAriaLabel,
-  vehicleSubtitle,
-  vehicleTitle,
-} from "@/lib/vehicleDisplay";
+import { vehicleAriaLabel } from "@/lib/vehicleDisplay";
 import type { Vehicle } from "@/types";
 
 export function VehicleActionsSheet({
@@ -54,6 +51,13 @@ export function VehicleActionsSheet({
   const dotHex = colorWordToHex(vehicle.color);
   const rowClass = (tone: "neutral" | "primary" | "danger") =>
     `vas-row vas-row-${tone}`;
+  // Tên xe to dẫn đầu, chi tiết phụ (biển số, số khung) xuống dòng dưới thành
+  // chip — dựng lại đúng bộ chip của thẻ danh sách cho hai mặt liền nhau.
+  const nameParts = [
+    vehicle.vehicle_type?.trim() || "Chưa phân loại",
+    vehicle.year ? String(vehicle.year) : "",
+    vehicle.color?.trim() || "",
+  ].filter(Boolean);
   return (
     <div className="modal-backdrop vas-backdrop" onClick={onClose} role="presentation">
       <div
@@ -67,21 +71,29 @@ export function VehicleActionsSheet({
       >
         <span className="vas-handle" aria-hidden="true" />
         <div className="vas-header">
-          <span className="vas-dot" style={{ background: dotHex }} aria-hidden="true" />
-          <div className="vas-heading">
-            <h3>{vehicleTitle(vehicle)}</h3>
-            {vehicleSubtitle(vehicle) && (
-              <p className="vas-subtitle">{vehicleSubtitle(vehicle)}</p>
-            )}
+          <div className="vas-headline">
+            <span
+              className="vas-avatar"
+              style={{
+                background: `radial-gradient(circle at 30% 26%, rgba(255,255,255,0.42), rgba(255,255,255,0) 62%), ${dotHex}`,
+              }}
+              aria-hidden="true"
+            >
+              <Bike size={20} strokeWidth={1.7} />
+            </span>
+            <div className="vas-heading">
+              <h3>{nameParts.join(" · ")}</h3>
+            </div>
+            <button
+              className="icon-button vas-close"
+              type="button"
+              aria-label="Đóng thao tác xe"
+              onClick={onClose}
+            >
+              <X size={18} />
+            </button>
           </div>
-          <button
-            className="icon-button vas-close"
-            type="button"
-            aria-label="Đóng thao tác xe"
-            onClick={onClose}
-          >
-            <X size={18} />
-          </button>
+          <VehicleIdentityChips vehicle={vehicle} />
         </div>
         <div className="vas-list">
           <Link
@@ -119,16 +131,6 @@ export function VehicleActionsSheet({
               <span className="vas-label">
                 {pendingSale ? "Chờ chủ duyệt bán" : "Bán xe"}
               </span>
-              <ChevronRight className="vas-chevron" size={16} />
-            </Link>
-          )}
-          {canOperate(profile) && !pending && (
-            <Link
-              className={rowClass("neutral")}
-              to={`/capture?vehicle=${vehicle.id}`}
-            >
-              <span className="vas-tile vas-tile-neutral"><Camera size={17} /></span>
-              <span className="vas-label">Thêm ảnh</span>
               <ChevronRight className="vas-chevron" size={16} />
             </Link>
           )}

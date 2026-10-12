@@ -160,7 +160,6 @@ Trích từ cây route trong `src/App.tsx` (thành phần `Protected` kế thừ
 | `/assist` | đăng nhập |
 | `/copilot` | đăng nhập |
 | `/posts` | đăng nhập |
-| `/reply` | đăng nhập |
 | `/brand-memory` | đăng nhập |
 | `/docs` | đăng nhập |
 | `/docs/:slug` | đăng nhập |
@@ -176,9 +175,9 @@ Trích từ cây route trong `src/App.tsx` (thành phần `Protected` kế thừ
 | `/expenses` | MANAGER hoặc OWNER |
 | `/bank-reconciliation` | MANAGER hoặc OWNER |
 | `/users` | MANAGER hoặc OWNER |
+| `/approvals` | MANAGER hoặc OWNER |
 | `/duplicate-reviews` | MANAGER hoặc OWNER |
 | `/audit` | chỉ OWNER |
-| `/approvals` | chỉ OWNER |
 | `/*` | công khai (không cần đăng nhập) |
 
 ## Edge Functions

@@ -14,11 +14,7 @@ import {
   loadDictionary,
   type ShorthandStorage,
 } from "@/lib/shorthand/learnedDictionary";
-import {
-  entryToAcquisitionDraft,
-  entryToImportRow,
-  validateIntakeEntry,
-} from "@/lib/shorthand/intakeRows";
+import { entryToImportRow, validateIntakeEntry } from "@/lib/shorthand/intakeRows";
 
 function parseFirst(
   line: string,
@@ -165,11 +161,14 @@ describe("parseIntakeNotes", () => {
     expect(entries[0].fields.frame_number).toBe("RLH160-001");
     expect(entries[0].fields.color).toBe("Đen");
   });
-  it("reads dates and trailing free text as notes", () => {
-    const fields = parseFirst("lead do 12/03/26 15tr ghcn phu tung zin");
-    expect(fields.purchase_date).toBe("2026-03-12");
-    expect(fields.notes).toBe("phu tung zin");
-    expect(fields.color).toBe("Đỏ");
+  it("reads dates and leaves leftover words as unknown tokens (Ghi chú đã gỡ)", () => {
+    const entries = parseSingle("lead do 12/03/26 15tr ghcn phu tung zin");
+    expect(entries.fields.purchase_date).toBe("2026-03-12");
+    expect(entries.fields.color).toBe("Đỏ");
+    expect(entries.fields).not.toHaveProperty("notes");
+    // "ghcn" không còn là từ khóa — mọi chữ thừa chỉ thành chip chưa nhận diện.
+    for (const token of ["ghcn", "phu", "tung", "zin"])
+      expect(entries.unknownTokens).toContain(token);
   });
   it("applies learned abbreviations before the built-in vocabulary", () => {
     const dict: LearnedDictionary = {
@@ -194,7 +193,7 @@ describe("parseIntakeNotes", () => {
     expect(entries[0].fields.purchase_price).toBe("18000000");
     expect(entries[1].fields.vehicle_type).toBe("Xe tay ga");
   });
-  it("records provenance so the UI can suggest teaching edits", () => {
+  it("records provenance for the token that filled each field", () => {
     const entries = parseIntakeNotes("ex den 15tr");
     expect(entries[0].provenance.color).toBe("den");
     expect(entries[0].provenance.purchase_price).toBe("15tr");
@@ -218,11 +217,11 @@ describe("parseIntakeNotes", () => {
     expect(parseFirst("den 21 18tr").year).toBe("2021");
     expect(parseFirst("den 2021 18tr").year).toBe("2021");
   });
-  it("routes a mid-line `#token` and everything after it into notes", () => {
-    const fields = parseFirst("xanh 27tr #chinh chu ban");
-    expect(fields.notes).toBe("chinh chu ban");
-    expect(fields.purchase_price).toBe("27000000");
-    expect(fields).not.toHaveProperty("variant");
+  it("no longer folds `#token` free text into notes — the mechanism is gone", () => {
+    const entries = parseSingle("xanh 27tr #chinh chu ban");
+    expect(entries.fields).not.toHaveProperty("notes");
+    expect(entries.fields.purchase_price).toBe("27000000");
+    expect(entries).not.toHaveProperty("variant");
   });
   it("rejects garbage after 'bs' instead of storing it as a plate", () => {
     const fields = parseFirst("den bs abcxyz");
@@ -294,22 +293,25 @@ describe("intake payload", () => {
   )[0];
 
   it("accepts any non-empty type name and keeps optional fields optional", () => {
-    expect(validateIntakeEntry(entry)).toEqual([]);
+    expect(validateIntakeEntry(entry)).toEqual({});
     // Loại xe là tên tự do — một tên mới ngoài danh mục vẫn hợp lệ.
     const invented = {
       ...entry,
       fields: { ...entry.fields, vehicle_type: "Honda SH 160i" },
     };
-    expect(validateIntakeEntry(invented)).toEqual([]);
+    expect(validateIntakeEntry(invented)).toEqual({});
     // Số khung, biển số, năm có thể bổ sung sau, riêng giá thu là bắt buộc.
     const sparse = { ...entry, fields: { vehicle_type: "Honda Vision" } };
-    expect(validateIntakeEntry(sparse).join(" ")).toMatch(/giá thu/i);
+    expect(Object.values(validateIntakeEntry(sparse)).join(" ")).toMatch(
+      /giá thu/i,
+    );
+    expect(validateIntakeEntry(sparse).purchase_price).toBeDefined();
   });
   it("blocks a row whose type name is empty", () => {
     const none = { ...entry, fields: {} };
-    expect(validateIntakeEntry(none).join(" ")).toMatch(/dòng xe/);
+    expect(Object.values(validateIntakeEntry(none)).join(" ")).toMatch(/dòng xe/);
     const blank = { ...entry, fields: { vehicle_type: "   " } };
-    expect(validateIntakeEntry(blank).join(" ")).toMatch(/dòng xe/);
+    expect(Object.values(validateIntakeEntry(blank)).join(" ")).toMatch(/dòng xe/);
   });
   it("always sends purchase_price because every role records the intake cost", () => {
     const row = entryToImportRow(entry);
@@ -321,24 +323,17 @@ describe("intake payload", () => {
       expect(row).not.toHaveProperty(purged);
     }
   });
-  it("maps supplier fields to the single-vehicle form names", () => {
-    const draft = entryToAcquisitionDraft(entry);
-    expect(draft.frame_number).toBe("RLH160-001");
-    expect(draft.license_plate).toBe("29B1-123.45");
-    expect(draft.vehicle_type).toBe("Xe tay ga");
-    expect(draft.purchase_date).toBeUndefined();
-  });
   it("rejects a garbage plate but keeps the field optional", () => {
     const garbage = {
       ...entry,
       fields: { ...entry.fields, license_plate: "abc xyz" },
     };
-    expect(validateIntakeEntry(garbage).join(" ")).toMatch(/Biển số/);
+    expect(Object.values(validateIntakeEntry(garbage)).join(" ")).toMatch(/Biển số/);
     const blank = {
       ...entry,
       fields: { ...entry.fields, license_plate: "   " },
     };
-    expect(validateIntakeEntry(blank)).toEqual([]);
+    expect(validateIntakeEntry(blank)).toEqual({});
   });
   it("INTAKE_FIELDS covers exactly the editable fields that survive the purge", () => {
     expect(INTAKE_FIELDS.map((f) => f.key)).toEqual([
@@ -351,7 +346,6 @@ describe("intake payload", () => {
       "purchase_price",
       "supplier_name",
       "supplier_phone",
-      "notes",
     ]);
   });
 });

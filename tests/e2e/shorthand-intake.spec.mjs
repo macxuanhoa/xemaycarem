@@ -107,33 +107,24 @@ test('parses shorthand notes, requires a free-text type and imports the whole ba
   }
 })
 
-test('learns a new abbreviation from an unrecognized token and reuses it on the next parse', async ({ page }) => {
-  await setupFixtures(page)
-  await page.goto('/intake')
-  await page.locator('textarea.intake-notes').fill('vision hg gia 10tr fk HG-01')
-  await page.getByRole('button', { name: 'Tách thành danh sách' }).click()
-  const card = page.locator('.intake-entry').first()
-  const hgChip = card.locator('.intake-token-chip').filter({ hasText: 'hg' })
-  await expect(hgChip).toContainText('hg')
-
-  await hgChip.getByRole('button', { name: 'Học' }).click()
-  const lesson = page.locator('.intake-lesson-form')
-  await expect(lesson).toBeVisible()
-  await lesson.getByLabel('Viết tắt').fill('hg')
-  // Hãng/Dòng xe đã bị xoá nên "Trường điền" chỉ còn loại xe/màu/năm; dạy 'hg'
-  // = một tên loại xe ("Thành" là ô nhập tự do có gợi ý học từ Kho).
-  await lesson.getByLabel('Trường điền').selectOption('vehicle_type')
-  await lesson.getByLabel('Thành').fill('Xe tay ga')
-  await lesson.getByRole('button', { name: 'Lưu quy tắc' }).click()
-  await expect(page.getByText(/Đã học: "hg"/)).toBeVisible()
-
-  await page.getByRole('button', { name: 'Tách lại danh sách' }).click()
-  await expect(page.locator('.intake-entry').first().getByLabel('Loại xe *')).toHaveValue('Xe tay ga')
-
-  // The rule is persisted for this account and visible in the memory panel.
-  await page.reload()
-  await page.locator('.intake-dictionary summary').click()
+test('any role manages "Bộ nhớ viết tắt thu xe" in Settings and it feeds the next parse', async ({ page }) => {
+  // Cơ chế "Học" ngay trên thẻ tốc ký đã được thay bằng trang Cài đặt —
+  // nhân viên thường (STAFF) cũng thêm/xoá được quy tắc của chính mình.
+  await setupFixtures(page, { role: 'STAFF' })
+  await page.goto('/settings')
+  await page.getByRole('button', { name: 'Bộ nhớ viết tắt thu xe' }).click()
+  await expect(page.getByRole('heading', { name: 'Bộ nhớ viết tắt thu xe' })).toBeVisible()
+  const form = page.locator('.settings-rule-form')
+  await form.getByLabel('Viết tắt').fill('hg')
+  await form.getByLabel('Trường điền').selectOption('vehicle_type')
+  await form.getByLabel('Thành').fill('Xe tay ga')
+  await form.getByRole('button', { name: 'Lưu quy tắc' }).click()
   await expect(page.locator('.intake-rule-chip').filter({ hasText: 'hg' })).toContainText('Xe tay ga')
+
+  await page.goto('/intake')
+  await page.locator('textarea.intake-notes').fill('hg den gia 10tr fk HG-01')
+  await page.getByRole('button', { name: 'Tách thành danh sách' }).click()
+  await expect(page.locator('.intake-entry').first().getByLabel('Loại xe *')).toHaveValue('Xe tay ga')
 })
 
 test('server-side duplicates block the batch before anything is saved', async ({ page }) => {
@@ -145,7 +136,9 @@ test('server-side duplicates block the batch before anything is saved', async ({
   const card = page.locator('.intake-entry').first()
   await card.getByLabel('Loại xe *').fill('Xe tay ga')
   await page.getByRole('button', { name: /Thu 1 xe vào kho/ }).click()
-  await expect(page.locator('.intake-entry-issues li').first())
+  // Lỗi server định trường được hiển thị ngay tại ô nhập tương ứng,
+  // không còn dồn danh sách cảnh báo cuối thẻ.
+  await expect(card.locator('.field-error'))
     .toContainText('Số khung đã tồn tại')
   await expect(page.getByRole('alertdialog')).toHaveCount(0)
   expect(calls.imports).toHaveLength(0)
@@ -165,7 +158,7 @@ test('every role types the intake price: staff sees Giá thu, sends it, and cann
   // Bỏ giá thu thì nút lưu khóa lại kèm hướng dẫn bằng tiếng Việt.
   await card.getByLabel('Giá thu').fill('')
   await expect(page.getByRole('button', { name: /Thu 1 xe vào kho/ })).toBeDisabled()
-  await expect(card.locator('.intake-entry-issues')).toContainText('Nhập giá thu xe')
+  await expect(card.locator('.field-error')).toContainText('Nhập giá thu xe')
   await card.getByLabel('Giá thu').fill('20tr')
 
   await page.getByRole('button', { name: /Thu 1 xe vào kho/ }).click()

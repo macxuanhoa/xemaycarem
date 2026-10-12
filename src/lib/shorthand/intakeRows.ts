@@ -28,16 +28,25 @@ function moneyOf(entry: IntakeEntry, field: IntakeFieldKey): number | null | "in
   return parsed === null ? "invalid" : parsed;
 }
 
-/** Returns Vietnamese error messages for one entry; empty means ready to import. */
-export function validateIntakeEntry(entry: IntakeEntry): string[] {
-  const errors: string[] = [];
+/**
+ * Vietnamese error message theo từng trường của một entry; rỗng nghĩa là
+ * sẵn sàng nhập kho. Trang tốc ký gắn thẳng message vào ô nhập tương ứng
+ * thay vì dồn danh sách cảnh báo cuối thẻ. Chỉ Loại xe và Giá thu bắt buộc.
+ */
+export function validateIntakeEntry(
+  entry: IntakeEntry,
+): Partial<Record<IntakeFieldKey, string>> {
+  const errors: Partial<Record<IntakeFieldKey, string>> = {};
+  const fail = (field: IntakeFieldKey, message: string) => {
+    errors[field] ??= message;
+  };
   const f = entry.fields;
   // Loại xe là tên tự do, bắt buộc có; server sẽ tạo loại mới khi lưu nên
   // không còn đối chiếu danh mục ở bước validate tốc ký.
-  if (!(f.vehicle_type ?? "").trim()) errors.push("Nhập loại / dòng xe.");
+  if (!(f.vehicle_type ?? "").trim()) fail("vehicle_type", "Nhập loại / dòng xe.");
   // Số khung không còn bắt buộc — server sinh placeholder "GEN-…" khi trống.
   if (f.frame_number && f.frame_number.trim().length > MAX_FRAME)
-    errors.push(`Số khung tối đa ${MAX_FRAME} ký tự.`);
+    fail("frame_number", `Số khung tối đa ${MAX_FRAME} ký tự.`);
   // Mảnh rút gọn (dưới 11 ký tự chữ+số) phải đủ 5 ký tự để còn so khớp nghi trùng.
   const frameCompact = compactFrame(f.frame_number ?? "");
   if (
@@ -45,32 +54,31 @@ export function validateIntakeEntry(entry: IntakeEntry): string[] {
     frameKindFromCompact(frameCompact) === "PARTIAL" &&
     frameCompact.length < 5
   )
-    errors.push("Số khung rút gọn cần đủ 5 ký tự (chữ hoặc số).");
+    fail("frame_number", "Số khung rút gọn cần đủ 5 ký tự (chữ hoặc số).");
   // Biển số không bắt buộc, nhưng nếu có thì phải đúng format xe máy VN —
   // tránh nhập bậy vẫn được nhận. Rỗng/whitespace luôn hợp lệ.
   const plate = (f.license_plate ?? "").trim();
-  if (plate.length > MAX_PLATE) errors.push(`Biển số tối đa ${MAX_PLATE} ký tự.`);
-  else if (!isValidMotorbikePlate(plate)) errors.push(PLATE_INVALID_MESSAGE);
+  if (plate.length > MAX_PLATE) fail("license_plate", `Biển số tối đa ${MAX_PLATE} ký tự.`);
+  else if (!isValidMotorbikePlate(plate)) fail("license_plate", PLATE_INVALID_MESSAGE);
   if (f.year) {
     const year = normalizeVehicleYear(f.year);
     if (year == null || year < 1900 || year > 2100)
-      errors.push("Năm sản xuất phải từ 1900 đến 2100.");
+      fail("year", "Năm sản xuất phải từ 1900 đến 2100.");
   }
   if (f.purchase_date) {
     if (!/^\d{4}-\d{2}-\d{2}$/.test(f.purchase_date))
-      errors.push("Ngày thu không hợp lệ (định dạng dd/mm/yyyy).");
+      fail("purchase_date", "Ngày thu không hợp lệ (định dạng dd/mm/yyyy).");
     else if (f.purchase_date > today())
-      errors.push("Ngày thu không được ở tương lai.");
+      fail("purchase_date", "Ngày thu không được ở tương lai.");
   }
   // Giá thu bắt buộc với MỌI role ngay khi đưa xe vào kho (server cũng chặn
   // PURCHASE_PRICE_REQUIRED), nhờ đó hồ sơ xe luôn có giá vốn từ đầu.
   const purchase = moneyOf(entry, "purchase_price");
-  if (purchase === null) errors.push("Nhập giá thu xe (vd: 18tr5).");
-  else if (purchase === "invalid") errors.push("Giá thu không hợp lệ (vd: 18tr5).");
-  else if (purchase <= 0) errors.push("Giá thu phải lớn hơn 0.");
-  if ((f.supplier_name ?? "").length > 200) errors.push("Tên người bán quá dài.");
-  if ((f.supplier_phone ?? "").length > 40) errors.push("SĐT người bán quá dài.");
-  if ((f.notes ?? "").length > 10_000) errors.push("Ghi chú quá dài.");
+  if (purchase === null) fail("purchase_price", "Nhập giá thu xe (vd: 18tr5).");
+  else if (purchase === "invalid") fail("purchase_price", "Giá thu không hợp lệ (vd: 18tr5).");
+  else if (purchase <= 0) fail("purchase_price", "Giá thu phải lớn hơn 0.");
+  if ((f.supplier_name ?? "").length > 200) fail("supplier_name", "Tên người bán quá dài.");
+  if ((f.supplier_phone ?? "").length > 40) fail("supplier_phone", "SĐT người bán quá dài.");
   return errors;
 }
 
@@ -97,24 +105,4 @@ export function entryToImportRow(entry: IntakeEntry): Record<string, unknown> {
   const purchase = moneyOf(entry, "purchase_price");
   if (typeof purchase === "number") row.purchase_price = purchase;
   return row;
-}
-
-/** Draft for /acquisitions/new (single-vehicle form uses seller_* field names). */
-export function entryToAcquisitionDraft(
-  entry: IntakeEntry,
-): Record<string, unknown> {
-  const f = entry.fields;
-  const frame = (f.frame_number ?? "").trim().toUpperCase();
-  const draft: Record<string, unknown> = {
-    frame_number: frame,
-    license_plate: canonicalizePlate(f.license_plate ?? ""),
-    vehicle_type: (f.vehicle_type ?? "").trim(),
-    color: (f.color ?? "").trim(),
-    seller_name: (f.supplier_name ?? "").trim(),
-    seller_phone: (f.supplier_phone ?? "").trim(),
-    notes: (f.notes ?? "").trim(),
-  };
-  if (f.year) draft.year = normalizeVehicleYear(f.year) ?? Number(f.year);
-  if (f.purchase_date) draft.acquisition_date = f.purchase_date;
-  return draft;
 }

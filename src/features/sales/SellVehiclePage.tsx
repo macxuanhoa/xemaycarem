@@ -630,17 +630,29 @@ function SaleEditor({ vehicle }: { vehicle: Vehicle }) {
                 />
               </Field>
             </div>
-            {/* Nút toggle thêm/ẩn chi tiết thanh toán */}
-            <Button
-              type="button"
-              variant="ghost"
-              className="sale-payment-details-toggle"
-              onClick={() => setShowPaymentDetails((v) => !v)}
-              aria-expanded={showPaymentDetails}
-            >
-              {showPaymentDetails ? <ChevronUp size={15} /> : <ChevronDown size={15} />}
-              {showPaymentDetails ? "Ẩn chi tiết thanh toán" : "Thêm chi tiết thanh toán"}
-            </Button>
+            {/* Hàng luôn hiển thị: nút toggle chi tiết thanh toán + nút Tạo VietQR.
+                Nút QR đặt ở ngoài khu gập để nhân viên tạo mã chuyển khoản
+                ngay khi nhập giá, không phải mở "chi tiết thanh toán" trước. */}
+            <div className="sale-payment-actions-row">
+              <Button
+                type="button"
+                variant="ghost"
+                className="sale-payment-details-toggle"
+                onClick={() => setShowPaymentDetails((v) => !v)}
+                aria-expanded={showPaymentDetails}
+              >
+                {showPaymentDetails ? <ChevronUp size={15} /> : <ChevronDown size={15} />}
+                {showPaymentDetails ? "Ẩn chi tiết thanh toán" : "Thêm chi tiết thanh toán"}
+              </Button>
+              <Button
+                type="button"
+                variant="secondary"
+                className="sale-vietqr-button"
+                onClick={handleOpenVietQr}
+              >
+                <QrCode size={15} /> Tạo VietQR
+              </Button>
+            </div>
             {/* Fields stay mounted so "đã trả trước" attaches at first paint
                 like "Bán với giá" (a late-mounted controlled money input lets
                 react-hook-form write the NaN blank-sentinel into the DOM as
@@ -672,23 +684,13 @@ function SaleEditor({ vehicle }: { vehicle: Vehicle }) {
                   />
                 </Field>
                 <Field label="Hình thức thanh toán">
-                  <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
-                    <select style={{ flex: 1 }} {...form.register("payment_method")}>
-                      {Object.entries(paymentLabels).map(([value, label]) => (
-                        <option value={value} key={value}>
-                          {label}
-                        </option>
-                      ))}
-                    </select>
-                    <Button
-                      type="button"
-                      variant="secondary"
-                      onClick={handleOpenVietQr}
-                      style={{ whiteSpace: "nowrap", display: "inline-flex", alignItems: "center", gap: 5 }}
-                    >
-                      <QrCode size={15} /> Tạo VietQR
-                    </Button>
-                  </div>
+                  <select {...form.register("payment_method")}>
+                    {Object.entries(paymentLabels).map(([value, label]) => (
+                      <option value={value} key={value}>
+                        {label}
+                      </option>
+                    ))}
+                  </select>
                 </Field>
                 <Field
                   label="Hạn thanh toán (nếu còn nợ)"

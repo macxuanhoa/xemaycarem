@@ -1,7 +1,8 @@
 /**
  * Thu xe tốc ký — paste phone-note shorthand, review a structured list,
- * teach the tool every abbreviation you correct, then intake the whole
- * batch atomically through `import_vehicles`.
+ * then intake the whole batch atomically through `import_vehicles`.
+ * Cơ chế "Học" và ô Ghi chú trên thẻ đã gỡ khỏi tốc ký; bộ nhớ viết tắt
+ * giờ quản lý trong Cài đặt ("Bộ nhớ viết tắt thu xe").
  */
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
@@ -10,11 +11,8 @@ import {
   ArrowLeft,
   CheckCircle2,
   ClipboardPaste,
-  GraduationCap,
   NotebookPen,
-  Plus,
   Trash2,
-  X,
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { AppError, friendlyError } from "@/lib/errors";
@@ -43,19 +41,9 @@ import {
   type IntakeFieldKey,
   type LearnedDictionary,
 } from "@/lib/shorthand/parseIntakeNotes";
-import {
-  forgetRule,
-  learnRule,
-  listRules,
-  loadDictionary,
-  LOCAL_LEARNING_FIELDS,
-} from "@/lib/shorthand/learnedDictionary";
+import { loadDictionary } from "@/lib/shorthand/learnedDictionary";
 import { normalizeKey } from "@/lib/shorthand/vocabulary";
-import {
-  entryToAcquisitionDraft,
-  entryToImportRow,
-  validateIntakeEntry,
-} from "@/lib/shorthand/intakeRows";
+import { entryToImportRow, validateIntakeEntry } from "@/lib/shorthand/intakeRows";
 import { vehicleSuggestions } from "@/lib/vehicleSuggestions";
 import {
   parseRecognition,
@@ -99,12 +87,10 @@ function parseReviewedIntakeMoney(text: string): number | undefined {
     : undefined;
 }
 
-/** Fields worth memorizing when the user types a better value than the token. */
-const TEACHABLE_FIELDS = new Set<IntakeFieldKey>([
-  "vehicle_type",
-  "color",
-  "year",
-]);
+/** Trường mà thẻ tốc ký có thể nhận cảnh báo ngay tại ô nhập. */
+const INTAKE_FIELD_KEYS = new Set<IntakeFieldKey>(
+  INTAKE_FIELDS.map((field) => field.key),
+);
 
 // Defer Storage getter access until the dictionary helper's guarded read/write.
 // Passing localStorage directly can throw before those guards are entered.
@@ -157,29 +143,13 @@ export default function ShorthandIntakePage() {
       entry.photos = cameraRecognition.photos;
     return [entry];
   });
-  const [dict, setDict] = useState<LearnedDictionary>(() =>
+  const [dict] = useState<LearnedDictionary>(() =>
     loadDictionary(profile?.id, dictionaryStorage),
   );
-  const [dictionaryChanged, setDictionaryChanged] = useState(false);
-  const [lesson, setLesson] = useState<{
-    key: string;
-    field: IntakeFieldKey;
-    value: string;
-  } | null>(null);
-  const dictionaryRef = useRef<HTMLDetailsElement>(null);
   const notesRef = useRef<HTMLTextAreaElement>(null);
-  // Opening the lesson form must also expand the collapsed memory panel.
-  const openLesson = (next: {
-    key: string;
-    field: IntakeFieldKey;
-    value: string;
-  }) => {
-    setLesson(next);
-    if (dictionaryRef.current) dictionaryRef.current.open = true;
-  };
-  const [serverIssues, setServerIssues] = useState<Record<number, string[]>>(
-    {},
-  );
+  const [serverIssues, setServerIssues] = useState<
+    Record<number, ImportIssue[]>
+  >({});
 
   const [text, setText] = useState(seedText);
   const entriesEdited = useRef(false);
@@ -249,10 +219,9 @@ export default function ShorthandIntakePage() {
     }));
     setEntries(parsed);
     setServerIssues({});
-    setDictionaryChanged(false);
     if (!parsed.length)
       toast.info(
-        'Chưa tách được dòng nào. Mỗi dòng là một xe, ví dụ: "tay ga den 18tr5".',
+        'Chưa tách được dòng nào. Mỗi dòng là một xe, ví dụ: "ab 29b1 123.45 gia 18tr5".',
       );
   };
 
@@ -303,45 +272,6 @@ export default function ShorthandIntakePage() {
   const removeEntry = (id: string) =>
     setEntries((prev) => prev.filter((entry) => entry.id !== id));
 
-  const saveLesson = () => {
-    if (!lesson || !lesson.key.trim() || !lesson.value.trim()) return;
-    setDict(
-      learnRule(
-        profile?.id,
-        lesson.key,
-        lesson.field,
-        lesson.value,
-        dictionaryStorage,
-      ),
-    );
-    setDictionaryChanged(true);
-    toast.success(
-      `Đã học: "${lesson.key.trim()}" = ${lesson.value.trim()} (${
-        INTAKE_FIELDS.find((f) => f.key === lesson.field)?.label ?? lesson.field
-      }).`,
-    );
-    setLesson(null);
-  };
-
-  const teachFromEdit = (entry: IntakeEntry, field: IntakeFieldKey) => {
-    const token = entry.provenance[field];
-    const value = entry.fields[field];
-    if (!token || !value) return;
-    openLesson({ key: token, field, value });
-  };
-
-  const assignTokenToNotes = (entry: IntakeEntry, token: string) => {
-    const notes = entry.fields.notes ? `${entry.fields.notes} ${token}` : token;
-    updateField(entry.id, "notes", notes);
-    setEntries((prev) =>
-      prev.map((e) =>
-        e.id === entry.id
-          ? { ...e, unknownTokens: e.unknownTokens.filter((t) => t !== token) }
-          : e,
-      ),
-    );
-  };
-
   const submit = useMutation({
     mutationFn: async () => {
       if (!profile)
@@ -367,9 +297,9 @@ export default function ShorthandIntakePage() {
       const check = await api.call<ImportCheck>("validate_import_vehicles", {
         p_vehicles: rows,
       });
-      const issues: Record<number, string[]> = {};
+      const issues: Record<number, ImportIssue[]> = {};
       for (const issue of [...check.duplicates, ...check.errors])
-        (issues[issue.index] ??= []).push(issue.message);
+        (issues[issue.index] ??= []).push(issue);
       if (Object.keys(issues).length) {
         setServerIssues(issues);
         return { status: "invalid" as const };
@@ -416,6 +346,7 @@ export default function ShorthandIntakePage() {
     },
   });
 
+  // Cảnh báo validate gắn thẳng vào ô nhập tương ứng (không dồn cuối thẻ).
   const clientErrorsByEntry = useMemo(
     () => entries.map((entry) => validateIntakeEntry(entry)),
     [entries],
@@ -449,13 +380,12 @@ export default function ShorthandIntakePage() {
     return null;
   };
   const blockingCount = clientErrorsByEntry.filter(
-    (list) => list.length,
+    (errors) => Object.keys(errors).length > 0,
   ).length;
   const unknownCount = entries.reduce(
     (sum, entry) => sum + entry.unknownTokens.length,
     0,
   );
-  const rules = listRules(dict);
 
   return (
     <div className="stack intake-page">
@@ -497,7 +427,7 @@ export default function ShorthandIntakePage() {
           rows={4}
           value={text}
           onChange={(event) => setText(event.target.value)}
-          placeholder="tay ga den 29b1 123.45 21 gia 18tr5"
+          placeholder="ab 29b1 123.45 21 gia 18tr5"
           aria-label="Ghi chú tốc ký danh sách xe cần thu"
         />
         <div className="row intake-notes-actions">
@@ -511,7 +441,7 @@ export default function ShorthandIntakePage() {
           <span className="muted small">
             {entries.length
               ? `${entries.length} xe đã tách · ${unknownCount} từ chưa nhận diện`
-              : "Càng sửa, lần sau tách càng đúng."}
+              : "Mỗi dòng là một xe."}
           </span>
         </div>
         {entries.some((entry) => entry.sourceLine === "Camera thông minh") && (
@@ -520,42 +450,38 @@ export default function ShorthandIntakePage() {
             trước khi thu xe. Ảnh camera sẽ đính vào xe sau khi lưu.
           </div>
         )}
-        {dictionaryChanged && entries.length > 0 && (
-          <div className="notice" role="status">
-            Bộ nhớ viết tắt vừa được cập nhật.
-            <Button
-              type="button"
-              variant="ghost"
-              onClick={() => void handleParse()}
-            >
-              Tách lại danh sách
-            </Button>
-          </div>
-        )}
       </Card>
 
       {entries.map((entry, index) => {
-        const hints = Object.entries(entry.provenance).filter(
-          ([field, token]) =>
-            TEACHABLE_FIELDS.has(field as IntakeFieldKey) &&
-            entry.fields[field as IntakeFieldKey] &&
-            normalizeKey(String(token)) !==
-              normalizeKey(String(entry.fields[field as IntakeFieldKey])) &&
-            String(token).length <= 24,
-        ) as [IntakeFieldKey, string][];
-        const issues = [
-          ...clientErrorsByEntry[index],
-          ...(serverIssues[index] ?? []),
-        ];
+        // Validate hiển thị ngay tại ô nhập: lỗi client theo trường nào hiện ở
+        // trường đó; lỗi server (trùng lặp…) gắn được trường thì hiện tại
+        // trường đó, không xác định được trường mới dồn lên đầu thẻ.
+        const fieldMessages: Partial<Record<IntakeFieldKey, string[]>> = {};
+        const pushMessage = (field: IntakeFieldKey, message: string) =>
+          ((fieldMessages[field] ??= []).push(message));
+        for (const [field, message] of Object.entries(
+          clientErrorsByEntry[index],
+        ) as [IntakeFieldKey, string][])
+          pushMessage(field, message);
+        const otherIssues: string[] = [];
+        for (const issue of serverIssues[index] ?? []) {
+          const field = issue.field as IntakeFieldKey;
+          if (INTAKE_FIELD_KEYS.has(field)) pushMessage(field, issue.message);
+          else otherIssues.push(issue.message);
+        }
+        const errorFor = (field: IntakeFieldKey) =>
+          fieldMessages[field]?.join(" ");
+        const hasIssues =
+          Object.keys(fieldMessages).length > 0 || otherIssues.length > 0;
         return (
           <Card
             key={entry.id}
-            className={`intake-entry ${issues.length ? "has-issues" : ""}`}
+            className={`intake-entry ${hasIssues ? "has-issues" : ""}`}
           >
             <div className="section-heading">
               <h2 className="section-title" style={{ margin: 0 }}>
                 Xe {index + 1}
-                {issues.length ? <span className="intake-issue-dot" /> : null}
+                {hasIssues ? <span className="intake-issue-dot" /> : null}
               </h2>
               <button
                 type="button"
@@ -567,6 +493,13 @@ export default function ShorthandIntakePage() {
               </button>
             </div>
             <p className="muted small intake-source">Gốc: {entry.sourceLine}</p>
+            {!!otherIssues.length && (
+              <ul className="intake-entry-issues" role="alert">
+                {otherIssues.map((message) => (
+                  <li key={message}>{message}</li>
+                ))}
+              </ul>
+            )}
             {!!entry.photos?.length && (
               <div
                 className="intake-camera-photos"
@@ -605,6 +538,7 @@ export default function ShorthandIntakePage() {
             <div className="form-grid intake-entry-grid">
               <Field
                 label="Loại xe *"
+                error={errorFor("vehicle_type")}
                 className={cameraClass(entry, "vehicle_type", "intake-span2")}
               >
                 <AutocompleteInput
@@ -620,6 +554,7 @@ export default function ShorthandIntakePage() {
               </Field>
               <Field
                 label="Số khung"
+                error={errorFor("frame_number")}
                 className={cameraClass(entry, "frame_number")}
               >
                 <input
@@ -643,6 +578,7 @@ export default function ShorthandIntakePage() {
               </Field>
               <Field
                 label="Biển số"
+                error={errorFor("license_plate")}
                 className={cameraClass(entry, "license_plate")}
               >
                 <input
@@ -689,6 +625,7 @@ export default function ShorthandIntakePage() {
               </Field>
               <Field
                 label="Năm sản xuất"
+                error={errorFor("year")}
                 className={cameraClass(entry, "year")}
               >
                 <input
@@ -709,7 +646,7 @@ export default function ShorthandIntakePage() {
                 />
                 {cameraNote(entry, "year")}
               </Field>
-              <Field label="Ngày thu">
+              <Field label="Ngày thu" error={errorFor("purchase_date")}>
                 <input
                   value={dateDisplay(entry.fields.purchase_date ?? "")}
                   onChange={(event) =>
@@ -726,7 +663,7 @@ export default function ShorthandIntakePage() {
                   autoCorrect="off"
                 />
               </Field>
-              <Field label="Giá thu">
+              <Field label="Giá thu *" error={errorFor("purchase_price")}>
                 <IntakeMoneyInput
                   ariaLabel="Giá thu"
                   value={entry.fields.purchase_price ?? ""}
@@ -735,20 +672,17 @@ export default function ShorthandIntakePage() {
                   }
                   placeholder="18tr5"
                 />
-                {entry.fields.purchase_price?.trim() ? null : (
-                  <small className="muted">Bắt buộc khi thu xe.</small>
-                )}
               </Field>
-              <Field label="Tên người bán">
+              <Field label="Tên người bán" error={errorFor("supplier_name")}>
                 <input
                   value={entry.fields.supplier_name ?? ""}
                   onChange={(event) =>
                     updateField(entry.id, "supplier_name", event.target.value)
                   }
-                  placeholder="Nam"
+                  placeholder="Nguyễn Văn An"
                 />
               </Field>
-              <Field label="SĐT người bán">
+              <Field label="SĐT người bán" error={errorFor("supplier_phone")}>
                 <input
                   value={entry.fields.supplier_phone ?? ""}
                   onChange={(event) =>
@@ -758,82 +692,6 @@ export default function ShorthandIntakePage() {
                   placeholder="0901234567"
                 />
               </Field>
-            </div>
-            <Field label="Ghi chú">
-              <textarea
-                rows={2}
-                value={entry.fields.notes ?? ""}
-                onChange={(event) =>
-                  updateField(entry.id, "notes", event.target.value)
-                }
-                placeholder="Tình trạng, giấy tờ, phụ kiện…"
-              />
-            </Field>
-
-            {(entry.unknownTokens.length > 0 || hints.length > 0) && (
-              <div className="intake-learn-strip">
-                {entry.unknownTokens.map((token) => (
-                  <span className="intake-token-chip" key={token}>
-                    <code>{token}</code>
-                    <button
-                      type="button"
-                      onClick={() => assignTokenToNotes(entry, token)}
-                    >
-                      + Ghi chú
-                    </button>
-                    <button
-                      type="button"
-                      className="teach"
-                      onClick={() =>
-                        openLesson({
-                          key: token,
-                          field: "vehicle_type",
-                          value: "",
-                        })
-                      }
-                    >
-                      <GraduationCap size={13} /> Học
-                    </button>
-                  </span>
-                ))}
-                {hints.map(([field, token]) => (
-                  <button
-                    type="button"
-                    className="intake-hint"
-                    key={`${field}:${token}`}
-                    onClick={() => teachFromEdit(entry, field)}
-                  >
-                    <Plus size={13} /> Học: “{token}” = “{entry.fields[field]}”?
-                  </button>
-                ))}
-              </div>
-            )}
-
-            {!!issues.length && (
-              <ul className="intake-entry-issues" role="alert">
-                {issues.map((message) => (
-                  <li key={message}>{message}</li>
-                ))}
-              </ul>
-            )}
-            <div className="row" style={{ gap: "8px" }}>
-              <Button
-                type="button"
-                variant="secondary"
-                disabled={
-                  !entry.fields.frame_number ||
-                  !(entry.fields.vehicle_type ?? "").trim()
-                }
-                onClick={() =>
-                  navigate("/acquisitions/new", {
-                    state: {
-                      aiDraft: entryToAcquisitionDraft(entry),
-                    },
-                  })
-                }
-              >
-                Mở biểu mẫu thu xe
-              </Button>
             </div>
           </Card>
         );
@@ -851,8 +709,8 @@ export default function ShorthandIntakePage() {
           </div>
           {unknownCount > 0 && (
             <p className="muted small">
-              Còn {unknownCount} từ chưa nhận diện — gán vào ghi chú hoặc dạy Cà
-              Rem để lần sau tự hiểu.
+              Còn {unknownCount} từ chưa nhận diện — hệ thống bỏ qua khi lưu;
+              thiếu thông tin nào hãy bổ sung trực tiếp vào thẻ xe đó.
             </p>
           )}
           <div className="form-actions">
@@ -878,115 +736,6 @@ export default function ShorthandIntakePage() {
         </Card>
       )}
 
-      <Card className="intake-dictionary">
-        <details ref={dictionaryRef}>
-          <summary>
-            <GraduationCap size={15} aria-hidden="true" /> Bộ nhớ viết tắt của
-            bạn ({rules.length})
-          </summary>
-          <p className="muted small">
-            Cà Rem học riêng theo tài khoản của bạn và lưu trên thiết bị này.
-            Mỗi lần bạn sửa hoặc dạy một từ viết tắt, lần dán sau sẽ tự đúng
-            hơn.
-          </p>
-          {lesson && (
-            <div className="intake-lesson-form">
-              <Field label="Viết tắt">
-                <input
-                  value={lesson.key}
-                  onChange={(event) =>
-                    setLesson({ ...lesson, key: event.target.value })
-                  }
-                  autoFocus
-                />
-              </Field>
-              <Field label="Trường điền">
-                <select
-                  value={lesson.field}
-                  onChange={(event) => {
-                    const field = event.target.value as IntakeFieldKey;
-                    setLesson({
-                      ...lesson,
-                      field,
-                      // Loại xe là tên tự do nên giữ nguyên giá trị đã gõ
-                      // khi chuyển sang trường này (không bắt khớp danh mục).
-                      value: lesson.value,
-                    });
-                  }}
-                >
-                  {INTAKE_FIELDS.filter((field) =>
-                    LOCAL_LEARNING_FIELDS.has(field.key),
-                  ).map((field) => (
-                    <option key={field.key} value={field.key}>
-                      {field.label}
-                    </option>
-                  ))}
-                </select>
-              </Field>
-              <Field label="Thành">
-                {lesson.field === "vehicle_type" ? (
-                  <AutocompleteInput
-                    aria-label="Thành"
-                    value={lesson.value}
-                    onChange={(value) => setLesson({ ...lesson, value })}
-                    suggestions={typeNames}
-                    maxSuggestions={10}
-                    placeholder="VD: Honda Vision"
-                  />
-                ) : (
-                  <input
-                    value={lesson.value}
-                    onChange={(event) =>
-                      setLesson({ ...lesson, value: event.target.value })
-                    }
-                    placeholder="Ví dụ: Đen"
-                  />
-                )}
-              </Field>
-              <div className="row" style={{ gap: "8px" }}>
-                <Button
-                  type="button"
-                  onClick={saveLesson}
-                  disabled={!lesson.value.trim()}
-                >
-                  Lưu quy tắc
-                </Button>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  onClick={() => setLesson(null)}
-                >
-                  <X size={14} /> Đóng
-                </Button>
-              </div>
-            </div>
-          )}
-          {!!rules.length && (
-            <div className="intake-rule-list">
-              {rules.map((rule) => (
-                <span className="intake-rule-chip" key={rule.key}>
-                  <code>{rule.key}</code> → {rule.value}
-                  <small>
-                    {INTAKE_FIELDS.find((f) => f.key === rule.field)?.label ??
-                      rule.field}
-                  </small>
-                  <button
-                    type="button"
-                    aria-label={`Quên quy tắc ${rule.key}`}
-                    onClick={() =>
-                      setDict(
-                        forgetRule(profile?.id, rule.key, dictionaryStorage),
-                      )
-                    }
-                  >
-                    <X size={12} />
-                  </button>
-                </span>
-              ))}
-            </div>
-          )}
-        </details>
-      </Card>
     </div>
   );
 }

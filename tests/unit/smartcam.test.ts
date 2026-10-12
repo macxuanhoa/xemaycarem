@@ -194,7 +194,8 @@ describe("intake handoff", () => {
     for (const purged of ["brand", "model", "variant", "engine_number", "odometer"])
       expect(entry.provenance as Record<string, unknown>).not.toHaveProperty(purged);
     expect(entry.fieldStatus?.license_plate).toBe("SUGGESTED");
-    expect(entry.fields.notes).toContain("Chưa tìm thấy trong kho");
+    // Cơ chế Ghi chú đã gỡ khỏi tốc ký — camera không còn nhét lời nhắn notes.
+    expect(entry.fields).not.toHaveProperty("notes");
   });
 
   it("no beep key repeats for the same vehicle across rescans", () => {
@@ -267,14 +268,14 @@ describe("intakeRows compatibility", () => {
     const entry = recognitionToIntakeEntry(recognition, "entry-2", "2026-10-06");
     // Ảnh không đọc được loại xe -> thẻ bắt buộc nhân viên nhập tên loại xe,
     // đúng luật VEHICLE_TYPE_REQUIRED phía server.
-    expect(validateIntakeEntry(entry).join(" ")).toMatch(/dòng xe/);
+    expect(Object.values(validateIntakeEntry(entry)).join(" ")).toMatch(/dòng xe/);
     // Giá thu là bắt buộc với mọi role khi đưa xe vào kho (2026-10-10).
     const typed = {
       ...entry,
       fields: { ...entry.fields, vehicle_type: "Xe tay ga", purchase_price: "18tr5" },
     };
-    expect(validateIntakeEntry(typed)).toEqual([]);
+    expect(validateIntakeEntry(typed)).toEqual({});
     const bad = { ...typed, fields: { ...typed.fields, license_plate: "XYZ" } };
-    expect(validateIntakeEntry(bad).length).toBeGreaterThan(0);
+    expect(validateIntakeEntry(bad).license_plate).toBeDefined();
   });
 });

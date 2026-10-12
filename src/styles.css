@@ -2940,29 +2940,44 @@ pre {
 [data-theme="dark"] .vehicle-actions-menu-danger:focus-visible {
   background: rgba(244, 63, 94, 0.12);
 }
-/* Xe hành động (VehicleActionsSheet): danh sách thao tác dạng hàng — icon
-   khung màu mềm bên trái, nhãn thẳng hàng, mũi tên cho điều hướng. Desktop
-   là thẻ modal gọn; mobile neo đáy kiểu bottom sheet có tay nắm. */
+/* Xe hành động (VehicleActionsSheet): bảng thao tác mở từ dấu 3 chấm của mỗi
+   chiếc xe trong tồn kho. Đầu sheet là "hero" danh tính: ô màu xe + tên xe to,
+   bên dưới là bộ chip biển số/số khung giống thẻ danh sách. Hàng thao tác
+   đầy đặn: icon khung màu mềm, nhãn đậm, mũi tên cho điều hướng. Desktop là
+   thẻ modal gọn; mobile neo đáy kiểu bottom sheet có tay nắm. */
 .vehicle-actions-sheet {
-  width: min(420px, 100%);
-  padding: 18px;
+  width: min(460px, 100%);
+  padding: 20px;
 }
 .vas-handle {
   display: none;
 }
 .vas-header {
   display: flex;
-  align-items: center;
-  gap: 11px;
-  margin-bottom: 14px;
+  flex-direction: column;
+  gap: 12px;
+  margin: -4px -4px 16px;
+  padding: 14px;
+  border: 1px solid #eef1f7;
+  border-radius: 16px;
+  background: linear-gradient(160deg, #f8fafc 0%, #f2f5fa 100%);
 }
-.vas-dot {
+.vas-headline {
+  display: flex;
+  align-items: center;
+  gap: 13px;
+  width: 100%;
+}
+.vas-avatar {
   flex: 0 0 auto;
-  width: 12px;
-  height: 12px;
-  border-radius: 50%;
-  border: 1px solid rgba(15, 23, 42, 0.14);
-  box-shadow: inset 0 0 0 1.5px rgba(255, 255, 255, 0.35);
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 14px;
+  color: #fff;
+  border: 1px solid rgba(15, 23, 42, 0.12);
+  box-shadow: 0 6px 14px -8px rgba(15, 23, 42, 0.5), inset 0 0 0 1px rgba(255, 255, 255, 0.22);
 }
 .vas-heading {
   flex: 1 1 auto;
@@ -2970,49 +2985,47 @@ pre {
 }
 .vas-heading h3 {
   margin: 0;
-  font-size: 15px;
-  font-weight: 700;
-  line-height: 1.3;
-  letter-spacing: -0.2px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.vas-subtitle {
-  margin: 2px 0 0;
-  font-size: 12px;
-  color: #64748b;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  font-size: 18px;
+  font-weight: 800;
+  line-height: 1.28;
+  letter-spacing: -0.35px;
+  color: #0f172a;
+  text-wrap: balance;
 }
 .vas-close {
   flex: 0 0 auto;
 }
+/* Chip danh tính trong hero chiếm hết chiều ngang hàng để đầu sheet đầy đặn,
+   không lơ lửng nửa dòng như trên thẻ danh sách. */
+.vehicle-actions-sheet .vas-header .title-chip {
+  flex: 1 1 auto;
+}
 .vas-list {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 6px;
 }
 .vas-row {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 13px;
   width: 100%;
-  padding: 9px 10px;
+  min-height: 56px;
+  padding: 11px 12px;
   border: 1px solid transparent;
-  border-radius: 12px;
+  border-radius: 14px;
   background: transparent;
   color: #1e293b;
-  font-size: 14px;
-  font-weight: 600;
+  font-size: 15px;
+  font-weight: 650;
   text-align: left;
   cursor: pointer;
-  transition: background 0.15s ease, border-color 0.15s ease;
+  transition: background 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
 }
 .vas-row:hover {
   background: #f6f7fb;
   border-color: #e8ebf3;
+  box-shadow: 0 2px 8px -6px rgba(15, 23, 42, 0.28);
 }
 .vas-row:active {
   background: #eef0f7;
@@ -3021,9 +3034,9 @@ pre {
   flex: 0 0 auto;
   display: grid;
   place-items: center;
-  width: 34px;
-  height: 34px;
-  border-radius: 10px;
+  width: 38px;
+  height: 38px;
+  border-radius: 12px;
 }
 .vas-tile-neutral {
   background: #f1f5f9;
@@ -3070,17 +3083,18 @@ pre {
 }
 .vas-sep {
   height: 1px;
-  margin: 5px 8px;
+  margin: 8px 10px;
   background: #e8ebf3;
 }
 [data-theme="dark"] .vas-header {
+  background: linear-gradient(160deg, #1b1d26 0%, #17181f 100%);
   border-color: #262833;
 }
-[data-theme="dark"] .vas-dot {
-  border-color: rgba(255, 255, 255, 0.18);
+[data-theme="dark"] .vas-heading h3 {
+  color: #eef1f8;
 }
-[data-theme="dark"] .vas-subtitle {
-  color: #8f96a8;
+[data-theme="dark"] .vas-avatar {
+  border-color: rgba(255, 255, 255, 0.16);
 }
 [data-theme="dark"] .vas-row {
   color: #dcdfe9;
@@ -3088,6 +3102,7 @@ pre {
 [data-theme="dark"] .vas-row:hover {
   background: #1c1e28;
   border-color: #262833;
+  box-shadow: none;
 }
 [data-theme="dark"] .vas-row:active {
   background: #22242f;
@@ -3133,25 +3148,30 @@ pre {
   .vehicle-actions-sheet {
     width: 100%;
     max-height: min(78dvh, calc(100dvh - 96px));
-    border-radius: 20px 20px 0 0;
-    padding: 8px 16px calc(14px + env(safe-area-inset-bottom));
+    border-radius: 22px 22px 0 0;
+    padding: 10px 16px calc(16px + env(safe-area-inset-bottom));
     animation: vasSheetUp 0.2s cubic-bezier(0.16, 1, 0.3, 1);
   }
   .vas-handle {
     display: block;
     width: 36px;
     height: 4px;
-    margin: 0 auto 10px;
+    margin: 0 auto 12px;
     border-radius: 999px;
     background: #d3d8e2;
   }
   .vas-header {
-    margin-bottom: 10px;
+    margin: 0 -4px 12px;
+    padding: 12px 10px;
+    gap: 10px;
+  }
+  .vas-heading h3 {
+    font-size: 17px;
   }
   .vas-row {
-    padding: 10px;
-    min-height: 52px;
-    font-size: 14px;
+    padding: 12px;
+    min-height: 56px;
+    font-size: 15px;
   }
   [data-theme="dark"] .vas-handle {
     background: rgba(220, 235, 226, 0.24);
@@ -11684,6 +11704,11 @@ html[data-theme="dark"] .header-theme-toggle {
   margin: 2px 0 12px;
   overflow-wrap: anywhere;
 }
+/* "Loại xe" luôn chiếm trọn hàng của lưới 2 cột trong thẻ tốc ký — kể cả trên
+   desktop — để các ô ngắn phía sau ghép đúng cặp (Màu sắc | Năm sản xuất...). */
+.intake-entry-grid .intake-span2 {
+  grid-column: 1 / -1;
+}
 .intake-issue-dot {
   display: inline-block;
   width: 8px;
@@ -11725,79 +11750,6 @@ html[data-theme="dark"] .header-theme-toggle {
   border-radius: 8px;
   padding: 6px 10px;
 }
-.intake-learn-strip {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  margin-top: 14px;
-}
-.intake-token-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  background: #f8fafc;
-  border: 1px dashed #cbd5e1;
-  border-radius: 999px;
-  padding: 4px 6px 4px 10px;
-  font-size: 12.5px;
-  color: #334155;
-}
-.intake-token-chip code {
-  font-size: 12px;
-}
-.intake-token-chip button {
-  border: none;
-  background: #eef2f7;
-  border-radius: 999px;
-  padding: 3px 9px;
-  font-size: 11.5px;
-  cursor: pointer;
-  display: inline-flex;
-  align-items: center;
-  gap: 3px;
-  color: #475569;
-  transition:
-    background 150ms ease,
-    color 150ms ease;
-}
-.intake-token-chip button:hover {
-  background: #e2e8f0;
-}
-.intake-token-chip button.teach {
-  color: #4338ca;
-}
-.intake-token-chip button.teach:hover {
-  background: #e0e7ff;
-}
-.intake-hint {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  border: 1px solid #c7d2fe;
-  background: #eef2ff;
-  color: #3730a3;
-  border-radius: 999px;
-  padding: 5px 12px;
-  font-size: 12.5px;
-  cursor: pointer;
-  transition: box-shadow 150ms ease;
-}
-.intake-hint:hover {
-  box-shadow: 0 2px 8px -2px rgba(67, 56, 198, 0.3);
-}
-.intake-lesson-form {
-  margin: 14px 0;
-  padding: 14px;
-  background: #f8fafc;
-  border: 1px solid #e2e8f0;
-  border-radius: 12px;
-  display: grid;
-  gap: 10px;
-  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
-}
-.intake-lesson-form > .row {
-  grid-column: 1 / -1;
-}
 .intake-rule-list {
   display: flex;
   flex-wrap: wrap;
@@ -11837,12 +11789,19 @@ html[data-theme="dark"] .header-theme-toggle {
   color: #be123c;
   background: #fee2e2;
 }
-.intake-dictionary summary {
-  cursor: pointer;
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  font-weight: 600;
+/* Form thêm quy tắc trong "Bộ nhớ viết tắt thu xe" (Cài đặt). */
+.settings-rule-form {
+  margin-top: 14px;
+  padding: 14px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+}
+.settings-rule-form > .row {
+  grid-column: 1 / -1;
 }
 @media (max-width: 640px) {
   /* 16px keeps iOS Safari from zooming when a notes field is focused. */
@@ -11875,25 +11834,12 @@ html[data-theme="dark"] .header-theme-toggle {
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 12px 10px;
   }
-  .intake-entry-grid .intake-span2 {
-    grid-column: 1 / -1;
-  }
-  .intake-lesson-form {
-    grid-template-columns: 1fr;
-  }
   /* "Bỏ" was a 20px-tall sliver and the chip actions 23px — both well under a
      fingertip. Negative margins widen the hit area without stretching the row. */
   .intake-remove {
     min-height: 44px;
     padding: 10px 8px;
     margin: -10px -8px -10px 0;
-  }
-  .intake-token-chip button,
-  .intake-hint {
-    min-height: 36px;
-  }
-  .intake-token-chip button {
-    padding: 6px 11px;
   }
 }
 [data-theme="dark"] .intake-notes {
@@ -11931,29 +11877,6 @@ html[data-theme="dark"] .header-theme-toggle {
 [data-theme="dark"] .intake-guide-fill:hover {
   background: #232646;
 }
-[data-theme="dark"] .intake-token-chip {
-  background: #171821;
-  border-color: #33394b;
-  color: #c4cad8;
-}
-[data-theme="dark"] .intake-token-chip button {
-  background: #1f2230;
-  color: #aab3c5;
-}
-[data-theme="dark"] .intake-token-chip button:hover {
-  background: #262b3c;
-}
-[data-theme="dark"] .intake-token-chip button.teach {
-  color: #a5b4fc;
-}
-[data-theme="dark"] .intake-token-chip button.teach:hover {
-  background: #232646;
-}
-[data-theme="dark"] .intake-hint {
-  background: #1d1f38;
-  border-color: #37397a;
-  color: #c7d2fe;
-}
 [data-theme="dark"] .intake-entry-issues li {
   background: #2a1418;
   border-color: #5b1f2a;
@@ -11961,10 +11884,6 @@ html[data-theme="dark"] .header-theme-toggle {
 }
 [data-theme="dark"] .intake-entry.has-issues {
   border-color: #5b1f2a;
-}
-[data-theme="dark"] .intake-lesson-form {
-  background: #14161e;
-  border-color: #262833;
 }
 [data-theme="dark"] .intake-rule-chip {
   background: #171821;
@@ -11974,6 +11893,10 @@ html[data-theme="dark"] .header-theme-toggle {
 [data-theme="dark"] .intake-rule-chip button:hover {
   background: #2a1418;
   color: #fda4af;
+}
+[data-theme="dark"] .settings-rule-form {
+  background: #14161e;
+  border-color: #262833;
 }
 [data-theme="dark"] .intake-remove {
   color: #8a93a6;
@@ -13843,13 +13766,6 @@ html[data-theme="dark"] .header-theme-toggle {
   flex: 1 1 auto;
 }
 
-.vehicle-internal-code {
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--readable-muted);
-  margin: 0;
-}
-
 /* Ensure the three-dots action button is firmly pinned to the far right edge */
 .vehicle-title-row .vehicle-actions-menu-wrap {
   margin-left: auto;
@@ -14514,6 +14430,25 @@ html[data-theme="dark"] .header-theme-toggle {
 /* Nút mở/đóng khu "chi tiết thanh toán" – tách khỏi hàng giá/ngày bán bên trên
    bằng khoảng thở + viền đứt nét, để nhân viên nhìn thấy ngay khu tuỳ chọn
    mà vẫn nhẹ nhàng, không cướp sự chú ý khỏi giá bán. */
+/* Hàng hành động luôn hiển thị: toggle chi tiết thanh toán + nút Tạo VietQR.
+   Nút QR nằm ngoài khu gập nên nhân viên tạo mã được ngay sau khi nhập giá. */
+.sale-payment-actions-row {
+  display: flex;
+  align-items: stretch;
+  gap: var(--space-sm);
+}
+.sale-payment-actions-row .sale-payment-details-toggle {
+  width: auto;
+  flex: 1;
+  min-width: 0;
+}
+.sale-vietqr-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
 .sale-payment-details-toggle {
   display: flex;
   width: 100%;
@@ -15271,14 +15206,14 @@ html[data-theme="dark"] .header-theme-toggle {
 }
 
 /* ============================================================
-   Rá»“ng vĂ ng Ä‘áº¿ cháº¿ 3D â€“ mĂ n Ä‘iá»‡n áº£nh chĂºc má»«ng bĂ¡n xe
-   (src/lib/celebrate3d). Ná»n Ä‘Ăªm lá»… há»™i chiáº¿m trá»n khung hĂ¬nh,
-   chá»¯ CHĂC Má»ªNG lĂ  váº­t thá»ƒ tháº­t trong bá»‘ cá»¥c: rá»“ng Ä‘Ă¡p lĂªn máº·t
-   chá»¯ nĂªn vá»‹ trĂ­ chá»¯ quy Ä‘á»‹nh luĂ´n Ä‘iá»ƒm tiáº¿p xĂºc trong 3D.
+   Rồng vàng đế chế 3D – màn điện ảnh chúc mừng bán xe
+   (src/lib/celebrate3d). Nền đêm lễ hội chiếm trọn khung hình,
+   chữ CHÚC MỪNG là vật thể thật trong bố cục: rồng đáp lên mặt
+   chữ nên vị trí chữ quy định luôn điểm tiếp xúc trong 3D.
    ============================================================ */
 .sale-celebrate.dragon3d {
-  /* KhĂ´ng trong suá»‘t nhÆ° báº£n 2D: Ä‘Ă¢y lĂ  má»™t cáº£nh quay, cáº§n ná»n Ä‘Ăªm Ä‘áº·c
-     Ä‘á»ƒ váº£y vĂ ng vĂ  lá»­a cĂ³ tÆ°Æ¡ng pháº£n Ä‘iá»‡n áº£nh. */
+  /* Không trong suốt như bản 2D: đây là một cảnh quay, cần nền đêm đặc
+     để vảy vàng và lửa có tương phản điện ảnh. */
   background:
     radial-gradient(120% 80% at 50% 8%, rgba(88, 40, 130, 0.5), transparent 62%),
     linear-gradient(180deg, #06040f 0%, #150a24 46%, #2c1120 74%, #4a1c10 100%);
@@ -15293,7 +15228,7 @@ html[data-theme="dark"] .header-theme-toggle {
   height: 100%;
   z-index: 1;
 }
-/* bá»‡ sĂ¡ng: vá»‡t ná»n sĂ¢n kháº¥u ngay dÆ°á»›i khá»‘i chá»¯ â€“ rá»“ng "cĂ³ chá»— Ä‘á»©ng". */
+/* bệ sáng: vệt nền sân khấu ngay dưới khối chữ – rồng "có chỗ đứng". */
 .dragon3d-plaque {
   position: absolute;
   left: 50%;
@@ -15316,8 +15251,8 @@ html[data-theme="dark"] .header-theme-toggle {
 .dragon3d-plaque.in {
   opacity: 1;
 }
-/* Chá»¯ hero: kim loáº¡i khá»‘i, dá»±ng báº±ng drop-shadow (Äƒn theo pixel Ä‘Ă£ tĂ´
-   gradient) chá»© khĂ´ng text-shadow â€“ text-shadow sáº½ lem qua chá»¯ trong suá»‘t. */
+/* Chữ hero: kim loại khối, dựng bằng drop-shadow (ăn theo pixel đã tô
+   gradient) chứ không text-shadow – text-shadow sẽ lem qua chữ trong suốt. */
 .dragon3d-title {
   position: absolute;
   left: 50%;
@@ -15362,7 +15297,7 @@ html[data-theme="dark"] .header-theme-toggle {
   opacity: 1;
   transform: translate(-50%, -50%) scale(1);
 }
-/* Pháº£n á»©ng váº­t lĂ½ khi mĂ³ng vuá»‘t rá»“ng cháº¡m máº·t chá»¯. */
+/* Phản ứng vật lý khi móng vuốt rồng chạm mặt chữ. */
 .dragon3d-title.impact {
   animation: dragon3d-title-impact 0.62s cubic-bezier(0.2, 0.9, 0.2, 1);
 }
@@ -15393,10 +15328,10 @@ html[data-theme="dark"] .header-theme-toggle {
     transform: translate(-50%, -50%) scale(1);
   }
 }
-/* Biá»ƒu ngá»¯ thĂ´ng tin xe: giá»¯ nguyĂªn cháº¥t kĂ­nh vĂ ng cá»§a báº£n 2D nhÆ°ng dá»i vá»
-   gĂ³c dÆ°á»›i pháº£i. Rá»“ng Ä‘Ă£ chiáº¿m trá»n dáº£i giá»¯a tá»« Ä‘á»‰nh Ä‘uĂ´i xuá»‘ng máº·t chá»¯, vĂ 
-   Ä‘áº§u rá»“ng phun lá»­a Ä‘Ăºng chĂ­nh giá»¯a â€” Ä‘áº·t biá»ƒu ngá»¯ á»Ÿ trĂªn lĂ  nĂ³ cáº¯t ngang
-   lÆ°ng nhĂ¢n váº­t ngay nhá»‹p quan trá»ng nháº¥t. */
+/* Biểu ngữ thông tin xe: giữ nguyên chất kính vàng của bản 2D nhưng dời về
+   góc dưới phải. Rồng đã chiếm trọn dải giữa từ đỉnh đuôi xuống mặt chữ, và
+   đầu rồng phun lửa đúng chính giữa — đặt biểu ngữ ở trên là nó cắt ngang
+   lưng nhân vật ngay nhịp quan trọng nhất. */
 .sale-celebrate-banner.dragon3d-banner {
   top: auto;
   bottom: 9vh;
@@ -15405,15 +15340,15 @@ html[data-theme="dark"] .header-theme-toggle {
   max-width: min(34vw, 380px);
   padding: 14px 20px;
   text-align: right;
-  /* Diá»…n hoáº¡t nháº­p/váº¯ng dĂ¹ng `translate`/`scale` Ä‘á»™c láº­p vá»›i `transform`,
-     nĂªn cĂ¹ng má»™t bá»™ keyframes cháº¡y Ä‘Æ°á»£c cho cáº£ báº£n gĂ³c pháº£i láº«n báº£n giá»¯a
-     mĂ n hĂ¬nh trĂªn mobile â€” khĂ´ng pháº£i viáº¿t láº¡i transform: translateX(-50%). */
+  /* Diễn hoạt nhập/vắng dùng `translate`/`scale` độc lập với `transform`,
+     nên cùng một bộ keyframes chạy được cho cả bản góc phải lẫn bản giữa
+     màn hình trên mobile — không phải viết lại transform: translateX(-50%). */
   animation: dragon3d-banner-in 0.6s cubic-bezier(0.22, 1.4, 0.5, 1) both;
 }
-/* Hai lá»›p má»›i Ä‘áº·c cĂ¡ch má»™t lá»›p: biá»ƒu ngá»¯ rá»“ng MANG Cáº¢ class
-   .sale-celebrate-banner, mĂ  khá»‘i mobile cá»§a class Ä‘Ă³ khai bĂ¡o á»Ÿ cuá»‘i file
-   (top: 13vh). KhĂ´ng tháº¯ng vá» Ä‘áº·c tĂ­nh thĂ¬ tháº» vá»«a cĂ³ `top` vá»«a cĂ³ `bottom`
-   â†’ bá»‹ kĂ©o cÄƒng thĂ nh má»™t dáº£i cao 600px che kĂ­n mĂ n Ä‘iá»‡n thoáº¡i. */
+/* Hai lớp mới đặc cách một lớp: biểu ngữ rồng MANG CẢ class
+   .sale-celebrate-banner, mà khối mobile của class đó khai báo ở cuối file
+   (top: 13vh). Không thắng về đặc tính thì thẻ vừa có `top` vừa có `bottom`
+   → bị kéo căng thành một dải cao 600px che kín màn điện thoại. */
 .sale-celebrate-banner.dragon3d-banner strong {
   font-size: clamp(1.15rem, 2.1vw, 1.7rem);
 }
@@ -15447,23 +15382,23 @@ html[data-theme="dark"] .header-theme-toggle {
     scale: 0.94;
   }
 }
-/* Mobile: chá»¯ nhá», rá»“ng chiáº¿m ná»­a dÆ°á»›i khung â†’ biá»ƒu ngá»¯ vá» giá»¯a mĂ n hĂ¬nh,
-   dáº£i trĂªn Ä‘áº§u cĂ²n trá»‘ng. */
+/* Mobile: chữ nhỏ, rồng chiếm nửa dưới khung → biểu ngữ về giữa màn hình,
+   dải trên đầu còn trống. */
 @media (max-width: 640px) {
   .dragon3d-title {
     top: 60%;
-    /* "CHĂC Má»ªNG" má»™t dĂ²ng dĂ i chá»«ng 7,15em chá»¯ Georgia 900 (Ä‘o báº±ng
-       scrollWidth tháº­t trong trĂ¬nh duyá»‡t, khĂ´ng Æ°á»›c lÆ°á»£ng). 13,4vw Ă— 7,15em
-       â‰ˆ 96% bá» ngang viewport: sĂ¡t mĂ©p nhÆ°ng khĂ´ng cáº¯t, vĂ  váº«n lĂ  chá»¯
-       khá»•ng lá»“. Äá»ƒ 17vw nhÆ° trÆ°á»›c thĂ¬ khá»‘i chá»¯ rá»™ng ~430px trĂªn mĂ n 390px
-       â€” máº¥t hai chá»¯ Ä‘áº§u vĂ  cuá»‘i. */
+    /* "CHÚC MỪNG" một dòng dài chừng 7,15em chữ Georgia 900 (đo bằng
+       scrollWidth thật trong trình duyệt, không ước lượng). 13,4vw × 7,15em
+       ≈ 96% bề ngang viewport: sát mép nhưng không cắt, và vẫn là chữ
+       khổng lồ. Để 17vw như trước thì khối chữ rộng ~430px trên màn 390px
+       — mất hai chữ đầu và cuối. */
     font-size: clamp(2.05rem, 13.4vw, 4.3rem);
     letter-spacing: 0.015em;
   }
   .sale-celebrate-banner.dragon3d-banner {
-    /* Báº£n gĂ³c pháº£i desktop Ä‘Ă£ Ä‘á»©ng á»Ÿ Ä‘Ă¡y; trĂªn dá»c, dáº£i trĂªn Ä‘áº§u láº¡i lĂ 
-       nÆ¡i sá»«ng vĂ  bá»m rá»“ng chiáº¿m chá»—, nĂªn biá»ƒu ngá»¯ cÅ©ng xuá»‘ng Ä‘Ă¡y â€” nĂ©p
-       ngay trĂªn nĂºt gá»£i Ă½ "báº¥m Ä‘á»ƒ káº¿t thĂºc". */
+    /* Bản góc phải desktop đã đứng ở đáy; trên dọc, dải trên đầu lại là
+       nơi sừng và bờm rồng chiếm chỗ, nên biểu ngữ cũng xuống đáy — nép
+       ngay trên nút gợi ý "bấm để kết thúc". */
     top: auto;
     bottom: calc(6.2vh + 46px);
     left: 50%;
@@ -15478,12 +15413,12 @@ html[data-theme="dark"] .header-theme-toggle {
     width: 92vw;
   }
 }
-/* Ngang mobile (844Ă—390, 740Ă—360â€¦): Ä‘Ă¢y lĂ  khá»• bá»‹ bá» sĂ³t nhiá»u nháº¥t vĂ  nĂ³
-   Ä‘áº£o ngÆ°á»£c bĂ i toĂ¡n â€” thá»© bĂ³ háº¹p khĂ´ng cĂ²n lĂ  bá» ngang mĂ  lĂ  chiá»u CAO.
-   13,5vw cá»§a báº£n desktop cho khá»‘i chá»¯ rá»™ng tá»›i ~96% khung, hai chá»¯ Ä‘áº§u cuá»‘i
-   cháº¡m mĂ©p; trong khi Ä‘Ă³ rá»“ng Ä‘Ă£ Ä‘á»©ng cao gáº§n háº¿t ná»­a trĂªn. Háº¡ chá»¯ xuá»‘ng
-   9,6vw tráº£ láº¡i khoáº£ng thá»Ÿ hai bĂªn mĂ  váº«n Ä‘á»§ lá»›n, vĂ  kĂ©o chá»¯ lĂªn má»™t nhá»‹p
-   Ä‘á»ƒ cá»¥m rá»“ngâ€“chá»¯ náº±m cĂ¢n giá»¯a khoáº£ng cao háº¡n háº¹p cá»§a khung ngang. */
+/* Ngang mobile (844×390, 740×360…): đây là khổ bị bỏ sót nhiều nhất và nó
+   đảo ngược bài toán — thứ bó hẹp không còn là bề ngang mà là chiều CAO.
+   13,5vw của bản desktop cho khối chữ rộng tới ~96% khung, hai chữ đầu cuối
+   chạm mép; trong khi đó rồng đã đứng cao gần hết nửa trên. Hạ chữ xuống
+   9,6vw trả lại khoảng thở hai bên mà vẫn đủ lớn, và kéo chữ lên một nhịp
+   để cụm rồng–chữ nằm cân giữa khoảng cao hạn hẹp của khung ngang. */
 @media (orientation: landscape) and (max-height: 560px) {
   .dragon3d-title {
     top: 58%;
@@ -15496,11 +15431,11 @@ html[data-theme="dark"] .header-theme-toggle {
     height: clamp(70px, 26vh, 150px);
   }
   .sale-celebrate-banner.dragon3d-banner {
-    /* Khung cao 390px: Ä‘Ă¡y thĂ¬ gĂ³c biá»ƒu ngá»¯ cháº¡m chĂ¢n chá»¯ cuá»‘i, pháº£i trĂªn
-       thĂ¬ nĂ³ che máº¥t luá»“ng lá»­a á»Ÿ nhá»‹p 7,6s (Ä‘Ă£ soi áº£nh mĂ  biáº¿t). Khoáº£ng
-       trá»i cĂ²n trá»‘ng duy nháº¥t khi biá»ƒu ngá»¯ Ä‘Ă£ hiá»‡n lĂ  gĂ³c TRĂN TRĂI: rá»“ng
-       Ä‘áº­u chĂ­nh giá»¯a, Ä‘áº§u quay pháº£i, rĂ¢u dĂ i nháº¥t cÅ©ng dá»«ng trÆ°á»›c mĂ©p
-       pháº£i cá»§a tháº». */
+    /* Khung cao 390px: đáy thì góc biểu ngữ chạm chân chữ cuối, phải trên
+       thì nó che mất luồng lửa ở nhịp 7,6s (đã soi ảnh mà biết). Khoảng
+       trời còn trống duy nhất khi biểu ngữ đã hiện là góc TRÊN TRÁI: rồng
+       đậu chính giữa, đầu quay phải, râu dài nhất cũng dừng trước mép
+       phải của thẻ. */
     top: 7vh;
     bottom: auto;
     left: 2.4vw;

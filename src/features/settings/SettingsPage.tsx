@@ -23,6 +23,7 @@ import {
 } from "@/lib/useVehicleTypes";
 import { AnnouncementManager } from "./AnnouncementManager";
 import { PaymentSettingsCard } from "./PaymentSettingsCard";
+import { ShorthandDictionaryCard } from "./ShorthandDictionaryCard";
 import { SmartSalesAutomationCard } from "./SmartSalesAutomationCard";
 import { SeasonalThemeCard } from "./SeasonalThemeCard";
 type Settings = {
@@ -43,7 +44,7 @@ export default function SettingsPage() {
     [password, setPassword] = useState(""),
     [currentPassword, setCurrentPassword] = useState("");
   const [activeTab, setActiveTab] = useState<
-    "PROFILE" | "STORE" | "PAYMENT" | "SCHEDULE" | "MESSAGES" | "AUTOMATION" | "VEHICLE_TYPES" | "THEME"
+    "PROFILE" | "STORE" | "PAYMENT" | "SCHEDULE" | "MESSAGES" | "AUTOMATION" | "VEHICLE_TYPES" | "THEME" | "SHORTHAND"
   >("PROFILE");
 
   const client = useQueryClient();
@@ -93,6 +94,9 @@ export default function SettingsPage() {
   const showAutomation = isOwner(profile) && activeTab === "AUTOMATION";
   const showVehicleTypes = isOwner(profile) && activeTab === "VEHICLE_TYPES";
   const showTheme = isOwner(profile) && activeTab === "THEME";
+  // Bộ nhớ viết tắt thu xe là của riêng từng tài khoản trên máy này — mọi
+  // role đều quản lý được, không cần quyền owner.
+  const showShorthand = activeTab === "SHORTHAND";
 
   return (
     <div className="stack settings-shell">
@@ -114,6 +118,14 @@ export default function SettingsPage() {
           onClick={() => setActiveTab("PROFILE")}
         >
           <span>Hồ sơ &amp; Đổi mật khẩu</span>
+        </button>
+        <button
+          type="button"
+          aria-pressed={activeTab === "SHORTHAND"}
+          className={`settings-nav-item ${activeTab === "SHORTHAND" ? "active" : ""}`}
+          onClick={() => setActiveTab("SHORTHAND")}
+        >
+          <span>Bộ nhớ viết tắt thu xe</span>
         </button>
         {isOwner(profile) && (
           <button
@@ -297,6 +309,8 @@ export default function SettingsPage() {
       {showVehicleTypes && <VehicleTypeCatalogEditor />}
 
       {showTheme && <SeasonalThemeCard />}
+
+      {showShorthand && <ShorthandDictionaryCard />}
     </div>
   );
 }

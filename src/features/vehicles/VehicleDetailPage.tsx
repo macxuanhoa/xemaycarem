@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { Link, useLocation, useParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import {
@@ -293,9 +293,6 @@ export function VehicleDetailPage() {
                   {vehicle.vehicle_type || "Chưa phân loại"}
                 </span>
               </h1>
-              {vehicle.internal_code && (
-                <p className="vehicle-internal-code">Mã {vehicle.internal_code}</p>
-              )}
             </div>
 
             {hasVehicleActions && (
@@ -382,20 +379,10 @@ export function VehicleDetailPage() {
             )}
           </div>
 
+          {/* Mã xe và ngày trong kho đã dời xuống khối "Thông tin chi tiết";
+              đầu trang chỉ còn nhãn trạng thái. */}
           <div className="vehicle-status-row">
             <Badge status={vehicle.status} />
-            {available && (
-              <div className="carem-led-days-badge" title="Thời gian lưu kho">
-                <span className="carem-led-diode" aria-hidden="true" />
-                <span className="carem-led-days-text">
-                  <strong className="carem-led-days-num">
-                    {daysInStock(vehicle.purchase_date)}
-                  </strong>{" "}
-                  ngày trong kho
-                </span>
-                <span className="carem-led-border-glow" aria-hidden="true" />
-              </div>
-            )}
           </div>
         </div>
 
@@ -533,32 +520,50 @@ export function VehicleDetailPage() {
           <Card>
             <h2 className="section-title">Thông tin chi tiết</h2>
             {/* Secondary specs only: biển số and số khung live in the identity
-                hero now, so the list keeps the remaining registration info. */}
+                hero now; mã xe và ngày trong kho dời từ đầu trang xuống đây. */}
             <dl className="details-list">
-              {[
+              {([
                 ["Loại xe", vehicle.vehicle_type],
+                ["Mã xe", vehicle.internal_code],
                 ["Năm sản xuất", vehicle.year],
                 ["Màu sắc", vehicle.color],
                 ["Ngày nhập kho", dateLabel(vehicle.purchase_date)],
+                ...(available
+                  ? [
+                    [
+                      "Ngày trong kho",
+                      <span className="carem-led-days-badge" title="Thời gian lưu kho">
+                        <span className="carem-led-diode" aria-hidden="true" />
+                        <span className="carem-led-days-text">
+                          <strong className="carem-led-days-num">
+                            {daysInStock(vehicle.purchase_date)}
+                          </strong>{" "}
+                          ngày trong kho
+                        </span>
+                        <span className="carem-led-border-glow" aria-hidden="true" />
+                      </span>,
+                    ],
+                  ]
+                  : []),
                 ["Tên người bán", vehicle.supplier_name],
                 ["SĐT người bán", vehicle.supplier_phone],
-              ].map(([label, value]) => (
-                <div key={String(label)}>
+              ] as [string, ReactNode][]).map(([label, value]) => (
+                <div key={label}>
                   <dt>{label}</dt>
                   <dd>
                     <span
-                      className={`vehicle-detail-value${identifierLabels.has(String(label)) ? " vehicle-identifier" : ""}`}
+                      className={`vehicle-detail-value${identifierLabels.has(label) ? " vehicle-identifier" : ""}`}
                     >
                       {value == null || value === "" ? "Chưa cập nhật" : value}
                     </span>
                     {typeof value === "string" &&
                       value &&
-                      identifierLabels.has(String(label)) && (
+                      identifierLabels.has(label) && (
                         <button
                           className="icon-button copy-button"
                           type="button"
-                          aria-label={`Sao chép ${String(label).toLowerCase()}`}
-                          onClick={() => void copyValue(String(label), value)}
+                          aria-label={`Sao chép ${label.toLowerCase()}`}
+                          onClick={() => void copyValue(label, value)}
                         >
                           <Copy size={15} />
                         </button>

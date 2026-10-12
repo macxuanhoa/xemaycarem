@@ -4,8 +4,8 @@
  *
  * The parser is pure: the learned dictionary is injected so the same module
  * works in the page, in unit tests and offline. Unknown tokens are never
- * guessed into a financial field — they surface as `unknownTokens` for the
- * user to assign or teach.
+ * guessed into a financial field — they surface as `unknownTokens` and are
+ * ignored on save.
  */
 import {
   COLOR_ALIASES,
@@ -30,6 +30,8 @@ export type IntakeFieldKey =
   | "purchase_price"
   | "supplier_name"
   | "supplier_phone"
+  // "notes" chỉ còn là key tương thích payload (camera/server); tốc ký không
+  // còn tạo hay hiển thị Ghi chú.
   | "notes";
 
 export const INTAKE_FIELDS: { key: IntakeFieldKey; label: string }[] = [
@@ -42,7 +44,6 @@ export const INTAKE_FIELDS: { key: IntakeFieldKey; label: string }[] = [
   { key: "purchase_price", label: "Giá thu" },
   { key: "supplier_name", label: "Tên người bán" },
   { key: "supplier_phone", label: "SĐT người bán" },
-  { key: "notes", label: "Ghi chú" },
 ];
 
 export type LearnedRule = {
@@ -58,7 +59,7 @@ export type IntakeEntry = {
   id: string;
   sourceLine: string;
   fields: Partial<Record<IntakeFieldKey, string>>;
-  /** Which raw token produced each field — powers "teach this abbreviation". */
+  /** Which raw token produced each field — helps trace parsing back to notes. */
   provenance: Partial<Record<IntakeFieldKey, string>>;
   unknownTokens: string[];
   /**
@@ -156,7 +157,7 @@ function typeKeyBounds(tokens: string[]): number[] {
  * biển số không bị hiểu nhầm là "Xe số".
  *
  * Kết quả luôn là tên có thật trong danh mục đang dùng (matchVehicleType);
- * không khớp thì trả null để token rơi vào hàng đợi chip lạ + Ghi chú. Hãng xe,
+ * không khớp thì trả null để token rơi vào hàng đợi chip lạ. Hãng xe,
  * dòng xe đã bị xoá nên không còn chuyện "token lạ thành Dòng xe".
  */
 function findVehicleType(
@@ -214,7 +215,6 @@ type Pending =
   | { field: IntakeFieldKey }
   | { field: "price" }
   | { field: "supplier_name"; started: boolean }
-  | { field: "notes" }
   | null;
 
 function assign(
@@ -292,7 +292,6 @@ function parseLine(
   }
   let pending: Pending = null;
   let nameWords: string[] = [];
-  const noteChunks: string[] = [];
 
   const flushName = () => {
     if (nameWords.length) {
@@ -306,22 +305,6 @@ function parseLine(
     const token = token_surface(cursor[i]);
     const key = normalizeKey(token);
     if (!key) continue;
-
-    // "#ghi chú" flips the rest of the line into the Ghi chú field (and the
-    // text glued after "#" seeds it too). A line-leading "#" is still a
-    // heading/comment handled by the caller above — this only fires inline.
-    if (token.startsWith("#")) {
-      const inline = token.slice(1).trim();
-      if (inline) noteChunks.push(inline);
-      pending = { field: "notes" };
-      continue;
-    }
-
-    // "ghichu: ..." swallows the remainder of the line verbatim.
-    if (pending?.field === "notes") {
-      noteChunks.push(token);
-      continue;
-    }
 
     // Biển số được thử trước và tham lam: nhân viên không cần viết "bs", và
     // một biển gõ tách khoảng ("59a1 234.56") không được rò sang nhóm năm
@@ -414,7 +397,7 @@ function parseLine(
     if (money !== null) {
       // Giá thu là số tiền duy nhất hồ sơ xe giữ. Amount thứ hai là giá bán
       // (thời điểm đó chưa có gì chắc) — giá bán giờ chỉ sinh ra từ phiếu Bán
-      // xe, nên số này chỉ còn là chip để nhân viên gán vào Ghi chú.
+      // xe, nên số này chỉ còn là chip để nhân viên tự gán.
       if (!entry.fields.purchase_price)
         assign(entry, "purchase_price", String(money), token);
       else entry.unknownTokens.push(token);
@@ -455,10 +438,6 @@ function parseLine(
       pending = { field: "supplier_name", started: false };
       continue;
     }
-    if (keyword === "notes") {
-      pending = { field: "notes" };
-      continue;
-    }
     if (keyword) {
       pending = { field: keyword as IntakeFieldKey };
       continue;
@@ -470,18 +449,11 @@ function parseLine(
     }
 
     // Không còn quy tắc "token lạ rơi vào Dòng xe": mọi từ chưa nhận diện được
-    // chỉ thành chip trong hàng đợi để nhân viên gán vào Ghi chú hoặc dạy lại.
+    // chỉ thành chip trong hàng đợi và hệ thống bỏ qua khi lưu.
     entry.unknownTokens.push(token);
   }
 
   if (pending?.field === "supplier_name") flushName();
-  if (noteChunks.length)
-    assign(
-      entry,
-      "notes",
-      [...noteChunks, ...(entry.fields.notes ? [entry.fields.notes] : [])].join(" "),
-      "ghichu",
-    );
 
   return entry;
 }

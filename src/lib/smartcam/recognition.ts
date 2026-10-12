@@ -260,7 +260,7 @@ const INTAKE_KEY: Record<ScannedKey, IntakeFieldKey> = {
 /**
  * Hand the single normalized result to the EXISTING shorthand intake workflow
  * as one reviewed entry. `sourceLine` documents the origin; `provenance` keeps
- * "camera" as the teach-token; `fieldStatus` drives the verify highlights.
+ * "camera" as the seed token; `fieldStatus` drives the verify highlights.
  */
 export function recognitionToIntakeEntry(
   recognition: Recognition,
@@ -277,11 +277,6 @@ export function recognitionToIntakeEntry(
     provenance[INTAKE_KEY[key]] = "camera";
     fieldStatus[INTAKE_KEY[key]] = recognition.statuses[key];
   }
-  const note =
-    recognition.match.state === "none"
-      ? "Chưa tìm thấy trong kho — kiểm tra lại trước khi thu."
-      : "";
-  if (note) fields.notes = note;
   return {
     id,
     sourceLine: "Camera thông minh",

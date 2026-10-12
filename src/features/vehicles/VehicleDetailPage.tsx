@@ -291,12 +291,22 @@ export function VehicleDetailPage() {
         <div className="vehicle-detail-header">
           <div className="vehicle-title-row">
             <div className="vehicle-title-left">
-              <h1 className="carem-led-title" title={vehicle.vehicle_type || "Chưa phân loại"}>
-                <span className="carem-led-title-dot" aria-hidden="true" />
-                <span className="carem-led-title-text">
-                  {vehicle.vehicle_type || "Chưa phân loại"}
-                </span>
-              </h1>
+              <div className="vehicle-title-with-tags">
+                <h1 className="carem-led-title" title={vehicle.vehicle_type || "Chưa phân loại"}>
+                  <span className="carem-led-title-text">
+                    {vehicle.vehicle_type || "Chưa phân loại"}
+                  </span>
+                </h1>
+                <div className="vehicle-title-badges">
+                  <Badge status={vehicle.status} />
+                  {pendingSale && (
+                    <span className="badge badge-warning">Chờ duyệt giá</span>
+                  )}
+                  {pending && (
+                    <span className="badge badge-danger">Chờ duyệt xóa</span>
+                  )}
+                </div>
+              </div>
             </div>
 
             {hasVehicleActions && (
@@ -382,12 +392,6 @@ export function VehicleDetailPage() {
               </div>
             )}
           </div>
-
-          {/* Mã xe và ngày trong kho đã dời xuống khối "Thông tin chi tiết";
-              đầu trang chỉ còn nhãn trạng thái. */}
-          <div className="vehicle-status-row">
-            <Badge status={vehicle.status} />
-          </div>
         </div>
 
         {/* Thanh định danh xe chuẩn mực, đẳng cấp: Biển số & Số khung */}
@@ -396,7 +400,7 @@ export function VehicleDetailPage() {
           <div className="vehicle-id-item vehicle-id-item-plate">
             <div className="vehicle-id-item-header">
               <span className="vehicle-id-item-label">
-                <Hash size={12} className="vehicle-id-item-icon" />
+                <Hash size={13} className="vehicle-id-item-icon" />
                 Biển số đăng ký
               </span>
               {vehicle.license_plate && (
@@ -431,7 +435,7 @@ export function VehicleDetailPage() {
           <div className="vehicle-id-item vehicle-id-item-frame">
             <div className="vehicle-id-item-header">
               <span className="vehicle-id-item-label">
-                <ShieldCheck size={12} className="vehicle-id-item-icon" />
+                <ShieldCheck size={13} className="vehicle-id-item-icon" />
                 Số khung (VIN)
               </span>
               {!!displayFrame(vehicle.frame_number) && (
@@ -449,7 +453,24 @@ export function VehicleDetailPage() {
             </div>
             <div className={`vehicle-frame-badge${!displayFrame(vehicle.frame_number) ? " is-empty" : ""}`}>
               <span className="vehicle-frame-text">
-                {displayFrame(vehicle.frame_number) || "Chưa có số khung"}
+                {displayFrame(vehicle.frame_number) ? (
+                  displayFrame(vehicle.frame_number).length > 6 ? (
+                    <>
+                      <span className="vehicle-frame-prefix">
+                        {displayFrame(vehicle.frame_number).slice(0, -6)}
+                      </span>
+                      <strong className="vehicle-frame-highlight">
+                        {displayFrame(vehicle.frame_number).slice(-6)}
+                      </strong>
+                    </>
+                  ) : (
+                    <strong className="vehicle-frame-highlight">
+                      {displayFrame(vehicle.frame_number)}
+                    </strong>
+                  )
+                ) : (
+                  "Chưa có số khung"
+                )}
               </span>
             </div>
           </div>

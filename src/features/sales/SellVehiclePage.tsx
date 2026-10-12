@@ -485,7 +485,24 @@ function SaleEditor({ vehicle }: { vehicle: Vehicle }) {
                 <span className="sale-confirm-id-label">SỐ KHUNG (VIN)</span>
                 <div className={`vehicle-frame-badge${!displayFrame(vehicle.frame_number) ? " is-empty" : ""}`}>
                   <span className="vehicle-frame-text">
-                    {displayFrame(vehicle.frame_number) || "Chưa có số khung"}
+                    {displayFrame(vehicle.frame_number) ? (
+                      displayFrame(vehicle.frame_number).length > 6 ? (
+                        <>
+                          <span className="vehicle-frame-prefix">
+                            {displayFrame(vehicle.frame_number).slice(0, -6)}
+                          </span>
+                          <strong className="vehicle-frame-highlight">
+                            {displayFrame(vehicle.frame_number).slice(-6)}
+                          </strong>
+                        </>
+                      ) : (
+                        <strong className="vehicle-frame-highlight">
+                          {displayFrame(vehicle.frame_number)}
+                        </strong>
+                      )
+                    ) : (
+                      "Chưa có số khung"
+                    )}
                   </span>
                 </div>
               </div>

@@ -255,8 +255,8 @@ function SaleEditor({ vehicle }: { vehicle: Vehicle }) {
   // Nhân viên chỉ "nói" số tiền khách trả trước khi tự sửa ô trả trước. Cho tới
   // lúc đó, bán xe mặc định là KHÁCH ĐÃ TRẢ ĐỦ — xem effect đồng bộ bên dưới.
   const [paymentEdited, setPaymentEdited] = useState(false);
+  const targetAmount = Number.isFinite(paid) && paid > 0 ? paid : (Number.isFinite(price) ? price : 0);
   const handleOpenVietQr = () => {
-    const targetAmount = Number.isFinite(paid) && paid > 0 ? paid : (Number.isFinite(price) ? price : 0);
     if (!targetAmount || targetAmount <= 0) {
       toast.warning("Vui lòng nhập giá bán hoặc số tiền khách trả trước để tạo mã VietQR.");
       return;
@@ -687,29 +687,48 @@ function SaleEditor({ vehicle }: { vehicle: Vehicle }) {
                 />
               </Field>
             </div>
-            {/* Hàng luôn hiển thị: nút toggle chi tiết thanh toán + nút Tạo VietQR.
-                Nút QR đặt ở ngoài khu gập để nhân viên tạo mã chuyển khoản
-                ngay khi nhập giá, không phải mở "chi tiết thanh toán" trước. */}
-            <div className="sale-payment-actions-row">
-              <Button
-                type="button"
-                variant="ghost"
-                className="sale-payment-details-toggle"
-                onClick={() => setShowPaymentDetails((v) => !v)}
-                aria-expanded={showPaymentDetails}
-              >
-                {showPaymentDetails ? <ChevronUp size={15} /> : <ChevronDown size={15} />}
-                {showPaymentDetails ? "Ẩn chi tiết thanh toán" : "Thêm chi tiết thanh toán"}
-              </Button>
+            {/* Khối thanh toán chuyển khoản VietQR – bố cục chuyên nghiệp, tách biệt rõ ràng */}
+            <div className="sale-vietqr-card">
+              <div className="sale-vietqr-card-main">
+                <div className="sale-vietqr-card-icon" aria-hidden="true">
+                  <QrCode size={20} />
+                </div>
+                <div className="sale-vietqr-card-content">
+                  <div className="sale-vietqr-card-header">
+                    <span className="sale-vietqr-card-title">Thanh toán chuyển khoản VietQR</span>
+                    {targetAmount > 0 && (
+                      <span className="sale-vietqr-amount-tag">
+                        {money(targetAmount)}
+                      </span>
+                    )}
+                  </div>
+                  <p className="sale-vietqr-card-desc">
+                    Tạo mã QR động Napas 24/7 tự động điền số tiền và khớp tiền về tài khoản.
+                  </p>
+                </div>
+              </div>
               <Button
                 type="button"
                 variant="secondary"
-                className="sale-vietqr-button"
+                className="sale-vietqr-btn"
                 onClick={handleOpenVietQr}
               >
-                <QrCode size={15} /> Tạo VietQR
+                <QrCode size={15} /> Tạo mã QR
               </Button>
             </div>
+
+            {/* Nút toggle mở rộng chi tiết thanh toán – độc lập, toàn chiều ngang, nét đứt nhã nhặn */}
+            <Button
+              type="button"
+              variant="ghost"
+              className="sale-payment-details-toggle"
+              onClick={() => setShowPaymentDetails((v) => !v)}
+              aria-expanded={showPaymentDetails}
+            >
+              {showPaymentDetails ? <ChevronUp size={15} /> : <ChevronDown size={15} />}
+              {showPaymentDetails ? "Ẩn chi tiết thanh toán" : "Thêm chi tiết thanh toán (trả trước, hình thức, hạn nợ)"}
+            </Button>
+
             {/* Fields stay mounted so "đã trả trước" attaches at first paint
                 like "Bán với giá" (a late-mounted controlled money input lets
                 react-hook-form write the NaN blank-sentinel into the DOM as
@@ -748,6 +767,15 @@ function SaleEditor({ vehicle }: { vehicle: Vehicle }) {
                       </option>
                     ))}
                   </select>
+                  {form.watch("payment_method") === "BANK_TRANSFER" && (
+                    <button
+                      type="button"
+                      className="sale-field-inline-vietqr"
+                      onClick={handleOpenVietQr}
+                    >
+                      <QrCode size={13} /> Mở mã VietQR chuyển khoản
+                    </button>
+                  )}
                 </Field>
                 <Field
                   label="Hạn thanh toán (nếu còn nợ)"
@@ -858,6 +886,14 @@ function SaleEditor({ vehicle }: { vehicle: Vehicle }) {
               </div>
             </dl>
             <div className="sale-action-footer">
+              <Button
+                type="button"
+                variant="secondary"
+                className="full-width sale-aside-vietqr-btn"
+                onClick={handleOpenVietQr}
+              >
+                <QrCode size={15} /> Tạo mã VietQR thu tiền
+              </Button>
               <Button
                 type="submit"
                 className="full-width"

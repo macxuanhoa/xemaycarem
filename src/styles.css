@@ -15269,6 +15269,259 @@ html[data-theme="dark"] .header-theme-toggle {
     transform: translateX(-50%) translateY(-18px) scale(0.92);
   }
 }
+
+/* ============================================================
+   Rá»“ng vĂ ng Ä‘áº¿ cháº¿ 3D â€“ mĂ n Ä‘iá»‡n áº£nh chĂºc má»«ng bĂ¡n xe
+   (src/lib/celebrate3d). Ná»n Ä‘Ăªm lá»… há»™i chiáº¿m trá»n khung hĂ¬nh,
+   chá»¯ CHĂC Má»ªNG lĂ  váº­t thá»ƒ tháº­t trong bá»‘ cá»¥c: rá»“ng Ä‘Ă¡p lĂªn máº·t
+   chá»¯ nĂªn vá»‹ trĂ­ chá»¯ quy Ä‘á»‹nh luĂ´n Ä‘iá»ƒm tiáº¿p xĂºc trong 3D.
+   ============================================================ */
+.sale-celebrate.dragon3d {
+  /* KhĂ´ng trong suá»‘t nhÆ° báº£n 2D: Ä‘Ă¢y lĂ  má»™t cáº£nh quay, cáº§n ná»n Ä‘Ăªm Ä‘áº·c
+     Ä‘á»ƒ váº£y vĂ ng vĂ  lá»­a cĂ³ tÆ°Æ¡ng pháº£n Ä‘iá»‡n áº£nh. */
+  background:
+    radial-gradient(120% 80% at 50% 8%, rgba(88, 40, 130, 0.5), transparent 62%),
+    linear-gradient(180deg, #06040f 0%, #150a24 46%, #2c1120 74%, #4a1c10 100%);
+  pointer-events: auto;
+  cursor: pointer;
+}
+.dragon3d-canvas {
+  position: absolute;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+  z-index: 1;
+}
+/* bá»‡ sĂ¡ng: vá»‡t ná»n sĂ¢n kháº¥u ngay dÆ°á»›i khá»‘i chá»¯ â€“ rá»“ng "cĂ³ chá»— Ä‘á»©ng". */
+.dragon3d-plaque {
+  position: absolute;
+  left: 50%;
+  top: 68%;
+  z-index: 1;
+  width: min(78vw, 900px);
+  height: clamp(90px, 18vh, 220px);
+  translate: -50% -50%;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.9s ease;
+  background: radial-gradient(
+    50% 50% at 50% 50%,
+    rgba(251, 191, 36, 0.26),
+    rgba(217, 119, 6, 0.1) 46%,
+    transparent 74%
+  );
+  filter: blur(2px);
+}
+.dragon3d-plaque.in {
+  opacity: 1;
+}
+/* Chá»¯ hero: kim loáº¡i khá»‘i, dá»±ng báº±ng drop-shadow (Äƒn theo pixel Ä‘Ă£ tĂ´
+   gradient) chá»© khĂ´ng text-shadow â€“ text-shadow sáº½ lem qua chá»¯ trong suá»‘t. */
+.dragon3d-title {
+  position: absolute;
+  left: 50%;
+  top: 62%;
+  z-index: 2;
+  pointer-events: none;
+  margin: 0;
+  font-family: Georgia, "Times New Roman", "Playfair Display", serif;
+  font-weight: 900;
+  font-size: clamp(3.1rem, 13.5vw, 10rem);
+  line-height: 0.92;
+  letter-spacing: 0.035em;
+  white-space: nowrap;
+  text-transform: uppercase;
+  background: linear-gradient(
+    178deg,
+    #fff8e1 4%,
+    #ffe08a 22%,
+    #f6b73c 40%,
+    #b8730f 54%,
+    #7a4408 62%,
+    #e8b552 74%,
+    #fff6d8 92%
+  );
+  background-size: 100% 260%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  -webkit-text-fill-color: transparent;
+  opacity: 0;
+  transform: translate(-50%, -50%) scale(0.72);
+  filter: drop-shadow(0 2px 0 rgba(90, 44, 6, 0.85))
+    drop-shadow(0 5px 0 rgba(52, 24, 3, 0.7))
+    drop-shadow(0 10px 26px rgba(0, 0, 0, 0.62))
+    drop-shadow(0 0 42px rgba(251, 191, 36, 0.4));
+  transition:
+    opacity 0.42s ease,
+    transform 0.62s cubic-bezier(0.16, 1.5, 0.44, 1);
+  animation: dragon3d-title-sheen 5.2s 0.7s ease-in-out infinite;
+}
+.dragon3d-title.in {
+  opacity: 1;
+  transform: translate(-50%, -50%) scale(1);
+}
+/* Pháº£n á»©ng váº­t lĂ½ khi mĂ³ng vuá»‘t rá»“ng cháº¡m máº·t chá»¯. */
+.dragon3d-title.impact {
+  animation: dragon3d-title-impact 0.62s cubic-bezier(0.2, 0.9, 0.2, 1);
+}
+@keyframes dragon3d-title-sheen {
+  0%,
+  100% {
+    background-position: 0 0%;
+  }
+  50% {
+    background-position: 0 100%;
+  }
+}
+@keyframes dragon3d-title-impact {
+  0% {
+    transform: translate(-50%, -50%) scale(1);
+  }
+  18% {
+    transform: translate(-50%, -46%) scale(1.05, 0.94);
+    filter: drop-shadow(0 2px 0 rgba(90, 44, 6, 0.85))
+      drop-shadow(0 5px 0 rgba(52, 24, 3, 0.7))
+      drop-shadow(0 10px 26px rgba(0, 0, 0, 0.62))
+      drop-shadow(0 0 90px rgba(255, 224, 130, 0.95));
+  }
+  46% {
+    transform: translate(-50%, -52%) scale(0.985, 1.03);
+  }
+  100% {
+    transform: translate(-50%, -50%) scale(1);
+  }
+}
+/* Biá»ƒu ngá»¯ thĂ´ng tin xe: giá»¯ nguyĂªn cháº¥t kĂ­nh vĂ ng cá»§a báº£n 2D nhÆ°ng dá»i vá»
+   gĂ³c dÆ°á»›i pháº£i. Rá»“ng Ä‘Ă£ chiáº¿m trá»n dáº£i giá»¯a tá»« Ä‘á»‰nh Ä‘uĂ´i xuá»‘ng máº·t chá»¯, vĂ 
+   Ä‘áº§u rá»“ng phun lá»­a Ä‘Ăºng chĂ­nh giá»¯a â€” Ä‘áº·t biá»ƒu ngá»¯ á»Ÿ trĂªn lĂ  nĂ³ cáº¯t ngang
+   lÆ°ng nhĂ¢n váº­t ngay nhá»‹p quan trá»ng nháº¥t. */
+.sale-celebrate-banner.dragon3d-banner {
+  top: auto;
+  bottom: 9vh;
+  left: auto;
+  right: 3.2vw;
+  max-width: min(34vw, 380px);
+  padding: 14px 20px;
+  text-align: right;
+  /* Diá»…n hoáº¡t nháº­p/váº¯ng dĂ¹ng `translate`/`scale` Ä‘á»™c láº­p vá»›i `transform`,
+     nĂªn cĂ¹ng má»™t bá»™ keyframes cháº¡y Ä‘Æ°á»£c cho cáº£ báº£n gĂ³c pháº£i láº«n báº£n giá»¯a
+     mĂ n hĂ¬nh trĂªn mobile â€” khĂ´ng pháº£i viáº¿t láº¡i transform: translateX(-50%). */
+  animation: dragon3d-banner-in 0.6s cubic-bezier(0.22, 1.4, 0.5, 1) both;
+}
+/* Hai lá»›p má»›i Ä‘áº·c cĂ¡ch má»™t lá»›p: biá»ƒu ngá»¯ rá»“ng MANG Cáº¢ class
+   .sale-celebrate-banner, mĂ  khá»‘i mobile cá»§a class Ä‘Ă³ khai bĂ¡o á»Ÿ cuá»‘i file
+   (top: 13vh). KhĂ´ng tháº¯ng vá» Ä‘áº·c tĂ­nh thĂ¬ tháº» vá»«a cĂ³ `top` vá»«a cĂ³ `bottom`
+   â†’ bá»‹ kĂ©o cÄƒng thĂ nh má»™t dáº£i cao 600px che kĂ­n mĂ n Ä‘iá»‡n thoáº¡i. */
+.sale-celebrate-banner.dragon3d-banner strong {
+  font-size: clamp(1.15rem, 2.1vw, 1.7rem);
+}
+.sale-celebrate-banner.dragon3d-banner span {
+  font-size: clamp(0.78rem, 1.05vw, 0.95rem);
+}
+@keyframes dragon3d-banner-in {
+  from {
+    opacity: 0;
+    translate: 26px 16px;
+    scale: 0.86;
+  }
+  to {
+    opacity: 1;
+    translate: 0 0;
+    scale: 1;
+  }
+}
+.sale-celebrate-banner.dragon3d-banner.leaving {
+  animation: dragon3d-banner-out 0.5s ease both;
+}
+@keyframes dragon3d-banner-out {
+  from {
+    opacity: 1;
+    translate: 0 0;
+    scale: 1;
+  }
+  to {
+    opacity: 0;
+    translate: 0 20px;
+    scale: 0.94;
+  }
+}
+/* Mobile: chá»¯ nhá», rá»“ng chiáº¿m ná»­a dÆ°á»›i khung â†’ biá»ƒu ngá»¯ vá» giá»¯a mĂ n hĂ¬nh,
+   dáº£i trĂªn Ä‘áº§u cĂ²n trá»‘ng. */
+@media (max-width: 640px) {
+  .dragon3d-title {
+    top: 60%;
+    /* "CHĂC Má»ªNG" má»™t dĂ²ng dĂ i chá»«ng 7,15em chá»¯ Georgia 900 (Ä‘o báº±ng
+       scrollWidth tháº­t trong trĂ¬nh duyá»‡t, khĂ´ng Æ°á»›c lÆ°á»£ng). 13,4vw Ă— 7,15em
+       â‰ˆ 96% bá» ngang viewport: sĂ¡t mĂ©p nhÆ°ng khĂ´ng cáº¯t, vĂ  váº«n lĂ  chá»¯
+       khá»•ng lá»“. Äá»ƒ 17vw nhÆ° trÆ°á»›c thĂ¬ khá»‘i chá»¯ rá»™ng ~430px trĂªn mĂ n 390px
+       â€” máº¥t hai chá»¯ Ä‘áº§u vĂ  cuá»‘i. */
+    font-size: clamp(2.05rem, 13.4vw, 4.3rem);
+    letter-spacing: 0.015em;
+  }
+  .sale-celebrate-banner.dragon3d-banner {
+    /* Báº£n gĂ³c pháº£i desktop Ä‘Ă£ Ä‘á»©ng á»Ÿ Ä‘Ă¡y; trĂªn dá»c, dáº£i trĂªn Ä‘áº§u láº¡i lĂ 
+       nÆ¡i sá»«ng vĂ  bá»m rá»“ng chiáº¿m chá»—, nĂªn biá»ƒu ngá»¯ cÅ©ng xuá»‘ng Ä‘Ă¡y â€” nĂ©p
+       ngay trĂªn nĂºt gá»£i Ă½ "báº¥m Ä‘á»ƒ káº¿t thĂºc". */
+    top: auto;
+    bottom: calc(6.2vh + 46px);
+    left: 50%;
+    right: auto;
+    transform: translateX(-50%);
+    max-width: 92vw;
+    padding: 12px 18px;
+    text-align: center;
+  }
+  .dragon3d-plaque {
+    top: 64%;
+    width: 92vw;
+  }
+}
+/* Ngang mobile (844Ă—390, 740Ă—360â€¦): Ä‘Ă¢y lĂ  khá»• bá»‹ bá» sĂ³t nhiá»u nháº¥t vĂ  nĂ³
+   Ä‘áº£o ngÆ°á»£c bĂ i toĂ¡n â€” thá»© bĂ³ háº¹p khĂ´ng cĂ²n lĂ  bá» ngang mĂ  lĂ  chiá»u CAO.
+   13,5vw cá»§a báº£n desktop cho khá»‘i chá»¯ rá»™ng tá»›i ~96% khung, hai chá»¯ Ä‘áº§u cuá»‘i
+   cháº¡m mĂ©p; trong khi Ä‘Ă³ rá»“ng Ä‘Ă£ Ä‘á»©ng cao gáº§n háº¿t ná»­a trĂªn. Háº¡ chá»¯ xuá»‘ng
+   9,6vw tráº£ láº¡i khoáº£ng thá»Ÿ hai bĂªn mĂ  váº«n Ä‘á»§ lá»›n, vĂ  kĂ©o chá»¯ lĂªn má»™t nhá»‹p
+   Ä‘á»ƒ cá»¥m rá»“ngâ€“chá»¯ náº±m cĂ¢n giá»¯a khoáº£ng cao háº¡n háº¹p cá»§a khung ngang. */
+@media (orientation: landscape) and (max-height: 560px) {
+  .dragon3d-title {
+    top: 58%;
+    font-size: clamp(2rem, 9.6vw, 4.4rem);
+    letter-spacing: 0.02em;
+  }
+  .dragon3d-plaque {
+    top: 62%;
+    width: min(72vw, 720px);
+    height: clamp(70px, 26vh, 150px);
+  }
+  .sale-celebrate-banner.dragon3d-banner {
+    /* Khung cao 390px: Ä‘Ă¡y thĂ¬ gĂ³c biá»ƒu ngá»¯ cháº¡m chĂ¢n chá»¯ cuá»‘i, pháº£i trĂªn
+       thĂ¬ nĂ³ che máº¥t luá»“ng lá»­a á»Ÿ nhá»‹p 7,6s (Ä‘Ă£ soi áº£nh mĂ  biáº¿t). Khoáº£ng
+       trá»i cĂ²n trá»‘ng duy nháº¥t khi biá»ƒu ngá»¯ Ä‘Ă£ hiá»‡n lĂ  gĂ³c TRĂN TRĂI: rá»“ng
+       Ä‘áº­u chĂ­nh giá»¯a, Ä‘áº§u quay pháº£i, rĂ¢u dĂ i nháº¥t cÅ©ng dá»«ng trÆ°á»›c mĂ©p
+       pháº£i cá»§a tháº». */
+    top: 7vh;
+    bottom: auto;
+    left: 2.4vw;
+    right: auto;
+    transform: none;
+    text-align: left;
+    max-width: min(38vw, 320px);
+    padding: 10px 16px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .dragon3d-title {
+    animation: none;
+    transition: none;
+  }
+  .dragon3d-title.in {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1);
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .sale-celebrate-rays {
     animation: none;

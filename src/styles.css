@@ -13909,45 +13909,20 @@ html[data-theme="dark"] .header-theme-toggle {
   position: relative;
   display: inline-flex;
   align-items: center;
-  font-size: clamp(22px, 3vw + 12px, 30px);
+  font-size: clamp(26px, 3.2vw + 8px, 34px);
   font-weight: 850;
-  letter-spacing: -0.02em;
+  letter-spacing: -0.025em;
   margin: 0;
   line-height: 1.25;
   min-width: 0;
 }
 
 .carem-led-title-text {
-  background: linear-gradient(
-    90deg,
-    #0f172a 0%,
-    #0f172a 25%,
-    #059669 45%,
-    #2563eb 55%,
-    #059669 65%,
-    #0f172a 85%,
-    #0f172a 100%
-  );
-  background-size: 250% 100%;
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  animation: caremLedTitleSweep 5s linear infinite;
+  color: var(--readable, #0f172a);
 }
 
 [data-theme="dark"] .carem-led-title-text {
-  background: linear-gradient(
-    90deg,
-    #f8fafc 0%,
-    #f8fafc 25%,
-    #34d399 45%,
-    #60a5fa 55%,
-    #34d399 65%,
-    #f8fafc 85%,
-    #f8fafc 100%
-  );
-  background-size: 250% 100%;
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
+  color: #ffffff;
 }
 
 @keyframes caremLedTitleSweep {
@@ -14041,24 +14016,23 @@ html[data-theme="dark"] .header-theme-toggle {
 }
 
 /* ─── Executive Vehicle Identity Showcase (Biển số & Số khung) ────────── */
-/* ─── Executive Vehicle Identity Showcase (Biển số & Số khung) ────────── */
 .vehicle-id-showcase {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(280px, 100%), 1fr));
-  gap: 14px;
-  margin-top: 6px;
+  grid-template-columns: repeat(auto-fit, minmax(min(240px, 100%), 1fr));
+  gap: 10px;
+  margin-top: 8px;
   width: 100%;
 }
 
 .vehicle-id-item {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 6px;
   background: var(--surface, #ffffff);
-  border: 1.5px solid var(--line, #e2e8f0);
-  border-radius: 14px;
-  padding: 14px 18px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+  border: 1px solid var(--line, #e2e8f0);
+  border-radius: 12px;
+  padding: 10px 14px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.03);
   min-width: 0;
   box-sizing: border-box;
 }
@@ -14067,22 +14041,22 @@ html[data-theme="dark"] .header-theme-toggle {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 8px;
+  gap: 6px;
 }
 
 .vehicle-id-item-label {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  font-size: 12px;
-  font-weight: 800;
-  color: #334155;
-  letter-spacing: 0.6px;
+  gap: 5px;
+  font-size: 11px;
+  font-weight: 750;
+  color: var(--readable-muted, #64748b);
+  letter-spacing: 0.5px;
   text-transform: uppercase;
 }
 
 .vehicle-id-item-plate .vehicle-id-item-icon {
-  color: #2563eb;
+  color: #3b82f6;
 }
 
 .vehicle-id-item-frame .vehicle-id-item-icon {
@@ -14093,11 +14067,11 @@ html[data-theme="dark"] .header-theme-toggle {
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  padding: 0 10px;
-  height: 26px;
-  font-size: 12px;
+  padding: 0 8px;
+  height: 22px;
+  font-size: 11px;
   font-weight: 600;
-  color: #475569;
+  color: var(--readable-muted, #64748b);
   background: var(--surface-raised, #f1f5f9);
   border: 1px solid var(--line, #cbd5e1);
   border-radius: 6px;
@@ -14119,30 +14093,30 @@ html[data-theme="dark"] .header-theme-toggle {
   display: none;
 }
 
-/* Biển số mô phỏng biển số xe máy thực tế - to, rõ, dập nổi cực kỳ dễ đọc */
+/* Biển số chuẩn tỷ lệ xe máy: sắc nét, thanh thoát, rõ ràng, không lấn át */
 .vehicle-plate-badge {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
-  padding: 8px 18px;
+  gap: 10px;
+  padding: 6px 14px;
   background: #ffffff;
-  border: 2.5px solid #0f172a;
-  border-radius: 12px;
+  border: 1.5px solid #1e293b;
+  border-radius: 8px;
   box-shadow:
-    0 4px 14px rgba(15, 23, 42, 0.12),
-    inset 0 0 0 1.5px #e2e8f0;
-  min-height: 54px;
+    0 2px 6px rgba(15, 23, 42, 0.08),
+    inset 0 0 0 1px #f1f5f9;
+  min-height: 40px;
   width: 100%;
   box-sizing: border-box;
 }
 
 .vehicle-plate-text {
   font-family: var(--font-mono, ui-monospace, monospace);
-  font-size: clamp(21px, 2.6vw, 26px);
-  font-weight: 900;
-  letter-spacing: 2px;
-  color: #000000;
+  font-size: 18px;
+  font-weight: 800;
+  letter-spacing: 1.5px;
+  color: #0f172a;
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
   overflow: hidden;
@@ -14152,7 +14126,7 @@ html[data-theme="dark"] .header-theme-toggle {
 }
 
 .vehicle-plate-badge.is-empty {
-  border: 2px dashed #cbd5e1;
+  border: 1.5px dashed #cbd5e1;
   box-shadow: none;
   background: #f8fafc;
   justify-content: center;
@@ -14160,43 +14134,43 @@ html[data-theme="dark"] .header-theme-toggle {
 
 .vehicle-plate-badge.is-empty .vehicle-plate-text {
   color: #94a3b8;
-  font-size: 14px;
+  font-size: 13.5px;
   font-weight: 600;
   font-family: inherit;
   letter-spacing: normal;
 }
 
 .vehicle-plate-screw {
-  width: 8px;
-  height: 8px;
+  width: 5px;
+  height: 5px;
   border-radius: 50%;
-  background: #94a3b8;
-  border: 1.5px solid #475569;
-  box-shadow: inset 0 1px 1px rgba(0, 0, 0, 0.35);
+  background: #cbd5e1;
+  border: 1px solid #94a3b8;
+  box-shadow: inset 0 1px 1px rgba(0, 0, 0, 0.2);
   flex-shrink: 0;
 }
 
-/* Số khung kỹ thuật dập nổi cao cấp - to rõ, dập chip vàng/neon tương phản cao */
+/* Số khung dập nổi thanh lịch: rõ từng số, 6 số cuối chip tương phản nhã nhặn */
 .vehicle-frame-badge {
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 8px 16px;
-  background: #ffffff;
-  border: 2px solid #1e293b;
-  border-radius: 12px;
-  min-height: 54px;
+  padding: 6px 12px;
+  background: var(--surface-raised, #f8fafc);
+  border: 1px solid var(--line, #cbd5e1);
+  border-radius: 8px;
+  min-height: 40px;
   width: 100%;
   box-sizing: border-box;
-  box-shadow: 0 4px 14px rgba(15, 23, 42, 0.08);
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.04);
 }
 
 .vehicle-frame-text {
   font-family: var(--font-mono, ui-monospace, monospace);
-  font-size: clamp(16px, 2vw, 19.5px);
-  font-weight: 800;
-  letter-spacing: 1.2px;
-  color: #0f172a;
+  font-size: 14.5px;
+  font-weight: 700;
+  letter-spacing: 0.8px;
+  color: #1e293b;
   font-variant-numeric: tabular-nums;
   overflow-wrap: anywhere;
   text-align: center;
@@ -14208,24 +14182,24 @@ html[data-theme="dark"] .header-theme-toggle {
 }
 
 .vehicle-frame-prefix {
-  color: #475569;
-  font-weight: 750;
+  color: #64748b;
+  font-weight: 650;
 }
 
 .vehicle-frame-highlight,
 .vehicle-frame-text strong {
-  color: #000000;
-  font-weight: 950;
-  background: #fef08a;
-  border: 1.5px solid #eab308;
-  padding: 3px 9px;
-  border-radius: 6px;
-  margin-left: 3px;
-  box-shadow: 0 1px 4px rgba(234, 179, 8, 0.3);
+  color: #0f172a;
+  font-weight: 850;
+  background: #e2e8f0;
+  border: 1px solid #cbd5e1;
+  padding: 1px 6px;
+  border-radius: 5px;
+  margin-left: 2px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
 }
 
 .vehicle-frame-badge.is-empty {
-  border: 2px dashed #cbd5e1;
+  border: 1.5px dashed #cbd5e1;
   background: #f8fafc;
   box-shadow: none;
   color: #94a3b8;
@@ -14234,21 +14208,21 @@ html[data-theme="dark"] .header-theme-toggle {
 
 .vehicle-frame-badge.is-empty .vehicle-frame-text {
   color: #94a3b8;
-  font-size: 14px;
+  font-size: 13.5px;
   font-weight: 600;
   font-family: inherit;
   letter-spacing: normal;
 }
 
-/* Dark mode theme matching - tương phản tối đa, siêu sáng */
+/* Dark mode theme matching */
 [data-theme="dark"] .vehicle-id-item {
   background: #171c26;
   border-color: #2b3548;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
 }
 
 [data-theme="dark"] .vehicle-id-item-label {
-  color: #cbd5e1;
+  color: #9aa3b5;
 }
 
 [data-theme="dark"] .vehicle-id-item-plate .vehicle-id-item-icon {
@@ -14262,7 +14236,7 @@ html[data-theme="dark"] .header-theme-toggle {
 [data-theme="dark"] .vehicle-id-item-copy {
   background: #1e2636;
   border-color: #334155;
-  color: #cbd5e1;
+  color: #9aa3b5;
 }
 
 [data-theme="dark"] .vehicle-id-item-copy:hover {
@@ -14271,23 +14245,23 @@ html[data-theme="dark"] .header-theme-toggle {
   color: #ffffff;
 }
 
-/* Biển số trong dark mode: phản quang rực rỡ, chữ đen 100% trên nền trắng sáng */
+/* Biển số dark mode: rõ nét, nền sáng vừa đủ, không chói lòa */
 [data-theme="dark"] .vehicle-plate-badge {
   background: #ffffff;
-  border: 2.5px solid #cbd5e1;
+  border: 1.5px solid #cbd5e1;
   box-shadow:
-    0 0 24px rgba(255, 255, 255, 0.35),
-    0 4px 16px rgba(0, 0, 0, 0.6);
+    0 0 12px rgba(255, 255, 255, 0.15),
+    0 2px 8px rgba(0, 0, 0, 0.4);
 }
 
 [data-theme="dark"] .vehicle-plate-text {
-  color: #000000;
-  font-weight: 950;
+  color: #0f172a;
+  font-weight: 850;
 }
 
 [data-theme="dark"] .vehicle-plate-screw {
   background: #94a3b8;
-  border-color: #475569;
+  border-color: #64748b;
 }
 
 [data-theme="dark"] .vehicle-plate-badge.is-empty {
@@ -14300,29 +14274,27 @@ html[data-theme="dark"] .header-theme-toggle {
   color: #64748b;
 }
 
-/* Số khung trong dark mode: phát quang high-tech neon, 6 số cuối chip phát quang */
+/* Số khung dark mode: màu sắc hài hòa, công nghệ */
 [data-theme="dark"] .vehicle-frame-badge {
-  background: #0f172a;
-  border: 2px solid #38bdf8;
-  box-shadow:
-    0 0 22px rgba(56, 189, 248, 0.28),
-    0 4px 16px rgba(0, 0, 0, 0.5);
+  background: #121620;
+  border: 1px solid #2e384d;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
 }
 
 [data-theme="dark"] .vehicle-frame-text {
-  color: #f1f5f9;
+  color: #cbd5e1;
 }
 
 [data-theme="dark"] .vehicle-frame-prefix {
-  color: #94a3b8;
+  color: #64748b;
 }
 
 [data-theme="dark"] .vehicle-frame-highlight,
 [data-theme="dark"] .vehicle-frame-text strong {
-  color: #000000;
-  background: #38bdf8;
-  border-color: #7dd3fc;
-  box-shadow: 0 0 14px rgba(56, 189, 248, 0.6);
+  color: #38bdf8;
+  background: #1e293b;
+  border-color: #334155;
+  box-shadow: 0 0 6px rgba(56, 189, 248, 0.2);
 }
 
 [data-theme="dark"] .vehicle-frame-badge.is-empty {

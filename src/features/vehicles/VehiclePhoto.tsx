@@ -5,7 +5,7 @@ import {
   Camera,
   ChevronLeft,
   ChevronRight,
-  Plus,
+  ImagePlus,
   X,
 } from "lucide-react";
 import { api } from "@/lib/api";
@@ -213,7 +213,7 @@ export function VehiclePhotoDisplay({
                 aria-label="Thêm ảnh cho xe"
                 title="Thêm ảnh"
               >
-                <Plus size={18} />
+                <ImagePlus size={18} />
               </button>
             ) : (
               <Link
@@ -222,7 +222,7 @@ export function VehiclePhotoDisplay({
                 aria-label="Thêm ảnh cho xe"
                 title="Thêm ảnh"
               >
-                <Plus size={18} />
+                <ImagePlus size={18} />
               </Link>
             )
           )}

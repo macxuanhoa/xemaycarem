@@ -5,7 +5,9 @@ import {
   ArrowLeft,
   ArrowRight,
   Bike,
+  Camera,
   CirclePlus,
+  ImagePlus,
   MoreHorizontal,
   Pencil,
   SendHorizontal,
@@ -474,13 +476,13 @@ export function VehicleDetailPage() {
               <div className="row between" style={{ alignItems: "center", marginBottom: 12 }}>
                 <h2 className="section-title" style={{ margin: 0 }}>Hình ảnh xe</h2>
                 {canOperate(profile) && (
-                  <Button
-                    variant="primary"
-                    className="btn-sm"
+                  <button
+                    type="button"
+                    className="vehicle-add-photo-btn"
                     onClick={() => setPhotoChoiceOpen(true)}
                   >
-                    <CirclePlus size={16} /> Thêm ảnh xe
-                  </Button>
+                    <ImagePlus size={15} /> Thêm ảnh xe
+                  </button>
                 )}
               </div>
               {vehicle.images?.length ? (
@@ -502,9 +504,29 @@ export function VehicleDetailPage() {
                   role={canOperate(profile) ? "button" : undefined}
                   tabIndex={canOperate(profile) ? 0 : undefined}
                   title="Bấm để tải ảnh xe lên"
+                  onKeyDown={
+                    canOperate(profile)
+                      ? (e) => {
+                          if (e.key === "Enter" || e.key === " ") {
+                            e.preventDefault();
+                            setPhotoChoiceOpen(true);
+                          }
+                        }
+                      : undefined
+                  }
                 >
-                  <Bike size={74} strokeWidth={1.2} />
-                  <p>Thêm ảnh để dễ nhận diện xe trong kho</p>
+                  <div className="vehicle-empty-photo-icon">
+                    <Camera size={26} strokeWidth={1.5} />
+                  </div>
+                  <div className="vehicle-empty-photo-text">
+                    <p className="vehicle-empty-photo-title">Chưa có hình ảnh xe</p>
+                    <p className="vehicle-empty-photo-sub">Thêm ảnh để nhận diện xe trong kho và đăng bài bán</p>
+                  </div>
+                  {canOperate(profile) && (
+                    <span className="vehicle-add-photo-btn vehicle-add-photo-btn-inline">
+                      <ImagePlus size={14} /> Thêm ảnh xe
+                    </span>
+                  )}
                 </div>
               )}
               {canOperate(profile) && (

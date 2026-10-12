@@ -2617,9 +2617,9 @@ pre {
   display: flex;
   align-items: center;
   justify-content: center;
-  border: 2px dashed #cbd5e1;
+  border: 1.5px dashed #cbd5e1;
   border-radius: 8px;
-  background: transparent;
+  background: var(--surface-raised, #f8fafc);
   color: #64748b;
   text-decoration: none;
   transition:
@@ -2628,12 +2628,12 @@ pre {
     color 150ms ease;
 }
 .vehicle-display-add:hover {
-  border-color: var(--accent, #6b835a);
-  background: rgba(107, 131, 90, 0.08);
-  color: var(--accent, #6b835a);
+  border-color: #86efac;
+  background: #f0fdf4;
+  color: #15803d;
 }
 .vehicle-display-add:active {
-  transform: scale(0.94);
+  transform: scale(0.96);
 }
 .vehicle-display-lightbox {
   position: fixed;
@@ -2696,17 +2696,124 @@ pre {
   height: 160px;
   color: #91a284;
 }
+/* ─── Nút thêm ảnh xe tinh tế, nhẹ nhàng ─────────────────────────────── */
+.vehicle-add-photo-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: 32px;
+  padding: 0 12px;
+  font-size: 13px;
+  font-weight: 550;
+  color: #15803d;
+  background: #f0fdf4;
+  border: 1px solid #bbf7d0;
+  border-radius: 8px;
+  cursor: pointer;
+  white-space: nowrap;
+  text-decoration: none;
+  box-shadow: 0 1px 2px rgba(16, 185, 129, 0.05);
+  transition:
+    background-color 150ms ease,
+    border-color 150ms ease,
+    color 150ms ease,
+    box-shadow 150ms ease;
+}
+
+.vehicle-add-photo-btn:hover {
+  background: #dcfce7;
+  border-color: #86efac;
+  color: #14532d;
+  box-shadow: 0 1px 3px rgba(16, 185, 129, 0.1);
+}
+
+.vehicle-add-photo-btn:active {
+  transform: scale(0.98);
+}
+
+.vehicle-add-photo-btn:focus-visible {
+  outline: 2px solid #22c55e;
+  outline-offset: 2px;
+}
+
+.vehicle-add-photo-btn-inline {
+  margin-top: 6px;
+  pointer-events: none;
+}
+
 .vehicle-empty-photo {
   display: flex;
   align-items: center;
   justify-content: center;
   flex-direction: column;
-  gap: 12px;
-  padding: 40px;
-  background: #f4f6ef;
-  border: 1px dashed #dbe3d0;
-  border-radius: 10px;
-  color: #a2ae90;
+  gap: 10px;
+  padding: 30px 20px;
+  background: #f8fafc;
+  border: 1.5px dashed #cbd5e1;
+  border-radius: 12px;
+  color: #64748b;
+  text-align: center;
+  transition:
+    background-color 150ms ease,
+    border-color 150ms ease,
+    color 150ms ease;
+}
+
+.vehicle-empty-photo[role="button"] {
+  cursor: pointer;
+}
+
+.vehicle-empty-photo[role="button"]:hover {
+  background: #f0fdf4;
+  border-color: #86efac;
+  color: #15803d;
+}
+
+.vehicle-empty-photo-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: #f1f5f9;
+  color: #64748b;
+  transition: background-color 150ms ease, color 150ms ease;
+}
+
+.vehicle-empty-photo[role="button"]:hover .vehicle-empty-photo-icon {
+  background: #dcfce7;
+  color: #15803d;
+}
+
+.vehicle-empty-photo-text {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.vehicle-empty-photo-title {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 650;
+  color: #334155;
+  transition: color 150ms ease;
+}
+
+.vehicle-empty-photo[role="button"]:hover .vehicle-empty-photo-title {
+  color: #14532d;
+}
+
+.vehicle-empty-photo-sub {
+  margin: 0;
+  font-size: 12.5px;
+  color: #64748b;
+  transition: color 150ms ease;
+}
+
+.vehicle-empty-photo[role="button"]:hover .vehicle-empty-photo-sub {
+  color: #166534;
 }
 .upload-button {
   display: inline-flex;
@@ -14169,6 +14276,16 @@ html[data-theme="dark"] .header-theme-toggle {
   color: #60a5fa;
 }
 
+[data-theme="dark"] .photo-choice-btn {
+  background: #171821;
+  border-color: #2a2d3a;
+}
+
+[data-theme="dark"] .photo-choice-btn:hover {
+  background: #1d202b;
+  border-color: rgba(16, 185, 129, 0.4);
+}
+
 .photo-choice-info {
   display: flex;
   flex-direction: column;
@@ -14875,10 +14992,55 @@ html[data-theme="dark"] .header-theme-toggle {
 [data-theme="dark"] .vehicle-display-nav:hover {
   background: #1d1f2a;
 }
+[data-theme="dark"] .vehicle-add-photo-btn {
+  background: rgba(34, 197, 94, 0.1);
+  border-color: rgba(34, 197, 94, 0.24);
+  color: #86efac;
+  box-shadow: none;
+}
+
+[data-theme="dark"] .vehicle-add-photo-btn:hover {
+  background: rgba(34, 197, 94, 0.18);
+  border-color: rgba(34, 197, 94, 0.4);
+  color: #bbf7d0;
+}
+
 [data-theme="dark"] .vehicle-empty-photo {
   background: #101117;
   border-color: #2c2f3d;
-  color: #7f8b76;
+  color: #94a3b8;
+}
+
+[data-theme="dark"] .vehicle-empty-photo[role="button"]:hover {
+  background: rgba(34, 197, 94, 0.06);
+  border-color: rgba(34, 197, 94, 0.3);
+  color: #86efac;
+}
+
+[data-theme="dark"] .vehicle-empty-photo-icon {
+  background: #171821;
+  color: #94a3b8;
+}
+
+[data-theme="dark"] .vehicle-empty-photo[role="button"]:hover .vehicle-empty-photo-icon {
+  background: rgba(34, 197, 94, 0.15);
+  color: #86efac;
+}
+
+[data-theme="dark"] .vehicle-empty-photo-title {
+  color: #cbd5e1;
+}
+
+[data-theme="dark"] .vehicle-empty-photo[role="button"]:hover .vehicle-empty-photo-title {
+  color: #86efac;
+}
+
+[data-theme="dark"] .vehicle-empty-photo-sub {
+  color: #94a3b8;
+}
+
+[data-theme="dark"] .vehicle-empty-photo[role="button"]:hover .vehicle-empty-photo-sub {
+  color: #a7f3d0;
 }
 /* Form lồng, khối cài đặt & ghi chú */
 [data-theme="dark"] .inset-form {

@@ -11483,64 +11483,722 @@ mark.search-hit {
 .markdown-table tbody tr:last-child td {
   border-bottom: 0;
 }
-/* The answer itself sits on its own tinted surface so it is unmistakable. */
-.copilot-answer-card {
-  border-color: rgba(79, 70, 229, 0.3);
-  background: linear-gradient(160deg, #f4f4ff 0%, #ffffff 58%);
-  box-shadow:
-    0 8px 26px -14px rgba(79, 70, 229, 0.28),
-    0 1px 3px 0 rgba(16, 43, 35, 0.03);
+/* ============================================================
+   Trợ lý Cà Rem (AI Copilot): Modern ChatGPT Conversation Layout
+   ============================================================ */
+.copilot-layout-container {
+  display: flex;
+  flex-direction: column;
+  min-height: calc(100vh - 120px);
+  position: relative;
+  overflow: visible;
 }
-.copilot-answer-by {
+
+/* 1. Topbar */
+.copilot-topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 12px 18px;
+  background: var(--card, #fff);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg, 16px);
+  margin-bottom: 12px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.03);
+}
+
+.copilot-topbar-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.copilot-avatar-badge {
+  width: 38px;
+  height: 38px;
+  border-radius: 12px;
+  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 4px 12px rgba(16, 185, 129, 0.25);
+  flex-shrink: 0;
+}
+
+.copilot-topbar-headings {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.copilot-title-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.copilot-page-title {
+  font-size: 16.5px;
+  font-weight: 800;
+  letter-spacing: -0.2px;
+  margin: 0;
+  color: inherit;
+}
+
+.copilot-status-indicator {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: rgba(16, 185, 129, 0.1);
+  color: #059669;
+  border-radius: 999px;
+  padding: 2px 8px;
+  font-size: 11.5px;
+  font-weight: 600;
+}
+
+.copilot-pulse-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #10b981;
+  box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.6);
+  animation: copilot-pulse 2s infinite ease-out;
+}
+
+@keyframes copilot-pulse {
+  0% {
+    box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.6);
+  }
+  70% {
+    box-shadow: 0 0 0 6px rgba(16, 185, 129, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(16, 185, 129, 0);
+  }
+}
+
+.copilot-page-subtitle {
+  font-size: 12px;
+  color: var(--muted);
+  margin: 0;
+}
+
+.copilot-topbar-actions {
   display: flex;
   align-items: center;
   gap: 8px;
-  margin: 0;
-  font-size: 12.5px;
-  font-weight: 700;
-  letter-spacing: 0.2px;
-  color: var(--primary-dark);
 }
-.copilot-answer-avatar {
-  width: 27px;
-  height: 27px;
-  border-radius: 9px;
+
+.copilot-topbar-btn {
   display: inline-flex;
   align-items: center;
+  gap: 6px;
+  background: #f1f5f9;
+  border: 1px solid var(--line);
+  color: #1e293b;
+  border-radius: 10px;
+  padding: 6px 12px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  text-decoration: none;
+  transition: background 150ms ease, border-color 150ms ease, color 150ms ease;
+}
+
+.copilot-topbar-btn:hover {
+  background: #e2e8f0;
+  border-color: #cbd5e1;
+}
+
+.copilot-topbar-btn.secondary {
+  background: transparent;
+  color: var(--muted);
+}
+
+.copilot-topbar-btn.secondary:hover {
+  background: #f1f5f9;
+  color: inherit;
+}
+
+/* 2. Messages Viewport */
+.copilot-messages-viewport {
+  flex: 1 1 auto;
+  overflow-y: visible;
+  padding: 10px 4px 170px;
+}
+
+.copilot-messages-inner {
+  max-width: 860px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+/* Welcome Hero */
+.copilot-welcome-hero {
+  padding: 32px 14px 16px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 26px;
+}
+
+.copilot-welcome-brand {
+  max-width: 540px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+
+.copilot-welcome-icon {
+  width: 60px;
+  height: 60px;
+  border-radius: 18px;
+  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+  color: #fff;
+  display: flex;
+  align-items: center;
   justify-content: center;
-  background: rgba(99, 102, 241, 0.14);
-  color: var(--primary);
+  box-shadow: 0 10px 25px -4px rgba(16, 185, 129, 0.35);
+}
+
+.copilot-welcome-heading {
+  font-size: 20px;
+  font-weight: 800;
+  letter-spacing: -0.3px;
+  margin: 0;
+  color: inherit;
+}
+
+.copilot-welcome-description {
+  font-size: 13.5px;
+  line-height: 1.6;
+  color: var(--muted);
+  margin: 0;
+}
+
+/* Starters Grid */
+.copilot-starters-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  width: 100%;
+  max-width: 760px;
+  text-align: left;
+}
+
+.copilot-starter-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  padding: 14px 16px;
+  background: var(--card, #fff);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  cursor: pointer;
+  transition: border-color 150ms ease, background 150ms ease, box-shadow 150ms ease;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.03);
+}
+
+.copilot-starter-card:hover {
+  border-color: #10b981;
+  background: #f8fbf9;
+  box-shadow: 0 4px 14px rgba(16, 185, 129, 0.08);
+}
+
+.copilot-starter-icon-wrap {
+  width: 38px;
+  height: 38px;
+  border-radius: 10px;
+  background: rgba(16, 185, 129, 0.1);
+  color: #059669;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   flex-shrink: 0;
 }
+
+.copilot-starter-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.copilot-starter-tag {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: #059669;
+}
+
+.copilot-starter-title {
+  font-size: 13.5px;
+  font-weight: 700;
+  color: inherit;
+}
+
+.copilot-starter-desc {
+  font-size: 12px;
+  color: var(--muted);
+  line-height: 1.4;
+}
+
+/* 3. Conversation Turns */
+.copilot-turn-group {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.copilot-turn {
+  display: flex;
+  width: 100%;
+}
+
+/* User turn */
+.copilot-turn-user {
+  justify-content: flex-end;
+}
+
+.copilot-user-bubble {
+  max-width: min(80%, 640px);
+  background: #1e293b;
+  color: #f8fafc;
+  border-radius: 20px 20px 4px 20px;
+  padding: 12px 18px;
+  box-shadow: 0 3px 12px rgba(15, 23, 42, 0.12);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.copilot-user-text {
+  margin: 0;
+  font-size: 14.5px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.copilot-turn-time {
+  align-self: flex-end;
+  font-size: 10.5px;
+  color: rgba(255, 255, 255, 0.6);
+}
+
+/* Assistant turn */
+.copilot-turn-assistant {
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.copilot-turn-avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 10px;
+  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  margin-top: 4px;
+  box-shadow: 0 2px 8px rgba(16, 185, 129, 0.25);
+}
+
+.copilot-turn-avatar.pulsing {
+  animation: copilot-pulse 1.8s infinite ease-out;
+}
+
+.copilot-turn-content {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+/* Answer Card */
+.copilot-answer-card {
+  border: 1px solid var(--line);
+  background: var(--card, #fff);
+  border-radius: 18px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.04);
+  padding: 18px 20px;
+}
+
+.copilot-answer-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 10px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--line-subtle);
+}
+
+.copilot-answer-meta {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.copilot-answer-by {
+  font-size: 13px;
+  font-weight: 700;
+  color: #047857;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+}
+
+.copilot-period-badge {
+  font-size: 12px;
+  font-weight: 600;
+  background: #f1f5f9;
+  color: #475569;
+  border-radius: 6px;
+  padding: 2px 8px;
+}
+
+.copilot-copy-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: transparent;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 4px 10px;
+  font-size: 12px;
+  color: var(--muted);
+  cursor: pointer;
+  transition: background 150ms ease, color 150ms ease;
+}
+
+.copilot-copy-btn:hover {
+  background: #f1f5f9;
+  color: inherit;
+}
+
 .copilot-question-echo {
-  margin: 10px 0 0;
+  margin: 0 0 10px;
+  padding: 6px 12px;
+  border-left: 3px solid #10b981;
+  background: #f8fafc;
+  color: #475569;
+  font-size: 13px;
+  font-style: italic;
+  border-radius: 0 8px 8px 0;
+}
+
+.copilot-stock-note {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 10px 0;
   padding: 8px 12px;
+  border-radius: 10px;
+  background: #f0fdf4;
+  border: 1px solid #bbf7d0;
+  color: #166534;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.copilot-key-metrics-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 10px 0 14px;
+}
+
+.copilot-metric-badge {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 8px;
+  background: #f8fafc;
   border: 1px solid var(--line);
   border-radius: 10px;
-  background: rgba(255, 255, 255, 0.72);
-  color: var(--muted);
-  font-size: 13px;
+  padding: 6px 12px;
 }
-/* Answer area: roomier type so grounded answers read like a page, not a log. */
+
+.copilot-metric-name {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.copilot-metric-number {
+  font-size: 13.5px;
+  font-weight: 700;
+  color: inherit;
+  font-variant-numeric: tabular-nums;
+}
+
+.copilot-markdown-wrap {
+  margin: 10px 0;
+}
+
 .copilot-answer {
   gap: 10px;
-  margin-top: 12px;
-  font-size: 15px;
+  font-size: 14.5px;
   line-height: 1.7;
 }
+
 .copilot-answer .markdown-heading {
   margin: 12px 0 2px;
-  font-size: 16.5px;
+  font-size: 16px;
   letter-spacing: -0.2px;
 }
+
 .copilot-answer .markdown-list {
-  gap: 9px;
-  padding-left: 22px;
+  gap: 8px;
+  padding-left: 20px;
 }
+
 .copilot-answer strong {
   font-weight: 700;
   color: #0f172a;
   font-variant-numeric: tabular-nums;
+}
+
+/* Evidence details */
+.copilot-evidence {
+  margin-top: 14px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  overflow: hidden;
+  background: #fbfbfd;
+}
+
+.copilot-evidence > summary {
+  padding: 10px 14px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--muted);
+  cursor: pointer;
+  user-select: none;
+  background: #f8fafc;
+  transition: background 150ms ease, color 150ms ease;
+}
+
+.copilot-evidence > summary:hover {
+  background: #f1f5f9;
+  color: inherit;
+}
+
+.copilot-evidence[open] > summary {
+  border-bottom: 1px solid var(--line);
+}
+
+.copilot-evidence-body {
+  padding: 12px 14px;
+  background: var(--card, #fff);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.copilot-suggestions-row {
+  margin-top: 14px;
+  padding-top: 10px;
+  border-top: 1px dashed var(--line);
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.copilot-suggestions-lead {
+  font-size: 12.5px;
+  color: var(--muted);
+  font-weight: 600;
+}
+
+.copilot-draft-embed {
+  margin-top: 8px;
+}
+
+/* Thinking Indicator Card */
+.copilot-thinking-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 18px;
+  border-radius: 16px;
+  background: var(--card, #fff);
+  border: 1px solid var(--line);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+}
+
+.copilot-thinking-dots {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.copilot-thinking-dots span {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #10b981;
+  animation: copilot-bounce 1.4s infinite ease-in-out both;
+}
+
+.copilot-thinking-dots span:nth-child(1) {
+  animation-delay: -0.32s;
+}
+
+.copilot-thinking-dots span:nth-child(2) {
+  animation-delay: -0.16s;
+}
+
+@keyframes copilot-bounce {
+  0%, 80%, 100% {
+    transform: scale(0.6);
+    opacity: 0.4;
+  }
+  40% {
+    transform: scale(1.1);
+    opacity: 1;
+  }
+}
+
+.copilot-thinking-label {
+  font-size: 13.5px;
+  color: var(--muted);
+}
+
+.copilot-scroll-anchor {
+  height: 1px;
+}
+
+/* 4. Composer Dock */
+.copilot-composer-dock {
+  position: sticky;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 30;
+  padding: 12px 12px 14px;
+  background: linear-gradient(to top, rgba(247, 247, 249, 1) 78%, rgba(247, 247, 249, 0) 100%);
+  margin-top: auto;
+}
+
+.copilot-composer-inner {
+  max-width: 860px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.copilot-prompt-pill-bar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.copilot-composer {
+  border-radius: 18px !important;
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.08) !important;
+  border: 1px solid var(--line) !important;
+  padding: 10px 14px !important;
+  background: var(--card, #fff) !important;
+}
+
+.copilot-composer-form {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.copilot-input-capsule {
+  display: flex;
+  align-items: flex-end;
+  gap: 10px;
+  background: #f8fafc;
+  border: 1.5px solid var(--line);
+  border-radius: 14px;
+  padding: 6px 8px 6px 14px;
+  transition: border-color 150ms ease, background 150ms ease, box-shadow 150ms ease;
+}
+
+.copilot-input-capsule:focus-within {
+  border-color: #10b981;
+  background: #fff;
+  box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.12);
+}
+
+.copilot-input {
+  flex: 1 1 auto;
+  border: 0 !important;
+  outline: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  font-size: 14px;
+  line-height: 1.5;
+  padding: 4px 0;
+  resize: none;
+  min-height: 38px;
+  max-height: 160px;
+}
+
+.copilot-send-button {
+  border-radius: 999px !important;
+  padding: 6px 14px !important;
+  height: 36px !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 6px !important;
+  background: #10b981 !important;
+  color: #fff !important;
+  font-weight: 600 !important;
+  flex-shrink: 0;
+}
+
+.copilot-send-button:hover:not(:disabled) {
+  background: #059669 !important;
+}
+
+.copilot-send-button:disabled {
+  opacity: 0.45;
+}
+
+.copilot-controls {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 0 4px;
+}
+
+.copilot-mode-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  user-select: none;
+  font-size: 12.5px;
+  color: #475569;
+}
+
+.copilot-disclaimer-note,
+.copilot-staff-notice {
+  font-size: 11.5px;
+  color: var(--muted);
+  margin: 0;
 }
 .doc-body {
   gap: 10px;
@@ -12693,49 +13351,142 @@ html[data-theme="dark"] .header-theme-toggle {
 }
 
 /* --- Trợ lý AI & Tài liệu --- */
+[data-theme="dark"] .copilot-topbar {
+  background: #171821;
+  border-color: #262833;
+}
+
+[data-theme="dark"] .copilot-topbar-btn {
+  background: #1e202b;
+  border-color: #2b2e3c;
+  color: #e2e8f0;
+}
+
+[data-theme="dark"] .copilot-topbar-btn:hover {
+  background: #272a39;
+}
+
+[data-theme="dark"] .copilot-starter-card {
+  background: #171821;
+  border-color: #262833;
+}
+
+[data-theme="dark"] .copilot-starter-card:hover {
+  border-color: #10b981;
+  background: #1d202b;
+}
+
+[data-theme="dark"] .copilot-composer-dock {
+  background: linear-gradient(to top, rgba(15, 16, 21, 1) 78%, rgba(15, 16, 21, 0) 100%);
+}
+
+[data-theme="dark"] .copilot-composer {
+  background: #171821 !important;
+  border-color: #262833 !important;
+}
+
+[data-theme="dark"] .copilot-input-capsule {
+  background: #13141b;
+  border-color: #262833;
+}
+
+[data-theme="dark"] .copilot-input-capsule:focus-within {
+  background: #171821;
+}
+
 [data-theme="dark"] .copilot-chip {
   background: #171821;
   color: #dcdfe9;
 }
+
 [data-theme="dark"] .copilot-chip:hover {
   background: #1d1f2a;
 }
+
 [data-theme="dark"] .copilot-answer-card {
-  border-color: rgba(99, 102, 241, 0.36);
-  background: linear-gradient(160deg, #1a1d2b 0%, #14161e 58%);
+  border-color: #262833;
+  background: #171821;
   box-shadow: 0 10px 28px -14px rgba(0, 0, 0, 0.55);
 }
+
 [data-theme="dark"] .copilot-answer-by {
-  color: #a5b4fc;
+  color: #34d399;
 }
+
 [data-theme="dark"] .copilot-answer-avatar {
-  background: rgba(99, 102, 241, 0.2);
-  color: #a5b4fc;
+  background: rgba(16, 185, 129, 0.2);
+  color: #6ee7b7;
 }
+
+[data-theme="dark"] .copilot-user-bubble {
+  background: #252837;
+  color: #f1f5f9;
+}
+
 [data-theme="dark"] .copilot-question-echo {
   background: rgba(23, 24, 33, 0.72);
   border-color: #262833;
+  border-left-color: #10b981;
   color: #98a0b3;
 }
+
+[data-theme="dark"] .copilot-stock-note {
+  background: rgba(16, 185, 129, 0.12);
+  border-color: rgba(16, 185, 129, 0.25);
+  color: #6ee7b7;
+}
+
+[data-theme="dark"] .copilot-metric-badge {
+  background: #1c1e29;
+  border-color: #2b2e3c;
+}
+
+[data-theme="dark"] .copilot-evidence {
+  background: #13141b;
+  border-color: #262833;
+}
+
+[data-theme="dark"] .copilot-evidence > summary {
+  background: #171821;
+  color: #94a3b8;
+}
+
+[data-theme="dark"] .copilot-evidence[open] > summary {
+  border-color: #262833;
+}
+
+[data-theme="dark"] .copilot-evidence-body {
+  background: #171821;
+}
+
+[data-theme="dark"] .copilot-thinking-card {
+  background: #171821;
+  border-color: #262833;
+}
+
 [data-theme="dark"] .copilot-facts li {
   background: #171821;
 }
+
 [data-theme="dark"] .copilot-facts strong,
 [data-theme="dark"] .copilot-answer strong {
   color: #eef1f8;
 }
+
 [data-theme="dark"] .copilot-excerpt,
 [data-theme="dark"] .markdown-quote {
   background: #171821;
 }
+
 [data-theme="dark"] .citation-chip {
-  background: rgba(99, 102, 241, 0.16);
-  border-color: rgba(99, 102, 241, 0.36);
-  color: #a5b4fc;
+  background: rgba(16, 185, 129, 0.16);
+  border-color: rgba(16, 185, 129, 0.36);
+  color: #6ee7b7;
 }
+
 [data-theme="dark"] .citation-chip:hover {
-  background: var(--primary, #4f46e5);
-  border-color: var(--primary, #4f46e5);
+  background: #10b981;
+  border-color: #10b981;
   color: #fff;
 }
 [data-theme="dark"] .markdown :not(pre) > code {

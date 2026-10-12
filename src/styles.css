@@ -16608,9 +16608,16 @@ html[data-theme="dark"] .header-theme-toggle {
    bằng khoảng thở + viền đứt nét, để nhân viên nhìn thấy ngay khu tuỳ chọn
    mà vẫn nhẹ nhàng, không cướp sự chú ý khỏi giá bán. */
 /* VietQR: one clear code with server-controlled expiry and bank status. */
+/* VietQR: one clear code with server-controlled expiry and bank status. */
 .vietqr-modal-panel {
-  width: min(520px, 100%);
-  padding: 22px;
+  width: min(500px, 100%);
+  max-height: min(92dvh, 840px);
+  display: flex;
+  flex-direction: column;
+  padding: 20px 22px;
+  box-sizing: border-box;
+  overflow: hidden;
+  border-radius: var(--radius-xl, 20px);
   animation: modalFadeIn 0.18s ease-out;
 }
 .vietqr-modal-heading {
@@ -16618,7 +16625,8 @@ html[data-theme="dark"] .header-theme-toggle {
   align-items: flex-start;
   justify-content: space-between;
   gap: 12px;
-  margin-bottom: 18px;
+  margin-bottom: 12px;
+  flex-shrink: 0;
 }
 .vietqr-modal-heading h2 {
   display: flex;
@@ -16641,13 +16649,23 @@ html[data-theme="dark"] .header-theme-toggle {
   min-height: 44px;
   padding: 0;
 }
-.vietqr-content { display: grid; gap: 14px; }
+.vietqr-content {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding-right: 2px;
+}
 .vietqr-state { padding-block: 20px; text-align: center; }
 .vietqr-bank-status {
+  flex-shrink: 0;
   display: flex;
   align-items: flex-start;
   gap: 10px;
-  padding: 12px 14px;
+  padding: 10px 14px;
   border: 1px solid var(--line);
   border-radius: 12px;
   background: #f7f8fa;
@@ -16659,25 +16677,99 @@ html[data-theme="dark"] .header-theme-toggle {
 .vietqr-bank-status--success { color: #047857; background: #ecfdf5; border-color: #a7f3d0; }
 .vietqr-bank-status--warning { color: #92400e; background: #fffbeb; border-color: #fcd34d; }
 .vietqr-display-box {
+  flex-shrink: 0;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 12px;
+  gap: 14px;
   padding: 16px;
   border: 1px solid var(--line);
-  border-radius: 14px;
-  background: #fff;
+  border-radius: 16px;
+  background: #fafcfb;
 }
-.vietqr-display-box > img { display: block; width: min(220px, 100%); height: auto; }
-.vietqr-countdown {
+.vietqr-countdown-hud {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  width: 100%;
+  max-width: 320px;
+  padding: 10px 16px;
+  background: linear-gradient(180deg, #ecfdf5 0%, #f0fdf4 100%);
+  border: 1px solid #a7f3d0;
+  border-radius: 14px;
+  box-shadow: 0 2px 8px rgba(16, 185, 129, 0.08);
+  box-sizing: border-box;
+}
+.vietqr-countdown-badge {
   display: flex;
   align-items: center;
   gap: 6px;
-  color: #475569;
-  font-size: 12px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  color: #047857;
+  text-transform: uppercase;
 }
-.vietqr-countdown strong { color: #0f172a; font-variant-numeric: tabular-nums; }
-.vietqr-download { align-self: center; min-height: 44px; }
+.vietqr-countdown-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 9999px;
+  background: #10b981;
+  box-shadow: 0 0 8px #10b981;
+}
+.vietqr-countdown {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.vietqr-countdown strong {
+  color: #065f46;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  font-size: 32px;
+  font-weight: 800;
+  line-height: 1.1;
+  letter-spacing: 0.04em;
+  font-variant-numeric: tabular-nums;
+  text-shadow: 0 1px 2px rgba(16, 185, 129, 0.2);
+}
+.vietqr-countdown-sub {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  color: #047857;
+  opacity: 0.85;
+}
+.vietqr-qr-frame {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 10px;
+  background: #fff;
+  border-radius: 16px;
+  border: 2px solid #10b981;
+  box-shadow:
+    0 0 0 2px rgba(16, 185, 129, 0.25),
+    0 0 18px rgba(16, 185, 129, 0.45),
+    0 0 36px rgba(16, 185, 129, 0.2),
+    inset 0 0 10px rgba(16, 185, 129, 0.08);
+}
+.vietqr-display-box img {
+  display: block;
+  width: min(210px, 100%);
+  height: auto;
+  border-radius: 8px;
+}
+.vietqr-download {
+  align-self: center;
+  min-height: 40px;
+  padding: 0 18px;
+  font-size: 13px;
+  font-weight: 600;
+  border-radius: 10px;
+}
 .vietqr-unavailable {
   display: grid;
   justify-items: center;
@@ -16690,32 +16782,68 @@ html[data-theme="dark"] .header-theme-toggle {
 .vietqr-unavailable span { font-size: 12px; }
 .vietqr-changed { margin: 0; font-size: 12px; }
 .vietqr-details-card {
-  padding: 14px;
+  flex-shrink: 0;
+  padding: 14px 16px;
   border: 1px solid var(--line);
-  border-radius: 12px;
+  border-radius: 14px;
   background: #f8fafc;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
 }
 .vietqr-amount { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; padding-bottom: 10px; border-bottom: 1px dashed var(--line); }
-.vietqr-amount > span { color: var(--muted); font-size: 12px; }
-.vietqr-amount > strong { color: #047857; font-size: 23px; font-variant-numeric: tabular-nums; }
-.vietqr-transfer-content { display: grid; gap: 4px; padding-block: 10px; border-bottom: 1px solid var(--line); }
-.vietqr-transfer-content > span { color: var(--muted); font-size: 12px; }
-.vietqr-transfer-content > div { display: flex; align-items: center; gap: 8px; }
-.vietqr-transfer-content strong { flex: 1; font-size: 13px; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-weight: 700; letter-spacing: 0.3px; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; background: rgba(15, 23, 42, 0.04); padding: 7px 10px; border-radius: 6px; border: 1px solid rgba(15, 23, 42, 0.08); }
-.vietqr-transfer-content .button { flex-shrink: 0; width: 40px; min-height: 40px; padding: 0; }
-.vietqr-detail-list { display: grid; gap: 7px; margin: 0; padding-top: 10px; font-size: 12px; }
-.vietqr-detail-list > div { display: grid; grid-template-columns: 105px minmax(0, 1fr); gap: 10px; align-items: start; }
+.vietqr-amount > span { color: var(--muted); font-size: 12px; font-weight: 500; }
+.vietqr-amount > strong { color: #047857; font-size: 24px; font-weight: 800; font-variant-numeric: tabular-nums; }
+.vietqr-transfer-content { display: flex; flex-direction: column; gap: 6px; padding-bottom: 10px; border-bottom: 1px solid var(--line); }
+.vietqr-transfer-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.vietqr-transfer-head > span:first-child { color: var(--muted); font-size: 12px; font-weight: 600; }
+.vietqr-transfer-badge { font-size: 11px; font-weight: 600; color: #047857; background: #ecfdf5; border: 1px solid #a7f3d0; padding: 2px 8px; border-radius: 9999px; }
+.vietqr-transfer-box { display: flex; align-items: flex-start; gap: 8px; }
+.vietqr-transfer-box strong { flex: 1; font-size: 13px; line-height: 1.55; font-weight: 600; color: #0f172a; background: #fff; padding: 9px 12px; border-radius: 8px; border: 1px solid rgba(15, 23, 42, 0.1); overflow-wrap: anywhere; word-break: break-word; }
+.vietqr-transfer-box .button { flex-shrink: 0; width: 38px; min-height: 38px; padding: 0; border-radius: 8px; }
+.vietqr-detail-list { display: grid; gap: 7px; margin: 0; font-size: 12px; }
+.vietqr-detail-list > div { display: grid; grid-template-columns: 105px minmax(0, 1fr); gap: 10px; align-items: center; }
 .vietqr-detail-list dt { color: var(--muted); }
-.vietqr-detail-list dd { margin: 0; font-weight: 600; overflow-wrap: anywhere; }
-.vietqr-copy-account { width: 36px; min-height: 36px; padding: 0; margin: -6px 0 -6px 4px; vertical-align: middle; }
-.vietqr-agreement { margin: 10px 0 0; padding-top: 8px; border-top: 1px dashed var(--line); color: var(--muted); font-size: 12px; line-height: 1.6; overflow-wrap: anywhere; }
-.vietqr-actions { display: flex; justify-content: flex-end; flex-wrap: wrap; gap: 8px; }
-.vietqr-actions .button { min-height: 44px; }
-.vietqr-footnote { margin: 0; color: var(--muted); font-size: 11px; line-height: 1.5; }
+.vietqr-detail-list dd { margin: 0; font-weight: 600; color: var(--foreground); overflow-wrap: anywhere; }
+.vietqr-copy-account { width: 32px; min-height: 32px; padding: 0; margin: -4px 0 -4px 6px; vertical-align: middle; }
+.vietqr-actions { display: flex; justify-content: flex-end; flex-wrap: wrap; gap: 8px; padding-top: 10px; border-top: 1px solid var(--line); margin-top: 2px; }
+.vietqr-actions .button { min-height: 42px; font-weight: 600; }
+.vietqr-footnote { margin: 0; color: var(--muted); font-size: 11px; line-height: 1.4; text-align: center; }
+[data-theme="dark"] .vietqr-modal-panel { background: #0f172a; border-color: rgba(255, 255, 255, 0.1); }
 [data-theme="dark"] .vietqr-modal-heading h2 svg,
 [data-theme="dark"] .vietqr-amount > strong { color: #6ee7b7; }
-[data-theme="dark"] .vietqr-details-card { background: #171a24; }
-[data-theme="dark"] .vietqr-transfer-content strong { background: rgba(255, 255, 255, 0.05); border-color: rgba(255, 255, 255, 0.1); color: #f1f5f9; }
+[data-theme="dark"] .vietqr-display-box { background: #111827; border-color: #1e293b; }
+[data-theme="dark"] .vietqr-countdown-hud {
+  background: linear-gradient(180deg, #064e3b 0%, #022c22 100%);
+  border-color: #059669;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+}
+[data-theme="dark"] .vietqr-countdown-badge {
+  color: #6ee7b7;
+}
+[data-theme="dark"] .vietqr-countdown-dot {
+  background: #34d399;
+  box-shadow: 0 0 10px #34d399;
+}
+[data-theme="dark"] .vietqr-countdown strong {
+  color: #6ee7b7;
+  text-shadow: 0 0 14px rgba(110, 231, 183, 0.6), 0 0 28px rgba(16, 185, 129, 0.3);
+}
+[data-theme="dark"] .vietqr-countdown-sub {
+  color: #a7f3d0;
+}
+[data-theme="dark"] .vietqr-qr-frame {
+  background: #fff;
+  border-color: #34d399;
+  box-shadow:
+    0 0 0 2px rgba(52, 211, 153, 0.4),
+    0 0 22px rgba(52, 211, 153, 0.6),
+    0 0 44px rgba(52, 211, 153, 0.3),
+    inset 0 0 12px rgba(52, 211, 153, 0.12);
+}
+[data-theme="dark"] .vietqr-details-card { background: #131d2e; border-color: #1e293b; }
+[data-theme="dark"] .vietqr-transfer-badge { background: #064e3b; border-color: #047857; color: #a7f3d0; }
+[data-theme="dark"] .vietqr-transfer-box strong { background: #0f172a; border-color: #334155; color: #f8fafc; }
 [data-theme="dark"] .vietqr-bank-status { background: #1b2130; color: #cbd5e1; }
 [data-theme="dark"] .vietqr-bank-status--success { color: #a7f3d0; background: #10352b; border-color: #23634e; }
 [data-theme="dark"] .vietqr-bank-status--warning { color: #fcd34d; background: #342818; border-color: #72551d; }
@@ -17590,13 +17718,15 @@ html[data-theme="dark"] .header-theme-toggle {
   z-index: 130;
   pointer-events: none;
   opacity: 1;
-  transition: opacity 0.6s ease;
-  /* Vignette làm nền pháo nổi bật mà vẫn nhẹ nhàng, không che đặc màn hình. */
+  transition: opacity 0.5s ease;
+  /* Nền bán trong suốt phủ nhẹ lên giao diện gốc, có hiệu ứng blur kính mờ */
   background: radial-gradient(
     120% 90% at 50% 32%,
-    rgba(15, 10, 3, 0) 42%,
-    rgba(15, 10, 3, 0.4) 100%
+    rgba(15, 23, 42, 0.42) 0%,
+    rgba(15, 23, 42, 0.68) 100%
   );
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
 }
 /* Thanh điện ảnh trên/dưới (letterbox) – khung hình "hào hùng" như rạp chiếu. */
 .sale-celebrate::before,
@@ -17843,6 +17973,36 @@ html[data-theme="dark"] .header-theme-toggle {
     opacity: 0;
     transform: translateX(-50%) translateY(-18px) scale(0.92);
   }
+}
+.sale-celebrate-actions {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  margin-top: 16px;
+  flex-wrap: wrap;
+  pointer-events: auto;
+}
+.sale-celebrate-actions .button {
+  min-height: 42px;
+  padding: 0 20px;
+  font-size: 14px;
+  font-weight: 700;
+  border-radius: 12px;
+  cursor: pointer;
+  pointer-events: auto;
+}
+.sale-celebrate-actions .button.primary {
+  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+  color: #ffffff;
+  border: none;
+  box-shadow: 0 4px 14px rgba(16, 185, 129, 0.4);
+}
+.sale-celebrate-actions .button.secondary {
+  background: rgba(255, 255, 255, 0.16);
+  color: #f8fafc;
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  backdrop-filter: blur(8px);
 }
 
 /* ============================================================

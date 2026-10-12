@@ -34,7 +34,7 @@ function emvFormat(id: string, value: string): string {
 }
 
 function transferDescription(description: string): string {
-  const clean = removeVietnameseTones(description);
+  const clean = removeVietnameseTones(description || "");
   if (clean.length > 50) {
     throw new Error("Nội dung chuyển khoản quá dài. Hãy tạo lại mã với nội dung chuẩn; không cắt mã đối soát ngân hàng.");
   }
@@ -67,9 +67,12 @@ export function calculateCrc16(data: string): string {
  */
 export function buildVietQrEmvCoPayload(options: VietQrPayloadOptions): string {
   const { bankBin, accountNo, amount, description } = options;
-  const cleanBin = bankBin.trim();
-  const cleanAccount = accountNo.trim();
-  const cleanDesc = transferDescription(description);
+  const cleanBin = (bankBin || "").trim();
+  const cleanAccount = (accountNo || "").trim();
+  if (!cleanBin || !cleanAccount) {
+    throw new Error("Thiếu mã ngân hàng hoặc số tài khoản thụ hưởng.");
+  }
+  const cleanDesc = transferDescription(description || "");
 
   // Tag 00: Format Indicator (01)
   const tag00 = emvFormat("00", "01");

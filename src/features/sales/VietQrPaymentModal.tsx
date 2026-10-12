@@ -20,12 +20,18 @@ import { useNetworkStatus } from "@/lib/networkStatus";
 import { toast } from "@/lib/toast";
 import { useDialog } from "@/lib/useDialog";
 import { getBankByBin } from "@/lib/vietqr/banks";
-import { buildVietQrEmvCoPayload, renderQrToDataUrl } from "@/lib/vietqr/emvco";
+import {
+  buildVietQrEmvCoPayload,
+  removeVietnameseTones,
+  renderQrToDataUrl,
+} from "@/lib/vietqr/emvco";
 import type { VietQrPaymentRequest } from "@/types";
 
 type ShopSettings = {
   bank_bin?: string;
+  bank_name?: string;
   bank_account_no?: string;
+  bank_account_name?: string;
   vietqr_enabled?: boolean;
 };
 type VehicleSummary = {
@@ -41,21 +47,69 @@ const formatCountdown = (seconds: number) =>
     .toString()
     .padStart(2, "0")}:${(seconds % 60).toString().padStart(2, "0")}`;
 
-function paymentQrPayload(request: VietQrPaymentRequest | null) {
+function paymentQrPayload(
+  request: VietQrPaymentRequest | null,
+  fallbackSettings?: ShopSettings | null,
+) {
   if (!request) return { payload: null, invalid: false };
-  if (!request.transfer_content) return { payload: null, invalid: true };
+
+  // 1. Nếu bản ghi đã có sẵn qr_payload hợp lệ theo chuẩn VietQR
+  if (request.qr_payload && request.qr_payload.startsWith("000201")) {
+    return { payload: request.qr_payload, invalid: false };
+  }
+
+  // 2. Lấy thông tin tài khoản: ưu tiên request, dự phòng sang settings cửa hàng
+  const bankBin = (request.bank_bin || fallbackSettings?.bank_bin || "").trim();
+  const accountNo = (request.bank_account_no || fallbackSettings?.bank_account_no || "").trim();
+  const accountName = (request.bank_account_name || fallbackSettings?.bank_account_name || "").trim();
+
+  if (!bankBin || !accountNo) {
+    return { payload: null, invalid: true };
+  }
+
+  // 3. Nội dung chuyển khoản: ưu tiên transfer_content, dự phòng sang qr_reference
+  let description =
+    request.transfer_content?.trim() ||
+    request.qr_reference?.trim() ||
+    "CAREM GD";
+
+  // Chuẩn hóa và giới hạn tối đa 50 ký tự theo chuẩn EMVCo Tag 62.08
+  const cleanDesc = removeVietnameseTones(description);
+  if (cleanDesc.length > 50) {
+    if (request.qr_reference && removeVietnameseTones(request.qr_reference).length <= 50) {
+      description = request.qr_reference.trim();
+    } else {
+      description = cleanDesc.slice(0, 50).trim();
+    }
+  } else {
+    description = cleanDesc;
+  }
+
   try {
-    return {
-      payload: buildVietQrEmvCoPayload({
-        bankBin: request.bank_bin,
-        accountNo: request.bank_account_no,
-        amount: request.amount,
-        description: request.transfer_content,
-        accountName: request.bank_account_name,
-      }),
-      invalid: false,
-    };
+    const payload = buildVietQrEmvCoPayload({
+      bankBin,
+      accountNo,
+      amount: request.amount,
+      description,
+      accountName,
+    });
+    return { payload, invalid: false };
   } catch {
+    // Dự phòng lần 2: dùng riêng qr_reference ngắn gọn nếu trước đó thất bại
+    if (request.qr_reference) {
+      try {
+        const payload = buildVietQrEmvCoPayload({
+          bankBin,
+          accountNo,
+          amount: request.amount,
+          description: request.qr_reference.trim(),
+          accountName,
+        });
+        return { payload, invalid: false };
+      } catch {
+        // Dự phòng thất bại
+      }
+    }
     return { payload: null, invalid: true };
   }
 }
@@ -200,7 +254,7 @@ export function VietQrPaymentModal({
       const detailsMatch =
         activeQuery.data.amount === amount &&
         (!payerName || activeQuery.data.payer_name === payerName.trim());
-      const isQrValid = !paymentQrPayload(activeQuery.data).invalid;
+      const isQrValid = !paymentQrPayload(activeQuery.data, settings).invalid;
 
       if (!isExpired && detailsMatch && activeQuery.data.status === "PENDING" && isQrValid) {
         selectRequest(activeQuery.data);
@@ -219,6 +273,7 @@ export function VietQrPaymentModal({
     activeQuery.data,
     amount,
     payerName,
+    settings,
     createMutation,
     replaceMutation,
   ]);
@@ -316,8 +371,20 @@ export function VietQrPaymentModal({
     (request.amount !== amount ||
       (!!payerName?.trim() && request.payer_name !== payerName.trim()));
 
-  const qrResult = paymentQrPayload(request);
+  const qrResult = paymentQrPayload(request, settings);
   const qrPayload = qrResult.payload;
+
+  const bankBin = request?.bank_bin || settings?.bank_bin || "";
+  const bankConfig = getBankByBin(bankBin);
+  const displayBankName =
+    bankConfig?.shortName || request?.bank_name || settings?.bank_name || "Ngân hàng";
+  const displayAccountNo =
+    request?.bank_account_no || settings?.bank_account_no || "";
+  const displayAccountName =
+    request?.bank_account_name || settings?.bank_account_name || "";
+  const displayTransferContent =
+    request?.transfer_content || request?.qr_reference || "CAREM GD";
+
   useEffect(() => {
     if (!qrPayload || !canShowQr) return;
     let current = true;
@@ -333,18 +400,6 @@ export function VietQrPaymentModal({
       current = false;
     };
   }, [qrPayload, canShowQr]);
-
-  useEffect(() => {
-    if (
-      qrResult.invalid &&
-      !replaceMutation.isPending &&
-      !createMutation.isPending &&
-      network.online &&
-      request
-    ) {
-      replaceMutation.mutate();
-    }
-  }, [qrResult.invalid, replaceMutation, createMutation, network.online, request]);
 
   const handleCopy = async (value: string, label: string) => {
     try {
@@ -370,7 +425,6 @@ export function VietQrPaymentModal({
     onPaymentConfirmed?.(request);
     onClose();
   };
-  const selectedBank = request ? getBankByBin(request.bank_bin) : undefined;
   const status = verifiedReceipt
     ? {
         tone: "success",
@@ -544,7 +598,7 @@ export function VietQrPaymentModal({
                     ) : qrResult.invalid ? (
                       <div className="vietqr-invalid-box" style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 10, padding: 8 }}>
                         <p className="notice warning" style={{ margin: 0, textAlign: "center" }}>
-                          Thông tin mã QR cũ không hợp lệ. Đang tạo mã mới hợp lệ…
+                          Chưa có đủ thông tin tài khoản hợp lệ để tạo mã QR.
                         </p>
                         <Button
                           variant="secondary"
@@ -552,7 +606,7 @@ export function VietQrPaymentModal({
                           disabled={replaceMutation.isPending || !network.online}
                         >
                           <RefreshCw size={14} className={replaceMutation.isPending ? "spin" : ""} />
-                          {replaceMutation.isPending ? "Đang tạo mã mới…" : "Tạo mã mới ngay"}
+                          {replaceMutation.isPending ? "Đang tạo mã mới…" : "Thử tạo lại mã"}
                         </Button>
                       </div>
                     ) : qrError ? (
@@ -630,39 +684,41 @@ export function VietQrPaymentModal({
                 </div>
                 <div>
                   <dt>Người nhận</dt>
-                  <dd>{request.bank_account_name}</dd>
+                  <dd>{displayAccountName || "Chưa có tên chủ tài khoản"}</dd>
                 </div>
                 <div>
                   <dt>Ngân hàng</dt>
-                  <dd>{selectedBank?.shortName || request.bank_name}</dd>
+                  <dd>{displayBankName}</dd>
                 </div>
                 <div>
                   <dt>Số tài khoản</dt>
                   <dd>
-                    {request.bank_account_no}
-                    <Button
-                      variant="ghost"
-                      className="vietqr-copy-account"
-                      aria-label="Sao chép số tài khoản"
-                      onClick={() =>
-                        void handleCopy(request.bank_account_no, "số tài khoản")
-                      }
-                    >
-                      <Copy size={15} />
-                    </Button>
+                    {displayAccountNo}
+                    {displayAccountNo ? (
+                      <Button
+                        variant="ghost"
+                        className="vietqr-copy-account"
+                        aria-label="Sao chép số tài khoản"
+                        onClick={() =>
+                          void handleCopy(displayAccountNo, "số tài khoản")
+                        }
+                      >
+                        <Copy size={15} />
+                      </Button>
+                    ) : null}
                   </dd>
                 </div>
               </dl>
               <div className="vietqr-transfer-content">
                 <span>Nội dung chuyển khoản</span>
                 <div>
-                  <strong>{request.transfer_content}</strong>
+                  <strong>{displayTransferContent}</strong>
                   <Button
                     variant="ghost"
                     aria-label="Sao chép nội dung chuyển khoản"
                     onClick={() =>
                       void handleCopy(
-                        request.transfer_content,
+                        displayTransferContent,
                         "nội dung chuyển khoản",
                       )
                     }

@@ -8741,17 +8741,23 @@ mark.search-hit {
   animation: modalSlideUp 0.22s cubic-bezier(0.16, 1, 0.3, 1);
 }
 .confirm-dialog {
+  display: flex;
+  flex-direction: column;
   text-align: center;
+  max-height: min(90dvh, 700px);
+  overflow: hidden;
+  box-sizing: border-box;
 }
 .confirm-dialog-icon {
-  width: 46px;
-  height: 46px;
-  margin: 0 auto 12px;
+  width: 44px;
+  height: 44px;
+  margin: 0 auto 10px;
   border-radius: 50%;
   display: grid;
   place-items: center;
   background: #eef2ff;
   color: var(--primary, #4f46e5);
+  flex-shrink: 0;
 }
 .confirm-dialog-icon[data-tone="danger"] {
   background: #fff4ef;
@@ -8761,26 +8767,36 @@ mark.search-hit {
   margin: 0 0 6px;
   font-size: 17px;
   font-weight: 750;
+  flex-shrink: 0;
 }
 .confirm-dialog-entity {
   margin: 0 0 6px;
   font-weight: 650;
   color: #44403c;
   overflow-wrap: anywhere;
+  flex-shrink: 0;
 }
 .confirm-dialog-desc {
-  margin: 0 0 16px;
-  font-size: 13.5px;
-  line-height: 1.55;
-  color: #57534e;
+  margin: 0 0 12px;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--readable-muted, #57534e);
+  flex-shrink: 0;
 }
 .confirm-dialog-actions {
   display: flex;
   gap: 10px;
   justify-content: center;
+  flex-shrink: 0;
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line, #e2e8f0);
 }
 .confirm-dialog-actions .button {
-  min-width: 130px;
+  min-width: 125px;
+}
+[data-theme="dark"] .confirm-dialog-actions {
+  border-top-color: #263345;
 }
 
 /* System announcement bar */
@@ -15119,31 +15135,154 @@ html[data-theme="dark"] .header-theme-toggle {
   color: #86efac;
 }
 
-/* Dialog bán xe cần nhiều khoảng dọc hơn mặc định để không phải cuộn. */
-.confirm-dialog-summary:has(.sale-review-stack) {
-  max-height: min(65dvh, 520px);
+/* Dialog bán xe: Tinh gọn, thoáng đãng, không tràn viewport, không trôi nút */
+.confirm-dialog:has(.sale-review-stack) {
+  width: min(520px, 100%);
+  text-align: left;
 }
-.sale-review-summary > div {
+
+.confirm-dialog:has(.sale-review-stack) .confirm-dialog-icon {
+  display: none; /* Bỏ icon to ở trên để tiết kiệm 50px dọc, tiêu đề nổi bật trực diện */
+}
+
+.confirm-dialog:has(.sale-review-stack) .confirm-dialog-title {
+  text-align: left;
+  font-size: 18px;
+  font-weight: 800;
+  margin-bottom: 8px;
+}
+
+.confirm-dialog:has(.sale-review-stack) .confirm-dialog-actions {
+  justify-content: flex-end;
+}
+
+/* Thẻ tóm tắt thông tin giao dịch & khách hàng siêu gọn gàng (thay cho bảng 10 dòng cũ) */
+.sale-confirm-meta-box {
   display: flex;
-  justify-content: space-between;
-  gap: var(--space-md);
-  padding-block: 5px;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 14px;
+  border-radius: 10px;
+  background: var(--surface-raised, #f8fafc);
+  border: 1px solid var(--line, #e2e8f0);
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--readable, #0f172a);
 }
-.sale-review-summary dt {
-  color: var(--readable-muted);
+
+[data-theme="dark"] .sale-confirm-meta-box {
+  background: #141a24;
+  border-color: #263345;
 }
-.sale-review-summary dd {
-  margin: 0;
+
+.sale-confirm-meta-line {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.sale-confirm-meta-k {
+  color: var(--readable-muted, #64748b);
   font-weight: 600;
-  text-align: right;
-  overflow-wrap: anywhere;
-  min-width: 0;
+  font-size: 12px;
+  flex-shrink: 0;
 }
+
+.sale-confirm-meta-v {
+  color: var(--readable, #0f172a);
+  font-weight: 650;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+
+[data-theme="dark"] .sale-confirm-meta-v {
+  color: #f1f5f9;
+}
+
+.sale-confirm-meta-code-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  margin-left: auto;
+  font-size: 11.5px;
+  color: var(--readable-muted, #64748b);
+}
+
+.sale-confirm-meta-code-tag code {
+  font-size: 11px;
+  background: var(--surface-sunken, #e2e8f0);
+  padding: 1px 6px;
+  border-radius: 4px;
+  color: #0f172a;
+  font-weight: 700;
+}
+
+[data-theme="dark"] .sale-confirm-meta-code-tag code {
+  background: #1e293b;
+  color: #cbd5e1;
+}
+
+.sale-confirm-meta-due {
+  color: #b45309;
+  font-weight: 700;
+}
+
+[data-theme="dark"] .sale-confirm-meta-due {
+  color: #fbbf24;
+}
+
+.sale-confirm-meta-notes {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--readable-muted, #64748b);
+  padding-top: 4px;
+  border-top: 1px dashed var(--line, #e2e8f0);
+}
+
+[data-theme="dark"] .sale-confirm-meta-notes {
+  border-top-color: #263345;
+}
+
+.sale-confirm-below-cost {
+  margin: 0;
+  font-size: 12px;
+  padding: 8px 12px;
+}
+
+/* Scroll area cho summary: padding an toàn để scrollbar không chạm vào nội dung */
 .confirm-dialog-summary {
-  margin-block: var(--space-md);
-  max-height: min(44dvh, 360px);
-  overflow: auto;
+  flex: 1 1 auto;
+  margin-block: 4px;
+  max-height: min(68dvh, 500px);
+  overflow-y: auto;
+  overflow-x: hidden;
   overscroll-behavior: contain;
+  padding-right: 8px;
+  padding-bottom: 2px;
+  scrollbar-gutter: stable;
+  scrollbar-width: thin;
+}
+
+.confirm-dialog-summary::-webkit-scrollbar {
+  width: 5px;
+}
+
+.confirm-dialog-summary::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.confirm-dialog-summary::-webkit-scrollbar-thumb {
+  background: rgba(148, 163, 184, 0.4);
+  border-radius: 999px;
+}
+
+.confirm-dialog-summary::-webkit-scrollbar-thumb:hover {
+  background: rgba(100, 116, 139, 0.7);
 }
 .search-mobile-trigger {
   display: none;

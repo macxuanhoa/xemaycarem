@@ -442,12 +442,12 @@ function SaleEditor({ vehicle }: { vehicle: Vehicle }) {
           : "Kiểm tra giao dịch bán xe",
         description: needsApproval
           ? "Chủ cửa hàng sẽ nhận yêu cầu ở mục Chờ duyệt. Xe chưa bị bán và chưa ghi nhận doanh thu."
-          : "Đối chiếu khách hàng và số tiền thực tế trước khi ghi nhận.",
+          : undefined,
         confirmLabel: needsApproval ? "Gửi yêu cầu duyệt" : "Xác nhận bán xe",
         cancelLabel: "Quay lại chỉnh sửa",
         summary: (
           <div className="sale-review-stack">
-            {/* 1. Ưu tiên to tên xe ra */}
+            {/* 1. Tên xe to rõ */}
             <div className="sale-confirm-vehicle-header">
               <h3 className="sale-confirm-vehicle-title">
                 {vehicle.vehicle_type || "Xe chưa phân loại"}
@@ -528,28 +528,43 @@ function SaleEditor({ vehicle }: { vehicle: Vehicle }) {
               )}
             </div>
 
-            {/* 4. Chi tiết giao dịch: Mã xe đưa vào đây */}
-            <dl className="summary-list sale-review-summary">
-              {vehicle.internal_code && (
-                <div>
-                  <dt>Mã xe trong kho</dt>
-                  <dd><code>{vehicle.internal_code}</code></dd>
+            {/* 4. Tóm tắt nhanh khách hàng & thanh toán – siêu gọn gàng */}
+            <div className="sale-confirm-meta-box">
+              <div className="sale-confirm-meta-line">
+                <span className="sale-confirm-meta-k">Khách mua:</span>
+                <strong className="sale-confirm-meta-v">
+                  {snapshot.customer_name || "Khách lẻ"}
+                  {snapshot.customer_phone ? ` · ${snapshot.customer_phone}` : ""}
+                </strong>
+                {vehicle.internal_code && (
+                  <span className="sale-confirm-meta-code-tag">
+                    Mã <code>{vehicle.internal_code}</code>
+                  </span>
+                )}
+              </div>
+              <div className="sale-confirm-meta-line">
+                <span className="sale-confirm-meta-k">Thu tiền:</span>
+                <span className="sale-confirm-meta-v">
+                  {paymentLabels[snapshot.payment_method]}
+                  {snapshot.initial_payment < snapshot.sale_price && (
+                    <> · Đã trả: <strong>{money(snapshot.initial_payment)}</strong></>
+                  )}
+                  {" · Ngày "}{dateLabel(snapshot.sale_date)}
+                  {snapshot.due_date && snapshot.sale_price > snapshot.initial_payment && (
+                    <span className="sale-confirm-meta-due"> · Hạn nợ: {dateLabel(snapshot.due_date)}</span>
+                  )}
+                </span>
+              </div>
+              {snapshot.notes && (
+                <div className="sale-confirm-meta-notes">
+                  <span className="sale-confirm-meta-k">Ghi chú:</span>
+                  <span>{snapshot.notes}</span>
                 </div>
               )}
-              {purchaseCost != null && (
-                <div><dt>Giá thu vào</dt><dd>{money(purchaseCost)}</dd></div>
-              )}
-              <div><dt>Khách hàng</dt><dd><strong>{snapshot.customer_name || "Khách lẻ"}</strong></dd></div>
-              <div><dt>Số điện thoại</dt><dd>{snapshot.customer_phone || "Chưa cung cấp"}</dd></div>
-              <div><dt>Ngày bán</dt><dd>{dateLabel(snapshot.sale_date)}</dd></div>
-              <div><dt>Hình thức thu</dt><dd>{paymentLabels[snapshot.payment_method]}</dd></div>
-              <div><dt>Khách đã trả trước</dt><dd>{money(snapshot.initial_payment)}</dd></div>
-              <div className="summary-total"><dt>Còn phải thu</dt><dd>{money(snapshot.sale_price - snapshot.initial_payment)}</dd></div>
-              <div><dt>Hạn thanh toán</dt><dd>{snapshot.due_date ? dateLabel(snapshot.due_date) : "Chưa hẹn ngày"}</dd></div>
-              {snapshot.notes && <div><dt>Ghi chú</dt><dd>{snapshot.notes}</dd></div>}
-            </dl>
+            </div>
+
             {belowCost(snapshot.sale_price) && (
-              <p className="notice warning">
+              <p className="notice warning sale-confirm-below-cost">
                 <AlertTriangle size={15} />
                 <span>
                   Bán dưới giá thu, thiếu{" "}
@@ -558,8 +573,8 @@ function SaleEditor({ vehicle }: { vehicle: Vehicle }) {
                   </strong>
                   .{" "}
                   {owner
-                    ? "Bạn là chủ cửa hàng nên giao dịch sẽ hoàn tất ngay."
-                    : "Yêu cầu sẽ chờ chủ cửa hàng phê duyệt."}
+                    ? "Chủ cửa hàng: hoàn tất ngay khi xác nhận."
+                    : "Sẽ chuyển sang mục Chờ duyệt."}
                 </span>
               </p>
             )}

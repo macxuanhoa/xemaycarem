@@ -8,6 +8,7 @@ import {
   Camera,
   CirclePlus,
   Copy,
+  FileText,
   Hash,
   ImagePlus,
   MoreHorizontal,
@@ -653,8 +654,18 @@ export function VehicleDetailPage() {
           </Card>
           {vehicle.notes && (
             <Card className="vehicle-notes-card">
-              <h2 className="section-title">Ghi chú</h2>
-              <p className="vehicle-notes-body">{vehicle.notes}</p>
+              <div className="vehicle-notes-header">
+                <div className="vehicle-notes-title-group">
+                  <span className="vehicle-notes-icon-wrap" aria-hidden="true">
+                    <FileText size={17} />
+                  </span>
+                  <h2 className="vehicle-notes-heading">Ghi chú xe</h2>
+                </div>
+                <span className="vehicle-notes-pill">Lưu ý quan trọng</span>
+              </div>
+              <div className="vehicle-notes-content">
+                <p className="vehicle-notes-body">{vehicle.notes}</p>
+              </div>
             </Card>
           )}
           {canManage(profile) && acquisitionQuery.data && (

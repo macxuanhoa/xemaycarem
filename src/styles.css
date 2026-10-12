@@ -2705,15 +2705,15 @@ pre {
   height: 32px;
   padding: 0 12px;
   font-size: 13px;
-  font-weight: 550;
-  color: #15803d;
-  background: #f0fdf4;
-  border: 1px solid #bbf7d0;
+  font-weight: 600;
+  color: var(--readable, #1e293b);
+  background: var(--surface-raised, #f8fafc);
+  border: 1px solid var(--line, #cbd5e1);
   border-radius: 8px;
   cursor: pointer;
   white-space: nowrap;
   text-decoration: none;
-  box-shadow: 0 1px 2px rgba(16, 185, 129, 0.05);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
   transition:
     background-color 150ms ease,
     border-color 150ms ease,
@@ -2722,10 +2722,10 @@ pre {
 }
 
 .vehicle-add-photo-btn:hover {
-  background: #dcfce7;
-  border-color: #86efac;
-  color: #14532d;
-  box-shadow: 0 1px 3px rgba(16, 185, 129, 0.1);
+  background: var(--surface-hover, #f1f5f9);
+  border-color: #94a3b8;
+  color: #0f172a;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
 }
 
 .vehicle-add-photo-btn:active {
@@ -2733,7 +2733,7 @@ pre {
 }
 
 .vehicle-add-photo-btn:focus-visible {
-  outline: 2px solid #22c55e;
+  outline: 2px solid var(--primary, #4f46e5);
   outline-offset: 2px;
 }
 
@@ -2749,10 +2749,10 @@ pre {
   flex-direction: column;
   gap: 10px;
   padding: 30px 20px;
-  background: #f8fafc;
-  border: 1.5px dashed #cbd5e1;
+  background: var(--surface-raised, #f8fafc);
+  border: 1.5px dashed var(--line, #cbd5e1);
   border-radius: 12px;
-  color: #64748b;
+  color: var(--readable-muted, #64748b);
   text-align: center;
   transition:
     background-color 150ms ease,
@@ -2765,9 +2765,9 @@ pre {
 }
 
 .vehicle-empty-photo[role="button"]:hover {
-  background: #f0fdf4;
-  border-color: #86efac;
-  color: #15803d;
+  background: #f1f5f9;
+  border-color: #94a3b8;
+  color: var(--readable, #0f172a);
 }
 
 .vehicle-empty-photo-icon {
@@ -2777,14 +2777,16 @@ pre {
   width: 48px;
   height: 48px;
   border-radius: 50%;
-  background: #f1f5f9;
+  background: #ffffff;
   color: #64748b;
-  transition: background-color 150ms ease, color 150ms ease;
+  border: 1px solid var(--line, #e2e8f0);
+  transition: background-color 150ms ease, color 150ms ease, border-color 150ms ease;
 }
 
 .vehicle-empty-photo[role="button"]:hover .vehicle-empty-photo-icon {
-  background: #dcfce7;
-  color: #15803d;
+  background: #ffffff;
+  color: var(--primary, #4f46e5);
+  border-color: #cbd5e1;
 }
 
 .vehicle-empty-photo-text {
@@ -2797,23 +2799,23 @@ pre {
   margin: 0;
   font-size: 14px;
   font-weight: 650;
-  color: #334155;
+  color: var(--readable, #1e293b);
   transition: color 150ms ease;
 }
 
 .vehicle-empty-photo[role="button"]:hover .vehicle-empty-photo-title {
-  color: #14532d;
+  color: #0f172a;
 }
 
 .vehicle-empty-photo-sub {
   margin: 0;
   font-size: 12.5px;
-  color: #64748b;
+  color: var(--readable-muted, #64748b);
   transition: color 150ms ease;
 }
 
 .vehicle-empty-photo[role="button"]:hover .vehicle-empty-photo-sub {
-  color: #166534;
+  color: #475569;
 }
 .upload-button {
   display: inline-flex;
@@ -14039,25 +14041,26 @@ html[data-theme="dark"] .header-theme-toggle {
 }
 
 /* ─── Executive Vehicle Identity Showcase (Biển số & Số khung) ────────── */
+/* ─── Executive Vehicle Identity Showcase (Biển số & Số khung) ────────── */
 .vehicle-id-showcase {
-  display: flex;
-  align-items: stretch;
-  gap: 16px;
-  background: var(--surface, #ffffff);
-  border: 1px solid var(--line, #e2e8f0);
-  border-radius: 14px;
-  padding: 12px 18px;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
-  margin-top: 4px;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(280px, 100%), 1fr));
+  gap: 14px;
+  margin-top: 6px;
   width: 100%;
 }
 
 .vehicle-id-item {
-  flex: 1 1 0%;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 10px;
+  background: var(--surface, #ffffff);
+  border: 1.5px solid var(--line, #e2e8f0);
+  border-radius: 14px;
+  padding: 14px 18px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
   min-width: 0;
+  box-sizing: border-box;
 }
 
 .vehicle-id-item-header {
@@ -14070,42 +14073,42 @@ html[data-theme="dark"] .header-theme-toggle {
 .vehicle-id-item-label {
   display: inline-flex;
   align-items: center;
-  gap: 5px;
-  font-size: 11.5px;
-  font-weight: 700;
-  color: var(--readable-muted, #64748b);
-  letter-spacing: 0.4px;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 800;
+  color: #334155;
+  letter-spacing: 0.6px;
   text-transform: uppercase;
 }
 
-.vehicle-id-item-icon {
-  color: var(--readable-muted, #64748b);
-  flex-shrink: 0;
+.vehicle-id-item-plate .vehicle-id-item-icon {
+  color: #2563eb;
+}
+
+.vehicle-id-item-frame .vehicle-id-item-icon {
+  color: #0d9488;
 }
 
 .vehicle-id-item-copy {
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  padding: 2px 8px;
-  height: 24px;
-  font-size: 11.5px;
+  padding: 0 10px;
+  height: 26px;
+  font-size: 12px;
   font-weight: 600;
-  color: var(--readable-muted, #64748b);
+  color: #475569;
   background: var(--surface-raised, #f1f5f9);
-  border: 1px solid var(--line, #e2e8f0);
+  border: 1px solid var(--line, #cbd5e1);
   border-radius: 6px;
   cursor: pointer;
-  transition:
-    background-color 150ms ease,
-    border-color 150ms ease,
-    color 150ms ease;
+  transition: all 150ms ease;
 }
 
 .vehicle-id-item-copy:hover {
-  background: var(--surface-hover, #e2e8f0);
-  color: var(--readable, #0f172a);
-  border-color: #cbd5e1;
+  background: #e2e8f0;
+  color: #0f172a;
+  border-color: #94a3b8;
 }
 
 .vehicle-id-item-copy:active {
@@ -14113,190 +14116,178 @@ html[data-theme="dark"] .header-theme-toggle {
 }
 
 .vehicle-id-showcase-divider {
-  width: 1px;
-  background: var(--line, #e2e8f0);
-  align-self: stretch;
-  flex-shrink: 0;
+  display: none;
 }
 
-/* Biển số mô phỏng biển số xe máy thực tế cao cấp - sáng và nổi bật */
+/* Biển số mô phỏng biển số xe máy thực tế - to, rõ, dập nổi cực kỳ dễ đọc */
 .vehicle-plate-badge {
-  display: inline-flex;
+  display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  padding: 7px 16px;
+  padding: 8px 18px;
   background: #ffffff;
-  border: 2px solid #0f172a;
-  border-radius: 10px;
+  border: 2.5px solid #0f172a;
+  border-radius: 12px;
   box-shadow:
-    0 3px 10px rgba(15, 23, 42, 0.1),
-    inset 0 1px 0 #ffffff;
-  min-height: 44px;
-  width: fit-content;
-  max-width: 100%;
+    0 4px 14px rgba(15, 23, 42, 0.12),
+    inset 0 0 0 1.5px #e2e8f0;
+  min-height: 54px;
+  width: 100%;
+  box-sizing: border-box;
 }
 
 .vehicle-plate-text {
   font-family: var(--font-mono, ui-monospace, monospace);
-  font-size: 19px;
-  font-weight: 850;
-  letter-spacing: 1.6px;
-  color: #0f172a;
+  font-size: clamp(21px, 2.6vw, 26px);
+  font-weight: 900;
+  letter-spacing: 2px;
+  color: #000000;
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  text-align: center;
+  flex: 1 1 auto;
 }
 
 .vehicle-plate-badge.is-empty {
-  border: 1.5px dashed #cbd5e1;
+  border: 2px dashed #cbd5e1;
   box-shadow: none;
   background: #f8fafc;
+  justify-content: center;
 }
 
 .vehicle-plate-badge.is-empty .vehicle-plate-text {
   color: #94a3b8;
-  font-size: 13.5px;
+  font-size: 14px;
   font-weight: 600;
   font-family: inherit;
   letter-spacing: normal;
 }
 
 .vehicle-plate-screw {
-  width: 6px;
-  height: 6px;
+  width: 8px;
+  height: 8px;
   border-radius: 50%;
   background: #94a3b8;
-  border: 1px solid #64748b;
-  box-shadow: inset 0 1px 1px rgba(0, 0, 0, 0.25);
+  border: 1.5px solid #475569;
+  box-shadow: inset 0 1px 1px rgba(0, 0, 0, 0.35);
   flex-shrink: 0;
 }
 
-/* Số khung kỹ thuật sắc nét, dập nổi - highlight sáng rõ */
+/* Số khung kỹ thuật dập nổi cao cấp - to rõ, dập chip vàng/neon tương phản cao */
 .vehicle-frame-badge {
-  display: inline-flex;
+  display: flex;
   align-items: center;
-  padding: 7px 16px;
-  background: linear-gradient(135deg, #f0fdfa 0%, #e6fffa 50%, #f0fdf4 100%);
-  border: 1.5px solid #2dd4bf;
-  border-radius: 10px;
-  min-height: 44px;
-  width: fit-content;
-  max-width: 100%;
-  box-shadow:
-    0 3px 10px rgba(13, 148, 136, 0.1),
-    inset 0 1px 0 #ffffff;
+  justify-content: center;
+  padding: 8px 16px;
+  background: #ffffff;
+  border: 2px solid #1e293b;
+  border-radius: 12px;
+  min-height: 54px;
+  width: 100%;
+  box-sizing: border-box;
+  box-shadow: 0 4px 14px rgba(15, 23, 42, 0.08);
 }
 
 .vehicle-frame-text {
   font-family: var(--font-mono, ui-monospace, monospace);
-  font-size: 15.5px;
-  font-weight: 700;
-  letter-spacing: 0.8px;
-  color: #0f766e;
+  font-size: clamp(16px, 2vw, 19.5px);
+  font-weight: 800;
+  letter-spacing: 1.2px;
+  color: #0f172a;
   font-variant-numeric: tabular-nums;
   overflow-wrap: anywhere;
+  text-align: center;
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 2px;
 }
 
 .vehicle-frame-prefix {
-  color: #115e59;
-  opacity: 0.85;
+  color: #475569;
+  font-weight: 750;
 }
 
 .vehicle-frame-highlight,
 .vehicle-frame-text strong {
-  color: #042f2e;
-  font-weight: 850;
-  background: rgba(45, 212, 191, 0.28);
-  padding: 2px 7px;
+  color: #000000;
+  font-weight: 950;
+  background: #fef08a;
+  border: 1.5px solid #eab308;
+  padding: 3px 9px;
   border-radius: 6px;
-  margin-left: 2px;
-  border: 1px solid rgba(13, 148, 136, 0.25);
+  margin-left: 3px;
+  box-shadow: 0 1px 4px rgba(234, 179, 8, 0.3);
 }
 
 .vehicle-frame-badge.is-empty {
-  border-style: dashed;
-  border-color: #cbd5e1;
+  border: 2px dashed #cbd5e1;
   background: #f8fafc;
   box-shadow: none;
   color: #94a3b8;
+  justify-content: center;
 }
 
 .vehicle-frame-badge.is-empty .vehicle-frame-text {
   color: #94a3b8;
-  font-size: 13.5px;
+  font-size: 14px;
   font-weight: 600;
   font-family: inherit;
   letter-spacing: normal;
 }
 
-/* Mobile responsive */
-@media (max-width: 640px) {
-  .vehicle-id-showcase {
-    flex-direction: column;
-    gap: 14px;
-    padding: 12px 14px;
-  }
-  .vehicle-id-showcase-divider {
-    width: 100%;
-    height: 1px;
-  }
-  .vehicle-plate-badge,
-  .vehicle-frame-badge {
-    width: 100%;
-    justify-content: center;
-  }
-}
-
-/* Dark mode theme matching */
-[data-theme="dark"] .vehicle-id-showcase {
+/* Dark mode theme matching - tương phản tối đa, siêu sáng */
+[data-theme="dark"] .vehicle-id-item {
   background: #171c26;
   border-color: #2b3548;
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35);
 }
 
-[data-theme="dark"] .vehicle-id-showcase-divider {
-  background: #2b3548;
-}
-
 [data-theme="dark"] .vehicle-id-item-label {
-  color: #9aa3b5;
+  color: #cbd5e1;
 }
 
-[data-theme="dark"] .vehicle-id-item-icon {
-  color: #9aa3b5;
+[data-theme="dark"] .vehicle-id-item-plate .vehicle-id-item-icon {
+  color: #60a5fa;
+}
+
+[data-theme="dark"] .vehicle-id-item-frame .vehicle-id-item-icon {
+  color: #2dd4bf;
 }
 
 [data-theme="dark"] .vehicle-id-item-copy {
-  background: #1c202d;
-  border-color: #2e3346;
-  color: #9aa3b5;
+  background: #1e2636;
+  border-color: #334155;
+  color: #cbd5e1;
 }
 
 [data-theme="dark"] .vehicle-id-item-copy:hover {
-  background: #262c3e;
-  border-color: #3f4760;
-  color: #e2e8f0;
+  background: #2a3449;
+  border-color: #475569;
+  color: #ffffff;
 }
 
-/* Biển số trong dark mode: sáng rực rỡ như biển số phản quang thật */
+/* Biển số trong dark mode: phản quang rực rỡ, chữ đen 100% trên nền trắng sáng */
 [data-theme="dark"] .vehicle-plate-badge {
   background: #ffffff;
-  border-color: #cbd5e1;
+  border: 2.5px solid #cbd5e1;
   box-shadow:
-    0 0 20px rgba(255, 255, 255, 0.2),
-    0 4px 14px rgba(0, 0, 0, 0.5);
+    0 0 24px rgba(255, 255, 255, 0.35),
+    0 4px 16px rgba(0, 0, 0, 0.6);
 }
 
 [data-theme="dark"] .vehicle-plate-text {
-  color: #090d16;
-  font-weight: 900;
+  color: #000000;
+  font-weight: 950;
 }
 
 [data-theme="dark"] .vehicle-plate-screw {
   background: #94a3b8;
-  border-color: #64748b;
+  border-color: #475569;
 }
 
 [data-theme="dark"] .vehicle-plate-badge.is-empty {
@@ -14309,30 +14300,29 @@ html[data-theme="dark"] .header-theme-toggle {
   color: #64748b;
 }
 
-/* Số khung trong dark mode: công nghệ cao, phát quang emerald/teal sáng rõ */
+/* Số khung trong dark mode: phát quang high-tech neon, 6 số cuối chip phát quang */
 [data-theme="dark"] .vehicle-frame-badge {
-  background: linear-gradient(135deg, #042f2e 0%, #064e3b 50%, #022c22 100%);
-  border: 1.5px solid #2dd4bf;
+  background: #0f172a;
+  border: 2px solid #38bdf8;
   box-shadow:
-    0 0 18px rgba(45, 212, 191, 0.25),
-    0 4px 14px rgba(0, 0, 0, 0.4);
+    0 0 22px rgba(56, 189, 248, 0.28),
+    0 4px 16px rgba(0, 0, 0, 0.5);
 }
 
 [data-theme="dark"] .vehicle-frame-text {
-  color: #a7f3d0;
+  color: #f1f5f9;
 }
 
 [data-theme="dark"] .vehicle-frame-prefix {
-  color: #6ee7b7;
-  opacity: 0.85;
+  color: #94a3b8;
 }
 
 [data-theme="dark"] .vehicle-frame-highlight,
 [data-theme="dark"] .vehicle-frame-text strong {
-  color: #ffffff;
-  background: #059669;
-  border-color: #34d399;
-  box-shadow: 0 0 10px rgba(52, 211, 153, 0.45);
+  color: #000000;
+  background: #38bdf8;
+  border-color: #7dd3fc;
+  box-shadow: 0 0 14px rgba(56, 189, 248, 0.6);
 }
 
 [data-theme="dark"] .vehicle-frame-badge.is-empty {
@@ -15274,38 +15264,39 @@ html[data-theme="dark"] .header-theme-toggle {
   background: #1d1f2a;
 }
 [data-theme="dark"] .vehicle-add-photo-btn {
-  background: rgba(34, 197, 94, 0.1);
-  border-color: rgba(34, 197, 94, 0.24);
-  color: #86efac;
+  background: #1c202d;
+  border-color: #2e3346;
+  color: #dcdfe9;
   box-shadow: none;
 }
 
 [data-theme="dark"] .vehicle-add-photo-btn:hover {
-  background: rgba(34, 197, 94, 0.18);
-  border-color: rgba(34, 197, 94, 0.4);
-  color: #bbf7d0;
+  background: #262c3e;
+  border-color: #3f4760;
+  color: #ffffff;
 }
 
 [data-theme="dark"] .vehicle-empty-photo {
-  background: #101117;
-  border-color: #2c2f3d;
-  color: #94a3b8;
+  background: #12141c;
+  border-color: #272b3a;
+  color: #9aa3b5;
 }
 
 [data-theme="dark"] .vehicle-empty-photo[role="button"]:hover {
-  background: rgba(34, 197, 94, 0.06);
-  border-color: rgba(34, 197, 94, 0.3);
-  color: #86efac;
+  background: #171a24;
+  border-color: #3f4760;
+  color: #f1f5f9;
 }
 
 [data-theme="dark"] .vehicle-empty-photo-icon {
-  background: #171821;
-  color: #94a3b8;
+  background: #1c202d;
+  border-color: #2e3346;
+  color: #9aa3b5;
 }
 
 [data-theme="dark"] .vehicle-empty-photo[role="button"]:hover .vehicle-empty-photo-icon {
-  background: rgba(34, 197, 94, 0.15);
-  color: #86efac;
+  background: #252b3d;
+  color: #818cf8;
 }
 
 [data-theme="dark"] .vehicle-empty-photo-title {

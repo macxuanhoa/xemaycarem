@@ -565,7 +565,7 @@ export function VehicleDetailPage() {
                   </div>
                   <div className="vehicle-empty-photo-text">
                     <p className="vehicle-empty-photo-title">Chưa có hình ảnh xe</p>
-                    <p className="vehicle-empty-photo-sub">Thêm ảnh để nhận diện xe trong kho và đăng bài bán</p>
+                    <p className="vehicle-empty-photo-sub">Thêm ảnh để nhận diện xe trong kho và theo dõi</p>
                   </div>
                   {canOperate(profile) && (
                     <span className="vehicle-add-photo-btn vehicle-add-photo-btn-inline">

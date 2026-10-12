@@ -11,7 +11,6 @@ import {
 import {
   ArrowDownLeft,
   Banknote,
-  BookMarked,
   BookOpen,
   Bot,
   Camera,
@@ -21,7 +20,6 @@ import {
   Inbox,
   LogOut,
   Menu,
-  Megaphone,
   Moon,
   Bike,
   Package,
@@ -67,9 +65,6 @@ const mainNav: NavItem[] = [
   { to: "/vehicles", label: "Tồn kho", icon: Bike },
   { to: "/sales", label: "Bán hàng & Thu nợ", icon: Receipt },
   { to: "/customers", label: "Khách hàng", icon: Users },
-  // Công cụ đăng bài đi thẳng từ Kho xe sang Facebook, là việc hằng ngày của
-  // nhân viên bán hàng nên đứng thành mục riêng — không giấu sau accordion TRỢ LÝ AI.
-  { to: "/posts", label: "Đăng bài từ kho xe", icon: Megaphone, staffOnly: true },
   { to: "/expenses", label: "Chi phí", icon: ClipboardList },
 ];
 export function AppLayout() {
@@ -155,7 +150,6 @@ export function AppLayout() {
     if (pathname.startsWith("/capture")) return "Camera thông minh";
     if (pathname.startsWith("/intake")) return "Thu xe tốc ký";
     if (pathname.startsWith("/copilot")) return "Trợ lý AI";
-    if (pathname.startsWith("/brand-memory")) return "Bộ nhớ thương hiệu";
     if (pathname.startsWith("/docs")) return "Tài liệu cửa hàng";
     if (pathname.startsWith("/sell")) return "Bán xe";
     return "";
@@ -259,15 +253,6 @@ export function AppLayout() {
                 >
                   <BookOpen size={20} />
                   <span>Tài liệu cửa hàng</span>
-                </NavLink>
-                <NavLink
-                  to="/brand-memory"
-                  onClick={drawer.close}
-                  onMouseEnter={() => preloadRoute("/brand-memory")}
-                  onFocus={() => preloadRoute("/brand-memory")}
-                >
-                  <BookMarked size={20} />
-                  <span>Bộ nhớ thương hiệu</span>
                 </NavLink>
               </nav>
             )}

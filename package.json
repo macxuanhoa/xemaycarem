@@ -8,10 +8,9 @@
   },
   "scripts": {
     "ocr:assets": "node scripts/prepare-ocr-assets.mjs",
-    "fb:pack": "node scripts/pack-fb-extension.mjs",
-    "predev": "npm run ocr:assets && npm run fb:pack",
+    "predev": "npm run ocr:assets",
     "dev": "vite --host 127.0.0.1",
-    "prebuild": "npm run ocr:assets && npm run fb:pack",
+    "prebuild": "npm run ocr:assets",
     "build": "tsc -b && vite build",
     "preview": "vite preview --host 127.0.0.1",
     "typecheck": "tsc -b",

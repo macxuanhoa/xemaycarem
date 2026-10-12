@@ -3,7 +3,11 @@ import { dateValue, moneyValue } from "@/lib/validation";
 
 export const saleSchema = z
   .object({
-    customer_name: z.string().trim().min(1, "Nhập tên khách hàng.").max(160),
+    customer_name: z
+      .string()
+      .trim()
+      .max(160, "Tên khách hàng tối đa 160 ký tự.")
+      .transform((val) => val || "Khách lẻ"),
     customer_phone: z.string().trim().max(30),
     sale_price: moneyValue,
     sale_date: dateValue,

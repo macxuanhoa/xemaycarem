@@ -281,9 +281,17 @@ describe('Sale form input validation (saleSchema)', () => {
     }
   })
 
-  it('rejects missing or empty customer name', () => {
-    expect(saleSchema.safeParse({ ...baseSale, customer_name: '' }).success).toBe(false)
-    expect(saleSchema.safeParse({ ...baseSale, customer_name: '    ' }).success).toBe(false)
+  it('accepts missing or empty customer name and defaults to Khách lẻ', () => {
+    const emptyResult = saleSchema.safeParse({ ...baseSale, customer_name: '' })
+    expect(emptyResult.success).toBe(true)
+    if (emptyResult.success) {
+      expect(emptyResult.data.customer_name).toBe('Khách lẻ')
+    }
+    const whitespaceResult = saleSchema.safeParse({ ...baseSale, customer_name: '    ' })
+    expect(whitespaceResult.success).toBe(true)
+    if (whitespaceResult.success) {
+      expect(whitespaceResult.data.customer_name).toBe('Khách lẻ')
+    }
   })
 
   it('rejects invalid payment method enum', () => {

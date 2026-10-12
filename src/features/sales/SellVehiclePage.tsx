@@ -16,6 +16,7 @@ import { executeOperation } from "@/lib/operationRecovery";
 import { OperationRecoveryNotice } from "@/components/OperationRecoveryNotice";
 import { canFinance, canOperate, isOwner } from "@/lib/permissions";
 import { dateLabel, money, today } from "@/lib/format";
+import { displayFrame } from "@/lib/frameNumber";
 import { toast } from "@/lib/toast";
 import { useAuth } from "@/features/auth/AuthProvider";
 import {
@@ -446,43 +447,82 @@ function SaleEditor({ vehicle }: { vehicle: Vehicle }) {
         cancelLabel: "Quay lại chỉnh sửa",
         summary: (
           <div className="sale-review-stack">
-            {/* Ưu tiên thị giác: Xe – Biển số – Số khung – rồi Giá bán hero,
-                sau đó mới tới các dòng hỗ trợ (khách hàng, ngày, hình thức,
-                trả trước, còn phải thu, hạn). Biển số dùng tile đồng bộ với
-                chi tiết xe để nhận diện nhanh ngay tại quầy. */}
-            {vehicleSubtitle(vehicle) && (
-              <p className="sale-review-vehicle">
-                {vehicleSubtitle(vehicle)}
-                {vehicle.internal_code && (
-                  <span className="muted"> · Mã {vehicle.internal_code}</span>
-                )}
-              </p>
-            )}
-            <div className="vehicle-id-strip">
-              <div className="vehicle-id-tile vehicle-id-plate">
-                <span className="vehicle-id-label">Biển số</span>
-                <span className="vehicle-id-value">
-                  {vehicle.license_plate || "Chưa có biển"}
-                </span>
+            {/* 1. Ưu tiên to tên xe ra */}
+            <div className="sale-confirm-vehicle-header">
+              <h3 className="sale-confirm-vehicle-title">
+                {vehicle.vehicle_type || "Xe chưa phân loại"}
+              </h3>
+              {(vehicle.year || vehicle.color) && (
+                <div className="sale-confirm-vehicle-tags">
+                  {vehicle.year && (
+                    <span className="sale-confirm-tag">Đời {vehicle.year}</span>
+                  )}
+                  {vehicle.color && (
+                    <span className="sale-confirm-tag">Màu {vehicle.color}</span>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* 2. Nổi bật Biển số và Số khung đồng bộ giao diện */}
+            <div className="sale-confirm-id-grid">
+              <div className="sale-confirm-id-card">
+                <span className="sale-confirm-id-label">BIỂN SỐ XE</span>
+                <div className={`vehicle-plate-badge${!vehicle.license_plate ? " is-empty" : ""}`}>
+                  {vehicle.license_plate && (
+                    <span className="vehicle-plate-screw vehicle-plate-screw-left" aria-hidden="true" />
+                  )}
+                  <span className="vehicle-plate-text">
+                    {vehicle.license_plate || "Chưa có biển"}
+                  </span>
+                  {vehicle.license_plate && (
+                    <span className="vehicle-plate-screw vehicle-plate-screw-right" aria-hidden="true" />
+                  )}
+                </div>
               </div>
-              <div className="vehicle-id-tile vehicle-id-frame">
-                <span className="vehicle-id-label">Số khung</span>
-                <span className="vehicle-id-value">
-                  {vehicle.frame_number || "Chưa có"}
-                </span>
+
+              <div className="sale-confirm-id-card">
+                <span className="sale-confirm-id-label">SỐ KHUNG (VIN)</span>
+                <div className={`vehicle-frame-badge${!displayFrame(vehicle.frame_number) ? " is-empty" : ""}`}>
+                  <span className="vehicle-frame-text">
+                    {displayFrame(vehicle.frame_number) || "Chưa có số khung"}
+                  </span>
+                </div>
               </div>
             </div>
-            <div className="sale-review-price-hero">
-              <span className="sale-review-price-label">Giá bán</span>
-              <span className="sale-review-price-value">
-                {money(snapshot.sale_price)}
-              </span>
+
+            {/* 3. Giá bán ở dưới nhưng to rõ ràng */}
+            <div className="sale-confirm-price-banner">
+              <div className="sale-confirm-price-left">
+                <span className="sale-confirm-price-label">TỔNG GIÁ BÁN</span>
+                <strong className="sale-confirm-price-amount">
+                  {money(snapshot.sale_price)}
+                </strong>
+              </div>
+              {snapshot.sale_price - snapshot.initial_payment > 0 ? (
+                <div className="sale-confirm-debt-badge">
+                  <span>Còn nợ lại:</span>
+                  <strong>{money(snapshot.sale_price - snapshot.initial_payment)}</strong>
+                </div>
+              ) : (
+                <div className="sale-confirm-paid-badge">
+                  <span>✓ Đã thanh toán đủ</span>
+                </div>
+              )}
             </div>
+
+            {/* 4. Chi tiết giao dịch: Mã xe đưa vào đây */}
             <dl className="summary-list sale-review-summary">
+              {vehicle.internal_code && (
+                <div>
+                  <dt>Mã xe trong kho</dt>
+                  <dd><code>{vehicle.internal_code}</code></dd>
+                </div>
+              )}
               {purchaseCost != null && (
                 <div><dt>Giá thu vào</dt><dd>{money(purchaseCost)}</dd></div>
               )}
-              <div><dt>Khách hàng</dt><dd>{snapshot.customer_name}</dd></div>
+              <div><dt>Khách hàng</dt><dd><strong>{snapshot.customer_name || "Khách lẻ"}</strong></dd></div>
               <div><dt>Số điện thoại</dt><dd>{snapshot.customer_phone || "Chưa cung cấp"}</dd></div>
               <div><dt>Ngày bán</dt><dd>{dateLabel(snapshot.sale_date)}</dd></div>
               <div><dt>Hình thức thu</dt><dd>{paymentLabels[snapshot.payment_method]}</dd></div>
@@ -574,11 +614,11 @@ function SaleEditor({ vehicle }: { vehicle: Vehicle }) {
           <Card>
             <h2 className="section-title">Khách hàng</h2>
             <div className="form-grid">
-              <Field label="Tên khách hàng *" error={error("customer_name")}>
+              <Field label="Tên khách hàng" error={error("customer_name")}>
                 <input
                   autoComplete="name"
                   {...form.register("customer_name")}
-                  placeholder="Họ và tên khách hàng"
+                  placeholder="Khách lẻ (tùy chọn)"
                 />
               </Field>
               <Field label="Số điện thoại" error={error("customer_phone")}>

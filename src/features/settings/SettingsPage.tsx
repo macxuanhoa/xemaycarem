@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   Button,
   Card,
@@ -26,28 +26,15 @@ import { PaymentSettingsCard } from "./PaymentSettingsCard";
 import { ShorthandDictionaryCard } from "./ShorthandDictionaryCard";
 import { SmartSalesAutomationCard } from "./SmartSalesAutomationCard";
 import { SeasonalThemeCard } from "./SeasonalThemeCard";
-type Settings = {
-  store_name: string;
-  phone?: string;
-  address?: string;
-  low_stock_threshold?: number;
-  high_stock_threshold?: number;
-  customer_messaging_enabled?: boolean;
-  sale_thank_you_enabled?: boolean;
-  primary_message_channel?: "DISABLED" | "ZALO_ZNS" | "SMS";
-  fallback_channel?: "DISABLED" | "ZALO_ZNS" | "SMS";
-  support_phone?: string;
-};
 export default function SettingsPage() {
   const { profile, user, refresh } = useAuth();
   const [name, setName] = useState(profile?.full_name ?? ""),
     [password, setPassword] = useState(""),
     [currentPassword, setCurrentPassword] = useState("");
   const [activeTab, setActiveTab] = useState<
-    "PROFILE" | "STORE" | "PAYMENT" | "SCHEDULE" | "MESSAGES" | "AUTOMATION" | "VEHICLE_TYPES" | "THEME" | "SHORTHAND"
+    "PROFILE" | "PAYMENT" | "SCHEDULE" | "MESSAGES" | "AUTOMATION" | "VEHICLE_TYPES" | "THEME" | "SHORTHAND"
   >("PROFILE");
 
-  const client = useQueryClient();
   const profileMutation = useMutation({
     mutationFn: () =>
       api.call("update_profile", {
@@ -81,13 +68,7 @@ export default function SettingsPage() {
       toast.success("Đã cập nhật mật khẩu.");
     },
   });
-  const settings = useQuery({
-    queryKey: ["settings"],
-    queryFn: () => api.call<Settings>("get_settings"),
-    enabled: isOwner(profile),
-  });
 
-  const showStore = isOwner(profile) && activeTab === "STORE";
   const showPayment = isOwner(profile) && activeTab === "PAYMENT";
   const showSchedule = isOwner(profile) && activeTab === "SCHEDULE";
   const showMessages = isOwner(profile) && activeTab === "MESSAGES";
@@ -135,16 +116,6 @@ export default function SettingsPage() {
             onClick={() => setActiveTab("PAYMENT")}
           >
             <span>Tài khoản nhận tiền</span>
-          </button>
-        )}
-        {isOwner(profile) && (
-          <button
-            type="button"
-            aria-pressed={activeTab === "STORE"}
-            className={`settings-nav-item ${activeTab === "STORE" ? "active" : ""}`}
-            onClick={() => setActiveTab("STORE")}
-          >
-            <span>Thông tin cửa hàng</span>
           </button>
         )}
         {isOwner(profile) && (
@@ -279,23 +250,6 @@ export default function SettingsPage() {
         </div>
       )}
 
-      {showStore &&
-        (settings.isPending ? (
-          <Loading />
-        ) : settings.error ? (
-          <ErrorState error={settings.error} />
-        ) : (
-          settings.data && (
-            <StoreSettings
-              settings={settings.data}
-              onDone={() => {
-                void client.invalidateQueries({ queryKey: ["settings"] });
-                toast.success("Đã lưu cài đặt cửa hàng.");
-              }}
-            />
-          )
-        ))}
-
       {showPayment && <PaymentSettingsCard />}
 
       {showSchedule && (
@@ -312,229 +266,6 @@ export default function SettingsPage() {
 
       {showShorthand && <ShorthandDictionaryCard />}
     </div>
-  );
-}
-function StoreSettings({
-  settings,
-  onDone,
-}: {
-  settings: Settings;
-  onDone: () => void;
-}) {
-  const [data, setData] = useState(settings);
-  const m = useMutation({
-    mutationFn: () => api.call("save_settings", { p_data: data }),
-    onSuccess: onDone,
-  });
-  return (
-    <Card>
-      <h2>Thông tin cửa hàng</h2>
-      <p className="muted small" style={{ marginBottom: "18px" }}>
-        Cấu hình thương hiệu cửa hàng, địa chỉ liên hệ và ngưỡng cảnh báo tồn
-        kho xe.
-      </p>
-      <form
-        className="stack"
-        onSubmit={(e) => {
-          e.preventDefault();
-          m.mutate();
-        }}
-      >
-        <Field label="Tên cửa hàng">
-          <input
-            required
-            maxLength={150}
-            value={data.store_name}
-            onChange={(e) => setData({ ...data, store_name: e.target.value })}
-          />
-        </Field>
-
-        <div className="form-grid">
-          <Field label="Điện thoại">
-            <input
-              value={data.phone ?? ""}
-              onChange={(e) => setData({ ...data, phone: e.target.value })}
-              placeholder="VD: 0912 345 678"
-            />
-          </Field>
-          <Field label="Địa chỉ">
-            <input
-              value={data.address ?? ""}
-              onChange={(e) => setData({ ...data, address: e.target.value })}
-              placeholder="Địa chỉ showroom xe máy"
-            />
-          </Field>
-        </div>
-
-        <div
-          style={{
-            borderTop: "1px solid var(--line, #e2e8f0)",
-            paddingTop: "18px",
-          }}
-        >
-          <h3 style={{ marginBottom: "6px" }}>Cảnh báo tồn kho</h3>
-          <p className="muted small" style={{ marginBottom: "14px" }}>
-            Thiết lập ngưỡng để hệ thống đánh dấu tình trạng kho trên Dashboard.
-            Chỉ số được tính trên tổng số xe đang tại cửa hàng (gồm cả xe đang
-            giữ chỗ). Số xe bằng đúng ngưỡng vẫn là Tồn kho bình thường. Hệ
-            thống không gửi email, tin nhắn hay thông báo tự động.
-          </p>
-          <div className="form-grid">
-            <Field label="Số xe tối thiểu nên có">
-              <input
-                type="number"
-                min="0"
-                value={data.low_stock_threshold ?? 5}
-                onChange={(e) =>
-                  setData({
-                    ...data,
-                    low_stock_threshold: Number(e.target.value),
-                  })
-                }
-              />
-              <span className="field-hint">
-                Khi số xe trong kho giảm xuống dưới mức này, Dashboard sẽ đánh
-                dấu trạng thái Tồn kho thấp.
-              </span>
-            </Field>
-            <Field label="Số xe tối đa nên giữ">
-              <input
-                type="number"
-                min={data.low_stock_threshold ?? 0}
-                value={data.high_stock_threshold ?? 100}
-                onChange={(e) =>
-                  setData({
-                    ...data,
-                    high_stock_threshold: Number(e.target.value),
-                  })
-                }
-              />
-              <span className="field-hint">
-                Khi số xe trong kho tăng vượt trên mức này, Dashboard sẽ đánh
-                dấu trạng thái Tồn kho cao.
-              </span>
-            </Field>
-          </div>
-        </div>
-
-        <div
-          style={{
-            borderTop: "1px solid var(--line, #e2e8f0)",
-            paddingTop: "18px",
-          }}
-        >
-          <h3 style={{ marginBottom: "6px" }}>Khách hàng &amp; Tin nhắn</h3>
-          <p className="muted small" style={{ marginBottom: "14px" }}>
-            Kênh gửi chưa được cấu hình. Khi được bật, lời cảm ơn chỉ được tạo
-            sau khi giao dịch bán xe hoàn tất.
-          </p>
-
-          <div className="settings-field-group">
-            <label className="settings-switch-card">
-              <div className="settings-switch-content">
-                <span className="settings-switch-title">
-                  Bật tính năng nhắn tin khách hàng
-                </span>
-                <span className="settings-switch-desc">
-                  Kích hoạt thông báo tự động cho khách mua xe.
-                </span>
-              </div>
-              <input
-                type="checkbox"
-                checked={data.customer_messaging_enabled ?? false}
-                onChange={(e) =>
-                  setData({
-                    ...data,
-                    customer_messaging_enabled: e.target.checked,
-                  })
-                }
-              />
-            </label>
-
-            <label className="settings-switch-card">
-              <div className="settings-switch-content">
-                <span className="settings-switch-title">
-                  Tự động gửi lời cảm ơn sau khi bán
-                </span>
-                <span className="settings-switch-desc">
-                  Tự động kích hoạt thông điệp tri ân ngay khi hợp đồng bán hoàn
-                  tất.
-                </span>
-              </div>
-              <input
-                type="checkbox"
-                checked={data.sale_thank_you_enabled ?? false}
-                onChange={(e) =>
-                  setData({
-                    ...data,
-                    sale_thank_you_enabled: e.target.checked,
-                  })
-                }
-              />
-            </label>
-
-            <div className="form-grid">
-              <Field label="Kênh ưu tiên">
-                <select
-                  value={data.primary_message_channel ?? "DISABLED"}
-                  onChange={(e) =>
-                    setData({
-                      ...data,
-                      primary_message_channel: e.target
-                        .value as Settings["primary_message_channel"],
-                    })
-                  }
-                >
-                  <option value="DISABLED">Tắt</option>
-                  <option value="ZALO_ZNS">Zalo ZNS</option>
-                  <option value="SMS">SMS</option>
-                </select>
-              </Field>
-
-              <Field label="Kênh dự phòng">
-                <select
-                  value={data.fallback_channel ?? "DISABLED"}
-                  onChange={(e) =>
-                    setData({
-                      ...data,
-                      fallback_channel: e.target
-                        .value as Settings["fallback_channel"],
-                    })
-                  }
-                >
-                  <option value="DISABLED">Không dùng</option>
-                  <option value="ZALO_ZNS">Zalo ZNS</option>
-                  <option value="SMS">SMS</option>
-                </select>
-              </Field>
-            </div>
-
-            <Field label="Số điện thoại hỗ trợ">
-              <input
-                maxLength={40}
-                value={data.support_phone ?? ""}
-                onChange={(e) =>
-                  setData({ ...data, support_phone: e.target.value })
-                }
-                placeholder="Hotline chăm sóc khách hàng"
-              />
-            </Field>
-
-            <p className="muted small">
-              Nhà cung cấp: Chưa cấu hình. Không có tin nhắn thật nào được gửi
-              trong giai đoạn này.
-            </p>
-          </div>
-        </div>
-
-        {m.error && <ErrorState error={m.error} />}
-        <div>
-          <Button type="submit" disabled={m.isPending}>
-            Lưu cài đặt
-          </Button>
-        </div>
-      </form>
-    </Card>
   );
 }
 

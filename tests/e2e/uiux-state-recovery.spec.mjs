@@ -121,7 +121,7 @@ test('a rejected lead status change exposes an explicit retry for the same inten
 
 for (const fixture of [
   { route: '/users', group: 'Lọc theo vai trò', initial: /^Tất cả$/, next: /^Chủ cửa hàng/ },
-  { route: '/settings', group: 'Danh mục cài đặt', initial: /^Hồ sơ & Đổi mật khẩu$/, next: /^Thông tin cửa hàng$/ },
+  { route: '/settings', group: 'Danh mục cài đặt', initial: /^Hồ sơ & Đổi mật khẩu$/, next: /^Bộ nhớ viết tắt thu xe$/ },
   { route: '/audit', group: 'Lọc theo nghiệp vụ', initial: /^Tất cả thao tác$/, next: /^Xe & Tồn kho$/ },
 ]) {
   test(`${fixture.route} exposes the selected filter or category to assistive technology`, async ({ page }) => {

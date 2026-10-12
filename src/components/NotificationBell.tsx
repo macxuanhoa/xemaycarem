@@ -79,6 +79,9 @@ function Row({
 }) {
   const Icon = ACTION_ICON[item.action] ?? Bell;
   const unread = item.read_at === null;
+  const timeLabel = relativeTime(item.created_at, now);
+  const isTimeHighlight = timeLabel === "Hôm nay" || timeLabel === "Hôm qua";
+
   return (
     <button
       type="button"
@@ -92,7 +95,13 @@ function Row({
       <span className="notification-row-text">
         <span className="notification-row-title">{item.title}</span>
         {item.body && <span className="notification-row-body">{tidyBody(item.body)}</span>}
-        <span className="notification-row-time">{relativeTime(item.created_at, now)}</span>
+        <span className="notification-row-time">
+          {isTimeHighlight ? (
+            <span className="notification-led-text-mini">{timeLabel}</span>
+          ) : (
+            timeLabel
+          )}
+        </span>
       </span>
       {unread && <span className="notification-row-dot" aria-hidden="true" />}
     </button>
@@ -264,20 +273,47 @@ export function NotificationBell() {
                     </small>
                   </div>
                 ) : (
-                  withTodayGroup(groupNotifications(items)).map((group) => (
-                    <div key={group.label} className="notification-group">
-                      <div className="notification-group-label">{group.label}</div>
-                      {group.items.length === 0 ? (
-                        <p className="notification-group-empty">
-                          Chưa có thông báo nào hôm nay.
-                        </p>
-                      ) : (
-                        group.items.map((item) => (
-                          <Row key={item.id} item={item} now={new Date()} onOpen={openItem} />
-                        ))
-                      )}
-                    </div>
-                  ))
+                  withTodayGroup(groupNotifications(items)).map((group) => {
+                    const isLed =
+                      group.label === "Hôm nay" ||
+                      group.label === "Hôm qua" ||
+                      group.label === "Vừa xong";
+                    const groupType =
+                      group.label === "Hôm nay"
+                        ? "today"
+                        : group.label === "Hôm qua"
+                          ? "yesterday"
+                          : group.label === "Vừa xong"
+                            ? "recent"
+                            : "date";
+
+                    return (
+                      <div key={group.label} className="notification-group">
+                        <div
+                          className={`notification-group-label${isLed ? " is-led" : ""}`}
+                          data-group={group.label}
+                        >
+                          {isLed ? (
+                            <span className="notification-led-badge" data-group-type={groupType}>
+                              <span className="notification-led-dot" aria-hidden="true" />
+                              <span className="notification-led-text">{group.label}</span>
+                            </span>
+                          ) : (
+                            <span className="notification-group-label-date">{group.label}</span>
+                          )}
+                        </div>
+                        {group.items.length === 0 ? (
+                          <p className="notification-group-empty">
+                            Chưa có thông báo nào <span className="notification-led-text-inline">hôm nay</span>.
+                          </p>
+                        ) : (
+                          group.items.map((item) => (
+                            <Row key={item.id} item={item} now={new Date()} onOpen={openItem} />
+                          ))
+                        )}
+                      </div>
+                    );
+                  })
                 )}
                 {hasMore && (
                   <button type="button" className="notification-load-more" onClick={loadMore}>

@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { AlertCircle, CheckCircle2 } from "lucide-react";
+import { AlertCircle, CheckCircle2, CreditCard, Landmark, QrCode } from "lucide-react";
 import { Button, Card, ErrorState, Field } from "@/components/ui";
 import { api } from "@/lib/api";
 import { toast } from "@/lib/toast";
@@ -25,7 +25,6 @@ export function PaymentSettingsCard({
   onSaved?: (msg: string) => void;
 }) {
   const client = useQueryClient();
-  const [enabled, setEnabled] = useState(false);
   const [bankBin, setBankBin] = useState("");
   const [bankName, setBankName] = useState("");
   const [accountNo, setAccountNo] = useState("");
@@ -40,7 +39,6 @@ export function PaymentSettingsCard({
 
   useEffect(() => {
     if (!q.data || dirty) return;
-    setEnabled(!!q.data.vietqr_enabled);
     setBankBin(q.data.bank_bin || "");
     setBankName(q.data.bank_name || "");
     setAccountNo(q.data.bank_account_no || "");
@@ -79,15 +77,19 @@ export function PaymentSettingsCard({
       const cleanNo = accountNo.trim();
       const cleanName = removeVietnameseTones(accountName).toUpperCase().trim();
 
-      if (enabled && (!cleanBin || !cleanNo || !cleanName)) {
-        throw new Error(
-          "Vui lòng chọn ngân hàng, nhập số tài khoản và tên chủ tài khoản trước khi bật VietQR.",
-        );
+      if (!cleanBin) {
+        throw new Error("Vui lòng chọn ngân hàng.");
+      }
+      if (!cleanNo) {
+        throw new Error("Vui lòng nhập số tài khoản.");
+      }
+      if (!cleanName) {
+        throw new Error("Vui lòng nhập tên chủ tài khoản.");
       }
 
       return api.call("save_settings", {
         p_data: {
-          vietqr_enabled: enabled,
+          vietqr_enabled: true,
           bank_bin: cleanBin,
           bank_name: bankName.trim(),
           bank_account_no: cleanNo,
@@ -98,12 +100,12 @@ export function PaymentSettingsCard({
     onSuccess: () => {
       void client.invalidateQueries({ queryKey: ["settings"] });
       setDirty(false);
-      toast.success("Đã lưu cấu hình tài khoản nhận tiền.");
-      onSaved?.("Đã lưu cấu hình tài khoản nhận tiền VietQR.");
+      toast.success("Đã lưu tài khoản nhận tiền.");
+      onSaved?.("Đã lưu tài khoản nhận tiền.");
     },
   });
 
-  const isConfigured = !!(
+  const isConfigured = Boolean(
     q.data?.bank_bin &&
     q.data?.bank_account_no &&
     q.data?.bank_account_name
@@ -122,7 +124,6 @@ export function PaymentSettingsCard({
 
   const handleAccountNameChange = (val: string) => {
     setDirty(true);
-    // Tự động chuyển in hoa không dấu chuẩn ngân hàng
     setAccountName(removeVietnameseTones(val).toUpperCase());
   };
 
@@ -130,154 +131,137 @@ export function PaymentSettingsCard({
     <Card className="stack">
       <div className="row between wrap gap-sm">
         <div>
-          <h2 className="section-title">Tài khoản nhận tiền (VietQR)</h2>
-          <p className="muted">
-            Cấu hình tài khoản ngân hàng để hệ thống tự động sinh mã VietQR động
-            theo từng giao dịch bán xe và thu tiền.
+          <h2 className="section-title" style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <CreditCard size={18} /> Tài khoản nhận tiền
+          </h2>
+          <p className="muted small">
+            Dùng để nhận tiền chuyển khoản và tạo mã QR khi bán xe.
           </p>
         </div>
         <div>
-          {isConfigured && q.data?.vietqr_enabled ? (
-            <span className="badge badge-success" style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
-              <CheckCircle2 size={14} /> VietQR đang bật
+          {isConfigured ? (
+            <span
+              className="badge badge-success"
+              style={{ display: "inline-flex", alignItems: "center", gap: 4 }}
+            >
+              <CheckCircle2 size={14} /> Đang hoạt động
             </span>
           ) : (
-            <span className="badge badge-warning" style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
-              <AlertCircle size={14} /> Chưa cấu hình tài khoản nhận tiền
+            <span
+              className="badge badge-warning"
+              style={{ display: "inline-flex", alignItems: "center", gap: 4 }}
+            >
+              <AlertCircle size={14} /> Chưa thiết lập
             </span>
           )}
         </div>
       </div>
 
-      <div className="vietqr-enable-box" style={{ background: "var(--surface-sunken, #f8fafc)", padding: "16px", borderRadius: "8px", border: "1px solid var(--border-soft, #e2e8f0)" }}>
-        <label className="checkbox-label" style={{ fontWeight: 600, display: "flex", alignItems: "center", gap: 10, cursor: "pointer" }}>
-          <input
-            type="checkbox"
-            checked={enabled}
-            onChange={(e) => {
-              setDirty(true);
-              setEnabled(e.target.checked);
-            }}
-          />
-          <span>Bật tính năng thanh toán chuyển khoản bằng VietQR động</span>
-        </label>
-        <p className="muted" style={{ margin: "6px 0 0 28px", fontSize: "0.875rem" }}>
-          Khi bật, màn hình Bán xe và Thu tiền sẽ có nút &quot;Tạo mã VietQR&quot; tự
-          động gán số tiền và nội dung chuyển khoản duy nhất cho khách quét.
-        </p>
-      </div>
+      <div className="payment-settings-grid">
+        <div className="payment-settings-form">
+          <Field label="Ngân hàng">
+            <select
+              value={bankBin}
+              onChange={(e) => handleSelectBank(e.target.value)}
+            >
+              <option value="">-- Chọn ngân hàng --</option>
+              <optgroup label="Ngân hàng phổ biến">
+                {VIETNAM_BANKS.filter((b) => b.isPopular).map((b) => (
+                  <option key={b.bin} value={b.bin}>
+                    {b.shortName} — {b.name}
+                  </option>
+                ))}
+              </optgroup>
+              <optgroup label="Ngân hàng khác">
+                {VIETNAM_BANKS.filter((b) => !b.isPopular).map((b) => (
+                  <option key={b.bin} value={b.bin}>
+                    {b.shortName} — {b.name}
+                  </option>
+                ))}
+              </optgroup>
+            </select>
+          </Field>
 
-      <div className="form-grid">
-        <Field label="Ngân hàng nhận tiền *">
-          <select
-            value={bankBin}
-            onChange={(e) => handleSelectBank(e.target.value)}
-          >
-            <option value="">-- Chọn ngân hàng thụ hưởng --</option>
-            <optgroup label="Ngân hàng phổ biến">
-              {VIETNAM_BANKS.filter((b) => b.isPopular).map((b) => (
-                <option key={b.bin} value={b.bin}>
-                  {b.shortName} - {b.name} ({b.bin})
-                </option>
-              ))}
-            </optgroup>
-            <optgroup label="Các ngân hàng khác">
-              {VIETNAM_BANKS.filter((b) => !b.isPopular).map((b) => (
-                <option key={b.bin} value={b.bin}>
-                  {b.shortName} - {b.name} ({b.bin})
-                </option>
-              ))}
-            </optgroup>
-          </select>
-        </Field>
+          <Field label="Số tài khoản">
+            <input
+              type="text"
+              maxLength={40}
+              placeholder="Nhập số tài khoản"
+              value={accountNo}
+              onChange={(e) => {
+                setDirty(true);
+                setAccountNo(e.target.value.trim());
+              }}
+            />
+          </Field>
 
-        <Field label="Mã BIN ngân hàng (6 số)">
-          <input
-            type="text"
-            maxLength={10}
-            value={bankBin}
-            placeholder="Ví dụ: 970422"
-            onChange={(e) => {
-              setDirty(true);
-              setBankBin(e.target.value.trim());
-            }}
-          />
-        </Field>
-      </div>
+          <Field label="Chủ tài khoản">
+            <input
+              type="text"
+              maxLength={120}
+              placeholder="NGUYỄN VĂN A"
+              value={accountName}
+              onChange={(e) => handleAccountNameChange(e.target.value)}
+            />
+          </Field>
 
-      <div className="form-grid">
-        <Field label="Số tài khoản nhận tiền *">
-          <input
-            type="text"
-            maxLength={40}
-            placeholder="Nhập số tài khoản ngân hàng"
-            value={accountNo}
-            onChange={(e) => {
-              setDirty(true);
-              setAccountNo(e.target.value.trim());
-            }}
-          />
-        </Field>
+          {saveMutation.isError && <ErrorState error={saveMutation.error} />}
 
-        <Field label="Tên chủ tài khoản (in hoa không dấu) *">
-          <input
-            type="text"
-            maxLength={120}
-            placeholder="Ví dụ: NGUYEN VAN A"
-            value={accountName}
-            onChange={(e) => handleAccountNameChange(e.target.value)}
-          />
-        </Field>
-      </div>
-
-      {/* Xem trước mẫu QR nếu có thông tin */}
-      {previewQrUrl && bankBin && accountNo && (
-        <div
-          className="vietqr-preview-panel"
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: "20px",
-            background: "var(--surface-raised, #ffffff)",
-            padding: "16px",
-            borderRadius: "8px",
-            border: "1px dashed var(--border-soft, #cbd5e1)",
-          }}
-        >
-          <img
-            src={previewQrUrl}
-            alt="Mã VietQR kiểm tra mẫu"
-            style={{ width: 120, height: 120, borderRadius: 6, border: "1px solid #e2e8f0" }}
-          />
-          <div className="stack" style={{ gap: 4, fontSize: "0.875rem" }}>
-            <span style={{ fontWeight: 600, color: "var(--text-main, #0f172a)" }}>
-              Xem trước cấu hình VietQR mẫu
-            </span>
-            <span className="muted">
-              Ngân hàng: <strong>{selectedBank ? selectedBank.shortName : bankName || bankBin}</strong> ({bankBin})
-            </span>
-            <span className="muted">
-              Số tài khoản: <strong>{accountNo}</strong>
-            </span>
-            <span className="muted">
-              Chủ tài khoản: <strong>{accountName || "Chưa nhập"}</strong>
-            </span>
-            <small style={{ color: "var(--brand-emerald-dark, #059669)", marginTop: 4 }}>
-              ✓ Mã QR EMVCo hợp lệ, mọi app ngân hàng có thể quét được.
-            </small>
+          <div style={{ marginTop: 4 }}>
+            <Button
+              disabled={saveMutation.isPending || (!dirty && isConfigured)}
+              onClick={() => saveMutation.mutate()}
+            >
+              {saveMutation.isPending ? "Đang lưu…" : "Lưu thay đổi"}
+            </Button>
           </div>
         </div>
-      )}
 
-      {saveMutation.isError && <ErrorState error={saveMutation.error} />}
+        <div className="bank-card-visual" aria-label="Xem trước thẻ tài khoản">
+          <div className="bank-card-header">
+            <div className="bank-card-brand">
+              <div className="bank-card-brand-icon">
+                <Landmark size={18} />
+              </div>
+              <span className="bank-card-brand-name">
+                {selectedBank?.shortName || bankName || "Tài khoản nhận"}
+              </span>
+            </div>
+            <div style={{ display: "flex", alignItems: "center", gap: 6, opacity: 0.85, fontSize: "11px", fontWeight: 600 }}>
+              <QrCode size={14} /> VietQR
+            </div>
+          </div>
 
-      <div className="form-actions">
-        <Button
-          disabled={saveMutation.isPending || (!dirty && isConfigured)}
-          onClick={() => saveMutation.mutate()}
-        >
-          {saveMutation.isPending ? "Đang lưu cấu hình…" : "Lưu cấu hình tài khoản nhận tiền"}
-        </Button>
+          <div className="bank-card-body">
+            <div className="bank-card-number-label">Số tài khoản</div>
+            <div className="bank-card-number">
+              {accountNo || "•••• •••• ••••"}
+            </div>
+          </div>
+
+          <div className="bank-card-footer">
+            <div>
+              <div className="bank-card-holder-label">Chủ tài khoản</div>
+              <div className="bank-card-holder-name">
+                {accountName || "CHƯA THIẾT LẬP"}
+              </div>
+            </div>
+
+            {previewQrUrl ? (
+              <div className="bank-card-qr-box" title="Mã QR quét thanh toán">
+                <img
+                  src={previewQrUrl}
+                  alt="Mã QR"
+                  className="bank-card-qr-img"
+                />
+              </div>
+            ) : (
+              <div className="bank-card-qr-placeholder" title="Mã QR hiển thị khi đủ thông tin">
+                <QrCode size={28} />
+              </div>
+            )}
+          </div>
+        </div>
       </div>
     </Card>
   );

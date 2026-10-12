@@ -606,6 +606,7 @@ export default function ShorthandIntakePage() {
               </Field>
               <Field
                 label="Màu sắc"
+                error={errorFor("color")}
                 className={cameraClass(entry, "color")}
                 labelAction={
                   <ColorSwatchAction
@@ -670,7 +671,7 @@ export default function ShorthandIntakePage() {
                   onChange={(value) =>
                     updateField(entry.id, "purchase_price", value)
                   }
-                  placeholder="18tr5"
+                  placeholder="12.000.000 hoặc 12tr5"
                 />
               </Field>
               <Field label="Tên người bán" error={errorFor("supplier_name")}>

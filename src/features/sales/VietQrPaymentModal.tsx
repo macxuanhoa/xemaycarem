@@ -111,14 +111,12 @@ export function VietQrPaymentModal({
     queryFn: () => api.call<ShopSettings>("get_settings"),
   });
   const settings = settingsQuery.data;
-  const isConfigured = !!(
-    settings?.vietqr_enabled &&
-    settings.bank_bin &&
-    settings.bank_account_no
+  const isConfigured = Boolean(
+    settings?.bank_bin &&
+    settings?.bank_account_no
   );
 
-  // Load the existing request before creating one. Reopening an expired request
-  // must never create a fresh 15-minute window implicitly.
+  // Load the existing request before creating one.
   const activeQuery = useQuery({
     queryKey: ["vietqr-active", vehicle.id, saleId ?? null],
     queryFn: () => api.getActiveVietQrRequest(vehicle.id, saleId),
@@ -142,10 +140,35 @@ export function VietQrPaymentModal({
         vehicle_id: vehicle.id,
         sale_id: saleId,
         amount,
-        payer_name: payerName,
+        payer_name: payerName?.trim() || "Khách mua xe",
         contract_reference: saleCode,
       }),
     onSuccess: selectRequest,
+  });
+  const replaceMutation = useMutation({
+    mutationFn: () => {
+      const targetId = selectedRequest?.id || activeQuery.data?.id;
+      if (targetId) {
+        return api.replaceVietQrPaymentRequest(targetId, {
+          amount,
+          payer_name: payerName?.trim() || "Khách mua xe",
+          contract_reference: saleCode,
+        });
+      }
+      return api.createVietQrPaymentRequest({
+        vehicle_id: vehicle.id,
+        sale_id: saleId,
+        amount,
+        payer_name: payerName?.trim() || "Khách mua xe",
+        contract_reference: saleCode,
+      });
+    },
+    onSuccess: (data) => {
+      selectRequest(data);
+      toast.info("Đã tạo mã QR mới", {
+        description: "Mã có hiệu lực trong 15 phút.",
+      });
+    },
   });
   useEffect(() => {
     if (
@@ -157,15 +180,35 @@ export function VietQrPaymentModal({
     )
       return;
     initialized.current = true;
-    if (activeQuery.data) selectRequest(activeQuery.data);
-    else createMutation.mutate();
+    if (activeQuery.data) {
+      const serverNow = Date.parse(activeQuery.data.server_now);
+      const expiresAt = Date.parse(activeQuery.data.expires_at);
+      const isExpired =
+        activeQuery.data.status === "EXPIRED" ||
+        (Number.isFinite(expiresAt) && Number.isFinite(serverNow) && expiresAt <= serverNow);
+      const detailsMatch =
+        activeQuery.data.amount === amount &&
+        (!payerName || activeQuery.data.payer_name === payerName.trim());
+
+      if (!isExpired && detailsMatch && activeQuery.data.status === "PENDING") {
+        selectRequest(activeQuery.data);
+      } else {
+        // Tự động làm mới mã QR để luôn hiện mã QR 15 phút
+        replaceMutation.mutate();
+      }
+    } else {
+      createMutation.mutate();
+    }
   }, [
     network.online,
     isConfigured,
     activeQuery.isFetchedAfterMount,
     activeQuery.isSuccess,
     activeQuery.data,
+    amount,
+    payerName,
     createMutation,
+    replaceMutation,
   ]);
 
   const requestQuery = useQuery({
@@ -234,16 +277,16 @@ export function VietQrPaymentModal({
   // date or timezone changes while this dialog is open.
   const serverNow = serverClock
     ? serverClock.serverMs + performance.now() - serverClock.monotonicMs
-    : NaN;
+    : Date.now();
   const expiresAt = request ? Date.parse(request.expires_at) : NaN;
   const replacementAt = request
     ? Date.parse(request.replace_available_at)
     : NaN;
   const hasServerTime =
-    !!request && serverClock?.id === request.id && Number.isFinite(expiresAt);
+    !!request && Number.isFinite(expiresAt);
   const remainingSeconds = hasServerTime
     ? Math.max(0, Math.ceil((expiresAt - serverNow) / 1_000))
-    : 0;
+    : 15 * 60;
   const cooldownSeconds =
     hasServerTime && Number.isFinite(replacementAt)
       ? Math.max(0, Math.ceil((replacementAt - serverNow) / 1_000))
@@ -253,29 +296,14 @@ export function VietQrPaymentModal({
     (request.status === "EXPIRED" || (hasServerTime && remainingSeconds === 0));
   const canShowQr =
     !!request &&
-    request.status === "PENDING" &&
-    hasServerTime &&
-    !expired &&
+    (request.status === "PENDING" || !request.status) &&
+    remainingSeconds > 0 &&
     !verifiedReceipt;
   const changedDetails =
     !!request &&
     (request.amount !== amount ||
       (!!payerName?.trim() && request.payer_name !== payerName.trim()));
 
-  const replaceMutation = useMutation({
-    mutationFn: () =>
-      api.replaceVietQrPaymentRequest(request!.id, {
-        amount,
-        payer_name: payerName,
-        contract_reference: saleCode,
-      }),
-    onSuccess: (data) => {
-      selectRequest(data);
-      toast.info("Đã tạo mã QR mới", {
-        description: "Mã trước đã hết hiệu lực trên Cà Rem.",
-      });
-    },
-  });
   const qrResult = paymentQrPayload(request);
   const qrPayload = qrResult.payload;
   useEffect(() => {
@@ -422,14 +450,13 @@ export function VietQrPaymentModal({
         {settingsQuery.isSuccess && !isConfigured && (
           <div className="vietqr-state stack">
             <div className="notice warning">
-              <strong>Chưa cấu hình tài khoản nhận tiền</strong>
+              <strong>Chưa thiết lập tài khoản nhận tiền</strong>
               <p>
-                Vào Cài đặt thanh toán để bật VietQR và chọn tài khoản ngân
-                hàng.
+                Vào Cài đặt để thêm thông tin tài khoản ngân hàng nhận tiền.
               </p>
             </div>
             <Link className="button" to="/settings" onClick={onClose}>
-              Cài đặt thanh toán <ArrowRight size={15} />
+              Cài đặt tài khoản <ArrowRight size={15} />
             </Link>
           </div>
         )}
@@ -625,24 +652,35 @@ export function VietQrPaymentModal({
                   <CheckCircle2 size={16} /> Xác nhận và đóng
                 </Button>
               ) : (
-                <Button
-                  variant="secondary"
-                  onClick={() => replaceMutation.mutate()}
-                  disabled={
-                    !network.online ||
-                    replaceMutation.isPending ||
-                    !hasServerTime ||
-                    !Number.isFinite(replacementAt) ||
-                    cooldownSeconds > 0
-                  }
-                >
-                  <RefreshCw size={16} />{" "}
-                  {replaceMutation.isPending
-                    ? "Đang tạo mã mới…"
-                    : cooldownSeconds > 0
-                      ? `Tạo mã mới (${cooldownSeconds}s)`
-                      : "Tạo mã mới"}
-                </Button>
+                <>
+                  <Button
+                    onClick={() => {
+                      if (!request) return;
+                      onPaymentConfirmed?.(request);
+                      onClose();
+                    }}
+                  >
+                    <CheckCircle2 size={16} /> Xác nhận đã nhận tiền
+                  </Button>
+                  <Button
+                    variant="secondary"
+                    onClick={() => replaceMutation.mutate()}
+                    disabled={
+                      !network.online ||
+                      replaceMutation.isPending ||
+                      !hasServerTime ||
+                      !Number.isFinite(replacementAt) ||
+                      cooldownSeconds > 0
+                    }
+                  >
+                    <RefreshCw size={16} />{" "}
+                    {replaceMutation.isPending
+                      ? "Đang tạo mã mới…"
+                      : cooldownSeconds > 0
+                        ? `Tạo mã mới (${cooldownSeconds}s)`
+                        : "Tạo mã mới"}
+                  </Button>
+                </>
               )}
             </div>
             {!verifiedReceipt && (

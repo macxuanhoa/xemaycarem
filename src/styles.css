@@ -427,9 +427,13 @@ pre {
 /* Row wrapper when a Field has an inline action (e.g. the "Màu sắc" swatch).
    Keeps the label text left-aligned and pins the widget to the right of the
    label row so the text input below stays full-width for typing. */
+.field > label,
 .field-label-row {
+  min-height: 24px;
   display: flex;
   align-items: center;
+}
+.field-label-row {
   justify-content: space-between;
   gap: 10px;
   color: #435b4e;
@@ -511,6 +515,10 @@ pre {
        label baseline. */
     width: 26px;
     height: 26px;
+  }
+  .field > label,
+  .field-label-row {
+    min-height: 26px;
   }
 }
 .form-grid {
@@ -12538,6 +12546,29 @@ html[data-theme="dark"] .header-theme-toggle {
 .intake-entry-grid .intake-span2 {
   grid-column: 1 / -1;
 }
+.intake-entry-grid .field > label,
+.intake-entry-grid .field .field-label-row {
+  min-height: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+@media (max-width: 640px) {
+  .intake-entry-grid .field > label,
+  .intake-entry-grid .field .field-label-row {
+    min-height: 26px;
+    height: 26px;
+  }
+}
+.intake-entry-grid .field input,
+.intake-entry-grid .field .autocomplete-wrap,
+.intake-entry-grid .field .autocomplete-input {
+  box-sizing: border-box;
+  margin: 0;
+}
 .intake-issue-dot {
   display: inline-block;
   width: 8px;
@@ -12962,14 +12993,118 @@ html[data-theme="dark"] .header-theme-toggle {
 }
 .notification-group-label {
   padding: 10px 16px 5px;
+  display: flex;
+  align-items: center;
+}
+.notification-group + .notification-group .notification-group-label {
+  padding-top: 14px;
+}
+.notification-group-label-date {
   font-size: 10.5px;
   font-weight: 700;
   letter-spacing: 0.05em;
   text-transform: uppercase;
   color: #a2abbd;
 }
-.notification-group + .notification-group .notification-group-label {
-  padding-top: 14px;
+.notification-led-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 4px 12px 4px 9px;
+  border-radius: 999px;
+  background: #f1f4f9;
+  border: 1px solid rgba(15, 23, 42, 0.09);
+  box-shadow:
+    0 2px 6px -1px rgba(15, 23, 42, 0.12),
+    0 1px 2px 0 rgba(15, 23, 42, 0.06),
+    inset 0 1px 0 rgba(255, 255, 255, 0.95);
+  line-height: 1;
+}
+.notification-led-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  background: linear-gradient(135deg, #00e676, #00e5ff);
+  box-shadow:
+    0 0 5px #00e676,
+    0 0 9px rgba(0, 229, 255, 0.85);
+}
+.notification-led-badge[data-group-type="yesterday"] .notification-led-dot {
+  background: linear-gradient(135deg, #ff7a00, #ffd600);
+  box-shadow:
+    0 0 5px #ff7a00,
+    0 0 9px rgba(255, 214, 0, 0.85);
+}
+.notification-led-badge[data-group-type="recent"] .notification-led-dot {
+  background: linear-gradient(135deg, #ff1a53, #00e5ff);
+  box-shadow:
+    0 0 5px #ff1a53,
+    0 0 9px rgba(0, 229, 255, 0.85);
+}
+.notification-led-text {
+  font-size: 11.5px;
+  font-weight: 850;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  background-image: linear-gradient(
+    90deg,
+    #ff1a53 0%,
+    #ff7a00 16.6%,
+    #ffd600 33.3%,
+    #00e676 50%,
+    #00e5ff 66.6%,
+    #3d5afe 83.3%,
+    #d500f9 100%
+  );
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: transparent;
+  filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.52))
+          drop-shadow(0 2px 4px rgba(15, 23, 42, 0.35))
+          drop-shadow(0 0 6px rgba(0, 229, 255, 0.32));
+}
+.notification-led-text-mini {
+  display: inline-block;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.03em;
+  background-image: linear-gradient(
+    90deg,
+    #ff1a53 0%,
+    #ff7a00 16.6%,
+    #ffd600 33.3%,
+    #00e676 50%,
+    #00e5ff 66.6%,
+    #3d5afe 83.3%,
+    #d500f9 100%
+  );
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: transparent;
+  filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.45))
+          drop-shadow(0 0 4px rgba(0, 229, 255, 0.28));
+}
+.notification-led-text-inline {
+  font-weight: 800;
+  background-image: linear-gradient(
+    90deg,
+    #ff1a53 0%,
+    #ff7a00 16.6%,
+    #ffd600 33.3%,
+    #00e676 50%,
+    #00e5ff 66.6%,
+    #3d5afe 83.3%,
+    #d500f9 100%
+  );
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: transparent;
+  filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.4))
+          drop-shadow(0 0 4px rgba(0, 229, 255, 0.28));
 }
 .notification-group-empty {
   margin: 0;
@@ -13287,7 +13422,25 @@ html[data-theme="dark"] .header-theme-toggle {
   background: #a5b4fc;
   box-shadow: 0 0 0 3px rgba(165, 180, 252, 0.16);
 }
-[data-theme="dark"] .notification-group-label {
+[data-theme="dark"] .notification-led-badge {
+  background: rgba(15, 23, 42, 0.88);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  box-shadow:
+    0 4px 12px -2px rgba(0, 0, 0, 0.7),
+    inset 0 1px 0 rgba(255, 255, 255, 0.12),
+    0 0 12px -2px rgba(0, 229, 255, 0.25);
+}
+[data-theme="dark"] .notification-led-text {
+  filter: drop-shadow(0 1.5px 2px rgba(0, 0, 0, 0.95))
+          drop-shadow(0 0 8px rgba(0, 229, 255, 0.6))
+          drop-shadow(0 0 14px rgba(213, 0, 249, 0.45));
+}
+[data-theme="dark"] .notification-led-text-mini,
+[data-theme="dark"] .notification-led-text-inline {
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.9))
+          drop-shadow(0 0 6px rgba(0, 229, 255, 0.5));
+}
+[data-theme="dark"] .notification-group-label-date {
   color: #67718a;
 }
 [data-theme="dark"] .notification-group-empty {
@@ -17369,5 +17522,193 @@ html[data-theme="dark"] .header-theme-toggle {
   color: #86efac;
   border-color: #374151;
 }
+
+/* ==========================================================================
+   Tài khoản nhận tiền (Payment Settings Card)
+   ========================================================================== */
+.payment-settings-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 28px;
+  align-items: start;
+}
+
+@media (max-width: 860px) {
+  .payment-settings-grid {
+    grid-template-columns: 1fr;
+    gap: 20px;
+  }
+}
+
+.payment-settings-form {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.bank-card-visual {
+  background: linear-gradient(135deg, #064e3b 0%, #065f46 55%, #047857 100%);
+  border-radius: 18px;
+  padding: 24px;
+  color: #ffffff;
+  box-shadow: 0 12px 30px -6px rgba(6, 78, 59, 0.35), 0 4px 12px rgba(0, 0, 0, 0.08);
+  position: relative;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  min-height: 220px;
+}
+
+.bank-card-visual::before {
+  content: "";
+  position: absolute;
+  top: -50px;
+  right: -50px;
+  width: 180px;
+  height: 180px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(255, 255, 255, 0.18) 0%, rgba(255, 255, 255, 0) 70%);
+  pointer-events: none;
+}
+
+.bank-card-visual::after {
+  content: "";
+  position: absolute;
+  bottom: -60px;
+  left: 20%;
+  width: 140px;
+  height: 140px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(16, 185, 129, 0.25) 0%, rgba(16, 185, 129, 0) 70%);
+  pointer-events: none;
+}
+
+[data-theme="dark"] .bank-card-visual {
+  background: linear-gradient(135deg, #022c22 0%, #064e3b 55%, #065f46 100%);
+  border-color: rgba(255, 255, 255, 0.1);
+  box-shadow: 0 12px 30px -6px rgba(0, 0, 0, 0.5);
+}
+
+.bank-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  position: relative;
+  z-index: 1;
+}
+
+.bank-card-brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.bank-card-brand-icon {
+  width: 34px;
+  height: 34px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.18);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #ffffff;
+  backdrop-filter: blur(4px);
+}
+
+.bank-card-brand-name {
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: 0.3px;
+  color: #ffffff;
+}
+
+.bank-card-body {
+  margin: 18px 0;
+  position: relative;
+  z-index: 1;
+}
+
+.bank-card-number-label {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  color: rgba(255, 255, 255, 0.65);
+  margin-bottom: 4px;
+}
+
+.bank-card-number {
+  font-family: var(--font-mono, monospace);
+  font-size: 21px;
+  font-weight: 700;
+  letter-spacing: 2px;
+  color: #ffffff;
+  font-variant-numeric: tabular-nums;
+  word-break: break-all;
+}
+
+.bank-card-footer {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px;
+  position: relative;
+  z-index: 1;
+}
+
+.bank-card-holder-label {
+  font-size: 10.5px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  color: rgba(255, 255, 255, 0.65);
+  margin-bottom: 2px;
+}
+
+.bank-card-holder-name {
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 0.6px;
+  color: #ffffff;
+  text-transform: uppercase;
+  max-width: 200px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.bank-card-qr-box {
+  background: #ffffff;
+  padding: 6px;
+  border-radius: 10px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.bank-card-qr-img {
+  width: 76px;
+  height: 76px;
+  border-radius: 6px;
+  display: block;
+}
+
+.bank-card-qr-placeholder {
+  width: 76px;
+  height: 76px;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.15);
+  border: 1px dashed rgba(255, 255, 255, 0.35);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: rgba(255, 255, 255, 0.6);
+  flex-shrink: 0;
+}
+
 
 

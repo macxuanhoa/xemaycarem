@@ -7,7 +7,7 @@ import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { AlertTriangle, ArrowLeft, ArrowRight, Bike, ChevronDown, ChevronUp, Clock, QrCode, Search, Send, ShoppingBag } from "lucide-react";
+import { AlertTriangle, ArrowLeft, ArrowRight, Bike, CheckCircle2, ChevronDown, ChevronUp, Clock, QrCode, Search, Send, ShoppingBag } from "lucide-react";
 import { VietQrPaymentModal } from "./VietQrPaymentModal";
 import { api } from "@/lib/api";
 import { AppError } from "@/lib/errors";
@@ -262,12 +262,6 @@ function SaleEditor({ vehicle }: { vehicle: Vehicle }) {
       toast.warning("Vui lòng nhập giá bán hoặc số tiền khách trả trước để tạo mã VietQR.");
       return;
     }
-    if (!form.getValues("customer_name").trim()) {
-      toast.warning("Nhập tên người thanh toán trước khi tạo mã chuyển khoản.");
-      form.setFocus("customer_name");
-      return;
-    }
-    form.setValue("payment_method", "BANK_TRANSFER", { shouldDirty: true });
     setShowVietQrModal(true);
   };
   const reviewPending = useRef(false);
@@ -452,16 +446,14 @@ function SaleEditor({ vehicle }: { vehicle: Vehicle }) {
 
   const reviewSale = async (values: SaleFormValues) => {
     if (reviewPending.current || mutation.isPending) return;
-    if (values.payment_method === "BANK_TRANSFER" && values.initial_payment > 0 && !receivedQr) {
-      toast.warning("Chưa xác nhận tiền vào từ ngân hàng", {
-        description: "Mở thanh toán chuyển khoản để kiểm tra. Chỉ ghi nhận khoản thu sau khi ngân hàng xác nhận.",
-      });
-      return;
-    }
+    // Khi xác nhận bán xe trực tiếp thì hình thức thanh toán là tiền mặt (CASH),
+    // còn nếu bấm vào thanh toán chuyển khoản và đã nhận tiền thì là chuyển khoản (BANK_TRANSFER).
+    const finalPaymentMethod = receivedQr ? "BANK_TRANSFER" : "CASH";
+    form.setValue("payment_method", finalPaymentMethod);
     reviewPending.current = true;
     setReviewing(true);
     // Review and send the same validated values, even if form state later changes.
-    const snapshot = Object.freeze({ ...values });
+    const snapshot = Object.freeze({ ...values, payment_method: finalPaymentMethod });
     try {
       const confirmed = await confirmAction({
         title: needsApproval
@@ -776,13 +768,29 @@ function SaleEditor({ vehicle }: { vehicle: Vehicle }) {
                   />
                 </Field>
                 <Field label="Hình thức thanh toán">
-                  <select {...form.register("payment_method")}>
-                    {Object.entries(paymentLabels).map(([value, label]) => (
-                      <option value={value} key={value}>
-                        {label}
-                      </option>
-                    ))}
-                  </select>
+                  <div
+                    style={{
+                      padding: "8px 12px",
+                      borderRadius: "8px",
+                      background: "var(--surface-sunken, #f8fafc)",
+                      border: "1px solid var(--border-soft, #e2e8f0)",
+                      fontWeight: 600,
+                      fontSize: "14px",
+                      color: receivedQr ? "var(--brand-emerald-dark, #047857)" : "var(--text-main, #0f172a)",
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 8,
+                      minHeight: "42px",
+                    }}
+                  >
+                    {receivedQr ? (
+                      <>
+                        <CheckCircle2 size={16} /> Chuyển khoản (VietQR đã xác nhận)
+                      </>
+                    ) : (
+                      "Tiền mặt (mặc định khi bán trực tiếp)"
+                    )}
+                  </div>
                 </Field>
                 <Field
                   label="Hạn thanh toán (nếu còn nợ)"

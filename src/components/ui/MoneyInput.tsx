@@ -45,7 +45,7 @@ export function MoneyInput({
   rawValue,
   onRawChange,
   parseInput = parseMoneyInput,
-  placeholder = "Ví dụ: 82.000.000 hoặc 82tr5",
+  placeholder = "12.000.000 hoặc 12tr5",
   id,
   name,
   ref,

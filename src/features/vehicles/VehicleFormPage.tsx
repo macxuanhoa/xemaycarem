@@ -409,6 +409,7 @@ function VehicleEditor({ vehicle }: { vehicle?: Vehicle }) {
             <div className="form-grid">
               <Field label="Loại xe *" error={error("vehicle_type")}>
                 <AutocompleteInput
+                  autoFocus
                   aria-label="Loại xe *"
                   value={form.watch("vehicle_type")}
                   onChange={(value) => setText("vehicle_type", value)}
@@ -437,7 +438,6 @@ function VehicleEditor({ vehicle }: { vehicle?: Vehicle }) {
 
               <Field label="Số khung" error={error("frame_number")}>
                 <input
-                  autoFocus
                   autoCapitalize="characters"
                   enterKeyHint="next"
                   {...form.register("frame_number")}
@@ -512,6 +512,7 @@ function VehicleEditor({ vehicle }: { vehicle?: Vehicle }) {
               <Field label="Giá thu (₫) *" error={error("purchase_price")}>
                 <MoneyInput
                   aria-label="Giá thu (₫) *"
+                  placeholder="12.000.000 hoặc 12tr5"
                   value={form.watch("purchase_price")}
                   onChange={(value) =>
                     form.setValue("purchase_price", value, {

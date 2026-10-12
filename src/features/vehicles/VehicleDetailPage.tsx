@@ -8,7 +8,6 @@ import {
   Camera,
   CirclePlus,
   Copy,
-  FileText,
   Hash,
   ImagePlus,
   MoreHorizontal,
@@ -655,15 +654,21 @@ export function VehicleDetailPage() {
           {vehicle.notes && (
             <Card className="vehicle-notes-card">
               <div className="vehicle-notes-header">
-                <div className="vehicle-notes-title-group">
-                  <span className="vehicle-notes-icon-wrap" aria-hidden="true">
-                    <FileText size={17} />
-                  </span>
-                  <h2 className="vehicle-notes-heading">Ghi chú xe</h2>
-                </div>
-                <span className="vehicle-notes-pill">Lưu ý quan trọng</span>
+                <h2 className="section-title" style={{ margin: 0 }}>
+                  Ghi chú
+                </h2>
+                <button
+                  type="button"
+                  className="vehicle-notes-copy-btn"
+                  onClick={() => void copyValue("Ghi chú", vehicle.notes)}
+                  aria-label="Sao chép ghi chú"
+                  title="Sao chép ghi chú"
+                >
+                  <Copy size={13} />
+                  <span>Sao chép</span>
+                </button>
               </div>
-              <div className="vehicle-notes-content">
+              <div className="vehicle-notes-memo">
                 <p className="vehicle-notes-body">{vehicle.notes}</p>
               </div>
             </Card>

@@ -15290,16 +15290,9 @@ html[data-theme="dark"] .header-theme-toggle {
   font-size: 12.5px;
   color: var(--readable-muted);
 }
-/* Notes card: highlighted callout with amber/gold warmth, high contrast text and visual note pad structure. */
+/* Notes card: phong cách tinh tế, chuẩn mực, đậm nét rõ ràng */
 .vehicle-notes-card {
-  position: relative;
-  background: linear-gradient(135deg, #fffef5 0%, #fef9e8 100%);
-  border: 1.5px solid #fde047;
-  border-left: 5px solid #d97706;
-  border-radius: 14px;
-  box-shadow:
-    0 4px 18px -4px rgba(217, 119, 6, 0.14),
-    0 2px 6px -1px rgba(15, 23, 42, 0.05);
+  border-left: 3px solid #2f6f4f;
 }
 .vehicle-notes-header {
   display: flex;
@@ -15307,93 +15300,65 @@ html[data-theme="dark"] .header-theme-toggle {
   justify-content: space-between;
   gap: 12px;
   margin-bottom: 12px;
-  padding-bottom: 10px;
-  border-bottom: 1px dashed rgba(217, 119, 6, 0.28);
 }
-.vehicle-notes-title-group {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-.vehicle-notes-icon-wrap {
-  width: 28px;
-  height: 28px;
-  border-radius: 8px;
-  background: #fef08a;
-  color: #b45309;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  box-shadow: 0 1px 3px rgba(180, 83, 9, 0.16);
-  flex-shrink: 0;
-}
-.vehicle-notes-heading {
-  font-size: 15.5px;
-  font-weight: 750;
-  letter-spacing: -0.2px;
-  color: #92400e;
+.vehicle-notes-header .section-title {
   margin: 0;
+  font-size: 15.5px;
+  font-weight: 650;
+  color: var(--readable, #0f172a);
 }
-.vehicle-notes-pill {
+.vehicle-notes-copy-btn {
   display: inline-flex;
   align-items: center;
-  padding: 3px 10px;
-  border-radius: 999px;
-  font-size: 11px;
-  font-weight: 750;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  background: #fef08a;
-  color: #92400e;
-  border: 1px solid rgba(202, 138, 4, 0.35);
-  box-shadow: 0 1px 2px rgba(180, 83, 9, 0.08);
+  gap: 5px;
+  padding: 4px 10px;
+  border-radius: 6px;
+  border: 1px solid var(--line, #e2e8f0);
+  background: transparent;
+  color: var(--muted, #64748b);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: color 0.15s, border-color 0.15s, background-color 0.15s;
 }
-.vehicle-notes-content {
-  background: rgba(255, 255, 255, 0.88);
-  border: 1px solid rgba(245, 158, 11, 0.32);
-  border-radius: 10px;
+.vehicle-notes-copy-btn:hover {
+  color: #0f172a;
+  border-color: #cbd5e1;
+  background: #f1f5f9;
+}
+.vehicle-notes-memo {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
   padding: 13px 16px;
-  box-shadow: inset 0 1px 3px rgba(217, 119, 6, 0.04);
 }
 .vehicle-notes-body {
   margin: 0;
-  font-size: 15px;
-  font-weight: 600;
-  line-height: 1.75;
-  color: #451a03;
+  font-size: 14.5px;
+  font-weight: 500;
+  line-height: 1.7;
+  color: #0f172a;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
 [data-theme="dark"] .vehicle-notes-card {
-  background: linear-gradient(135deg, #201a0f 0%, #19140a 100%);
-  border: 1.5px solid rgba(245, 158, 11, 0.4);
-  border-left: 5px solid #f59e0b;
-  box-shadow:
-    0 6px 22px -4px rgba(0, 0, 0, 0.6),
-    0 0 16px -2px rgba(245, 158, 11, 0.2);
+  border-left-color: #34d399;
 }
-[data-theme="dark"] .vehicle-notes-header {
-  border-bottom-color: rgba(245, 158, 11, 0.25);
+[data-theme="dark"] .vehicle-notes-copy-btn {
+  color: #94a3b8;
+  border-color: #334155;
 }
-[data-theme="dark"] .vehicle-notes-icon-wrap {
-  background: rgba(245, 158, 11, 0.22);
-  color: #fde047;
-  box-shadow: 0 0 8px rgba(245, 158, 11, 0.25);
+[data-theme="dark"] .vehicle-notes-copy-btn:hover {
+  color: #f8fafc;
+  border-color: #475569;
+  background: rgba(255, 255, 255, 0.05);
 }
-[data-theme="dark"] .vehicle-notes-heading {
-  color: #fef08a;
-}
-[data-theme="dark"] .vehicle-notes-pill {
-  background: rgba(245, 158, 11, 0.2);
-  color: #fef08a;
-  border-color: rgba(245, 158, 11, 0.4);
-}
-[data-theme="dark"] .vehicle-notes-content {
-  background: rgba(0, 0, 0, 0.35);
-  border-color: rgba(245, 158, 11, 0.25);
+[data-theme="dark"] .vehicle-notes-memo {
+  background: rgba(255, 255, 255, 0.03);
+  border-color: rgba(255, 255, 255, 0.08);
 }
 [data-theme="dark"] .vehicle-notes-body {
-  color: #fef9c3;
+  color: #f8fafc;
 }
 /* Photos: reduced height on the detail page. */
 .vehicle-detail-page .vehicle-display-stage img,

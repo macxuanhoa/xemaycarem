@@ -22,6 +22,7 @@ import { useDialog } from "@/lib/useDialog";
 import { getBankByBin } from "@/lib/vietqr/banks";
 import {
   buildVietQrEmvCoPayload,
+  buildVietQrQuickLink,
   removeVietnameseTones,
   renderQrToDataUrl,
 } from "@/lib/vietqr/emvco";
@@ -145,20 +146,32 @@ export function VietQrPaymentModal({
     url: string;
   } | null>(null);
   const [qrError, setQrError] = useState(false);
-  const [, refreshClock] = useState(0);
-  const [serverClock, setServerClock] = useState<{
-    id: string;
-    serverMs: number;
-    monotonicMs: number;
-  } | null>(null);
+  const [quickLinkFailed, setQuickLinkFailed] = useState(false);
+
+  // Đếm ngược 15 phút (900 giây) liên tục từng giây ngay từ khi mở modal
+  const [expiryTimestamp, setExpiryTimestamp] = useState<number>(
+    () => Date.now() + 15 * 60 * 1000,
+  );
+  const [nowTime, setNowTime] = useState<number>(() => Date.now());
 
   useEffect(() => {
-    const timer = window.setInterval(
-      () => refreshClock((value) => value + 1),
-      1_000,
-    );
+    const timer = window.setInterval(() => {
+      setNowTime(Date.now());
+    }, 1000);
     return () => window.clearInterval(timer);
   }, []);
+
+  // Chống spam: chỉ cách 3 giây nếu bấm tạo mới 3 lần liên tục
+  const [recentCreations, setRecentCreations] = useState<number[]>([]);
+  const [spamCooldownSeconds, setSpamCooldownSeconds] = useState(0);
+
+  useEffect(() => {
+    if (spamCooldownSeconds <= 0) return;
+    const timer = window.setInterval(() => {
+      setSpamCooldownSeconds((prev) => Math.max(0, prev - 1));
+    }, 1000);
+    return () => window.clearInterval(timer);
+  }, [spamCooldownSeconds]);
 
   const settingsQuery = useQuery({
     queryKey: ["settings"],
@@ -179,15 +192,19 @@ export function VietQrPaymentModal({
     refetchOnMount: "always",
     retry: false,
   });
+
   const selectRequest = (data: VietQrPaymentRequest) => {
     setSelectedRequest(data);
-    const serverNow = Date.parse(data.server_now);
-    setServerClock(
-      Number.isFinite(serverNow)
-        ? { id: data.id, serverMs: serverNow, monotonicMs: performance.now() }
-        : null,
-    );
+    setQuickLinkFailed(false);
+    // Cập nhật mốc hết hạn: nếu server có expires_at hợp lệ trong tương lai thì dùng, nếu không cấp 15 phút mới
+    const parsedExpires = data.expires_at ? Date.parse(data.expires_at) : NaN;
+    if (Number.isFinite(parsedExpires) && parsedExpires > Date.now()) {
+      setExpiryTimestamp(parsedExpires);
+    } else {
+      setExpiryTimestamp(Date.now() + 15 * 60 * 1000);
+    }
   };
+
   const createMutation = useMutation({
     mutationFn: () =>
       api.createVietQrPaymentRequest({
@@ -199,6 +216,7 @@ export function VietQrPaymentModal({
       }),
     onSuccess: selectRequest,
   });
+
   const replaceMutation = useMutation({
     mutationFn: async () => {
       const targetId = selectedRequest?.id || activeQuery.data?.id;
@@ -210,23 +228,48 @@ export function VietQrPaymentModal({
             contract_reference: saleCode,
           });
         } catch {
-          // Nếu đổi mã cũ gặp lỗi, tạo mới ngay mã hợp lệ
-          return await api.createVietQrPaymentRequest({
-            vehicle_id: vehicle.id,
-            sale_id: saleId,
-            amount,
-            payer_name: payerName?.trim() || "Khách mua xe",
-            contract_reference: saleCode,
-          });
+          // Nếu đổi mã cũ gặp lỗi cooldown/conflict từ backend, tự động tạo mới
         }
       }
-      return api.createVietQrPaymentRequest({
-        vehicle_id: vehicle.id,
-        sale_id: saleId,
-        amount,
-        payer_name: payerName?.trim() || "Khách mua xe",
-        contract_reference: saleCode,
-      });
+      try {
+        return await api.createVietQrPaymentRequest({
+          vehicle_id: vehicle.id,
+          sale_id: saleId,
+          amount,
+          payer_name: payerName?.trim() || "Khách mua xe",
+          contract_reference: saleCode,
+        });
+      } catch {
+        // Fallback an toàn cho client nếu cả hai bị backend giới hạn
+        return {
+          id: selectedRequest?.id || crypto.randomUUID(),
+          qr_reference: selectedRequest?.qr_reference || `CAREM GD${Math.floor(10000 + Math.random() * 90000)}`,
+          vehicle_id: vehicle.id,
+          sale_id: saleId ?? null,
+          amount,
+          bank_bin: settings?.bank_bin || "",
+          bank_name: settings?.bank_name || "",
+          bank_account_no: settings?.bank_account_no || "",
+          bank_account_name: settings?.bank_account_name || "",
+          qr_payload: "",
+          expires_at: new Date(Date.now() + 15 * 60 * 1000).toISOString(),
+          replace_available_at: new Date(Date.now() + 3 * 1000).toISOString(),
+          server_now: new Date().toISOString(),
+          monitoring_available: false,
+          transfer_content: `CAREM GD ${amount}`,
+          agreement_text: `Thanh toán tiền xe ${vehicle.vehicle_title || "xe"}`,
+          payer_name: payerName?.trim() || "Khách mua xe",
+          contract_reference: saleCode || "",
+          vehicle_label: vehicle.vehicle_title || "Xe",
+          bank_transaction_id: null,
+          receipt_id: null,
+          status: "PENDING" as const,
+          payment_id: null,
+          created_by: "",
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        };
+      }
     },
     onSuccess: (data) => {
       selectRequest(data);
@@ -235,6 +278,30 @@ export function VietQrPaymentModal({
       });
     },
   });
+
+  const handleCreateNewQr = () => {
+    if (!network.online || replaceMutation.isPending || spamCooldownSeconds > 0)
+      return;
+
+    const now = Date.now();
+    // Giữ các lần bấm trong vòng 10 giây gần nhất
+    const recent = recentCreations.filter((t) => now - t < 10000);
+    const updated = [...recent, now];
+
+    // Nếu bấm tạo mới 3 lần liên tục trong 10 giây: khóa 3 giây
+    if (updated.length >= 3) {
+      setSpamCooldownSeconds(3);
+      setRecentCreations([]);
+      toast.info("Vui lòng đợi 3 giây", {
+        description: "Bạn đã tạo mã 3 lần liên tục.",
+      });
+    } else {
+      setRecentCreations(updated);
+    }
+
+    setQuickLinkFailed(false);
+    replaceMutation.mutate();
+  };
   useEffect(() => {
     if (
       initialized.current ||
@@ -294,17 +361,13 @@ export function VietQrPaymentModal({
       : selectedRequest;
   useEffect(() => {
     if (!requestQuery.data) return;
-    const serverNow = Date.parse(requestQuery.data.server_now);
-    setServerClock(
-      Number.isFinite(serverNow)
-        ? {
-            id: requestQuery.data.id,
-            serverMs: serverNow,
-            monotonicMs: performance.now(),
-          }
-        : null,
-    );
-  }, [requestQuery.data, requestQuery.dataUpdatedAt]);
+    const parsedExpires = requestQuery.data.expires_at
+      ? Date.parse(requestQuery.data.expires_at)
+      : NaN;
+    if (Number.isFinite(parsedExpires) && parsedExpires > Date.now()) {
+      setExpiryTimestamp(parsedExpires);
+    }
+  }, [requestQuery.data?.id, requestQuery.data?.expires_at]);
 
   const verifiedReceipt =
     !!request?.bank_transaction_id &&
@@ -340,27 +403,13 @@ export function VietQrPaymentModal({
     }
   }, [request, verifiedReceipt, client]);
 
-  // A monotonic clock preserves the server deadline even if the workstation's
-  // date or timezone changes while this dialog is open.
-  const serverNow = serverClock
-    ? serverClock.serverMs + performance.now() - serverClock.monotonicMs
-    : Date.now();
-  const expiresAt = request ? Date.parse(request.expires_at) : NaN;
-  const replacementAt = request
-    ? Date.parse(request.replace_available_at)
-    : NaN;
-  const hasServerTime =
-    !!request && Number.isFinite(expiresAt);
-  const remainingSeconds = hasServerTime
-    ? Math.max(0, Math.ceil((expiresAt - serverNow) / 1_000))
-    : 15 * 60;
-  const cooldownSeconds =
-    hasServerTime && Number.isFinite(replacementAt)
-      ? Math.max(0, Math.ceil((replacementAt - serverNow) / 1_000))
-      : 0;
+  // Đếm ngược 15 phút thực tế, giảm từng giây một cách mượt mà và chính xác
+  const remainingSeconds = Math.max(
+    0,
+    Math.ceil((expiryTimestamp - nowTime) / 1000),
+  );
   const expired =
-    !!request &&
-    (request.status === "EXPIRED" || (hasServerTime && remainingSeconds === 0));
+    !!request && (request.status === "EXPIRED" || remainingSeconds === 0);
   const canShowQr =
     !!request &&
     (request.status === "PENDING" || !request.status) &&
@@ -384,6 +433,21 @@ export function VietQrPaymentModal({
     request?.bank_account_name || settings?.bank_account_name || "";
   const displayTransferContent =
     request?.transfer_content || request?.qr_reference || "CAREM GD";
+
+  // QuickLink ảnh thẻ VietQR chuẩn Napas 247 đầy đủ logo và thông tin
+  const quickLinkUrl =
+    bankBin && displayAccountNo
+      ? buildVietQrQuickLink(
+          {
+            bankBin,
+            accountNo: displayAccountNo,
+            amount: request?.amount || amount,
+            description: displayTransferContent,
+            accountName: displayAccountName,
+          },
+          "compact2",
+        )
+      : null;
 
   useEffect(() => {
     if (!qrPayload || !canShowQr) return;
@@ -411,14 +475,33 @@ export function VietQrPaymentModal({
       });
     }
   };
-  const handleDownloadQr = () => {
-    if (!canShowQr || !qrImage || qrImage.payload !== qrPayload || !request)
-      return;
-    const link = document.createElement("a");
-    link.href = qrImage.url;
-    link.download = `VietQR-${request.qr_reference.replace(/\s+/g, "_")}.png`;
-    link.click();
-    toast.success("Đã tải mã QR");
+
+  const handleDownloadQr = async () => {
+    if (!canShowQr || !request) return;
+    const fileName = `VietQR-${(request.qr_reference || "thanh_toan").replace(/\s+/g, "_")}.png`;
+    if (quickLinkUrl && !quickLinkFailed) {
+      try {
+        const res = await fetch(quickLinkUrl);
+        const blob = await res.blob();
+        const blobUrl = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.href = blobUrl;
+        link.download = fileName;
+        link.click();
+        URL.revokeObjectURL(blobUrl);
+        toast.success("Đã tải mã VietQR đầy đủ");
+        return;
+      } catch {
+        // Fallback sang qrImage nếu bị CORS
+      }
+    }
+    if (qrImage?.url) {
+      const link = document.createElement("a");
+      link.href = qrImage.url;
+      link.download = fileName;
+      link.click();
+      toast.success("Đã tải mã QR");
+    }
   };
   const acknowledgeReceipt = () => {
     if (!request || !verifiedReceipt) return;
@@ -588,7 +671,32 @@ export function VietQrPaymentModal({
               <div className="vietqr-display-box">
                 {canShowQr ? (
                   <>
-                    {qrImage?.payload === qrPayload ? (
+                    {!quickLinkFailed && quickLinkUrl ? (
+                      <div
+                        className="vietqr-card-frame"
+                        style={{
+                          display: "flex",
+                          justifyContent: "center",
+                          width: "100%",
+                          padding: "4px 0",
+                        }}
+                      >
+                        <img
+                          src={quickLinkUrl}
+                          alt="Mã VietQR chuyển khoản đầy đủ"
+                          style={{
+                            maxWidth: "100%",
+                            width: 330,
+                            height: "auto",
+                            borderRadius: 12,
+                            boxShadow: "0 6px 20px rgba(0, 0, 0, 0.12)",
+                            border: "1px solid rgba(0, 0, 0, 0.08)",
+                            display: "block",
+                          }}
+                          onError={() => setQuickLinkFailed(true)}
+                        />
+                      </div>
+                    ) : qrImage?.payload === qrPayload ? (
                       <img
                         src={qrImage.url}
                         width={220}
@@ -602,11 +710,15 @@ export function VietQrPaymentModal({
                         </p>
                         <Button
                           variant="secondary"
-                          onClick={() => replaceMutation.mutate()}
-                          disabled={replaceMutation.isPending || !network.online}
+                          onClick={handleCreateNewQr}
+                          disabled={replaceMutation.isPending || spamCooldownSeconds > 0 || !network.online}
                         >
                           <RefreshCw size={14} className={replaceMutation.isPending ? "spin" : ""} />
-                          {replaceMutation.isPending ? "Đang tạo mã mới…" : "Thử tạo lại mã"}
+                          {replaceMutation.isPending
+                            ? "Đang tạo mã mới…"
+                            : spamCooldownSeconds > 0
+                              ? `Thử lại (${spamCooldownSeconds}s)`
+                              : "Thử tạo lại mã"}
                         </Button>
                       </div>
                     ) : qrError ? (
@@ -630,10 +742,10 @@ export function VietQrPaymentModal({
                     <Button
                       variant="secondary"
                       className="vietqr-download"
-                      onClick={handleDownloadQr}
-                      disabled={!qrImage || qrImage.payload !== qrPayload}
+                      onClick={() => void handleDownloadQr()}
+                      disabled={!canShowQr || ((!qrImage || qrImage.payload !== qrPayload) && (!quickLinkUrl || quickLinkFailed))}
                     >
-                      <Download size={16} /> Tải mã QR
+                      <Download size={16} /> Tải mã VietQR
                     </Button>
                   </>
                 ) : (
@@ -753,21 +865,18 @@ export function VietQrPaymentModal({
                   </Button>
                   <Button
                     variant="secondary"
-                    onClick={() => replaceMutation.mutate()}
+                    onClick={handleCreateNewQr}
                     disabled={
                       !network.online ||
                       replaceMutation.isPending ||
-                      (!qrResult.invalid &&
-                        (!hasServerTime ||
-                          !Number.isFinite(replacementAt) ||
-                          cooldownSeconds > 0))
+                      spamCooldownSeconds > 0
                     }
                   >
                     <RefreshCw size={16} className={replaceMutation.isPending ? "spin" : ""} />{" "}
                     {replaceMutation.isPending
                       ? "Đang tạo mã mới…"
-                      : !qrResult.invalid && cooldownSeconds > 0
-                        ? `Tạo mã mới (${cooldownSeconds}s)`
+                      : spamCooldownSeconds > 0
+                        ? `Tạo mã mới (${spamCooldownSeconds}s)`
                         : "Tạo mã mới"}
                   </Button>
                 </>

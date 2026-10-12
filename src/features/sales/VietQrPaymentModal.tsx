@@ -146,14 +146,25 @@ export function VietQrPaymentModal({
     onSuccess: selectRequest,
   });
   const replaceMutation = useMutation({
-    mutationFn: () => {
+    mutationFn: async () => {
       const targetId = selectedRequest?.id || activeQuery.data?.id;
       if (targetId) {
-        return api.replaceVietQrPaymentRequest(targetId, {
-          amount,
-          payer_name: payerName?.trim() || "Khách mua xe",
-          contract_reference: saleCode,
-        });
+        try {
+          return await api.replaceVietQrPaymentRequest(targetId, {
+            amount,
+            payer_name: payerName?.trim() || "Khách mua xe",
+            contract_reference: saleCode,
+          });
+        } catch {
+          // Nếu đổi mã cũ gặp lỗi, tạo mới ngay mã hợp lệ
+          return await api.createVietQrPaymentRequest({
+            vehicle_id: vehicle.id,
+            sale_id: saleId,
+            amount,
+            payer_name: payerName?.trim() || "Khách mua xe",
+            contract_reference: saleCode,
+          });
+        }
       }
       return api.createVietQrPaymentRequest({
         vehicle_id: vehicle.id,
@@ -189,11 +200,12 @@ export function VietQrPaymentModal({
       const detailsMatch =
         activeQuery.data.amount === amount &&
         (!payerName || activeQuery.data.payer_name === payerName.trim());
+      const isQrValid = !paymentQrPayload(activeQuery.data).invalid;
 
-      if (!isExpired && detailsMatch && activeQuery.data.status === "PENDING") {
+      if (!isExpired && detailsMatch && activeQuery.data.status === "PENDING" && isQrValid) {
         selectRequest(activeQuery.data);
       } else {
-        // Tự động làm mới mã QR để luôn hiện mã QR 15 phút
+        // Tự động làm mới mã QR để luôn hiện mã QR 15 phút hợp lệ
         replaceMutation.mutate();
       }
     } else {
@@ -321,6 +333,18 @@ export function VietQrPaymentModal({
       current = false;
     };
   }, [qrPayload, canShowQr]);
+
+  useEffect(() => {
+    if (
+      qrResult.invalid &&
+      !replaceMutation.isPending &&
+      !createMutation.isPending &&
+      network.online &&
+      request
+    ) {
+      replaceMutation.mutate();
+    }
+  }, [qrResult.invalid, replaceMutation, createMutation, network.online, request]);
 
   const handleCopy = async (value: string, label: string) => {
     try {
@@ -518,10 +542,19 @@ export function VietQrPaymentModal({
                         alt="Mã QR chuyển khoản"
                       />
                     ) : qrResult.invalid ? (
-                      <p className="notice warning">
-                        Thông tin mã QR cũ không hợp lệ. Hãy tạo mã mới để tiếp
-                        tục.
-                      </p>
+                      <div className="vietqr-invalid-box" style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 10, padding: 8 }}>
+                        <p className="notice warning" style={{ margin: 0, textAlign: "center" }}>
+                          Thông tin mã QR cũ không hợp lệ. Đang tạo mã mới hợp lệ…
+                        </p>
+                        <Button
+                          variant="secondary"
+                          onClick={() => replaceMutation.mutate()}
+                          disabled={replaceMutation.isPending || !network.online}
+                        >
+                          <RefreshCw size={14} className={replaceMutation.isPending ? "spin" : ""} />
+                          {replaceMutation.isPending ? "Đang tạo mã mới…" : "Tạo mã mới ngay"}
+                        </Button>
+                      </div>
                     ) : qrError ? (
                       <p className="notice warning">
                         Chưa hiển thị được mã QR. Hãy đóng và mở lại để thử lại.
@@ -668,15 +701,16 @@ export function VietQrPaymentModal({
                     disabled={
                       !network.online ||
                       replaceMutation.isPending ||
-                      !hasServerTime ||
-                      !Number.isFinite(replacementAt) ||
-                      cooldownSeconds > 0
+                      (!qrResult.invalid &&
+                        (!hasServerTime ||
+                          !Number.isFinite(replacementAt) ||
+                          cooldownSeconds > 0))
                     }
                   >
-                    <RefreshCw size={16} />{" "}
+                    <RefreshCw size={16} className={replaceMutation.isPending ? "spin" : ""} />{" "}
                     {replaceMutation.isPending
                       ? "Đang tạo mã mới…"
-                      : cooldownSeconds > 0
+                      : !qrResult.invalid && cooldownSeconds > 0
                         ? `Tạo mã mới (${cooldownSeconds}s)`
                         : "Tạo mã mới"}
                   </Button>

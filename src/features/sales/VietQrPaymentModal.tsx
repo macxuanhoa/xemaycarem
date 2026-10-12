@@ -853,33 +853,22 @@ export function VietQrPaymentModal({
                   <CheckCircle2 size={16} /> Xác nhận và đóng
                 </Button>
               ) : (
-                <>
-                  <Button
-                    onClick={() => {
-                      if (!request) return;
-                      onPaymentConfirmed?.(request);
-                      onClose();
-                    }}
-                  >
-                    <CheckCircle2 size={16} /> Xác nhận đã nhận tiền
-                  </Button>
-                  <Button
-                    variant="secondary"
-                    onClick={handleCreateNewQr}
-                    disabled={
-                      !network.online ||
-                      replaceMutation.isPending ||
-                      spamCooldownSeconds > 0
-                    }
-                  >
-                    <RefreshCw size={16} className={replaceMutation.isPending ? "spin" : ""} />{" "}
-                    {replaceMutation.isPending
-                      ? "Đang tạo mã mới…"
-                      : spamCooldownSeconds > 0
-                        ? `Tạo mã mới (${spamCooldownSeconds}s)`
-                        : "Tạo mã mới"}
-                  </Button>
-                </>
+                <Button
+                  variant="secondary"
+                  onClick={handleCreateNewQr}
+                  disabled={
+                    !network.online ||
+                    replaceMutation.isPending ||
+                    spamCooldownSeconds > 0
+                  }
+                >
+                  <RefreshCw size={16} className={replaceMutation.isPending ? "spin" : ""} />{" "}
+                  {replaceMutation.isPending
+                    ? "Đang tạo mã mới…"
+                    : spamCooldownSeconds > 0
+                      ? `Tạo mã mới (${spamCooldownSeconds}s)`
+                      : "Tạo mã mới"}
+                </Button>
               )}
             </div>
             {!verifiedReceipt && (

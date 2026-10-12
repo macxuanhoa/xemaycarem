@@ -453,7 +453,7 @@ export function AppLayout() {
             <Outlet />
           </Suspense>
         </main>
-        {!["/acquisitions", "/acquisitions/new", "/vehicles"].includes(
+        {!["/acquisitions", "/acquisitions/new", "/vehicles", "/copilot"].includes(
           pathname,
         ) && (
           <footer className="workspace-footer">

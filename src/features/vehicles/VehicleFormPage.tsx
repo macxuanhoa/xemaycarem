@@ -1,9 +1,11 @@
 import { useEffect, useState } from "react";
-import { Link, useNavigate, useParams } from "react-router-dom";
+import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { ArrowLeft, CheckCircle2, Clock } from "lucide-react";
+import { ArrowLeft, CheckCircle2, Clock, ScanLine } from "lucide-react";
+import { QuickVehicleScannerModal, type ScannedVehicleFields } from "@/components/QuickVehicleScannerModal";
+import { draftFields } from "@/lib/formDrafts";
 import { api } from "@/lib/api";
 import { AppError, mapDuplicateReviewError } from "@/lib/errors";
 import { executeOperation } from "@/lib/operationRecovery";
@@ -105,6 +107,7 @@ export function VehicleFormPage() {
 function VehicleEditor({ vehicle }: { vehicle?: Vehicle }) {
   const { profile } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
   const client = useQueryClient();
   const [isDraftRestored, setIsDraftRestored] = useState(false);
   // Keep the version that supplied the form defaults even if queries refetch.
@@ -115,6 +118,7 @@ function VehicleEditor({ vehicle }: { vehicle?: Vehicle }) {
     useState<VehicleFormValues | null>(null);
   const [requestOpen, setRequestOpen] = useState(false);
   const [overrideOpen, setOverrideOpen] = useState(false);
+  const [scannerOpen, setScannerOpen] = useState(false);
 
   const form = useForm<VehicleFormValues>({
     resolver: zodResolver(vehicleSchema),
@@ -139,8 +143,93 @@ function VehicleEditor({ vehicle }: { vehicle?: Vehicle }) {
             ? "CANCELLED"
             : "IN_STOCK",
       notes: vehicle?.notes ?? "",
+      ...draftFields(
+        location.state?.aiDraft && typeof location.state.aiDraft === "object"
+          ? location.state.aiDraft
+          : {},
+      ),
     },
   });
+
+  // Tự động điền thông tin khi được điều hướng từ camera thông minh (/capture)
+  useEffect(() => {
+    const aiDraft = location.state?.aiDraft as Record<string, unknown> | undefined;
+    if (!aiDraft || typeof aiDraft !== "object") return;
+    if (typeof aiDraft.license_plate === "string" && aiDraft.license_plate) {
+      form.setValue("license_plate", aiDraft.license_plate, {
+        shouldValidate: true,
+        shouldDirty: true,
+      });
+    }
+    if (typeof aiDraft.frame_number === "string" && aiDraft.frame_number) {
+      form.setValue("frame_number", aiDraft.frame_number, {
+        shouldValidate: true,
+        shouldDirty: true,
+      });
+    }
+    if (typeof aiDraft.vehicle_type === "string" && aiDraft.vehicle_type) {
+      form.setValue("vehicle_type", aiDraft.vehicle_type, {
+        shouldValidate: true,
+        shouldDirty: true,
+      });
+    }
+    if (typeof aiDraft.color === "string" && aiDraft.color) {
+      form.setValue("color", aiDraft.color, {
+        shouldValidate: true,
+        shouldDirty: true,
+      });
+    }
+    if (typeof aiDraft.year === "number" && aiDraft.year) {
+      form.setValue("year", aiDraft.year, {
+        shouldValidate: true,
+        shouldDirty: true,
+      });
+    }
+  }, [location.state, form]);
+
+  const handleScanSuccess = (scanned: ScannedVehicleFields) => {
+    let filledCount = 0;
+    if (scanned.license_plate) {
+      form.setValue("license_plate", scanned.license_plate, {
+        shouldValidate: true,
+        shouldDirty: true,
+      });
+      filledCount++;
+    }
+    if (scanned.frame_number) {
+      form.setValue("frame_number", scanned.frame_number, {
+        shouldValidate: true,
+        shouldDirty: true,
+      });
+      filledCount++;
+    }
+    if (scanned.vehicle_type && !form.getValues("vehicle_type")) {
+      form.setValue("vehicle_type", scanned.vehicle_type, {
+        shouldValidate: true,
+        shouldDirty: true,
+      });
+      filledCount++;
+    }
+    if (scanned.color && !form.getValues("color")) {
+      form.setValue("color", scanned.color, {
+        shouldValidate: true,
+        shouldDirty: true,
+      });
+      filledCount++;
+    }
+    if (scanned.year && !form.getValues("year")) {
+      form.setValue("year", scanned.year, {
+        shouldValidate: true,
+        shouldDirty: true,
+      });
+      filledCount++;
+    }
+    if (filledCount > 0) {
+      toast.success("Đã quét và điền thông tin xe vào form thành công!", {
+        description: [scanned.license_plate, scanned.frame_number].filter(Boolean).join(" · "),
+      });
+    }
+  };
   const draft = useFormDraft(
     `vehicle:${vehicle?.id ?? "new"}`,
     profile?.id,
@@ -405,7 +494,19 @@ function VehicleEditor({ vehicle }: { vehicle?: Vehicle }) {
         >
           {/* Card 1: Thông tin xe — khuôn y hệt form Thu xe mới */}
           <Card>
-            <h2 className="section-title">1. Thông tin xe</h2>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: "10px", marginBottom: "14px" }}>
+              <h2 className="section-title" style={{ margin: 0 }}>1. Thông tin xe</h2>
+              <Button
+                type="button"
+                variant="secondary"
+                className="quick-scan-btn"
+                onClick={() => setScannerOpen(true)}
+                title="Mở camera quét nhanh biển số và số khung"
+              >
+                <ScanLine size={16} />
+                <span>Quét camera (Biển số / Số khung)</span>
+              </Button>
+            </div>
             <div className="form-grid">
               <Field label="Loại xe *" error={error("vehicle_type")}>
                 <AutocompleteInput
@@ -712,6 +813,12 @@ function VehicleEditor({ vehicle }: { vehicle?: Vehicle }) {
             override: { reason, reviewedVehicleId },
           });
         }}
+      />
+
+      <QuickVehicleScannerModal
+        isOpen={scannerOpen}
+        onClose={() => setScannerOpen(false)}
+        onScanSuccess={handleScanSuccess}
       />
     </div>
   );

@@ -12,8 +12,10 @@ import {
   CheckCircle2,
   ClipboardPaste,
   NotebookPen,
+  ScanLine,
   Trash2,
 } from "lucide-react";
+import { QuickVehicleScannerModal, type ScannedVehicleFields } from "@/components/QuickVehicleScannerModal";
 import { api } from "@/lib/api";
 import { AppError, friendlyError } from "@/lib/errors";
 import { executeOperation, reconcileOperation } from "@/lib/operationRecovery";
@@ -46,10 +48,13 @@ import { normalizeKey } from "@/lib/shorthand/vocabulary";
 import { entryToImportRow, validateIntakeEntry } from "@/lib/shorthand/intakeRows";
 import { vehicleSuggestions } from "@/lib/vehicleSuggestions";
 import {
+  classifyFields,
   parseRecognition,
   readRecognitionDraft,
   recognitionToIntakeEntry,
   clearRecognitionDraft,
+  type Recognition,
+  type ScannedFields,
 } from "@/lib/smartcam/recognition";
 import { uploadEntryPhotos } from "@/lib/smartcam/photos";
 import type { Paged, Vehicle } from "@/types";
@@ -152,7 +157,37 @@ export default function ShorthandIntakePage() {
   >({});
 
   const [text, setText] = useState(seedText);
+  const [scannerOpen, setScannerOpen] = useState(false);
   const entriesEdited = useRef(false);
+
+  const handleScanSuccess = (scanned: ScannedVehicleFields) => {
+    const fields: ScannedFields = {
+      license_plate: scanned.license_plate || "",
+      frame_number: scanned.frame_number || "",
+      vehicle_type: scanned.vehicle_type || "",
+      color: scanned.color || "",
+      year: scanned.year ? String(scanned.year) : "",
+    };
+    const match = { state: "none" } as const;
+    const recognition: Recognition = {
+      version: 1,
+      scannedAt: new Date().toISOString(),
+      fields,
+      statuses: classifyFields(fields, match),
+      match,
+      photos: [],
+      source: "local",
+    };
+    const newEntry = recognitionToIntakeEntry(
+      recognition,
+      crypto.randomUUID?.() ?? `cam-${Date.now()}`,
+      today(),
+    );
+    setEntries((prev) => [newEntry, ...prev]);
+    toast.success("Đã quét và thêm xe vào danh sách tốc ký!", {
+      description: [scanned.license_plate, scanned.frame_number].filter(Boolean).join(" · "),
+    });
+  };
   // Interruption safety: a camera result that never reached the form (page
   // reload, crash) is restored once from the session draft.
   const didRestoreCamera = useRef(false);
@@ -437,6 +472,14 @@ export default function ShorthandIntakePage() {
             disabled={!text.trim()}
           >
             Tách thành danh sách
+          </Button>
+          <Button
+            type="button"
+            variant="secondary"
+            onClick={() => setScannerOpen(true)}
+            title="Quét camera biển số và số khung để thêm xe"
+          >
+            <ScanLine size={16} /> Quét camera thêm xe
           </Button>
           <span className="muted small">
             {entries.length
@@ -737,6 +780,11 @@ export default function ShorthandIntakePage() {
         </Card>
       )}
 
+      <QuickVehicleScannerModal
+        isOpen={scannerOpen}
+        onClose={() => setScannerOpen(false)}
+        onScanSuccess={handleScanSuccess}
+      />
     </div>
   );
 }

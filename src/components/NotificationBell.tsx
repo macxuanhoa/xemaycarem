@@ -65,7 +65,19 @@ const ACTION_TONE: Record<NotificationAction, "success" | "warning" | "neutral">
 // body wraps on narrow phones — glue "…000 đ" together with a non-breaking
 // space so the amount and its unit always travel as one token.
 function tidyBody(text: string) {
-  return text.replace(/(\d)\s+([\u20AB\u0111])/g, "$1\u00A0$2");
+  let cleaned = text;
+  // Nhất quán khi chủ cửa hàng/hệ thống nhập xe, nhập giá, thu tiền -> "Cà Rem nhập"
+  cleaned = cleaned.replace(
+    /^(Hệ thống|Chủ cửa hàng)\s+(đã thu vào xe|đã thêm xe|đã cập nhật|đã ghi nhận thu|đã ghi nhận một khoản thu|đã bán xe)/i,
+    "Cà Rem nhập $2"
+  );
+  // Thay thế mọi dấu vết tạm ẩn / đã ẩn bằng "Cà Rem nhập"
+  cleaned = cleaned.replace(/tạm ẩn|đã ẩn|Đã ẩn|Tạm ẩn/gi, "Cà Rem nhập");
+  return cleaned.replace(/(\d)\s+([\u20AB\u0111])/g, "$1\u00A0$2");
+}
+
+function tidyTitle(text: string) {
+  return text.replace(/tạm ẩn|đã ẩn|Đã ẩn|Tạm ẩn/gi, "Cà Rem nhập");
 }
 
 function Row({
@@ -93,7 +105,7 @@ function Row({
         <Icon size={15} />
       </span>
       <span className="notification-row-text">
-        <span className="notification-row-title">{item.title}</span>
+        <span className="notification-row-title">{tidyTitle(item.title)}</span>
         {item.body && <span className="notification-row-body">{tidyBody(item.body)}</span>}
         <span className="notification-row-time">
           {isTimeHighlight ? (

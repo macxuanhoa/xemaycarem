@@ -18796,5 +18796,397 @@ html[data-theme="dark"] .header-theme-toggle {
   flex-shrink: 0;
 }
 
+/* Navigation notification counters */
+.bottom-nav .bottom-nav-icon {
+  position: relative;
+}
+.bottom-nav-badge {
+  position: absolute;
+  top: -4px;
+  right: -2px;
+  min-width: 17px;
+  height: 17px;
+  padding: 0 4px;
+  border-radius: 999px;
+  background: #ef4444;
+  color: #ffffff;
+  font-size: 9.5px;
+  font-weight: 750;
+  line-height: 17px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+  border: 1.5px solid #ffffff;
+  box-shadow: 0 2px 5px rgba(239, 68, 68, 0.45);
+  pointer-events: none;
+  animation: nav-badge-pop 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+  z-index: 5;
+}
+[data-theme="dark"] .bottom-nav-badge {
+  border-color: #171821;
+  background: #f43f5e;
+}
 
+.sidebar-nav-badge {
+  margin-left: auto;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: #ef4444;
+  color: #ffffff;
+  font-size: 10px;
+  font-weight: 750;
+  line-height: 18px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+  box-shadow: 0 2px 6px rgba(239, 68, 68, 0.4);
+  pointer-events: none;
+  animation: nav-badge-pop 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+  flex-shrink: 0;
+}
+.sidebar nav a.active .sidebar-nav-badge {
+  background: #ffffff;
+  color: #4f46e5;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.25);
+}
+[data-theme="dark"] .sidebar-nav-badge {
+  background: #f43f5e;
+}
+[data-theme="dark"] .sidebar nav a.active .sidebar-nav-badge {
+  background: #ffffff;
+  color: #4f46e5;
+}
+
+.mobile-menu {
+  position: relative;
+}
+.mobile-menu-badge-dot {
+  position: absolute;
+  top: 5px;
+  right: 5px;
+  width: 9px;
+  height: 9px;
+  border-radius: 999px;
+  background: #ef4444;
+  border: 1.5px solid #ffffff;
+  box-shadow: 0 0 6px rgba(239, 68, 68, 0.7);
+  animation: nav-badge-pop 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+  pointer-events: none;
+}
+[data-theme="dark"] .mobile-menu-badge-dot {
+  border-color: #171821;
+  background: #f43f5e;
+}
+
+@keyframes nav-badge-pop {
+  0% {
+    transform: scale(0.3);
+    opacity: 0;
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+/* ── Network Guard Concise + Countdown ────────────────────────── */
+.network-banner-body--compact {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.network-banner-body--compact strong {
+  margin-bottom: 0;
+  display: inline-block;
+  font-size: 13.5px;
+  font-weight: 650;
+}
+.network-countdown-text {
+  display: inline-block;
+  font-size: 12px;
+  font-weight: 550;
+  color: #a16207;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: rgba(234, 179, 8, 0.18);
+  border: 1px solid rgba(234, 179, 8, 0.32);
+  font-variant-numeric: tabular-nums;
+}
+[data-theme="dark"] .network-countdown-text {
+  color: #fef08a;
+  background: rgba(234, 179, 8, 0.16);
+  border-color: rgba(234, 179, 8, 0.28);
+}
+
+/* ── CÀ REM PWA DEPLOY UPDATE SCREEN (TRANG TRẮNG & LOGO ĐIỆN SÁNG) ── */
+.carem-pwa-update-screen {
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
+  z-index: 999999999;
+  background: #ffffff;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  user-select: none;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  animation: caremScreenFadeIn 0.35s ease-out forwards;
+}
+
+@keyframes caremScreenFadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.carem-update-decor-field {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+.carem-spark-dot {
+  position: absolute;
+  border-radius: 50%;
+  pointer-events: none;
+  background: radial-gradient(circle, #38bdf8 0%, rgba(56, 189, 248, 0) 70%);
+  opacity: 0.35;
+}
+.carem-spark-dot.d1 { width: 140px; height: 140px; top: 12%; left: 15%; filter: blur(20px); }
+.carem-spark-dot.d2 { width: 180px; height: 180px; bottom: 14%; right: 12%; filter: blur(28px); background: radial-gradient(circle, #facc15 0%, rgba(250, 204, 21, 0) 70%); }
+.carem-spark-dot.d3 { width: 90px; height: 90px; top: 20%; right: 20%; filter: blur(15px); }
+.carem-spark-dot.d4 { width: 110px; height: 110px; bottom: 18%; left: 18%; filter: blur(22px); }
+
+.carem-update-content {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  z-index: 2;
+  max-width: 90vw;
+}
+
+.carem-update-logo-btn {
+  position: relative;
+  width: 176px;
+  height: 176px;
+  border-radius: 50%;
+  border: none;
+  background: transparent;
+  padding: 0;
+  cursor: pointer;
+  outline: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+  -webkit-tap-highlight-color: transparent;
+}
+
+.carem-update-logo-btn:hover:not(:disabled) {
+  transform: scale(1.05);
+}
+
+.carem-update-logo-btn:active:not(:disabled) {
+  transform: scale(0.97);
+}
+
+.carem-update-logo-ring {
+  position: relative;
+  width: 156px;
+  height: 156px;
+  border-radius: 50%;
+  background: #ffffff;
+  padding: 5px;
+  box-shadow:
+    0 10px 30px -5px rgba(0, 0, 0, 0.08),
+    0 0 0 1px rgba(0, 0, 0, 0.05),
+    0 0 25px rgba(56, 189, 248, 0.2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 5;
+  transition: box-shadow 0.3s ease, border-color 0.3s ease;
+}
+
+.carem-update-logo-img {
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  object-fit: cover;
+  display: block;
+}
+
+/* ── LUỒNG ĐIỆN SÁNG VÀ TỎA RA KHI NHẤN VÀO LOGO ── */
+.carem-electric-waves {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.electric-wave {
+  position: absolute;
+  width: 160px;
+  height: 160px;
+  border-radius: 50%;
+  border: 2px solid transparent;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.is-electrifying .carem-update-logo-ring {
+  box-shadow:
+    0 0 0 4px #38bdf8,
+    0 0 35px #0284c7,
+    0 0 70px #38bdf8,
+    0 0 110px rgba(56, 189, 248, 0.8),
+    inset 0 0 25px #38bdf8;
+  animation: electricLogoVibrate 0.12s linear infinite alternate;
+}
+
+@keyframes electricLogoVibrate {
+  0% { transform: translate(-1.5px, 1.5px) scale(1.02); }
+  50% { transform: translate(1.5px, -1.5px) scale(1.03); }
+  100% { transform: translate(-1px, -1px) scale(1.02); }
+}
+
+.is-electrifying .electric-wave.wave-1 {
+  animation: electricShockwaveBurst 1.2s cubic-bezier(0.1, 0.8, 0.3, 1) infinite;
+}
+.is-electrifying .electric-wave.wave-2 {
+  animation: electricShockwaveBurst 1.2s cubic-bezier(0.1, 0.8, 0.3, 1) infinite 0.25s;
+}
+.is-electrifying .electric-wave.wave-3 {
+  animation: electricShockwaveBurst 1.2s cubic-bezier(0.1, 0.8, 0.3, 1) infinite 0.5s;
+}
+.is-electrifying .electric-wave.wave-4 {
+  animation: electricShockwaveBurst 1.2s cubic-bezier(0.1, 0.8, 0.3, 1) infinite 0.75s;
+}
+
+@keyframes electricShockwaveBurst {
+  0% {
+    width: 160px;
+    height: 160px;
+    border-color: #38bdf8;
+    box-shadow: 0 0 25px #38bdf8, inset 0 0 15px #facc15;
+    opacity: 0.95;
+    transform: scale(1);
+  }
+  50% {
+    border-color: #0ea5e9;
+    box-shadow: 0 0 45px #38bdf8, 0 0 80px rgba(14, 165, 233, 0.6);
+    opacity: 0.8;
+  }
+  100% {
+    width: 650px;
+    height: 650px;
+    border-color: rgba(250, 204, 21, 0);
+    box-shadow: 0 0 70px rgba(56, 189, 248, 0);
+    opacity: 0;
+    transform: scale(1.9);
+  }
+}
+
+.carem-electric-arcs {
+  position: absolute;
+  inset: -60px;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+
+.is-electrifying .carem-electric-arcs {
+  opacity: 1;
+}
+
+.electric-bolt {
+  position: absolute;
+  color: #38bdf8;
+  filter: drop-shadow(0 0 8px #0ea5e9) drop-shadow(0 0 15px #38bdf8);
+}
+
+.electric-bolt.bolt-top {
+  top: -45px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 32px;
+  height: 70px;
+  animation: boltFlicker 0.15s steps(2, start) infinite;
+}
+.electric-bolt.bolt-bottom {
+  bottom: -45px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 32px;
+  height: 70px;
+  animation: boltFlicker 0.18s steps(2, start) infinite 0.05s;
+}
+.electric-bolt.bolt-left {
+  left: -45px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 70px;
+  height: 32px;
+  animation: boltFlicker 0.16s steps(2, start) infinite 0.08s;
+}
+.electric-bolt.bolt-right {
+  right: -45px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 70px;
+  height: 32px;
+  animation: boltFlicker 0.14s steps(2, start) infinite 0.03s;
+}
+
+@keyframes boltFlicker {
+  0% { opacity: 0.3; transform: scale(0.9) translate(1px, -1px); }
+  50% { opacity: 1; transform: scale(1.15) translate(-1px, 2px); color: #facc15; }
+  100% { opacity: 0.6; transform: scale(1) translate(0, 0); color: #38bdf8; }
+}
+
+.carem-update-text-wrap {
+  margin-top: 36px;
+  max-width: 480px;
+}
+
+.carem-update-title {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 700;
+  color: #0f172a;
+  letter-spacing: -0.02em;
+  line-height: 1.4;
+  transition: color 0.25s, text-shadow 0.25s;
+}
+
+.is-electrifying .carem-update-title {
+  color: #0284c7;
+  text-shadow: 0 0 15px rgba(56, 189, 248, 0.6);
+  animation: titlePulse 0.3s ease-in-out infinite alternate;
+}
+
+@keyframes titlePulse {
+  0% { transform: scale(1); }
+  100% { transform: scale(1.02); }
+}
+
+.carem-update-subtext {
+  margin: 10px 0 0 0;
+  font-size: 14.5px;
+  font-weight: 450;
+  color: #64748b;
+  line-height: 1.5;
+}
+
+.is-electrifying .carem-update-subtext {
+  color: #0369a1;
+  font-weight: 550;
+}
 

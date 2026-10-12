@@ -307,7 +307,7 @@ export default function DashboardPage() {
 
                       {(d.overdue_sales_count ?? 0) > 0 && (
                         <Link
-                          to="/receivables?payment_status=OVERDUE"
+                          to="/vehicles?status=SOLD"
                           className="alert-card alert-danger"
                           style={{ padding: "10px 12px" }}
                         >
@@ -327,7 +327,7 @@ export default function DashboardPage() {
 
                       {(d.unpaid_sales_count ?? 0) > 0 && (
                         <Link
-                          to="/receivables?payment_status=DEBT_ONLY"
+                          to="/vehicles?status=SOLD"
                           className="alert-card alert-info"
                           style={{ padding: "10px 12px" }}
                         >
@@ -339,7 +339,7 @@ export default function DashboardPage() {
                               {d.unpaid_sales_count} khoản nợ đang theo dõi (
                               {compactMoney(d.total_receivables ?? 0)})
                             </strong>
-                            <span>Bấm để mở sổ nợ cần thu</span>
+                            <span>Xem các xe đã bán còn nợ trong kho</span>
                           </div>
                           <ArrowRight size={14} />
                         </Link>
@@ -427,7 +427,7 @@ export default function DashboardPage() {
 
                     <Link
                       className="text-link"
-                      to={activeTxTab === "acquisitions" ? "/acquisitions" : "/sales"}
+                      to={activeTxTab === "acquisitions" ? "/acquisitions" : "/vehicles?status=SOLD"}
                     >
                       Xem tất cả <ArrowRight size={14} />
                     </Link>

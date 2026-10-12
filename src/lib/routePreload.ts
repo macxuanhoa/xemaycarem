@@ -9,9 +9,7 @@ const routeLoaders: Record<string, () => Promise<unknown>> = {
   "/intake": () => import("@/features/intake/ShorthandIntakePage"),
   "/vehicles": () => import("@/features/vehicles/InventoryPage"),
   "/vehicles/new": () => import("@/features/vehicles/VehicleFormPage"),
-  "/sales": () => import("@/features/sales/SalesPage"),
   "/sell": () => import("@/features/sales/SellVehiclePage"),
-  "/receivables": () => import("@/features/sales/ReceivablesPage"),
   "/bank-reconciliation": () =>
     import("@/features/reconciliation/BankReconciliationPage"),
   "/customers": () => import("@/features/customers/CustomersPage"),

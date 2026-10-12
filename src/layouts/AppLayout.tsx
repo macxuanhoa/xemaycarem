@@ -25,7 +25,6 @@ import {
   Bike,
   Package,
   Plus,
-  Receipt,
   ClipboardList,
   Settings,
   ShieldCheck,
@@ -45,6 +44,7 @@ import { AnnouncementBar } from "@/components/AnnouncementBar";
 import { NotificationBell } from "@/components/NotificationBell";
 import { preloadRoute } from "@/lib/routePreload";
 import { currentTheme, toggleTheme, type Theme } from "@/lib/theme";
+import { useNavBadges } from "@/lib/useNavBadges";
 
 function RouteLoadingFallback() {
   return (
@@ -58,18 +58,24 @@ function RouteLoadingFallback() {
   );
 }
 
-type NavItem = { to: string; label: string; icon: LucideIcon; staffOnly?: boolean };
+type NavItem = {
+  to: string;
+  label: string;
+  icon: LucideIcon;
+  staffOnly?: boolean;
+  badgeKey?: "vehicles" | "acquisitions" | "customers";
+};
 
 const mainNav: NavItem[] = [
   { to: "/", label: "Tổng quan", icon: House },
-  { to: "/acquisitions", label: "Thu vào", icon: ArrowDownLeft },
-  { to: "/vehicles", label: "Tồn kho", icon: Bike },
-  { to: "/sales", label: "Bán hàng & Thu nợ", icon: Receipt },
-  { to: "/customers", label: "Khách hàng", icon: Users },
+  { to: "/acquisitions", label: "Thu vào", icon: ArrowDownLeft, badgeKey: "acquisitions" },
+  { to: "/vehicles", label: "Tồn kho", icon: Bike, badgeKey: "vehicles" },
+  { to: "/customers", label: "Khách hàng", icon: Users, badgeKey: "customers" },
   { to: "/expenses", label: "Chi phí", icon: ClipboardList },
 ];
 export function AppLayout() {
   const { profile, signOut } = useAuth();
+  const { badges, managementTotal, markSeen } = useNavBadges();
   // Sun/moon switch lives in the mobile header in place of logout (mis-tap guard).
   const [theme, setTheme] = useState<Theme>(() => currentTheme());
   const settings = useQuery({
@@ -88,7 +94,6 @@ export function AppLayout() {
   const saleRoute =
     pathname === "/sell" ||
     pathname.startsWith("/sales") ||
-    pathname.startsWith("/receivables") ||
     /^\/vehicles\/[^/]+\/sell\/?$/.test(pathname);
   const intakeRoute =
     pathname.startsWith("/acquisitions") || pathname.startsWith("/intake");
@@ -96,13 +101,11 @@ export function AppLayout() {
   const navRouteActive = (to: string) =>
     to === "/"
       ? pathname === "/"
-      : to === "/sales"
-        ? saleRoute
-        : to === "/acquisitions"
-          ? intakeRoute
-          : to === "/vehicles"
-            ? pathname.startsWith("/vehicles") && !saleRoute
-            : pathname === to || pathname.startsWith(`${to}/`);
+      : to === "/acquisitions"
+        ? intakeRoute
+        : to === "/vehicles"
+          ? pathname.startsWith("/vehicles") || saleRoute
+          : pathname === to || pathname.startsWith(`${to}/`);
 
   useEffect(() => {
     if (pathname.startsWith("/copilot") || pathname.startsWith("/docs"))
@@ -127,10 +130,10 @@ export function AppLayout() {
 
   const currentPageTitle = useMemo(() => {
     if (pathname === "/") return "Tổng quan";
-    if (/^\/vehicles\/[^/]+\/sell\/?$/.test(pathname)) return "Bán xe";
+    if (/^\/vehicles\/[^/]+\/sell\/?$/.test(pathname) || pathname === "/sell") return "Bán xe";
+    if (pathname.startsWith("/sales/")) return "Chi tiết bán xe";
     const item = mainNav.find((n) => pathname.startsWith(n.to) && n.to !== "/");
     if (item) return item.label;
-    if (pathname.startsWith("/receivables")) return "Bán hàng & Thu nợ";
     if (pathname.startsWith("/bank-reconciliation"))
       return "Đối soát chuyển khoản";
     if (pathname.startsWith("/expenses")) return "Chi phí";
@@ -187,26 +190,37 @@ export function AppLayout() {
         </button>
         <p className="nav-caption">KHÔNG GIAN LÀM VIỆC</p>
         <nav aria-label="Chính">
-          {visibleNav.map(({ to, label, icon: Icon }) => (
-            <Link
-              key={to}
-              to={to}
-              className={navRouteActive(to) ? "active" : ""}
-              aria-current={
-                navRouteActive(to)
-                  ? pathname === to
-                    ? "page"
-                    : "location"
-                  : undefined
-              }
-              onClick={drawer.close}
-              onMouseEnter={() => preloadRoute(to)}
-              onFocus={() => preloadRoute(to)}
-            >
-              <Icon size={20} />
-              <span>{label}</span>
-            </Link>
-          ))}
+          {visibleNav.map(({ to, label, icon: Icon, badgeKey }) => {
+            const count = badgeKey ? badges[badgeKey] : 0;
+            return (
+              <Link
+                key={to}
+                to={to}
+                className={navRouteActive(to) ? "active" : ""}
+                aria-current={
+                  navRouteActive(to)
+                    ? pathname === to
+                      ? "page"
+                      : "location"
+                    : undefined
+                }
+                onClick={() => {
+                  drawer.close();
+                  if (badgeKey) markSeen(badgeKey);
+                }}
+                onMouseEnter={() => preloadRoute(to)}
+                onFocus={() => preloadRoute(to)}
+              >
+                <Icon size={20} />
+                <span>{label}</span>
+                {count > 0 && (
+                  <span className="sidebar-nav-badge">
+                    {count > 99 ? "99+" : count}
+                  </span>
+                )}
+              </Link>
+            );
+          })}
         </nav>
         {/* AI mode: grounded Q&A plus the documentation the answers cite. */}
         {canOperate(profile) && (
@@ -274,7 +288,10 @@ export function AppLayout() {
                       ? "active"
                       : ""
                   }
-                  onClick={drawer.close}
+                  onClick={() => {
+                    drawer.close();
+                    markSeen("approvals");
+                  }}
                   onMouseEnter={() => {
                     preloadRoute("/approvals");
                     preloadRoute("/duplicate-reviews");
@@ -285,17 +302,30 @@ export function AppLayout() {
                   }}
                 >
                   <Inbox size={20} />
-                  Chờ duyệt
+                  <span>Chờ duyệt</span>
+                  {badges.approvals > 0 && (
+                    <span className="sidebar-nav-badge">
+                      {badges.approvals > 99 ? "99+" : badges.approvals}
+                    </span>
+                  )}
                 </NavLink>
                 {canFinance(profile) && (
                   <NavLink
                     to="/bank-reconciliation"
-                    onClick={drawer.close}
+                    onClick={() => {
+                      drawer.close();
+                      markSeen("bankReconciliation");
+                    }}
                     onMouseEnter={() => preloadRoute("/bank-reconciliation")}
                     onFocus={() => preloadRoute("/bank-reconciliation")}
                   >
                     <Banknote size={20} />
-                    Đối soát chuyển khoản
+                    <span>Đối soát chuyển khoản</span>
+                    {badges.bankReconciliation > 0 && (
+                      <span className="sidebar-nav-badge">
+                        {badges.bankReconciliation > 99 ? "99+" : badges.bankReconciliation}
+                      </span>
+                    )}
                   </NavLink>
                 )}
                 {isOwner(profile) && (
@@ -371,6 +401,12 @@ export function AppLayout() {
               onClick={(event) => drawer.show(event.currentTarget)}
             >
               <Menu size={22} />
+              {managementTotal > 0 && (
+                <span
+                  className="mobile-menu-badge-dot"
+                  aria-label={`${managementTotal} việc cần xử lý`}
+                />
+              )}
             </button>
             {currentPageTitle && (
               <div className="topbar-breadcrumb" aria-label="Đường dẫn trang">
@@ -488,11 +524,17 @@ export function AppLayout() {
             className={intakeRoute ? "active" : ""}
             data-active={intakeRoute ? "true" : undefined}
             aria-current={intakeRoute ? "location" : undefined}
+            onClick={() => markSeen("acquisitions")}
             onMouseEnter={() => preloadRoute("/acquisitions/new")}
             onTouchStart={() => preloadRoute("/acquisitions/new")}
           >
             <span className="bottom-nav-icon">
               <Plus size={22} />
+              {badges.acquisitions > 0 && (
+                <span className="bottom-nav-badge">
+                  {badges.acquisitions > 99 ? "99+" : badges.acquisitions}
+                </span>
+              )}
             </span>
             <span className="bottom-nav-label">Thu xe</span>
           </Link>
@@ -526,11 +568,17 @@ export function AppLayout() {
                 : "location"
               : undefined
           }
+          onClick={() => markSeen("vehicles")}
           onMouseEnter={() => preloadRoute("/vehicles")}
           onTouchStart={() => preloadRoute("/vehicles")}
         >
           <span className="bottom-nav-icon">
             <Bike size={22} />
+            {badges.vehicles > 0 && (
+              <span className="bottom-nav-badge">
+                {badges.vehicles > 99 ? "99+" : badges.vehicles}
+              </span>
+            )}
           </span>
           <span className="bottom-nav-label">Tồn kho</span>
         </Link>
@@ -547,11 +595,17 @@ export function AppLayout() {
                 : "location"
               : undefined
           }
+          onClick={() => markSeen("customers")}
           onMouseEnter={() => preloadRoute("/customers")}
           onTouchStart={() => preloadRoute("/customers")}
         >
           <span className="bottom-nav-icon">
             <Users size={22} />
+            {badges.customers > 0 && (
+              <span className="bottom-nav-badge">
+                {badges.customers > 99 ? "99+" : badges.customers}
+              </span>
+            )}
           </span>
           <span className="bottom-nav-label">Khách hàng</span>
         </Link>

@@ -39,9 +39,6 @@ const VehicleDetailPage = lazy(() =>
     default: m.VehicleDetailPage,
   })),
 );
-const SalesPage = lazy(() =>
-  import("@/features/sales/SalesPage").then((m) => ({ default: m.SalesPage })),
-);
 const SaleDetailPage = lazy(() =>
   import("@/features/sales/SaleDetailPage").then((m) => ({
     default: m.SaleDetailPage,
@@ -64,11 +61,6 @@ const DuplicateReviewsPage = lazy(
   () => import("@/features/approvals/DuplicateReviewsPage"),
 );
 const SettingsPage = lazy(() => import("@/features/settings/SettingsPage"));
-const ReceivablesPage = lazy(() =>
-  import("@/features/sales/ReceivablesPage").then((m) => ({
-    default: m.ReceivablesPage,
-  })),
-);
 const BankReconciliationPage = lazy(
   () => import("@/features/reconciliation/BankReconciliationPage"),
 );
@@ -184,15 +176,15 @@ export default function App() {
               {/* Tồn kho (Inventory) */}
               <Route path="vehicles" element={<InventoryPage />} />
               <Route path="vehicles/:id" element={<VehicleDetailPage />} />
-              {/* Bán ra (Sales) */}
-              <Route path="sales" element={<SalesPage />} />
+              {/* Bán ra & Thu nợ: điều hướng về kho xe đã bán */}
+              <Route path="sales" element={<Navigate to="/vehicles?status=SOLD" replace />} />
               <Route path="sales/:id" element={<SaleDetailPage />} />
               <Route path="capture" element={<CapturePage />} />
               <Route path="assist" element={<AssistPage />} />
               <Route path="copilot" element={<CopilotPage />} />
               <Route path="docs" element={<DocsPage />} />
               <Route path="docs/:slug" element={<DocsPage />} />
-              <Route path="receivables" element={<ReceivablesPage />} />
+              <Route path="receivables" element={<Navigate to="/vehicles?status=SOLD" replace />} />
               <Route path="customers" element={<CustomersPage />} />
               <Route path="settings" element={<SettingsPage />} />
               <Route element={<Protected access="operate" />}>

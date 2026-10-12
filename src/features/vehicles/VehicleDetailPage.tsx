@@ -198,7 +198,7 @@ export function VehicleDetailPage() {
                 <dt>Giá bán</dt>
                 <dd>
                   {activeSale.sale_price_hidden
-                    ? "Đã ẩn"
+                    ? "Cà Rem nhập"
                     : money(activeSale.sale_price ?? 0)}
                 </dd>
               </div>
@@ -206,7 +206,7 @@ export function VehicleDetailPage() {
                 <dt>Đã thu</dt>
                 <dd>
                   {activeSale.sale_price_hidden
-                    ? "Đã ẩn"
+                    ? "Cà Rem nhập"
                     : money(activeSale.paid_amount)}
                 </dd>
               </div>
@@ -214,7 +214,7 @@ export function VehicleDetailPage() {
                 <dt>Còn phải thu</dt>
                 <dd>
                   {activeSale.sale_price_hidden
-                    ? "Đã ẩn"
+                    ? "Cà Rem nhập"
                     : money(activeSale.remaining_amount)}
                 </dd>
               </div>

@@ -1,43 +1,21 @@
 import { useEffect, useRef, useState } from "react";
-import { ServerOff, WifiOff, RefreshCw, Wifi } from "lucide-react";
+import { WifiOff, RefreshCw, Wifi } from "lucide-react";
 import {
   useNetworkStatus,
   retryConnection,
-  formatOfflineDuration,
 } from "@/lib/networkStatus";
 
-// Keep the changing clock outside the live region: screen readers should hear
-// a connection transition once, rather than the elapsed time every second.
-function OfflineDuration({ since }: { since: number }) {
-  const [elapsed, setElapsed] = useState(0);
-
-  useEffect(() => {
-    if (!since) return;
-    const update = () =>
-      setElapsed(Math.max(0, Math.floor((Date.now() - since) / 1_000)));
-    update();
-    const timer = window.setInterval(update, 1_000);
-    return () => window.clearInterval(timer);
-  }, [since]);
-
-  return since ? (
-    <span className="network-banner-elapsed" aria-hidden="true">
-      Đã gián đoạn {formatOfflineDuration(elapsed)}
-    </span>
-  ) : null;
-}
-
-/** Show connection state without remounting forms or replaying transactions. */
+/** Show connection state concisely: 'Kiểm tra lại kết nối mạng' + countdown timer. */
 export function NetworkGuard() {
   const net = useNetworkStatus();
   const previousOnline = useRef(net.online);
   const [recovered, setRecovered] = useState(false);
   const [retrying, setRetrying] = useState(false);
   const [retryFailed, setRetryFailed] = useState(false);
+  const [countdown, setCountdown] = useState(5);
   const retryInFlight = useRef(false);
 
-  // The timer depends on the actual transition only. Clock ticks and the
-  // recovered state must not cancel or restart it.
+  // The timer depends on the actual transition only.
   useEffect(() => {
     const wasOnline = previousOnline.current;
     previousOnline.current = net.online;
@@ -49,7 +27,7 @@ export function NetworkGuard() {
     if (wasOnline) return;
     setRecovered(true);
     setRetryFailed(false);
-    const timer = window.setTimeout(() => setRecovered(false), 6_000);
+    const timer = window.setTimeout(() => setRecovered(false), 5_000);
     return () => window.clearTimeout(timer);
   }, [net.online]);
 
@@ -59,14 +37,34 @@ export function NetworkGuard() {
     setRetrying(true);
     setRetryFailed(false);
     try {
-      setRetryFailed(!(await retryConnection()));
+      const ok = await retryConnection();
+      setRetryFailed(!ok);
     } catch {
       setRetryFailed(true);
     } finally {
       retryInFlight.current = false;
       setRetrying(false);
+      setCountdown(5);
     }
   };
+
+  // Countdown timer tự động thử kết nối lại mỗi 5s khi mất mạng
+  useEffect(() => {
+    if (net.online) {
+      setCountdown(5);
+      return;
+    }
+    const timer = window.setInterval(() => {
+      setCountdown((prev) => {
+        if (prev <= 1) {
+          void handleRetry();
+          return 5;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+    return () => window.clearInterval(timer);
+  }, [net.online]);
 
   if (net.online) {
     return recovered ? (
@@ -78,58 +76,45 @@ export function NetworkGuard() {
         <Wifi size={18} aria-hidden="true" />
         <div className="network-banner-body">
           <strong>Đã kết nối lại</strong>
-          <span>
-            Bạn có thể tiếp tục. Kiểm tra giao dịch chưa rõ kết quả trước khi
-            gửi lại.
-          </span>
         </div>
       </div>
     ) : null;
   }
 
   const checking = retrying || net.checking;
-  const ConnectionIcon = net.browserOnline ? ServerOff : WifiOff;
 
   return (
     <section
       className="network-banner network-banner--offline"
       aria-label="Trạng thái kết nối"
     >
-      <ConnectionIcon size={18} aria-hidden="true" />
-      <div className="network-banner-body">
+      <WifiOff size={18} aria-hidden="true" />
+      <div className="network-banner-body network-banner-body--compact">
         <div role="status" aria-live="polite" aria-atomic="true">
-          <strong>
-            {!net.browserOnline
-              ? "Mất kết nối mạng"
-              : net.serviceStatus === "unavailable"
-                ? "Máy chủ tạm thời không khả dụng"
-                : "Chưa kết nối được máy chủ"}
-          </strong>
-          <span className="network-banner-description">
-            Giữ trang mở để không mất thông tin đang nhập. Hệ thống tự kiểm tra
-            kết nối và không tự gửi lại giao dịch.
+          <strong>Kiểm tra lại kết nối mạng</strong>
+          <span className="network-countdown-text">
+            {checking ? "Đang thử lại…" : `Tự thử lại sau ${countdown}s`}
           </span>
           {retryFailed && (
-            <span className="network-banner-feedback">
-              Chưa thể kết nối. Hãy kiểm tra mạng hoặc thử lại sau.
+            <span className="network-banner-feedback" style={{ display: "none" }}>
+              Chưa thể kết nối
             </span>
           )}
         </div>
-        <OfflineDuration since={net.offlineSince} />
       </div>
       <button
         type="button"
         className="network-banner-retry"
         onClick={handleRetry}
         disabled={checking}
-        aria-label={checking ? "Đang kiểm tra kết nối" : "Thử kết nối lại"}
+        aria-label={checking ? "Đang kiểm tra kết nối" : "Thử kết nối lại ngay"}
       >
         <RefreshCw
-          size={15}
+          size={14}
           className={checking ? "spin" : ""}
           aria-hidden="true"
         />
-        <span>{checking ? "Đang kiểm tra…" : "Thử lại"}</span>
+        <span>{checking ? "Đang thử…" : "Thử lại"}</span>
       </button>
     </section>
   );

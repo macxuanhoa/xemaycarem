@@ -326,10 +326,22 @@ export function actionChip(action: string): string {
  *  already name the object (…một xe vào kho, …thông báo mới), so the entity
  *  type is intentionally not appended — the summary line shows it separately. */
 export function describeAction(action: string, actor: string): string {
+  let displayActor = actor;
+  if (!actor || actor === "Hệ thống" || /chủ cửa hàng|tạm ẩn|đã ẩn/i.test(actor)) {
+    if (
+      action === "CREATE_ACQUISITION" ||
+      action === "CREATE_VEHICLE" ||
+      action === "UPDATE_VEHICLE" ||
+      action === "CREATE_PAYMENT" ||
+      action === "ADD_PAYMENT"
+    ) {
+      displayActor = "Cà Rem nhập";
+    }
+  }
   const phrase =
     auditActionPhrases[action] ??
     "đã " + humanizeKey(action).toLowerCase();
-  return `${actor} ${phrase}`;
+  return `${displayActor} ${phrase}`;
 }
 
 /** Keys worth surfacing when a record is created or removed (no diff to show). */

@@ -92,8 +92,11 @@ export function SaleDetailPage() {
 
   return (
     <div className="stack">
-      <Link className="back-link" to="/sales">
-        <ArrowLeft size={16} /> Bán ra
+      <Link
+        className="back-link"
+        to={sale.vehicle_id ? `/vehicles/${sale.vehicle_id}` : "/vehicles?status=SOLD"}
+      >
+        <ArrowLeft size={16} /> {sale.vehicle_id ? "Chi tiết xe" : "Kho xe đã bán"}
       </Link>
       {/* Title là mã giao dịch trần (một token, không dấu cách) nên không bao giờ
           bị cắt dòng xấu; nhãn "Mã giao dịch" chuyển xuống dòng mô tả. */}
@@ -411,19 +414,19 @@ export function SaleDetailPage() {
             </div>
             <div className="price-hero">
               <span className="muted">Giá bán</span>
-              <strong>{sale.sale_price_hidden ? "Đã ẩn" : money(sale.sale_price)}</strong>
+              <strong>{sale.sale_price_hidden ? "Cà Rem nhập" : money(sale.sale_price)}</strong>
             </div>
             <dl className="summary-list">
               <div>
                 <dt>
                   Đã thu {sale.status === "CANCELLED" ? "(đã vô hiệu)" : ""}
                 </dt>
-                <dd>{sale.sale_price_hidden ? "Đã ẩn" : money(sale.paid_amount)}</dd>
+                <dd>{sale.sale_price_hidden ? "Cà Rem nhập" : money(sale.paid_amount)}</dd>
               </div>
               <div className="summary-total">
                 <dt>Còn phải thu</dt>
                 <dd style={{ color: sale.remaining_amount > 0 ? "var(--color-danger, #c2410c)" : "var(--color-primary-dark, #2b6127)" }}>
-                  {sale.sale_price_hidden ? "Đã ẩn" : sale.status === "CANCELLED"
+                  {sale.sale_price_hidden ? "Cà Rem nhập" : sale.status === "CANCELLED"
                     ? "—"
                     : money(sale.remaining_amount)}
                 </dd>

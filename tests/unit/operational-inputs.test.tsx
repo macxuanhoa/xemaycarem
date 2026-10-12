@@ -492,45 +492,6 @@ describe("Acquisitions and Sales display labels", () => {
     expect(html).toContain("Đã thu hoàn tất");
     expect(html).not.toMatch(/>\s*Hoàn tất\s*</);
   }, 15000);
-
-  it("renders 'Mã giao dịch: BH-...' and removes 'Hoàn tất' badge for completed sales in SalesPage", async () => {
-    const { SalesPage } = await import("@/features/sales/SalesPage");
-    const { MemoryRouter } = await import("react-router-dom");
-    const { today } = await import("@/lib/format");
-    const queryClient = new QueryClient({
-      defaultOptions: { queries: { retry: false } },
-    });
-    queryClient.setQueryData(
-      ["sales", { from: `${today().slice(0, 7)}-01`, to: today() }, "", 1],
-      {
-        total: 1,
-        items: [
-          {
-            id: "sale-1",
-            sale_code: "BH-2026-0001",
-            vehicle_id: "veh-1",
-            vehicle_type: "Vision 2023",
-            customer_name: "Lê Văn Tám",
-            sale_date: "2026-10-02",
-            sale_price: 35000000,
-            paid_amount: 35000000,
-            remaining_amount: 0,
-            status: "COMPLETED",
-          },
-        ],
-      },
-    );
-    const html = renderToStaticMarkup(
-      <QueryClientProvider client={queryClient}>
-        <MemoryRouter initialEntries={["/sales"]}>
-          <SalesPage />
-        </MemoryRouter>
-      </QueryClientProvider>,
-    );
-    expect(html).toContain("Mã giao dịch:");
-    expect(html).toContain("BH-2026-0001");
-    expect(html).not.toContain("Hoàn tất");
-  }, 15000);
 });
 
 

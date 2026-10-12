@@ -12,7 +12,7 @@ const ownerId = "00000000-0000-4000-8000-000000000001";
 
 const pages = [
   { path: "/vehicles", title: "Tồn kho" },
-  { path: "/sales", title: "Bán hàng & Thu nợ" },
+  { path: "/acquisitions", title: "Thu vào" },
 ];
 
 async function installMock(page) {
@@ -155,9 +155,9 @@ test.describe("Page header keeps the primary CTA on the title row", () => {
   }) => {
     await page.setViewportSize({ width: 320, height: 700 });
     await installMock(page);
-    await page.goto("/sales");
+    await page.goto("/vehicles");
     await expect(
-      page.getByRole("heading", { name: "Bán hàng & Thu nợ", exact: true }),
+      page.getByRole("heading", { name: "Tồn kho", exact: true }),
     ).toBeVisible();
 
     const { row, title, cta, description } = await headerGeometry(page);

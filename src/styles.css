@@ -16607,252 +16607,622 @@ html[data-theme="dark"] .header-theme-toggle {
 /* Nút mở/đóng khu "chi tiết thanh toán" – tách khỏi hàng giá/ngày bán bên trên
    bằng khoảng thở + viền đứt nét, để nhân viên nhìn thấy ngay khu tuỳ chọn
    mà vẫn nhẹ nhàng, không cướp sự chú ý khỏi giá bán. */
-/* VietQR: one clear code with server-controlled expiry and bank status. */
-/* VietQR: one clear code with server-controlled expiry and bank status. */
+/* VietQR: modern fintech payment modal with clean hierarchy, validity status, and precision mobile layout */
 .vietqr-modal-panel {
-  width: min(500px, 100%);
-  max-height: min(92dvh, 840px);
+  width: min(440px, 100%);
+  max-height: min(94dvh, 800px);
   display: flex;
   flex-direction: column;
-  padding: 20px 22px;
+  padding: 15px 18px 14px;
   box-sizing: border-box;
   overflow: hidden;
-  border-radius: var(--radius-xl, 20px);
+  border-radius: 18px;
+  background: var(--card, #ffffff);
+  border: 1px solid var(--line, #e2e8f0);
+  box-shadow: 0 16px 36px rgba(0, 0, 0, 0.08), 0 1px 3px rgba(0, 0, 0, 0.04);
   animation: modalFadeIn 0.18s ease-out;
 }
 .vietqr-modal-heading {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: space-between;
-  gap: 12px;
-  margin-bottom: 12px;
+  gap: 10px;
+  margin-bottom: 8px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--line, #e2e8f0);
   flex-shrink: 0;
 }
-.vietqr-modal-heading h2 {
+.vietqr-heading-content {
   display: flex;
   align-items: center;
-  gap: 8px;
-  margin: 0;
-  font-size: 18px;
-  font-weight: 750;
-  line-height: 1.4;
+  gap: 9px;
+  min-width: 0;
 }
-.vietqr-modal-heading h2 svg { color: #047857; flex-shrink: 0; }
-.vietqr-modal-heading p {
-  margin: 4px 0 0;
-  color: var(--muted);
-  font-size: 12px;
+.vietqr-heading-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  background: #ecfdf5;
+  color: #047857;
+  border: 1px solid #a7f3d0;
+  flex-shrink: 0;
+}
+.vietqr-heading-text {
+  min-width: 0;
+}
+.vietqr-heading-text h2 {
+  margin: 0;
+  font-size: 15.5px;
+  font-weight: 700;
+  line-height: 1.25;
+  color: var(--foreground, #0f172a);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.vietqr-heading-text p {
+  margin: 1px 0 0;
+  font-size: 11px;
+  color: var(--muted, #64748b);
+  line-height: 1.25;
 }
 .vietqr-close {
   flex-shrink: 0;
-  width: 44px;
-  min-height: 44px;
+  width: 32px;
+  min-height: 32px;
   padding: 0;
+  border-radius: 8px;
+  color: var(--muted, #64748b);
+  transition: background-color 150ms ease, color 150ms ease;
+}
+.vietqr-close:hover {
+  background: rgba(0, 0, 0, 0.05);
+  color: var(--foreground, #0f172a);
 }
 .vietqr-content {
   flex: 1;
   min-height: 0;
   overflow-y: auto;
   overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
   display: flex;
   flex-direction: column;
-  gap: 12px;
-  padding-right: 2px;
+  gap: 8px;
+  padding-right: 1px;
 }
-.vietqr-state { padding-block: 20px; text-align: center; }
+.vietqr-state {
+  padding-block: 16px;
+  text-align: center;
+}
 .vietqr-bank-status {
   flex-shrink: 0;
   display: flex;
-  align-items: flex-start;
-  gap: 10px;
-  padding: 10px 14px;
-  border: 1px solid var(--line);
-  border-radius: 12px;
-  background: #f7f8fa;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  border: 1px solid var(--line, #e2e8f0);
+  border-radius: 10px;
+  background: #f8fafc;
   color: #475569;
 }
-.vietqr-bank-status > svg { margin-top: 2px; flex-shrink: 0; }
-.vietqr-bank-status strong { font-size: 13px; }
-.vietqr-bank-status p { margin: 3px 0 0; font-size: 12px; line-height: 1.5; }
-.vietqr-bank-status--success { color: #047857; background: #ecfdf5; border-color: #a7f3d0; }
-.vietqr-bank-status--warning { color: #92400e; background: #fffbeb; border-color: #fcd34d; }
+.vietqr-bank-status > svg {
+  flex-shrink: 0;
+}
+.vietqr-bank-status-text {
+  min-width: 0;
+  flex: 1;
+}
+.vietqr-bank-status-text strong {
+  font-size: 12px;
+  line-height: 1.25;
+  display: block;
+}
+.vietqr-bank-status-text p {
+  margin: 1px 0 0;
+  font-size: 11px;
+  line-height: 1.3;
+  color: var(--muted, #64748b);
+}
+.vietqr-bank-status--success {
+  color: #047857;
+  background: #ecfdf5;
+  border-color: #a7f3d0;
+}
+.vietqr-bank-status--warning {
+  color: #92400e;
+  background: #fffbeb;
+  border-color: #fcd34d;
+}
 .vietqr-display-box {
   flex-shrink: 0;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 14px;
-  padding: 16px;
-  border: 1px solid var(--line);
-  border-radius: 16px;
+  gap: 8px;
+  padding: 10px 12px;
+  border: 1px solid var(--line, #e2e8f0);
+  border-radius: 14px;
   background: #fafcfb;
 }
-.vietqr-countdown-hud {
+.vietqr-status-bar {
   display: flex;
-  flex-direction: column;
   align-items: center;
-  justify-content: center;
-  gap: 4px;
+  justify-content: space-between;
+  gap: 10px;
   width: 100%;
-  max-width: 320px;
-  padding: 10px 16px;
-  background: linear-gradient(180deg, #ecfdf5 0%, #f0fdf4 100%);
-  border: 1px solid #a7f3d0;
-  border-radius: 14px;
-  box-shadow: 0 2px 8px rgba(16, 185, 129, 0.08);
+  padding: 6px 10px;
   box-sizing: border-box;
+  background: #ecfdf5;
+  border: 1px solid #a7f3d0;
+  border-radius: 10px;
 }
-.vietqr-countdown-badge {
+.vietqr-status-bar-left {
   display: flex;
   align-items: center;
   gap: 6px;
-  font-size: 11px;
+  flex-shrink: 0;
+}
+.vietqr-status-clock {
+  color: #059669;
+  flex-shrink: 0;
+}
+.vietqr-status-label {
+  font-size: 10.5px;
   font-weight: 700;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.05em;
   color: #047857;
   text-transform: uppercase;
 }
-.vietqr-countdown-dot {
-  width: 7px;
-  height: 7px;
-  border-radius: 9999px;
-  background: #10b981;
-  box-shadow: 0 0 8px #10b981;
-}
 .vietqr-countdown {
-  display: flex;
+  display: inline-flex;
   align-items: center;
-  justify-content: center;
 }
 .vietqr-countdown strong {
-  color: #065f46;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
-  font-size: 32px;
+  font-size: 16px;
   font-weight: 800;
-  line-height: 1.1;
-  letter-spacing: 0.04em;
+  line-height: 1;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
   font-variant-numeric: tabular-nums;
-  text-shadow: 0 1px 2px rgba(16, 185, 129, 0.2);
+  color: #065f46;
+  letter-spacing: 0.02em;
 }
-.vietqr-countdown-sub {
-  display: flex;
-  align-items: center;
-  gap: 5px;
+.vietqr-status-bar-right {
   font-size: 11px;
   color: #047857;
   opacity: 0.85;
+  text-align: right;
 }
 .vietqr-qr-frame {
+  position: relative;
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 10px;
-  background: #fff;
-  border-radius: 16px;
-  border: 2px solid #10b981;
+  padding: 8px;
+  background: #ffffff;
+  border-radius: 14px;
+  border: 1px solid #e2e8f0;
   box-shadow:
-    0 0 0 2px rgba(16, 185, 129, 0.25),
-    0 0 18px rgba(16, 185, 129, 0.45),
-    0 0 36px rgba(16, 185, 129, 0.2),
-    inset 0 0 10px rgba(16, 185, 129, 0.08);
+    0 1px 3px rgba(0, 0, 0, 0.03),
+    0 4px 14px rgba(16, 185, 129, 0.06);
 }
-.vietqr-display-box img {
+.vietqr-qr-corner {
+  position: absolute;
+  width: 12px;
+  height: 12px;
+  pointer-events: none;
+}
+.vietqr-qr-corner--tl {
+  top: 4px;
+  left: 4px;
+  border-top: 2px solid #059669;
+  border-left: 2px solid #059669;
+  border-top-left-radius: 4px;
+}
+.vietqr-qr-corner--tr {
+  top: 4px;
+  right: 4px;
+  border-top: 2px solid #059669;
+  border-right: 2px solid #059669;
+  border-top-right-radius: 4px;
+}
+.vietqr-qr-corner--bl {
+  bottom: 4px;
+  left: 4px;
+  border-bottom: 2px solid #059669;
+  border-left: 2px solid #059669;
+  border-bottom-left-radius: 4px;
+}
+.vietqr-qr-corner--br {
+  bottom: 4px;
+  right: 4px;
+  border-bottom: 2px solid #059669;
+  border-right: 2px solid #059669;
+  border-bottom-right-radius: 4px;
+}
+.vietqr-qr-frame img {
   display: block;
-  width: min(210px, 100%);
+  width: min(168px, 100%);
   height: auto;
-  border-radius: 8px;
+  border-radius: 4px;
+}
+/* Ảnh VietQR chính thống (img.vietqr.io): thẻ đứng chuẩn ngân hàng
+   logo ngân hàng → chủ TK → QR → số tiền → nội dung chuyển khoản. */
+.vietqr-qr-frame--card {
+  padding: 6px;
+  border-radius: 14px;
+}
+.vietqr-qr-frame--card img {
+  width: min(224px, 100%);
+  border-radius: 10px;
 }
 .vietqr-download {
   align-self: center;
-  min-height: 40px;
-  padding: 0 18px;
-  font-size: 13px;
+  min-height: 32px;
+  padding: 0 14px;
+  font-size: 12px;
   font-weight: 600;
-  border-radius: 10px;
+  border-radius: 8px;
+  color: #047857;
+  background: #ecfdf5;
+  border: 1px solid #a7f3d0;
+  transition: background-color 150ms ease, border-color 150ms ease;
+}
+.vietqr-download:hover:not(:disabled) {
+  background: #d1fae5;
+  border-color: #6ee7b7;
 }
 .vietqr-unavailable {
   display: grid;
   justify-items: center;
-  gap: 8px;
-  padding: 20px 0;
+  gap: 6px;
+  padding: 16px 0;
   text-align: center;
   color: #64748b;
 }
-.vietqr-unavailable strong { color: #334155; }
-.vietqr-unavailable span { font-size: 12px; }
-.vietqr-changed { margin: 0; font-size: 12px; }
+.vietqr-unavailable strong {
+  color: #334155;
+  font-size: 13px;
+}
+.vietqr-unavailable span {
+  font-size: 11.5px;
+}
+.vietqr-changed {
+  margin: 0;
+  font-size: 11.5px;
+  padding: 6px 10px;
+}
 .vietqr-details-card {
   flex-shrink: 0;
-  padding: 14px 16px;
-  border: 1px solid var(--line);
-  border-radius: 14px;
+  padding: 10px 12px;
+  border: 1px solid var(--line, #e2e8f0);
+  border-radius: 12px;
   background: #f8fafc;
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 8px;
 }
-.vietqr-amount { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; padding-bottom: 10px; border-bottom: 1px dashed var(--line); }
-.vietqr-amount > span { color: var(--muted); font-size: 12px; font-weight: 500; }
-.vietqr-amount > strong { color: #047857; font-size: 24px; font-weight: 800; font-variant-numeric: tabular-nums; }
-.vietqr-transfer-content { display: flex; flex-direction: column; gap: 6px; padding-bottom: 10px; border-bottom: 1px solid var(--line); }
-.vietqr-transfer-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
-.vietqr-transfer-head > span:first-child { color: var(--muted); font-size: 12px; font-weight: 600; }
-.vietqr-transfer-badge { font-size: 11px; font-weight: 600; color: #047857; background: #ecfdf5; border: 1px solid #a7f3d0; padding: 2px 8px; border-radius: 9999px; }
-.vietqr-transfer-box { display: flex; align-items: flex-start; gap: 8px; }
-.vietqr-transfer-box strong { flex: 1; font-size: 13px; line-height: 1.55; font-weight: 600; color: #0f172a; background: #fff; padding: 9px 12px; border-radius: 8px; border: 1px solid rgba(15, 23, 42, 0.1); overflow-wrap: anywhere; word-break: break-word; }
-.vietqr-transfer-box .button { flex-shrink: 0; width: 38px; min-height: 38px; padding: 0; border-radius: 8px; }
-.vietqr-detail-list { display: grid; gap: 7px; margin: 0; font-size: 12px; }
-.vietqr-detail-list > div { display: grid; grid-template-columns: 105px minmax(0, 1fr); gap: 10px; align-items: center; }
-.vietqr-detail-list dt { color: var(--muted); }
-.vietqr-detail-list dd { margin: 0; font-weight: 600; color: var(--foreground); overflow-wrap: anywhere; }
-.vietqr-copy-account { width: 32px; min-height: 32px; padding: 0; margin: -4px 0 -4px 6px; vertical-align: middle; }
-.vietqr-actions { display: flex; justify-content: flex-end; flex-wrap: wrap; gap: 8px; padding-top: 10px; border-top: 1px solid var(--line); margin-top: 2px; }
-.vietqr-actions .button { min-height: 42px; font-weight: 600; }
-.vietqr-footnote { margin: 0; color: var(--muted); font-size: 11px; line-height: 1.4; text-align: center; }
-[data-theme="dark"] .vietqr-modal-panel { background: #0f172a; border-color: rgba(255, 255, 255, 0.1); }
-[data-theme="dark"] .vietqr-modal-heading h2 svg,
-[data-theme="dark"] .vietqr-amount > strong { color: #6ee7b7; }
-[data-theme="dark"] .vietqr-display-box { background: #111827; border-color: #1e293b; }
-[data-theme="dark"] .vietqr-countdown-hud {
-  background: linear-gradient(180deg, #064e3b 0%, #022c22 100%);
+.vietqr-amount-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding-bottom: 7px;
+  border-bottom: 1px dashed var(--line, #e2e8f0);
+}
+.vietqr-amount-label {
+  color: var(--muted, #64748b);
+  font-size: 11.5px;
+  font-weight: 600;
+}
+.vietqr-amount-value-group {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+.vietqr-amount-value {
+  color: #047857;
+  font-size: 20px;
+  font-weight: 800;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+.vietqr-transfer-content {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding-bottom: 7px;
+  border-bottom: 1px solid var(--line, #e2e8f0);
+}
+.vietqr-transfer-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.vietqr-field-label {
+  color: var(--muted, #64748b);
+  font-size: 11.5px;
+  font-weight: 600;
+}
+.vietqr-transfer-badge {
+  font-size: 10px;
+  font-weight: 600;
+  color: #047857;
+  background: #ecfdf5;
+  border: 1px solid #a7f3d0;
+  padding: 1px 6px;
+  border-radius: 9999px;
+  line-height: 1.3;
+}
+.vietqr-transfer-box {
+  display: flex;
+  align-items: flex-start;
+  gap: 5px;
+}
+.vietqr-transfer-text {
+  flex: 1;
+  font-size: 12px;
+  line-height: 1.45;
+  font-weight: 600;
+  color: #0f172a;
+  background: #ffffff;
+  padding: 6px 8px;
+  border-radius: 6px;
+  border: 1px solid rgba(15, 23, 42, 0.1);
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+.vietqr-copy-btn {
+  flex-shrink: 0;
+  width: 28px;
+  min-height: 28px;
+  padding: 0;
+  border-radius: 6px;
+  color: var(--muted, #64748b);
+  transition: background-color 150ms ease, color 150ms ease;
+}
+.vietqr-copy-btn:hover {
+  background: rgba(0, 0, 0, 0.05);
+  color: var(--foreground, #0f172a);
+}
+.vietqr-copied-icon {
+  color: #059669;
+}
+.vietqr-detail-list {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+  font-size: 12px;
+}
+.vietqr-detail-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-height: 22px;
+}
+.vietqr-detail-row dt {
+  color: var(--muted, #64748b);
+  font-size: 11.5px;
+  flex-shrink: 0;
+  width: 85px;
+}
+.vietqr-detail-row dd {
+  margin: 0;
+  font-weight: 600;
+  color: var(--foreground, #0f172a);
+  text-align: right;
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 5px;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+.vietqr-acc-no {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.02em;
+}
+.vietqr-actions {
+  display: flex;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--line, #e2e8f0);
+  margin-top: 0;
+}
+.vietqr-actions .button {
+  min-height: 36px;
+  font-size: 12.5px;
+  font-weight: 600;
+  border-radius: 8px;
+}
+.vietqr-footnote {
+  margin: 0;
+  color: var(--muted, #64748b);
+  font-size: 10.5px;
+  line-height: 1.35;
+  text-align: center;
+}
+
+/* Dark theme */
+[data-theme="dark"] .vietqr-modal-panel {
+  background: #0f172a;
+  border-color: rgba(255, 255, 255, 0.1);
+  box-shadow: 0 16px 36px rgba(0, 0, 0, 0.4);
+}
+[data-theme="dark"] .vietqr-heading-content h2 {
+  color: #f8fafc;
+}
+[data-theme="dark"] .vietqr-heading-content p {
+  color: #94a3b8;
+}
+[data-theme="dark"] .vietqr-heading-icon {
+  background: rgba(16, 185, 129, 0.15);
+  border-color: rgba(16, 185, 129, 0.3);
+  color: #34d399;
+}
+[data-theme="dark"] .vietqr-close {
+  color: #94a3b8;
+}
+[data-theme="dark"] .vietqr-close:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: #f8fafc;
+}
+[data-theme="dark"] .vietqr-amount-label {
+  color: #94a3b8;
+}
+[data-theme="dark"] .vietqr-amount-value {
+  color: #34d399;
+}
+[data-theme="dark"] .vietqr-display-box {
+  background: #111827;
+  border-color: #1e293b;
+}
+[data-theme="dark"] .vietqr-status-bar {
+  background: #064e3b;
   border-color: #059669;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
 }
-[data-theme="dark"] .vietqr-countdown-badge {
+[data-theme="dark"] .vietqr-status-clock,
+[data-theme="dark"] .vietqr-status-label {
   color: #6ee7b7;
-}
-[data-theme="dark"] .vietqr-countdown-dot {
-  background: #34d399;
-  box-shadow: 0 0 10px #34d399;
 }
 [data-theme="dark"] .vietqr-countdown strong {
   color: #6ee7b7;
-  text-shadow: 0 0 14px rgba(110, 231, 183, 0.6), 0 0 28px rgba(16, 185, 129, 0.3);
 }
-[data-theme="dark"] .vietqr-countdown-sub {
+[data-theme="dark"] .vietqr-status-bar-right {
   color: #a7f3d0;
 }
 [data-theme="dark"] .vietqr-qr-frame {
-  background: #fff;
-  border-color: #34d399;
-  box-shadow:
-    0 0 0 2px rgba(52, 211, 153, 0.4),
-    0 0 22px rgba(52, 211, 153, 0.6),
-    0 0 44px rgba(52, 211, 153, 0.3),
-    inset 0 0 12px rgba(52, 211, 153, 0.12);
+  background: #ffffff;
+  border-color: #334155;
+  box-shadow: 0 4px 14px rgba(16, 185, 129, 0.15);
 }
-[data-theme="dark"] .vietqr-details-card { background: #131d2e; border-color: #1e293b; }
-[data-theme="dark"] .vietqr-transfer-badge { background: #064e3b; border-color: #047857; color: #a7f3d0; }
-[data-theme="dark"] .vietqr-transfer-box strong { background: #0f172a; border-color: #334155; color: #f8fafc; }
-[data-theme="dark"] .vietqr-bank-status { background: #1b2130; color: #cbd5e1; }
-[data-theme="dark"] .vietqr-bank-status--success { color: #a7f3d0; background: #10352b; border-color: #23634e; }
-[data-theme="dark"] .vietqr-bank-status--warning { color: #fcd34d; background: #342818; border-color: #72551d; }
+[data-theme="dark"] .vietqr-qr-corner {
+  border-color: #10b981;
+}
+[data-theme="dark"] .vietqr-download {
+  color: #a7f3d0;
+  background: rgba(16, 185, 129, 0.12);
+  border-color: rgba(16, 185, 129, 0.25);
+}
+[data-theme="dark"] .vietqr-download:hover:not(:disabled) {
+  background: rgba(16, 185, 129, 0.2);
+  border-color: rgba(16, 185, 129, 0.4);
+}
+[data-theme="dark"] .vietqr-details-card {
+  background: #131d2e;
+  border-color: #1e293b;
+}
+[data-theme="dark"] .vietqr-field-label {
+  color: #94a3b8;
+}
+[data-theme="dark"] .vietqr-transfer-badge {
+  background: #064e3b;
+  border-color: #047857;
+  color: #a7f3d0;
+}
+[data-theme="dark"] .vietqr-transfer-text {
+  background: #0f172a;
+  border-color: #334155;
+  color: #f8fafc;
+}
+[data-theme="dark"] .vietqr-copy-btn {
+  color: #94a3b8;
+}
+[data-theme="dark"] .vietqr-copy-btn:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: #f8fafc;
+}
+[data-theme="dark"] .vietqr-copied-icon {
+  color: #34d399;
+}
+[data-theme="dark"] .vietqr-detail-row dt {
+  color: #94a3b8;
+}
+[data-theme="dark"] .vietqr-detail-row dd {
+  color: #f8fafc;
+}
+[data-theme="dark"] .vietqr-footnote {
+  color: #94a3b8;
+}
+[data-theme="dark"] .vietqr-bank-status {
+  background: #1e293b;
+  color: #e2e8f0;
+  border-color: #334155;
+}
+[data-theme="dark"] .vietqr-bank-status-text strong {
+  color: #f8fafc;
+}
+[data-theme="dark"] .vietqr-bank-status-text p {
+  color: #94a3b8;
+}
+[data-theme="dark"] .vietqr-bank-status--success {
+  color: #a7f3d0;
+  background: #10352b;
+  border-color: #23634e;
+}
+[data-theme="dark"] .vietqr-bank-status--warning {
+  color: #fcd34d;
+  background: #342818;
+  border-color: #72551d;
+}
+
+/* Responsive mobile */
 @media (max-width: 540px) {
-  .vietqr-backdrop { padding: 10px; }
-  .vietqr-modal-panel { padding: 16px; max-height: 94dvh; }
-  .vietqr-modal-heading h2 { font-size: 16px; }
-  .vietqr-detail-list > div { grid-template-columns: 92px minmax(0, 1fr); gap: 8px; }
-  .vietqr-actions .button { flex: 1; }
+  .vietqr-backdrop {
+    padding: 6px;
+  }
+  .vietqr-modal-panel {
+    padding: 12px 12px calc(12px + env(safe-area-inset-bottom, 0px));
+    max-height: min(96dvh, 760px);
+    border-radius: 16px;
+    width: 100%;
+  }
+  .vietqr-heading-text h2 {
+    font-size: 15px;
+  }
+  .vietqr-heading-text p {
+    font-size: 10.5px;
+  }
+  .vietqr-status-bar {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 3px;
+    padding: 5px 8px;
+  }
+  .vietqr-status-bar-left {
+    justify-content: space-between;
+  }
+  .vietqr-status-bar-right {
+    text-align: left;
+    font-size: 10.5px;
+  }
+  .vietqr-qr-frame img {
+    width: 152px;
+    height: 152px;
+  }
+  .vietqr-amount-value {
+    font-size: 18px;
+  }
+  .vietqr-detail-row dt {
+    width: 78px;
+    font-size: 11px;
+  }
+  .vietqr-detail-row dd {
+    font-size: 11.5px;
+  }
+  .vietqr-actions .button {
+    flex: 1;
+  }
 }
 /* Nút mở/đóng khu "chi tiết thanh toán" – độc lập, toàn chiều ngang, nét đứt nhã nhặn */
 .sale-payment-details-toggle {

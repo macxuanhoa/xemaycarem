@@ -33,6 +33,17 @@ async function installQrMock(
   let createCount = 0;
   let replaceCount = 0;
   const manualWrites = [];
+  // Ảnh VietQR chính thống (img.vietqr.io) được mock để mã hiển thị ổn định trong test
+  await page.route("https://img.vietqr.io/**", (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: "image/png",
+      body: Buffer.from(
+        "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==",
+        "base64",
+      ),
+    }),
+  );
   const withServerTime = async () => {
     if (!current) return null;
     const now = await serverMs();

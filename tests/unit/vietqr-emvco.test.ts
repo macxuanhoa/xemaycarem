@@ -54,7 +54,7 @@ describe("VietQR EMVCo & Banks", () => {
       accountName: "Nguyễn Văn A",
     });
 
-    expect(link).toContain("https://img.vietqr.io/image/970422-0987654321-compact2.png");
+    expect(link).toContain("https://img.vietqr.io/image/970422-0987654321-default2.png");
     expect(link).toContain("amount=25000000");
     expect(link).toContain("addInfo=CAREM+GD00123");
     expect(link).toContain("accountName=NGUYEN+VAN+A");

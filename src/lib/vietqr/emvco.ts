@@ -123,7 +123,7 @@ export function buildVietQrEmvCoPayload(options: VietQrPayloadOptions): string {
  */
 export function buildVietQrQuickLink(
   options: VietQrPayloadOptions,
-  template: "compact2" | "compact" | "qr_only" = "compact2",
+  template: "default2" | "compact2" | "compact" | "qr_only" = "default2",
 ): string {
   const { bankBin, accountNo, amount, description, accountName } = options;
   const cleanBin = bankBin.trim();

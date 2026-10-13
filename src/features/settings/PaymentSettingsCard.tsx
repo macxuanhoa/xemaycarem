@@ -6,9 +6,8 @@ import { api } from "@/lib/api";
 import { toast } from "@/lib/toast";
 import { VIETNAM_BANKS, getBankByBin } from "@/lib/vietqr/banks";
 import {
-  buildVietQrEmvCoPayload,
+  buildVietQrQuickLink,
   removeVietnameseTones,
-  renderQrToDataUrl,
 } from "@/lib/vietqr/emvco";
 
 type BankSettings = {
@@ -45,27 +44,24 @@ export function PaymentSettingsCard({
     setAccountName(q.data.bank_account_name || "");
   }, [q.data, dirty]);
 
-  // Cập nhật preview QR mỗi khi thông tin thay đổi hợp lệ
+  // Cập nhật preview QR chính thống VietQR mỗi khi thông tin thay đổi hợp lệ
   useEffect(() => {
     if (!bankBin || !accountNo) {
       setPreviewQrUrl(null);
       return;
     }
     try {
-      const payload = buildVietQrEmvCoPayload({
-        bankBin,
-        accountNo,
-        amount: 100000,
-        description: "CAREM TEST",
-        accountName,
-      });
-      renderQrToDataUrl(payload, 200)
-        .then((url) => {
-          setPreviewQrUrl(url);
-        })
-        .catch(() => {
-          setPreviewQrUrl(null);
-        });
+      setPreviewQrUrl(
+        buildVietQrQuickLink(
+          {
+            bankBin,
+            accountNo,
+            description: "CAREM TEST",
+            accountName,
+          },
+          "qr_only",
+        ),
+      );
     } catch {
       setPreviewQrUrl(null);
     }

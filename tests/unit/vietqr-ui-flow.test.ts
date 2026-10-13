@@ -64,7 +64,7 @@ describe("VietQR UI Business Flow Logic", () => {
       accountName: "TRAN VAN B",
     });
 
-    expect(url.startsWith("https://img.vietqr.io/image/970422-0987654321-compact2.png")).toBe(true);
+    expect(url.startsWith("https://img.vietqr.io/image/970422-0987654321-default2.png")).toBe(true);
     expect(url).toContain("amount=15500000");
     expect(url).toContain("addInfo=CAREM+GD01003");
   });

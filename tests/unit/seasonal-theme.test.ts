@@ -21,6 +21,7 @@ const channel = vi.hoisted(() => vi.fn());
 const removeChannel = vi.hoisted(() => vi.fn());
 const authState = vi.hoisted(() => ({
   handlers: [] as ((event: string, session: unknown) => void)[],
+  session: { user: { id: "tester" } } as unknown,
 }));
 vi.mock("@/lib/supabase", () => ({
   isConfigured: true,
@@ -29,6 +30,7 @@ vi.mock("@/lib/supabase", () => ({
     channel,
     removeChannel,
     auth: {
+      getSession: () => Promise.resolve({ data: { session: authState.session } }),
       onAuthStateChange: (handler: (event: string, session: unknown) => void) => {
         authState.handlers.push(handler);
         return {
@@ -112,7 +114,10 @@ function stubBrowser(online = true) {
   });
 }
 
-beforeEach(() => stubBrowser());
+beforeEach(() => {
+  authState.session = { user: { id: "tester" } };
+  stubBrowser();
+});
 afterEach(() => {
   vi.useRealTimers();
   vi.unstubAllGlobals();
@@ -211,6 +216,14 @@ describe("offline contract", () => {
     expect(rpc).not.toHaveBeenCalled();
     expect(result.mode).toBe("TET_2027");
     expect(applySeasonalTheme(result)).toBe("tet");
+  });
+
+  it("skips the read while anonymous: the login page never earns a 401", async () => {
+    authState.session = null;
+    local.values.set("xe-seasonal-config", JSON.stringify(theme({ mode: "TET_2027" })));
+    const result = await fetchSeasonalTheme();
+    expect(rpc).not.toHaveBeenCalled();
+    expect(result.mode).toBe("TET_2027");
   });
 
   it("starts clean when nothing was ever cached", async () => {

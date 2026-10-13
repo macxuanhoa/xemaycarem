@@ -52,7 +52,7 @@ describe("centralized connection recovery", () => {
     const second = network.retryConnection();
     expect(network.getNetworkStatus().checking).toBe(true);
     expect(fetchMock).toHaveBeenCalledTimes(1);
-    expect(fetchMock).toHaveBeenCalledWith("https://carem.example/rest/v1/", {
+    expect(fetchMock).toHaveBeenCalledWith("https://carem.example/auth/v1/health", {
       method: "HEAD",
       mode: "cors",
       cache: "no-store",

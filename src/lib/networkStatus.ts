@@ -282,8 +282,11 @@ export function installNetworkMonitor(
   if (typeof window === "undefined") return () => {};
   monitorUsers += 1;
   if (monitorUsers === 1) {
+    // GoTrue health answers any anonymous probe with 200. The old `/rest/v1/` root
+    // is not an RLS-protected endpoint, so publishable keys get a hard 401 there —
+    // transport proved, but console noise on every load that fails smoke gates.
     heartbeatUrl = supabaseUrl
-      ? `${supabaseUrl.trim().replace(/\/+$/, "")}/rest/v1/`
+      ? `${supabaseUrl.trim().replace(/\/+$/, "")}/auth/v1/health`
       : null;
     heartbeatKey = anonKey?.trim() || undefined;
     if (!browserIsOnline()) onBrowserOffline();

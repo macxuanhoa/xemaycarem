@@ -282,11 +282,32 @@ export function applySeasonalTheme(theme: SeasonalTheme): SeasonalAttribute {
 }
 
 /**
+ * Session probe for the read gate below. Only a definite "no session" blocks the
+ * call: a stubbed client without `getSession` (tests) or a probe that throws must
+ * never strand a signed-in user on the fallback look.
+ */
+async function hasAuthSession(): Promise<boolean> {
+  try {
+    const result = await supabase?.auth?.getSession?.();
+    if (!result) return true;
+    return Boolean((result as { data?: { session?: unknown } }).data?.session);
+  } catch {
+    return true;
+  }
+}
+
+/**
  * Offline-safe read. `api.call` refuses to send anything without a connection, and a
  * theme is exactly the kind of thing that must still look right when it happens.
  */
 export async function fetchSeasonalTheme(): Promise<SeasonalTheme> {
   if (!supabase || !navigator.onLine) {
+    return readSeasonalCache() ?? FALLBACK_SEASONAL_THEME;
+  }
+  // The configuration read is granted to signed-in accounts only, so an anonymous
+  // visitor (the login page) would take a guaranteed 401 on every load. It keeps the
+  // cached/fallback look instead until SIGNED_IN triggers the re-read in install().
+  if (!(await hasAuthSession())) {
     return readSeasonalCache() ?? FALLBACK_SEASONAL_THEME;
   }
   try {

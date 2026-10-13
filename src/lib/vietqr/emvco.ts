@@ -14,7 +14,9 @@ export type VietQrPayloadOptions = {
 };
 
 /**
- * Loại bỏ dấu tiếng Việt và ký tự đặc biệt theo chuẩn chuyển khoản ngân hàng
+ * Loại bỏ dấu tiếng Việt và ký tự đặc biệt — chỉ dùng cho TÊN chủ tài khoản
+ * in trên thẻ VietQR. Nội dung chuyển khoản KHÔNG qua hàm này: ngân hàng phải
+ * tự điền nguyên văn đúng những gì màn hình hiển thị.
  */
 export function removeVietnameseTones(str: string): string {
   if (!str) return "";
@@ -26,16 +28,25 @@ export function removeVietnameseTones(str: string): string {
 }
 
 /**
- * Định dạng tag EMVCo: ID (2 chữ số) + Độ dài (2 chữ số) + Giá trị
+ * Định dạng tag EMVCo: ID (2 chữ số) + Độ dài tính theo BYTE UTF-8 + Giá trị
  */
 function emvFormat(id: string, value: string): string {
-  const len = value.length.toString().padStart(2, "0");
+  const len = new TextEncoder().encode(value).length
+    .toString()
+    .padStart(2, "0");
   return `${id}${len}${value}`;
 }
 
+/**
+ * Trần nội dung chuyển khoản theo chuẩn Napas (130 ký tự, giữ nguyên dấu).
+ * Server đã giới hạn transfer_content trong mức này — client chỉ chốt lại an toàn,
+ * tuyệt đối không cắt trộm khiến nội dung quét mã ≠ nội dung hiển thị.
+ */
+export const TRANSFER_CONTENT_LIMIT = 130;
+
 function transferDescription(description: string): string {
-  const clean = removeVietnameseTones(description || "");
-  if (clean.length > 50) {
+  const clean = (description || "").trim();
+  if (clean.length > TRANSFER_CONTENT_LIMIT) {
     throw new Error("Nội dung chuyển khoản quá dài. Hãy tạo lại mã với nội dung chuẩn; không cắt mã đối soát ngân hàng.");
   }
   return clean;
@@ -46,9 +57,10 @@ function transferDescription(description: string): string {
  * Chuẩn quốc tế theo EMVCo Specification
  */
 export function calculateCrc16(data: string): string {
+  const bytes = new TextEncoder().encode(data);
   let crc = 0xffff;
-  for (let i = 0; i < data.length; i++) {
-    crc ^= (data.charCodeAt(i) & 0xff) << 8;
+  for (const byte of bytes) {
+    crc ^= (byte & 0xff) << 8;
     for (let j = 0; j < 8; j++) {
       if ((crc & 0x8000) !== 0) {
         crc = ((crc << 1) ^ 0x1021) & 0xffff;
@@ -110,8 +122,12 @@ export function buildVietQrEmvCoPayload(options: VietQrPayloadOptions): string {
     tag62 = emvFormat("62", sub62_08);
   }
 
+  // Tag 64: Merchant Information Language — khai báo "vi" để app ngân hàng
+  // diễn giải đúng dấu tiếng Việt trong nội dung chuyển khoản.
+  const tag64 = emvFormat("64", "vi");
+
   // Ghép toàn bộ chuỗi trước khi tính CRC
-  const rawPayload = `${tag00}${tag01}${tag38}${tag53}${tag54}${tag58}${tag62}6304`;
+  const rawPayload = `${tag00}${tag01}${tag38}${tag53}${tag54}${tag58}${tag62}${tag64}6304`;
   const checksum = calculateCrc16(rawPayload);
 
   return `${rawPayload}${checksum}`;

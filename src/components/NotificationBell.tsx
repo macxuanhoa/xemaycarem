@@ -16,7 +16,7 @@ import {
   X,
 } from "lucide-react";
 import { useNotifications } from "@/lib/useNotifications";
-import { badgeLabel, groupNotifications, relativeTime, withTodayGroup } from "@/lib/notifications";
+import { badgeLabel, groupNotifications, relativeTime, splitVehicleIdentity, withTodayGroup } from "@/lib/notifications";
 import type { NotificationAction, NotificationItem } from "@/types";
 
 /**
@@ -92,7 +92,8 @@ function Row({
   const Icon = ACTION_ICON[item.action] ?? Bell;
   const unread = item.read_at === null;
   const timeLabel = relativeTime(item.created_at, now);
-  const isTimeHighlight = timeLabel === "Hôm nay" || timeLabel === "Hôm qua";
+  // Bóc biển số ra khỏi tiêu đề để gắn chip nổi bật — nhìn là biết xe nào.
+  const { before, plate, after } = splitVehicleIdentity(tidyTitle(item.title));
 
   return (
     <button
@@ -102,18 +103,20 @@ function Row({
       onClick={() => onOpen(item)}
     >
       <span className="notification-row-icon">
-        <Icon size={15} />
+        <Icon size={16} />
       </span>
       <span className="notification-row-text">
-        <span className="notification-row-title">{tidyTitle(item.title)}</span>
-        {item.body && <span className="notification-row-body">{tidyBody(item.body)}</span>}
-        <span className="notification-row-time">
-          {isTimeHighlight ? (
-            <span className="notification-led-text-mini">{timeLabel}</span>
-          ) : (
-            timeLabel
+        <span className="notification-row-title">
+          {before}
+          {plate && (
+            <span className="notification-plate" aria-label={`Biển số ${plate}`}>
+              {plate}
+            </span>
           )}
+          {after}
         </span>
+        {item.body && <span className="notification-row-body">{tidyBody(item.body)}</span>}
+        <span className="notification-row-time">{timeLabel}</span>
       </span>
       {unread && <span className="notification-row-dot" aria-hidden="true" />}
     </button>
@@ -286,29 +289,26 @@ export function NotificationBell() {
                   </div>
                 ) : (
                   withTodayGroup(groupNotifications(items)).map((group) => {
-                    const isLed =
+                    const isFresh =
+                      group.label === "Vừa xong" ||
                       group.label === "Hôm nay" ||
-                      group.label === "Hôm qua" ||
-                      group.label === "Vừa xong";
+                      group.label === "Hôm qua";
 
                     return (
                       <div key={group.label} className="notification-group">
                         <div
-                          className={`notification-group-label${isLed ? " is-led" : ""}`}
+                          className={`notification-group-label${isFresh ? " is-fresh" : ""}`}
                           data-group={group.label}
                         >
-                          {isLed ? (
-                            <span className="notification-led-badge">
-                              <span className="notification-led-dot" aria-hidden="true" />
-                              <span className="notification-led-text">{group.label}</span>
-                            </span>
-                          ) : (
-                            <span className="notification-group-label-date">{group.label}</span>
+                          {isFresh && (
+                            <span className="notification-group-dot" aria-hidden="true" />
                           )}
+                          <span className="notification-group-label-text">{group.label}</span>
+                          <span className="notification-group-rule" aria-hidden="true" />
                         </div>
                         {group.items.length === 0 ? (
                           <p className="notification-group-empty">
-                            Chưa có thông báo nào <span className="notification-led-text-inline">hôm nay</span>.
+                            Hôm nay chưa có thông báo mới.
                           </p>
                         ) : (
                           group.items.map((item) => (

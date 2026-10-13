@@ -46,6 +46,8 @@ import {
 import type { Paged, Vehicle, VehicleStatusFilter } from "@/types";
 import {
   DEFAULT_INVENTORY_STATUS,
+  FAVORITE_TAB_HINT,
+  FAVORITE_TAB_LABEL,
   VEHICLE_STATUS_OPTIONS,
   type VehicleStatusOption,
 } from "@/lib/vehicleFilters";
@@ -166,8 +168,6 @@ export function InventoryPage() {
       ? "SOLD"
       : "IN_STOCK"
     : rawStatus;
-  const setStatus = (value: VehicleStatusFilter | "") =>
-    updateParams({ status: value });
   const sort = params.get("sort") ?? "newest";
   const sortLabel = sortOptions.find((option) => option.value === sort)?.label ?? sortOptions[0].label;
   const setSort = (value: string) => updateParams({ sort: value });
@@ -183,8 +183,10 @@ export function InventoryPage() {
   const date_to = params.get("date_to") ?? "";
   const cost_pending = params.get("cost_pending") ?? "";
   const min_days = params.get("min_days") ?? "";
-  // Dấu sao "Yêu thích" là bộ lọc cá nhân theo tài khoản (server đối chiếu JWT).
-  const fav = params.get("fav") === "1";
+  // Dấu sao "Yêu thích" là TAB cá nhân theo tài khoản (server đối chiếu JWT):
+  // bật `fav=1` nghĩa là xem mọi xe đã sao bất kể trạng thái, nên query gửi
+  // lên server dùng `status: "ALL"` thay vì tab trạng thái đang chọn.
+  const fav = !pickMode && params.get("fav") === "1";
 
   const filters = useMemo(
     () => ({
@@ -244,6 +246,7 @@ export function InventoryPage() {
       },
     });
   }
+  const queryStatus = fav ? "ALL" : status;
   const query = useQuery({
     queryKey: ["vehicles", deferredSearch, status, sort, filters, fav, page],
     queryFn: () =>
@@ -251,7 +254,7 @@ export function InventoryPage() {
         p_filters: {
           ...filters,
           search: deferredSearch,
-          status,
+          status: queryStatus,
           sort,
           favorite: fav ? "true" : "",
           offset: (page - 1) * pageSize,
@@ -270,7 +273,7 @@ export function InventoryPage() {
             p_filters: {
               ...filters,
               search: deferredSearch,
-              status,
+              status: queryStatus,
               sort,
               favorite: fav ? "true" : "",
               offset: page * pageSize,
@@ -279,7 +282,7 @@ export function InventoryPage() {
           }),
       });
     }
-  }, [query.data, page, deferredSearch, status, sort, filters, fav, client]);
+  }, [query.data, page, deferredSearch, status, sort, filters, fav, queryStatus, client]);
 
   useEffect(() => {
     if (!query.isSuccess || query.isPlaceholderData) return;
@@ -452,21 +455,6 @@ export function InventoryPage() {
               </button>
             );
           })}
-          {/* Sao yêu thích là bộ lọc cá nhân, không clear các filter đang có —
-              chỉ bật/tắt tham số `fav` trên URL. */}
-          <button
-            type="button"
-            className={fav ? "quick-pill quick-pill-active quick-pill-fav" : "quick-pill quick-pill-fav"}
-            aria-pressed={fav}
-            title="Chỉ xem xe bạn đã đánh dấu yêu thích"
-            onClick={() => updateParams({ fav: fav ? "" : "1" })}
-          >
-            <Star size={13} fill={fav ? "currentColor" : "none"} aria-hidden="true" />
-            Yêu thích
-            {!!favoriteCount.data && favoriteCount.data > 0 && (
-              <kbd>{favoriteCount.data}</kbd>
-            )}
-          </button>
         </div>
         )}
         {!pickMode && expanded && (
@@ -553,20 +541,42 @@ export function InventoryPage() {
           </>
         )}
         <div className="tabs" aria-label="Trạng thái xe">
-          {statusOptions.map((option) => (
+          {/* Tab "Yêu thích" đứng TRƯỚC "Tại cửa hàng" nhưng không bao giờ là
+              mặc định: mở Kho (không tham số) vẫn đáp tab AVAILABLE. Bấm tab
+              sao sẽ xóa `status` trên URL để hai nhóm tab không đánh lẫn nhau. */}
+          {!pickMode && (
             <button
-              key={option.value}
               type="button"
-              className={status === option.value ? "tab active" : "tab"}
-              aria-pressed={status === option.value}
-              title={option.hint}
-              onClick={() => {
-                setStatus(option.value);
-              }}
+              className={fav ? "tab tab-fav active" : "tab tab-fav"}
+              aria-pressed={fav}
+              title={FAVORITE_TAB_HINT}
+              onClick={() => updateParams({ fav: "1", status: "" })}
             >
-              {option.label}
+              <Star size={13} fill={fav ? "currentColor" : "none"} aria-hidden="true" />
+              {FAVORITE_TAB_LABEL}
+              {!!favoriteCount.data && favoriteCount.data > 0 && (
+                <kbd>{favoriteCount.data}</kbd>
+              )}
             </button>
-          ))}
+          )}
+          {statusOptions.map((option) => {
+            const isActive = !fav && status === option.value;
+            return (
+              <button
+                key={option.value}
+                type="button"
+                className={isActive ? "tab active" : "tab"}
+                aria-pressed={isActive}
+                title={option.hint}
+                onClick={() => {
+                  // Rời tab Yêu thích: tắt `fav`, bật bộ đếm trạng thái trở lại.
+                  updateParams({ status: option.value, fav: "" });
+                }}
+              >
+                {option.label}
+              </button>
+            );
+          })}
         </div>
       </Card>
       {filters.min_days && !quickPresets.some((preset) => preset.id === "old" && Object.entries(preset.filters).every(([key, value]) => params.get(key) === value)) && (
@@ -605,14 +615,22 @@ export function InventoryPage() {
       ) : vehicles.length === 0 ? (
         <Card>
           <EmptyState
-            title={pickMode ? "Không có xe để chọn" : "Chưa có xe phù hợp"}
+            title={
+              pickMode
+                ? "Không có xe để chọn"
+                : fav
+                  ? "Chưa có xe yêu thích"
+                  : "Chưa có xe phù hợp"
+            }
             description={
               pickMode
                 ? "Đổi từ khoá, hoặc chuyển qua tab “Đã bán” nếu muốn đăng bài cảm ơn khách."
-                : "Thử thay đổi bộ lọc hoặc thu chiếc xe đầu tiên vào kho."
+                : fav
+                  ? "Bấm ngôi sao trên mỗi chiếc xe (danh sách, sheet 3 chấm hoặc trang chi tiết) để xe xuất hiện ở đây."
+                  : "Thử thay đổi bộ lọc hoặc thu chiếc xe đầu tiên vào kho."
             }
           />
-          {!pickMode && canOperate(profile) && (
+          {!pickMode && !fav && canOperate(profile) && (
             <Link className="button primary" to="/acquisitions/new">
               + Thu xe mới
             </Link>

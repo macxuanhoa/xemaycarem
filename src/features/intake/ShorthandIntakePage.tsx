@@ -459,7 +459,7 @@ export default function ShorthandIntakePage() {
           rows={4}
           value={text}
           onChange={(event) => setText(event.target.value)}
-          placeholder="ab 29b1 123.45 21 gia 18tr5"
+          placeholder="ab 29b1 123.45 21 gia 18tr5 — 5 số rời (23412) = số khung · # = ghi chú"
           aria-label="Ghi chú tốc ký danh sách xe cần thu"
         />
         <div className="row intake-notes-actions">
@@ -734,6 +734,13 @@ export default function ShorthandIntakePage() {
                 />
               </Field>
             </div>
+            {/* "#" trong tốc ký → ghi chú đọc tại thẻ, không có ô sửa (thẻ giữ
+                gọn như thiết kế); note vẫn được gửi nguyên ven khi thu xe. */}
+            {entry.fields.notes && (
+              <p className="intake-entry-note">
+                <em className="muted">Ghi chú:</em> {entry.fields.notes}
+              </p>
+            )}
           </Card>
         );
       })}

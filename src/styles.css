@@ -551,27 +551,54 @@ pre {
   font-size: 12px;
   cursor: pointer;
 }
+/* Thông báo nghiệp vụ: các bản chữ màu nguyên bản (nền xanh lá / vàng đậm,
+   chữ tô màu lạc điệu) được thay bằng callout trung tính chuẩn SaaS — nền
+   nền trung tính nhạt, vạch accent trái mang mã màu trạng thái, chữ giữ màu
+   nội dung để dễ đọc. Áp dụng toàn cục cho mọi trang dùng `.notice`; riêng
+   panel trùng xe (`.duplicate-panel`) giữ thiết kế có icon của chúng. */
 .notice {
-  background: #eef3e6;
-  border: 1px solid #dce5cf;
-  border-radius: 8px;
-  padding: 13px 17px;
-  color: #566944;
+  background: #f7f9f7;
+  border: 1px solid #e6eae4;
+  border-left: 3px solid #9ab0a1;
+  border-radius: 10px;
+  padding: 12px 15px;
+  color: #3d473c;
   font-size: 13px;
-  line-height: 1.65;
+  line-height: 1.6;
+}
+.notice > *:first-child {
+  margin-top: 0;
+}
+.notice > *:last-child {
+  margin-bottom: 0;
+}
+.notice p {
+  margin: 4px 0 0;
+}
+.notice svg {
+  flex: 0 0 auto;
+  margin-top: 2px;
 }
 .notice.danger {
-  background: #fff4ef;
-  border-color: #efd5cd;
-  color: #9c493d;
+  background: #fbf8f7;
+  border-color: #eddfdd;
+  border-left-color: #cf6253;
+  color: #4a3f3d;
 }
 .notice.warning:not(.duplicate-panel) {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 8px;
-  background: #fff8e9;
-  border-color: #f0dcb0;
-  color: #8a6d1f;
+  background: #fbfaf6;
+  border-color: #ebe6d9;
+  border-left-color: #d9a544;
+  color: #4b4638;
+}
+.notice.warning:not(.duplicate-panel) > * {
+  margin: 0;
+}
+.notice.warning:not(.duplicate-panel) > :first-child {
+  margin-top: 0;
 }
 .approvals-row {
   display: flex;
@@ -5094,6 +5121,31 @@ pre {
 .result-info small {
   color: #66756e;
 }
+/* No-results state in the global search palette — shares the exact left inset
+   of .palette-result-item rows so text and CTA sit flush, never stranded by
+   stray <p> margins. */
+.palette-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px 8px;
+}
+.palette-empty p {
+  margin: 0;
+  font-size: 12.5px;
+  line-height: 1.6;
+  color: #64748b;
+  overflow-wrap: anywhere;
+}
+.palette-empty .button {
+  min-height: 36px;
+  padding: 8px 14px;
+  font-size: 12.5px;
+}
+[data-theme="dark"] .palette-empty p {
+  color: #8f96a8;
+}
 /* Search-match highlight — a soft, low-contrast tint so the matched term is
    obvious without shouting. Uses currentColor so it inherits the field's own
    weight/colour; only the background and a hairline underline change. */
@@ -7625,24 +7677,37 @@ mark.search-hit {
   outline-offset: 1px;
 }
 
-/* Pill "Yêu thích" trong hàng lọc nhanh: bản vàng cam của quick-pill. */
-.quick-pill-fav.quick-pill-active {
+/* Tab "Yêu thích" trong hàng tab Kho: bản vàng cam của .tab, đứng trước
+   "Tại cửa hàng" và chỉ sáng khi đang xem danh sách sao của mình. */
+.tab-fav kbd {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 3px;
   background: #fef3c7;
-  border-color: #fcd34d;
+  border: 1px solid #fcd34d;
+  border-radius: 4px;
+  font-family: var(--font-mono, monospace);
+  font-size: 9px;
+  font-weight: 600;
   color: #92400e;
-  box-shadow: 0 0 0 1px #fcd34d;
 }
 
-.quick-pill-fav.quick-pill-active:hover {
+.tab-fav.active {
+  color: #b45309;
+  border-color: #f59e0b;
+}
+
+.tab-fav.active:hover {
+  color: #92400e;
+}
+
+.tab-fav.active kbd {
   background: #fde68a;
   border-color: #f59e0b;
   color: #78350f;
-}
-
-.quick-pill-fav kbd {
-  background: #ffffff;
-  border-color: #fcd34d;
-  color: #92400e;
 }
 
 /* Kho (bảng desktop): sao đứng trước nút Xem trong cột thao tác. */
@@ -7713,17 +7778,21 @@ mark.search-hit {
   color: #fbbf24;
 }
 
-[data-theme="dark"] .quick-pill-fav.quick-pill-active {
+[data-theme="dark"] .tab-fav.active {
+  color: #fcd34d;
+  border-color: #b45309;
+}
+
+[data-theme="dark"] .tab-fav kbd {
   background: rgba(245, 158, 11, 0.16);
   border-color: #b45309;
   color: #fcd34d;
-  box-shadow: 0 0 0 1px #b45309;
 }
 
-[data-theme="dark"] .quick-pill-fav kbd {
-  background: #23252f;
-  border-color: #b45309;
-  color: #fcd34d;
+[data-theme="dark"] .tab-fav.active kbd {
+  background: rgba(245, 158, 11, 0.28);
+  border-color: #d97706;
+  color: #fde68a;
 }
 
 [data-theme="dark"] .vas-tile-fav,
@@ -11571,10 +11640,29 @@ mark.search-hit {
 .copilot-layout-container {
   display: flex;
   flex-direction: column;
-  min-height: calc(100vh - 120px);
-  min-height: calc(100dvh - 120px);
+  /* Khung chat cao đúng phần còn lại của màn hình: lướt chỉ diễn ra BÊN
+     TRONG khung tin nhắn (chuẩn ChatGPT), không kéo trôi cả trang.
+     124px = app topbar 64 + main-content padding 24+36. */
+  height: calc(100dvh - 124px);
+  min-height: 460px;
   position: relative;
-  overflow: visible;
+  overflow: hidden;
+}
+/* Trang Copilot tự quản lý chiều cao; main-content không được cộng
+   min-height riêng (100vh - 110px) khiến document vẫn lướt được thêm
+   một thanh cuộn thứ hai vô nghĩa bên dưới khung chat. */
+.main-content:has(> .copilot-layout-container) {
+  min-height: 0;
+}
+@media (max-width: 1200px) {
+  .copilot-layout-container {
+    height: calc(100dvh - 120px);
+  }
+}
+@media (min-width: 1600px) {
+  .copilot-layout-container {
+    height: calc(100dvh - 173px);
+  }
 }
 
 /* 1. Topbar */
@@ -11589,12 +11677,16 @@ mark.search-hit {
   border-radius: var(--radius-lg, 16px);
   margin-bottom: 12px;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.03);
+  /* Topbar đứng yên trên cùng; khung tin nhắn bên dưới mới là nơi lướt. */
+  flex-shrink: 0;
 }
 
 .copilot-topbar-left {
   display: flex;
   align-items: center;
   gap: 12px;
+  /* Cho phép cụm title co lại thay vì đẩy lệch nút actions ra ngoài. */
+  min-width: 0;
 }
 
 .copilot-avatar-badge {
@@ -11614,20 +11706,28 @@ mark.search-hit {
   display: flex;
   flex-direction: column;
   gap: 2px;
+  min-width: 0;
 }
 
 .copilot-title-row {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 10px;
+  min-width: 0;
 }
 
 .copilot-page-title {
   font-size: 16.5px;
+  line-height: 1.25;
   font-weight: 800;
   letter-spacing: -0.2px;
   margin: 0;
   color: inherit;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .copilot-status-indicator {
@@ -11670,18 +11770,24 @@ mark.search-hit {
   font-size: 12px;
   color: var(--muted);
   margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .copilot-topbar-actions {
   display: flex;
   align-items: center;
   gap: 8px;
+  /* Actions không bao giờ bị cụm title bóp lệch hay tràn ra ngoài topbar. */
+  flex-shrink: 0;
 }
 
 .copilot-topbar-btn {
   display: inline-flex;
   align-items: center;
   gap: 6px;
+  white-space: nowrap;
   background: #f1f5f9;
   border: 1px solid var(--line);
   color: #1e293b;
@@ -11709,14 +11815,21 @@ mark.search-hit {
   color: inherit;
 }
 
-/* 2. Messages Viewport */
+/* 2. Messages Viewport — khung lướt duy nhất, chuẩn ChatGPT. */
 .copilot-messages-viewport {
   flex: 1 1 auto;
-  overflow-y: visible;
-  /* Chừa khoảng trống dưới để thẻ trả lời cuối không bị composer dính
-     (position: sticky) che khi cuộn tới đáy. 170px cũ nhỏ hơn chiều cao
-     thật của composer (pill + textarea nở + controls) nên bị lệch. */
-  padding: 10px 4px 220px;
+  /* min-height: 0 để flex co lại đúng phần còn lại, nếu không nội dung
+     dài sẽ đẩy composer trôi ra khỏi màn hình (nguyên nhân "không lướt
+     được/lướt loạn" của bản cũ). */
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  /* Dừng lướt trong khung, không dây chuyền sang document bên ngoài. */
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  /* Composer giờ là neo tĩnh của khung (không sticky đè lên nội dung),
+     nên không cần khoảng trống bù 220px dưới đáy như bản cũ. */
+  padding: 10px 4px 20px;
 }
 
 .copilot-messages-inner {
@@ -11725,6 +11838,8 @@ mark.search-hit {
   display: flex;
   flex-direction: column;
   gap: 20px;
+  min-height: 100%;
+  box-sizing: border-box;
 }
 
 /* Welcome Hero */
@@ -11735,6 +11850,9 @@ mark.search-hit {
   align-items: center;
   text-align: center;
   gap: 26px;
+  /* Tự căn giữa theo chiều dọc khi chưa có tin nhắn (inner đã min-height
+     100%); margin auto tự co về 0 khi hội thoại dài ra. */
+  margin-block: auto;
 }
 
 .copilot-welcome-brand {
@@ -12176,22 +12294,16 @@ mark.search-hit {
   color: var(--muted);
 }
 
-.copilot-scroll-anchor {
-  height: 1px;
-}
-
-/* 4. Composer Dock */
+/* 4. Composer Dock — neo tĩnh đáy khung chat, không còn sticky đè lên
+   document (bản cũ sticky + padding 220px nên lướt rất khựng). */
 .copilot-composer-dock {
-  position: sticky;
-  bottom: 0;
-  left: 0;
-  right: 0;
+  position: relative;
+  flex-shrink: 0;
   /* Same tier as the app topbar per the shell z-index convention. It must
      sit above page content but never needs to cover the drawer/modal layer. */
   z-index: 30;
   padding: 12px 12px 14px;
   background: linear-gradient(to top, rgba(247, 247, 249, 1) 78%, rgba(247, 247, 249, 0) 100%);
-  margin-top: auto;
 }
 
 .copilot-composer-inner {
@@ -12309,17 +12421,17 @@ mark.search-hit {
   margin: 0;
 }
 
-/* Mobile: composer sticky phải nằm NGAY TRÊN thanh điều hướng đáy
-   (.bottom-nav: fixed, z-index 25, hiện từ ≤768px trên /copilot). Nếu để
-   bottom: 0 thì composer (z-index 30) phủ lên tab bar → lệch, khó bấm. */
+/* Mobile: khung chat kết thúc NGAY TRÊN thanh điều hướng đáy (.bottom-nav:
+   fixed, z-index 25, hiện từ ≤768px trên /copilot). main-content đã chừa
+   padding-bottom 92px + safe-area, nên chỉ cần trừ vào chiều cao khung —
+   composer không còn sticky bottom bù khoảng cách như bản cũ.
+   178px = topbar 66 + padding trên 20 + chỗ bottom-nav 92. */
 @media (max-width: 768px) {
-  .copilot-composer-dock {
-    bottom: calc(92px + env(safe-area-inset-bottom));
-    padding: 10px 10px 12px;
+  .copilot-layout-container {
+    height: calc(100dvh - 178px - env(safe-area-inset-bottom));
   }
-  /* Dự phòng khoảng trống lớn hơn: composer + tab bar đáy. */
-  .copilot-messages-viewport {
-    padding-bottom: calc(300px + env(safe-area-inset-bottom));
+  .copilot-composer-dock {
+    padding: 10px 10px 12px;
   }
   /* Một cột cho thẻ mở đầu để chữ không bị dồn chật trên màn hẹp. */
   .copilot-starters-grid {
@@ -12475,6 +12587,19 @@ mark.search-hit {
   white-space: nowrap;
 }
 @media (max-width: 640px) {
+  /* Topbar gọn trên điện thoại hẹp: bỏ dòng mô tả phụ để cụm title
+     (tên + pill "Sẵn sàng") không bao giờ đẩy lệch hàng nút actions. */
+  .copilot-topbar {
+    padding: 10px 12px;
+    gap: 10px;
+  }
+  .copilot-page-subtitle {
+    display: none;
+  }
+  .copilot-topbar-btn {
+    padding: 6px 9px;
+    font-size: 12.5px;
+  }
   .copilot-controls {
     flex-direction: column;
     align-items: stretch;
@@ -12684,14 +12809,22 @@ html[data-theme] {
   color: #cbd1df;
 }
 [data-theme="dark"] .notice {
-  background: #151a14;
-  border-color: #2a3327;
-  color: #a9bfa0;
+  background: #161a16;
+  border-color: #2a2f2a;
+  border-left-color: #6f8577;
+  color: #c6d0c4;
 }
 [data-theme="dark"] .notice.danger {
-  background: #1d1412;
-  border-color: #3a2622;
-  color: #dba89b;
+  background: #1c1514;
+  border-color: #3a2b28;
+  border-left-color: #cf6253;
+  color: #dcc8c3;
+}
+[data-theme="dark"] .notice.warning:not(.duplicate-panel) {
+  background: #1b1913;
+  border-color: #33302a;
+  border-left-color: #d9a544;
+  color: #d5cfbf;
 }
 /* Buttons */
 [data-theme="dark"] .button-secondary,
@@ -13714,6 +13847,17 @@ html[data-theme="dark"] .header-theme-toggle {
   margin: 2px 0 12px;
   overflow-wrap: anywhere;
 }
+/* Ghi chú tốc ký (# ...) hiển thị dạng đọc tại thẻ — gọn một dòng dưới lưới. */
+.intake-entry-note {
+  margin: 10px 0 2px;
+  font-size: 13px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+.intake-entry-note em {
+  font-style: normal;
+  font-weight: 600;
+}
 /* "Loại xe" luôn chiếm trọn hàng của lưới 2 cột trong thẻ tốc ký — kể cả trên
    desktop — để các ô ngắn phía sau ghép đúng cặp (Màu sắc | Năm sản xuất...). */
 .intake-entry-grid .intake-span2 {
@@ -14164,70 +14308,58 @@ html[data-theme="dark"] .header-theme-toggle {
   margin-bottom: 6px;
   box-shadow: inset 0 0 0 1px rgba(15, 23, 42, 0.03);
 }
+/* Nhãn nhóm thời gian: divider tinh tế — chữ xám nhạt nhỏ, một chấm nhấn cho
+   nhóm đang "sống" (Vừa xong / Hôm nay / Hôm qua) và một hairline mảnh chạy hết
+   chiều rộng. Đã bỏ hẳn pill LED rực tím của bản cũ. */
 .notification-group-label {
-  padding: 10px 16px 5px;
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  padding: 12px 16px 6px;
   display: flex;
   align-items: center;
+  gap: 8px;
+  background: #fff;
 }
 .notification-group + .notification-group .notification-group-label {
-  padding-top: 14px;
+  padding-top: 16px;
 }
-.notification-group-label-date {
-  font-size: 10.5px;
-  font-weight: 700;
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
-  color: #a2abbd;
+.notification-group-label-text {
+  font-size: 11px;
+  font-weight: 650;
+  letter-spacing: 0.02em;
+  color: #94a1b6;
+  flex-shrink: 0;
 }
-.notification-led-badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
-  padding: 4px 12px 4px 9px;
-  border-radius: 999px;
-  background: #eef1fb;
-  box-shadow: inset 0 0 0 1px rgba(79, 70, 229, 0.12);
-  line-height: 1;
+.notification-group-label.is-fresh .notification-group-label-text {
+  color: #64748b;
 }
-.notification-led-dot {
-  width: 7px;
-  height: 7px;
+.notification-group-dot {
+  width: 6px;
+  height: 6px;
   border-radius: 50%;
   flex-shrink: 0;
   background: var(--primary);
-  box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.14);
+  box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.16);
 }
-/* Nhãn nhóm thời gian: một màu chủ đạo, chữ đậm rõ nét, không hiệu ứng LED. */
-.notification-led-text {
-  font-size: 11.5px;
-  font-weight: 800;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--primary);
-}
-.notification-led-text-mini {
-  display: inline-block;
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.03em;
-  color: var(--primary);
-}
-.notification-led-text-inline {
-  font-weight: 700;
-  color: var(--primary);
+.notification-group-rule {
+  height: 1px;
+  flex: 1;
+  margin-left: 2px;
+  background: linear-gradient(90deg, var(--line-subtle), rgba(226, 232, 240, 0));
 }
 .notification-group-empty {
   margin: 0;
-  padding: 2px 16px 12px;
+  padding: 2px 16px 14px;
   font-size: 12.5px;
   color: var(--muted);
 }
 .notification-row {
   display: flex;
   align-items: flex-start;
-  gap: 12px;
+  gap: 11px;
   width: 100%;
-  padding: 12px 16px;
+  padding: 11px 16px;
   border: 0;
   background: transparent;
   text-align: left;
@@ -14235,79 +14367,96 @@ html[data-theme="dark"] .header-theme-toggle {
   color: inherit;
   cursor: pointer;
   position: relative;
-  transition: background-color 0.18s ease;
+  transition: background-color 0.16s ease;
 }
 .notification-row:hover {
-  background: #f8f9fc;
+  background: #f7f8fb;
 }
 .notification-row:active {
-  background: #eff2f8;
+  background: #eef1f7;
 }
 .notification-row.unread {
-  background: rgba(79, 70, 229, 0.035);
+  background: rgba(79, 70, 229, 0.04);
 }
 .notification-row.unread:hover {
-  background: rgba(79, 70, 229, 0.06);
+  background: rgba(79, 70, 229, 0.065);
 }
 .notification-row.unread::before {
   content: "";
   position: absolute;
   left: 0;
-  top: 13px;
-  bottom: 13px;
+  top: 8px;
+  bottom: 8px;
   width: 3px;
-  border-radius: 0 4px 4px 0;
+  border-radius: 0 3px 3px 0;
   background: var(--primary);
-  opacity: 0.7;
 }
 .notification-row-icon {
   display: grid;
   place-items: center;
-  width: 34px;
-  height: 34px;
-  border-radius: 12px;
+  width: 32px;
+  height: 32px;
+  border-radius: 10px;
   flex-shrink: 0;
-  background: #f2f4f8;
-  color: #6b7688;
-  box-shadow: inset 0 0 0 1px rgba(15, 23, 42, 0.03);
+  margin-top: 1px;
+  background: #eef1f6;
+  color: #5b6678;
 }
 .notification-row[data-tone="success"] .notification-row-icon {
-  background: #eef6f1;
-  color: #3f9a68;
+  background: #e9f5ee;
+  color: #2f855a;
 }
 .notification-row[data-tone="warning"] .notification-row-icon {
-  background: #fdf4ed;
-  color: #d47a45;
+  background: #fdeee2;
+  color: #c2612d;
 }
 .notification-row-text {
   display: flex;
   flex-direction: column;
-  gap: 1px;
+  gap: 2px;
   min-width: 0;
   flex: 1;
   padding-top: 1px;
 }
 .notification-row-title {
-  font-size: 13px;
-  line-height: 1.4;
-  color: #475569;
+  font-size: 13.5px;
+  line-height: 1.42;
+  font-weight: 550;
+  letter-spacing: -0.006em;
+  color: #334155;
 }
 .notification-row.unread .notification-row-title {
-  font-weight: 650;
-  color: #1e293b;
+  font-weight: 700;
+  color: #0f172a;
+}
+/* Chip biển số: nổi bật danh tính chiếc xe giữa dòng tiêu đề để nhìn là biết xe nào. */
+.notification-plate {
+  display: inline-block;
+  margin: 0 3px;
+  padding: 1px 7px;
+  border-radius: 6px;
+  background: #eef2ff;
+  box-shadow: inset 0 0 0 1px rgba(79, 70, 229, 0.16);
+  color: #3730a3;
+  font-weight: 700;
+  font-size: 12.5px;
+  letter-spacing: 0.01em;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  vertical-align: baseline;
 }
 .notification-row-body {
-  font-size: 12px;
-  line-height: 1.45;
-  color: #6b7688;
-  margin-top: 2px;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: #5b6678;
+  margin-top: 1px;
   overflow-wrap: break-word;
 }
 .notification-row-time {
-  font-size: 10.5px;
+  font-size: 11px;
   font-weight: 500;
-  color: #a2abbd;
-  margin-top: 4px;
+  color: #94a1b6;
+  margin-top: 3px;
   font-variant-numeric: tabular-nums;
 }
 .notification-row-dot {
@@ -14315,9 +14464,8 @@ html[data-theme="dark"] .header-theme-toggle {
   height: 8px;
   border-radius: 50%;
   background: var(--primary);
-  box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.12);
   flex-shrink: 0;
-  margin-top: 8px;
+  margin-top: 6px;
 }
 .notification-load-more {
   display: block;
@@ -14530,23 +14678,29 @@ html[data-theme="dark"] .header-theme-toggle {
 }
 [data-theme="dark"] .notification-row-dot {
   background: #a5b4fc;
-  box-shadow: 0 0 0 3px rgba(165, 180, 252, 0.16);
 }
-[data-theme="dark"] .notification-led-badge {
-  background: rgba(79, 70, 229, 0.16);
-  box-shadow: inset 0 0 0 1px rgba(165, 180, 252, 0.22);
+/* Chip biển số trên nền tối. */
+[data-theme="dark"] .notification-plate {
+  background: rgba(165, 180, 252, 0.14);
+  box-shadow: inset 0 0 0 1px rgba(165, 180, 252, 0.24);
+  color: #c7d2fe;
 }
-[data-theme="dark"] .notification-led-dot {
+/* Nhãn nhóm thời gian dính (sticky) cần nền khớp với panel tối. */
+[data-theme="dark"] .notification-group-label {
+  background: #14161e;
+}
+[data-theme="dark"] .notification-group-label-text {
+  color: #67718a;
+}
+[data-theme="dark"] .notification-group-label.is-fresh .notification-group-label-text {
+  color: #aab3c5;
+}
+[data-theme="dark"] .notification-group-dot {
   background: #a5b4fc;
   box-shadow: 0 0 0 3px rgba(165, 180, 252, 0.18);
 }
-[data-theme="dark"] .notification-led-text,
-[data-theme="dark"] .notification-led-text-mini,
-[data-theme="dark"] .notification-led-text-inline {
-  color: #a5b4fc;
-}
-[data-theme="dark"] .notification-group-label-date {
-  color: #67718a;
+[data-theme="dark"] .notification-group-rule {
+  background: linear-gradient(90deg, #262833, rgba(38, 40, 51, 0));
 }
 [data-theme="dark"] .notification-group-empty {
   color: #8a93a6;
@@ -17715,12 +17869,15 @@ html[data-theme="dark"] .header-theme-toggle {
   box-sizing: border-box;
 }
 
-/* Hero Giá bán – to rõ ràng, nổi bật phía dưới phần xe */
+/* Hero Giá bán – to rõ ràng, nổi bật phía dưới phần xe.
+   Số tiền dài không được "đẩy" badge sang bên: cột giá co được (min-width:0,
+   font-size clamp), badge luôn giữ nguyên vẹn và tự rớt xuống hàng khi hẹp. */
 .sale-confirm-price-banner {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
+  flex-wrap: wrap;
+  gap: 8px 12px;
   padding: 12px 16px;
   border-radius: 12px;
   background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%);
@@ -17732,6 +17889,8 @@ html[data-theme="dark"] .header-theme-toggle {
   display: flex;
   flex-direction: column;
   gap: 2px;
+  flex: 1 1 auto;
+  min-width: 0;
 }
 
 .sale-confirm-price-label {
@@ -17743,11 +17902,12 @@ html[data-theme="dark"] .header-theme-toggle {
 }
 
 .sale-confirm-price-amount {
-  font-size: 25px;
+  font-size: clamp(19px, 4.5vw, 25px);
   font-weight: 850;
   color: #14532d;
   font-variant-numeric: tabular-nums;
   line-height: 1.2;
+  overflow-wrap: break-word;
 }
 
 .sale-confirm-debt-badge {
@@ -17755,6 +17915,8 @@ html[data-theme="dark"] .header-theme-toggle {
   flex-direction: column;
   align-items: flex-end;
   gap: 2px;
+  flex: 0 0 auto;
+  margin-left: auto;
   font-size: 11px;
   color: #b91c1c;
   background: #fef2f2;
@@ -17768,6 +17930,7 @@ html[data-theme="dark"] .header-theme-toggle {
   font-weight: 750;
   color: #dc2626;
   font-variant-numeric: tabular-nums;
+  white-space: nowrap;
 }
 
 .sale-confirm-paid-badge {
@@ -17779,6 +17942,8 @@ html[data-theme="dark"] .header-theme-toggle {
   padding: 5px 12px;
   border-radius: 8px;
   white-space: nowrap;
+  flex: 0 0 auto;
+  margin-left: auto;
 }
 
 /* Dark mode for sale confirm dialog */
@@ -18066,6 +18231,15 @@ html[data-theme="dark"] .header-theme-toggle {
   border: 0;
   margin-top: var(--space-sm);
   overscroll-behavior: contain;
+}
+/* Mobile search sheet keeps full touch-target height on the no-results CTA. */
+.search-mobile-results .palette-empty {
+  align-items: center;
+  padding: 16px 12px;
+}
+.search-mobile-results .palette-empty .button {
+  min-height: 44px;
+  width: 100%;
 }
 [data-theme="dark"] .search-mobile-dialog {
   background: #14161e;
@@ -19282,33 +19456,6 @@ html[data-theme="dark"] .header-theme-toggle {
 /* ==========================================================================
    Sales Detail & Vehicle Transaction Refined Layout
    ========================================================================== */
-.sale-info-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
-  gap: 20px 32px;
-}
-
-.sale-info-section {
-  display: flex;
-  flex-direction: column;
-}
-
-.sale-section-subtitle {
-  font-size: 13px;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.6px;
-  color: var(--color-primary-dark, #2b6127);
-  margin: 0 0 10px 0;
-  padding-bottom: 6px;
-  border-bottom: 2px solid #eef2e9;
-}
-
-[data-theme="dark"] .sale-section-subtitle {
-  border-bottom-color: #2b3528;
-  color: #86efac;
-}
-
 .sale-spec-list {
   display: flex;
   flex-direction: column;
@@ -19406,7 +19553,224 @@ html[data-theme="dark"] .header-theme-toggle {
 /* Cancel-sale dialog: compact centered modal replaces the inline adjust card
    that used to push the whole page down when the kebab was tapped. */
 .sale-cancel-modal {
-  width: min(480px, 100%);
+  width: min(460px, 100%);
+  padding: 20px 22px;
+}
+
+.sale-cancel-header {
+  align-items: center;
+  margin-bottom: 14px;
+}
+
+.sale-cancel-heading {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+/* Ô tint đỏ đựng icon hủy — báo tính nguy hiểm ngay ở đầu đề, không cần chữ đỏ. */
+.sale-cancel-icon {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 9px;
+  flex: 0 0 auto;
+  background: #fdece7;
+  color: #c2410c;
+}
+
+[data-theme="dark"] .sale-cancel-icon {
+  background: rgba(194, 65, 12, 0.16);
+  color: #f2a48c;
+}
+
+.sale-cancel-form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+}
+
+.sale-cancel-form .notice {
+  margin: 0;
+}
+
+.sale-reason-counter {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 4px;
+  margin: -6px 0 0;
+}
+
+.sale-cancel-footer {
+  margin-top: 4px;
+}
+
+/* Sale detail: one-line vehicle identity strip (biển số · loại · khung · mã kho)
+   replaces the duplicated 4-row spec grid from the vehicle page. */
+.sale-vehicle-strip {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  border: 1px solid #e2ebd8;
+  border-radius: 12px;
+  background: #f8faf5;
+  color: inherit;
+  text-decoration: none;
+  min-width: 0;
+}
+
+.sale-vehicle-strip:hover {
+  border-color: #cce3c5;
+  background: #f3f8ee;
+}
+
+[data-theme="dark"] .sale-vehicle-strip {
+  background: #191c22;
+  border-color: #2b3427;
+}
+
+[data-theme="dark"] .sale-vehicle-strip:hover {
+  border-color: #3f5a41;
+  background: #1d231e;
+}
+
+.sale-vehicle-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.sale-vehicle-text strong {
+  font-size: 14px;
+  overflow-wrap: anywhere;
+}
+
+.sale-vehicle-text small {
+  font-size: 12px;
+  color: var(--readable-muted, #64748b);
+  overflow-wrap: anywhere;
+}
+
+.sale-vehicle-arrow {
+  margin-left: auto;
+  flex: 0 0 auto;
+  color: var(--readable-muted, #64748b);
+}
+
+.sale-party-list {
+  margin-top: 12px;
+}
+
+/* Sale detail right column: payment figures and the finance-only profit block
+   live in ONE card, separated by a soft dashed divider. */
+.sale-profit-block {
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px dashed #d7e3cf;
+}
+
+[data-theme="dark"] .sale-profit-block {
+  border-top-color: #2f3a2c;
+}
+
+.sale-profit-head {
+  margin: 0 0 4px;
+  font-size: 11.5px;
+  font-weight: 700;
+  letter-spacing: 0.8px;
+  text-transform: uppercase;
+  color: var(--color-primary-dark, #2b6127);
+}
+
+[data-theme="dark"] .sale-profit-head {
+  color: #86efac;
+}
+
+.sale-cost-detail {
+  font-weight: 500;
+  font-size: 12px;
+  color: var(--readable-muted, #64748b);
+}
+
+.sale-profit-note {
+  margin: 8px 0 0;
+  font-size: 11.5px;
+  line-height: 1.5;
+  color: var(--readable-muted, #64748b);
+}
+
+/* Vehicle detail sidebar: active sale + cancelled history share one
+   "Giao dịch" card; cancelled rows are a quiet sub-list, not a second card. */
+.vehicle-sale-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.vehicle-sale-buyer {
+  margin: 2px 0 8px;
+  font-size: 13px;
+}
+
+.vehicle-cancelled-sales.separated {
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px dashed #d7e3cf;
+}
+
+[data-theme="dark"] .vehicle-cancelled-sales.separated {
+  border-top-color: #2f3a2c;
+}
+
+.vehicle-cancelled-label {
+  margin: 0 0 4px;
+  font-size: 11.5px;
+  font-weight: 700;
+  letter-spacing: 0.8px;
+  text-transform: uppercase;
+  color: var(--readable-muted, #64748b);
+}
+
+.vehicle-cancelled-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 7px 0;
+  font-size: 13px;
+  color: inherit;
+  text-decoration: none;
+  border-bottom: 1px solid #f1f4ed;
+  min-width: 0;
+}
+
+.vehicle-cancelled-row:last-child {
+  border-bottom: 0;
+}
+
+.vehicle-cancelled-row span {
+  overflow-wrap: anywhere;
+}
+
+.vehicle-cancelled-row small {
+  font-weight: 400;
+}
+
+[data-theme="dark"] .vehicle-cancelled-row {
+  border-bottom-color: #262933;
+}
+
+/* Sold-vehicle gate: the one-line meta under the buyer (mã · ngày · người bán). */
+.sold-sale-meta {
+  margin: 0 0 8px;
+  overflow-wrap: anywhere;
 }
 
 /* ==========================================================================
@@ -20089,5 +20453,242 @@ html[data-theme="dark"] .header-theme-toggle {
 .is-electrifying .carem-update-subtext {
   color: #0369a1;
   font-weight: 550;
+}
+
+/* ============================================================
+   Modal "Lịch sử mua hàng" của khách hàng — bản gọn (CustomersPage)
+   Đầu modal cố định, nội dung cuộn trong khung; tóm tắt chỉ một dòng,
+   mỗi lượt mua hiển thị 1–2 dòng, chi tiết trả tiền gập trong <details>.
+   ============================================================ */
+.customer-history-modal {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.customer-history-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  flex-shrink: 0;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--line, #e3e4ea);
+}
+
+.customer-history-head h2 {
+  margin: 0;
+  font-size: 21px;
+  line-height: 1.2;
+  letter-spacing: -0.01em;
+}
+
+.customer-history-phone {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 3px;
+  font-size: 16px;
+  font-weight: 600;
+  color: inherit;
+  text-decoration: none;
+}
+
+.customer-history-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.customer-history-body {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding-top: 12px;
+}
+
+.customer-summary-strip {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 16px;
+  padding: 10px 14px;
+  border: 1px solid var(--line, #e3e4ea);
+  border-radius: 12px;
+  background: var(--line-subtle, #f0f0f5);
+  font-size: 13.5px;
+}
+
+.customer-summary-strip strong {
+  font-variant-numeric: tabular-nums;
+}
+
+.customer-debt-value,
+.customer-debt-tag {
+  color: #dc2626;
+}
+
+.customer-paid-value,
+.customer-paid-tag {
+  color: #16a34a;
+}
+
+.customer-history-subtitle {
+  margin: 4px 0 0;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--muted, #64748b);
+}
+
+.customer-purchase-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.customer-purchase-row {
+  padding: 10px 12px;
+  border: 1px solid var(--line, #e3e4ea);
+  border-radius: 12px;
+  transition: border-color 0.15s ease;
+}
+
+.customer-purchase-row:hover {
+  border-color: #c9cdd6;
+}
+
+.customer-purchase-top {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.customer-purchase-name {
+  font-size: 15px;
+  min-width: 0;
+}
+
+.customer-purchase-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  white-space: nowrap;
+}
+
+.customer-purchase-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px 10px;
+  margin-top: 2px;
+}
+
+.customer-debt-tag,
+.customer-paid-tag {
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.customer-payments {
+  margin-top: 6px;
+}
+
+.customer-payments summary {
+  cursor: pointer;
+  font-size: 12px;
+  color: var(--muted, #64748b);
+  user-select: none;
+}
+
+.customer-payment-line {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 2px 0;
+  font-size: 12px;
+}
+
+.customer-payment-line strong {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.customer-comm-list {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--line, #e3e4ea);
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.customer-comm-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--line-subtle, #f0f0f5);
+  font-size: 13px;
+}
+
+.customer-comm-row:last-child {
+  border-bottom: 0;
+}
+
+.customer-comm-date {
+  flex: 0 0 92px;
+  color: var(--muted, #64748b);
+  font-size: 12px;
+}
+
+.customer-comm-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.customer-comm-body strong {
+  font-size: 12.5px;
+}
+
+.customer-comm-body small {
+  display: block;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+@media (max-width: 640px) {
+  .customer-history-head h2 {
+    font-size: 19px;
+  }
+
+  .customer-summary-strip {
+    gap: 4px 12px;
+    font-size: 13px;
+  }
+
+  .customer-comm-date {
+    flex-basis: 78px;
+  }
+}
+
+[data-theme="dark"] .customer-summary-strip {
+  background: rgba(255, 255, 255, 0.04);
+}
+
+[data-theme="dark"] .customer-purchase-row:hover {
+  border-color: #3a3f4d;
+}
+
+[data-theme="dark"] .customer-debt-value,
+[data-theme="dark"] .customer-debt-tag {
+  color: #f87171;
+}
+
+[data-theme="dark"] .customer-paid-value,
+[data-theme="dark"] .customer-paid-tag {
+  color: #4ade80;
 }
 

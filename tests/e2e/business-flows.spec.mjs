@@ -446,7 +446,8 @@ test("Operational: receivable collection reuses payment flow and refreshes real 
   const paid = await db.query("SELECT sum(amount)::text AS paid FROM public.payments WHERE sale_id=$1 AND status='ACTIVE'", [saleId]);
   expect(paid.rows[0].paid).toBe("8000000");
   await page.goto("/customers?phone=0900001234");
-  await expect(page.getByRole("heading", { name: /Lịch sử mua hàng/ })).toBeVisible();
+  await expect(page.getByRole("dialog", { name: `Khách công nợ ${ids.OWNER.slice(0, 6)}` })).toBeVisible();
+  await expect(page.locator(".modal-card")).toContainText("Lịch sử mua hàng");
   await expect(page.locator(".modal-card")).toContainText("Đã thu: 8.000.000");
   await expect(page.locator(".modal-card")).toContainText("Lịch sử trả tiền (2 lần)");
   await expect(page.locator(".modal-card")).toContainText("Lịch sử liên hệ");

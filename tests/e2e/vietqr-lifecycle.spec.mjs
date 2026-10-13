@@ -69,7 +69,9 @@ async function installQrMock(
       replace_available_at: new Date(now + 60_000).toISOString(),
       server_now: new Date(now).toISOString(),
       monitoring_available: monitoring,
-      transfer_content: `${reference} XE-UI-001 BAN-UI-001 KHACH CA REM`,
+      transfer_content: `${data.payer_name ?? "Khách kiểm thử"} thanh toán tiền xe Xe tay ga - XE-UI-001 với giá: ${String(
+        Math.round(Number(data.amount) || 0),
+      ).replace(/\B(?=(\d{3})+(?!\d))/g, ".")}; Mã giao dịch là: ${reference}`,
       agreement_text: `${data.payer_name ?? "Khách kiểm thử"} đồng ý thanh toán cho CA REM TEST; xe Xe tay ga, biển 43A1-123.45, mã XE-UI-001, hợp đồng ${data.contract_reference ?? "BAN-UI-001"}.`,
       payer_name: data.payer_name ?? "Khách kiểm thử",
       contract_reference: data.contract_reference ?? "BAN-UI-001",
@@ -229,8 +231,9 @@ for (const surface of [
     await expect(
       dialog.getByRole("button", { name: /Xác nhận đã nhận tiền/ }),
     ).toHaveCount(0);
+    // Nội dung hiển thị = đúng chuỗi ngân hàng tự điền (server transfer_content)
     await expect(
-      dialog.getByText(fixture.current.agreement_text, { exact: true }),
+      dialog.getByText(fixture.current.transfer_content, { exact: true }),
     ).toBeVisible();
     const qrBox = await qr.boundingBox();
     const download = await dialog

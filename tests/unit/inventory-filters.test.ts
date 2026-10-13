@@ -2,6 +2,9 @@ import { describe, expect, it } from "vitest";
 import { statusLabels } from "@/components/ui";
 import {
   AVAILABLE_VEHICLE_STATUSES,
+  DEFAULT_INVENTORY_STATUS,
+  FAVORITE_TAB_HINT,
+  FAVORITE_TAB_LABEL,
   PERSISTED_VEHICLE_STATUSES,
   VEHICLE_STATUS_OPTIONS,
 } from "@/lib/vehicleFilters";
@@ -91,6 +94,34 @@ describe("Inventory status tabs (vehicle lifecycle)", () => {
     const sold = statusOptions.find((o) => o.value === "SOLD");
     expect(sold).toBeDefined();
     expect(sold!.label).toBe("Đã bán");
+  });
+});
+
+describe("Favorites tab (personal star list, not a status)", () => {
+  it("'Yêu thích' is a dedicated tab rendered BEFORE the status tabs", () => {
+    // InventoryPage renders the favorite tab first, then VEHICLE_STATUS_OPTIONS.
+    expect(FAVORITE_TAB_LABEL).toBe("Yêu thích");
+    expect(FAVORITE_TAB_HINT).toContain("tài khoản");
+  });
+
+  it("is NOT smuggled into the status tab vocabulary", () => {
+    const values = statusOptions.map((o) => o.value);
+    expect(values).not.toContain(FAVORITE_TAB_LABEL as never);
+    expect(PERSISTED_VEHICLE_STATUSES).not.toContain("FAVORITE" as never);
+  });
+
+  it("the default landing tab is still 'Tại cửa hàng', never 'Yêu thích'", () => {
+    // Opening Kho without params keeps DEFAULT_INVENTORY_STATUS (AVAILABLE)
+    // and fav off — the favorites tab only lights on an explicit click.
+    expect(DEFAULT_INVENTORY_STATUS).toBe("AVAILABLE");
+    expect(statusOptions[0].label).toBe("Tại cửa hàng");
+  });
+
+  it("no longer exists as a quick-filter pill", () => {
+    const labels = quickPresets.map((p) => p.label);
+    expect(labels).not.toContain("Yêu thích");
+    const ids = quickPresets.map((p) => p.id);
+    expect(ids).not.toContain("fav");
   });
 });
 

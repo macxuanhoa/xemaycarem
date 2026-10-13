@@ -83,7 +83,7 @@ export async function runVehicleFavoriteTests(externalDb, { engine = 'pglite' } 
     assert.ok(forOwner.items.every((item) => item.is_favorite === (item.id === third)))
     pass('list_vehicles stamps is_favorite from the caller JWT on every row')
 
-    // 4. Favorite filter (the "Yêu thích" pill).
+    // 4. Favorite filter (the "Yêu thích" tab).
     const mine = await vehicles('staff', { favorite: 'true' })
     assert.equal(mine.total, 2)
     assert.deepEqual(mine.items.map((item) => item.id).sort(), [first, second].sort())

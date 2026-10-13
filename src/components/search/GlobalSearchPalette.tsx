@@ -283,7 +283,7 @@ export function GlobalSearchPalette() {
           ))}
           {results && !hasResults && !search.error && (
             <div className="palette-empty">
-              <p>Không tìm thấy xe “{query}”. Thử số khung hoặc mã xe.</p>
+              <p>Không tìm thấy xe “{term}”. Thử số khung hoặc mã xe.</p>
               {canOperate(profile) && (
                 <button
                   type="button"

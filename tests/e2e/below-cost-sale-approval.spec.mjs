@@ -209,7 +209,7 @@ async function installMock(
 /** Điền form bán: tên khách + giá bán. "đã thu" tự theo giá nên không cần mở toggle. */
 async function fillSale(page, price) {
   await page
-    .getByLabel("Tên khách hàng *", { exact: true })
+    .getByLabel("Tên khách hàng", { exact: true })
     .fill("KháchUnderCost");
   await page.getByLabel("Bán với giá", { exact: true }).fill(price);
 }
@@ -268,7 +268,7 @@ test("STAFF bán dưới giá thu: cảnh báo chênh lệch + gửi yêu cầu,
 
   await fillSale(page, "18tr");
   await expect(
-    page.getByText(/Giá bán thấp hơn giá thu vào\. Chênh lệch/),
+    page.getByText(/Bán dưới giá thu/),
   ).toBeVisible();
   await expect(page.getByText(/7\.000\.000/).first()).toBeVisible();
   await expect(submitButton(page)).toHaveText(/Gửi yêu cầu duyệt/);
@@ -301,7 +301,7 @@ test("STAFF bán bằng giá thu: bán bình thường, không gửi yêu cầu 
   await page.goto(`/vehicles/${vehicleId}/sell`);
   await fillSale(page, "25tr");
   await expect(
-    page.getByText(/Giá bán thấp hơn giá thu vào/),
+    page.getByText(/Bán dưới giá thu/),
   ).toHaveCount(0);
   await expect(submitButton(page)).toHaveText(/Xác nhận bán xe/);
   await submitButton(page).click();
@@ -336,8 +336,9 @@ test("OWNER bán dưới giá thu: tự quyết, ghi giao dịch ngay", async ({
   await page.goto(`/vehicles/${vehicleId}/sell`);
   await fillSale(page, "18tr");
   await expect(
-    page.getByText(/Bạn là chủ cửa hàng: xác nhận là giao dịch hoàn tất ngay/),
+    page.getByText(/Bán dưới giá thu/),
   ).toBeVisible();
+  await expect(page.getByText(/7\.000\.000/).first()).toBeVisible();
   await expect(submitButton(page)).toHaveText(/Xác nhận bán xe/);
   await submitButton(page).click();
   await page

@@ -355,12 +355,6 @@ function AcquisitionEditor() {
           navigate(`/vehicles/${vehicleId}`);
         }}
       />
-      {location.state?.aiDraft && (
-        <p className="notice">
-          Bản nháp từ ảnh/giọng nói: kiểm tra lại số khung và giá thu trước khi
-          xác nhận.
-        </p>
-      )}
       {draft.draft && (
         <div className="notice draft-notice" role="alert">
           <div className="row" style={{ gap: "8px", alignItems: "center" }}>

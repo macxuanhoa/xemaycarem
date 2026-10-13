@@ -99,3 +99,32 @@ export function withTodayGroup(
   if (groups.some((group) => TODAY_LABELS.has(group.label))) return groups;
   return [{ label: "Hôm nay", items: [] }, ...groups];
 }
+
+/**
+ * Biển số xe máy Việt Nam ở các dạng hiển thị mà hệ thống sinh ra:
+ * `92D1-746.75` (dấu mới), `29A1-1234` (serial 4 số), `43A1-99999` (kiểu cũ
+ * `BS …`). Yêu cầu 2 số tỉnh + 1–2 chữ + 1 số series rồi tới dãy serial, nên
+ * tiền tệ (`25.000.000`) hay mã nội bộ (`XE-0042`) không khớp được.
+ */
+const PLATE_RE = /\b\d{2}[A-Z]{1,2}\d[-.\s]?\d{3}(?:[-.\s]?\d{1,3})?\b/;
+
+/**
+ * Tách biển số khỏi tiêu đề thông báo để UI nổi bật danh tính chiếc xe — chủ
+ * quán nhìn là biết ngay xe nào thay vì phải đọc cả câu. Server đã ưu tiên
+ * "biển số · số khung"; ở đây chỉ việc bóc phần biển số ra gắn chip. Trả về
+ * plate = null khi tiêu đề không chứa biển số nhận dạng được (ví dụ xe chưa có
+ * biển/khung, chỉ còn mã nội bộ) — khi đó UI hiển thị nguyên văn.
+ */
+export function splitVehicleIdentity(title: string): {
+  before: string;
+  plate: string | null;
+  after: string;
+} {
+  const m = title.match(PLATE_RE);
+  if (!m || m.index === undefined) return { before: title, plate: null, after: "" };
+  return {
+    before: title.slice(0, m.index),
+    plate: m[0],
+    after: title.slice(m.index + m[0].length),
+  };
+}

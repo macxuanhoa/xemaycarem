@@ -4,7 +4,6 @@ import { useDialog } from "@/lib/useDialog";
 import { Link, useSearchParams } from "react-router-dom";
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
-  ArrowRight,
   Bike,
   History,
   Phone,
@@ -435,7 +434,8 @@ export function CustomersPage() {
         </Card>
       )}
 
-      {/* Customer Purchase History Modal */}
+      {/* Customer Purchase History Modal — bản gọn: đầu modal cố định, tóm tắt
+          một dòng thay 3 thẻ KPI, mỗi xe 2 dòng, lịch sử trả tiền gập lại. */}
       {selectedPhone && (
         <div
           className="modal-backdrop"
@@ -443,41 +443,27 @@ export function CustomersPage() {
           role="presentation"
         >
           <div
-            className="modal-card"
+            className="modal-card customer-history-modal"
             ref={dialogRef}
             role="dialog"
             aria-modal="true"
             aria-labelledby="customer-history-title"
             tabIndex={-1}
-            style={{
-              maxWidth: "780px",
-              width: "100%",
-              maxHeight: "90vh",
-              overflowY: "auto",
-            }}
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="row between" style={{ marginBottom: "16px", alignItems: "flex-start" }}>
-              <div className="row" style={{ gap: "10px", alignItems: "flex-start" }}>
-                <History size={22} className="muted" style={{ marginTop: "5px" }} />
-                <div>
-                  <span className="muted small">Lịch sử mua hàng</span>
-                  <h2
-                    id="customer-history-title"
-                    style={{ margin: 0, fontSize: "22px", lineHeight: 1.2 }}
-                  >
-                    {detail?.customer_name || selectedPhone}
-                  </h2>
-                  <div className="row" style={{ gap: "6px", marginTop: "3px" }}>
-                    <Phone size={16} className="muted" />
-                    <a
-                      href={`tel:${selectedPhone}`}
-                      style={{ fontSize: "17px", fontWeight: 600 }}
-                    >
-                      {selectedPhone}
-                    </a>
-                  </div>
-                </div>
+            <div className="customer-history-head">
+              <div>
+                <span className="muted small">Lịch sử mua hàng</span>
+                <h2 id="customer-history-title">
+                  {detail?.customer_name || selectedPhone}
+                </h2>
+                <a
+                  className="customer-history-phone"
+                  href={`tel:${selectedPhone}`}
+                >
+                  <Phone size={15} aria-hidden="true" />
+                  {selectedPhone}
+                </a>
               </div>
               <button
                 className="icon-button small"
@@ -488,156 +474,149 @@ export function CustomersPage() {
               </button>
             </div>
 
-            {detailQuery.isPending ? (
-              <Loading />
-            ) : detailQuery.isError ? (
-              <ErrorState error={detailQuery.error} />
-            ) : detail ? (
-              <div className="stack">
-                {detail.identity_warning && (
-                  <p className="notice">
-                    Số điện thoại này có nhiều tên khách:{" "}
-                    {detail.customer_names?.join(", ")}. Kiểm tra từng giao dịch
-                    trước khi thu tiền; đây là nhóm tra cứu theo số điện thoại.
-                  </p>
-                )}
-                <div className="kpi-grid">
-                  <Card className="metric-card">
-                    <span className="metric-title">Tổng xe đã mua</span>
-                    <strong className="metric-value">
-                      {detail.purchases_count} xe
-                    </strong>
-                    <span className="metric-sub">
-                      Lần đầu: {dateLabel(detail.first_purchase_date)}
-                    </span>
-                  </Card>
-                  {showMoney && (
-                    <Card className="metric-card">
-                      <span className="metric-title">Tổng chi tiêu</span>
-                      <strong className="metric-value price">
-                        {money(detail.total_spent)}
-                      </strong>
-                      <span className="metric-sub">
-                        Đã thanh toán: {money(detail.total_paid)}
-                      </span>
-                    </Card>
+            <div className="customer-history-scroll">
+              {detailQuery.isPending ? (
+                <Loading />
+              ) : detailQuery.isError ? (
+                <ErrorState error={detailQuery.error} />
+              ) : detail ? (
+                <div className="customer-history-body">
+                  {detail.identity_warning && (
+                    <p className="notice">
+                      Số điện thoại này có nhiều tên khách:{" "}
+                      {detail.customer_names?.join(", ")}. Kiểm tra từng giao dịch
+                      trước khi thu tiền.
+                    </p>
                   )}
-                  {showMoney && (
-                    <Card className="metric-card">
-                      <span className="metric-title">Công nợ hiện tại</span>
-                      <strong
-                        className="metric-value"
-                        style={{
-                          color:
-                            detail.total_debt > 0
-                              ? "var(--color-danger, #dc2626)"
-                              : "#16a34a",
-                        }}
-                      >
-                        {money(detail.total_debt)}
-                      </strong>
-                      <span className="metric-sub">
-                        {detail.total_debt > 0
-                          ? "Còn khoản chưa trả hết"
-                          : "Đã thanh toán đầy đủ"}
-                      </span>
-                    </Card>
-                  )}
-                </div>
 
-                <h3>Danh sách các xe đã mua</h3>
-                <div className="compact-list">
-                  {detail.sales?.map((s) => (
-                    <div key={s.id} className="card" style={{ padding: "10px 12px" }}>
-                      <div className="row between" style={{ gap: "8px" }}>
-                        <Link to={`/sales/${s.id}`} className="text-link">
-                          <strong>{vehicleTitle(s)}</strong>
-                          {s.internal_code ? ` (${s.internal_code})` : ""}
-                        </Link>
-                        {s.status !== "COMPLETED" && <Badge status={s.status} />}
-                      </div>
-                      <div className="row between small muted" style={{ marginTop: "2px", gap: "8px" }}>
-                        <span className="row" style={{ gap: "6px" }}>
-                          <Bike size={14} />
-                          {vehicleSubtitle(s) ? `${vehicleSubtitle(s)} · ` : ""}
-                          Mã giao dịch: {s.sale_code} · {dateLabel(s.sale_date)}
-                        </span>
-                        {showMoney && (
-                          <strong className="price">{money(s.sale_price)}</strong>
-                        )}
-                      </div>
-                      {showMoney && (
-                        <div className="row between small" style={{ marginTop: "4px" }}>
-                          <span className="muted">Đã thu: {money(s.paid_amount)}</span>
-                          {s.remaining_amount > 0 ? (
-                            <span style={{ color: "var(--color-danger, #dc2626)", fontWeight: 600 }}>
-                              Còn nợ: {money(s.remaining_amount)}
-                            </span>
-                          ) : (
-                            <span style={{ color: "#16a34a" }}>Đã thanh toán đủ</span>
-                          )}
-                        </div>
-                      )}
-                      {showMoney && s.payments && s.payments.length > 0 && (
-                        <div
-                          style={{
-                            marginTop: "6px",
-                            borderTop: "1px dashed var(--line, #e4e9e2)",
-                            paddingTop: "6px",
-                            display: "flex",
-                            flexDirection: "column",
-                            gap: "2px",
-                          }}
+                  {/* Tóm tắt một dòng thay cho 3 thẻ KPI chiếm nhiều chiều cao */}
+                  <div className="customer-summary-strip">
+                    <span>
+                      <strong>{detail.purchases_count}</strong> xe đã mua
+                    </span>
+                    {showMoney && (
+                      <span>
+                        Tổng chi{" "}
+                        <strong className="price">
+                          {money(detail.total_spent)}
+                        </strong>
+                      </span>
+                    )}
+                    {showMoney && (
+                      <span>
+                        Còn nợ{" "}
+                        <strong
+                          className={
+                            detail.total_debt > 0
+                              ? "customer-debt-value"
+                              : "customer-paid-value"
+                          }
                         >
-                          <small className="muted">
-                            Lịch sử trả tiền ({s.payments.length} lần):
-                          </small>
-                          {s.payments.map((p) => (
-                            <div key={p.id} className="row between small muted">
-                              <span>
-                                {dateLabel(p.payment_date)} ·{" "}
-                                {p.payment_method === "CASH"
-                                  ? "Tiền mặt"
-                                  : p.payment_method === "BANK_TRANSFER"
-                                    ? "Chuyển khoản"
-                                    : "Khác"}
-                                {p.reference ? ` (${p.reference})` : ""}
+                          {money(detail.total_debt)}
+                        </strong>
+                      </span>
+                    )}
+                    <span className="muted">
+                      Gần nhất: {dateLabel(detail.latest_purchase_date)}
+                    </span>
+                  </div>
+
+                  <h3 className="customer-history-subtitle">Các xe đã mua</h3>
+                  <div className="customer-purchase-list">
+                    {detail.sales?.map((s) => (
+                      <div key={s.id} className="customer-purchase-row">
+                        <div className="customer-purchase-top">
+                          <Link
+                            to={`/sales/${s.id}`}
+                            className="text-link customer-purchase-name"
+                          >
+                            <strong>{vehicleTitle(s)}</strong>
+                            {s.internal_code ? ` (${s.internal_code})` : ""}
+                          </Link>
+                          <span className="customer-purchase-status">
+                            {s.status !== "COMPLETED" && (
+                              <Badge status={s.status} />
+                            )}
+                            {showMoney && (
+                              <strong className="price">
+                                {money(s.sale_price)}
+                              </strong>
+                            )}
+                          </span>
+                        </div>
+                        <div className="customer-purchase-meta">
+                          <span className="muted small">
+                            {vehicleSubtitle(s) ? `${vehicleSubtitle(s)} · ` : ""}
+                            {s.sale_code} · {dateLabel(s.sale_date)}
+                            {showMoney ? ` · Đã thu: ${money(s.paid_amount)}` : ""}
+                          </span>
+                          {showMoney &&
+                            (s.remaining_amount > 0 ? (
+                              <span className="customer-debt-tag">
+                                Còn nợ {money(s.remaining_amount)}
                               </span>
-                              <strong>{money(p.amount)}</strong>
-                            </div>
-                          ))}
+                            ) : (
+                              <span className="customer-paid-tag">Đã trả đủ</span>
+                            ))}
                         </div>
-                      )}
-                      <div className="row" style={{ marginTop: "6px", justifyContent: "flex-end" }}>
-                        <Link to={`/sales/${s.id}`} className="button secondary small">
-                          Xem giao dịch <ArrowRight size={14} />
-                        </Link>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-                <h3>Lịch sử liên hệ</h3>
-                {communicationQuery.isPending ? <Loading /> : communicationQuery.isError ? (
-                  <ErrorState
-                    error={communicationQuery.error}
-                    retry={() => void communicationQuery.refetch()}
-                  />
-                ) : communicationQuery.data?.length ? (
-                  <div className="compact-list">
-                    {communicationQuery.data.map((item) => (
-                      <div key={item.id} className="card" style={{ padding: "12px" }}>
-                        <div className="row between">
-                          <strong>{dateLabel(item.created_at)}</strong>
-                          <Badge status={item.status} />
-                        </div>
-                        <small className="muted">{item.channel === "ZALO_ZNS" ? "Zalo" : item.channel} · {item.message_type === "THANK_YOU" ? "Cảm ơn sau mua xe" : item.message_type}</small>
-                        <p className="small">{item.message_preview}</p>
+                        {showMoney && s.payments && s.payments.length > 0 && (
+                          <details className="customer-payments">
+                            <summary>
+                              Lịch sử trả tiền ({s.payments.length} lần)
+                            </summary>
+                            {s.payments.map((p) => (
+                              <div key={p.id} className="customer-payment-line">
+                                <span className="muted">
+                                  {dateLabel(p.payment_date)} ·{" "}
+                                  {p.payment_method === "CASH"
+                                    ? "Tiền mặt"
+                                    : p.payment_method === "BANK_TRANSFER"
+                                      ? "Chuyển khoản"
+                                      : "Khác"}
+                                  {p.reference ? ` (${p.reference})` : ""}
+                                </span>
+                                <strong>{money(p.amount)}</strong>
+                              </div>
+                            ))}
+                          </details>
+                        )}
                       </div>
                     ))}
                   </div>
-                ) : <p className="muted">Chưa có lịch sử liên hệ.</p>}
-              </div>
-            ) : null}
+                  <h3 className="customer-history-subtitle">Lịch sử liên hệ</h3>
+                  {communicationQuery.isPending ? (
+                    <Loading />
+                  ) : communicationQuery.isError ? (
+                    <ErrorState
+                      error={communicationQuery.error}
+                      retry={() => void communicationQuery.refetch()}
+                    />
+                  ) : communicationQuery.data?.length ? (
+                    <div className="customer-comm-list">
+                      {communicationQuery.data.map((item) => (
+                        <div key={item.id} className="customer-comm-row">
+                          <span className="customer-comm-date">
+                            {dateLabel(item.created_at)}
+                          </span>
+                          <span className="customer-comm-body">
+                            <strong>
+                              {item.channel === "ZALO_ZNS" ? "Zalo" : item.channel} ·{" "}
+                              {item.message_type === "THANK_YOU"
+                                ? "Cảm ơn sau mua xe"
+                                : item.message_type}
+                            </strong>
+                            <small className="muted">{item.message_preview}</small>
+                          </span>
+                          <Badge status={item.status} />
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="muted">Chưa có lịch sử liên hệ.</p>
+                  )}
+                </div>
+              ) : null}
+            </div>
           </div>
         </div>
       )}

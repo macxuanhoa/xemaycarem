@@ -5,6 +5,7 @@ import {
   groupLabel,
   groupNotifications,
   relativeTime,
+  splitVehicleIdentity,
   withTodayGroup,
 } from "@/lib/notifications";
 import type { NotificationItem } from "@/types";
@@ -113,5 +114,23 @@ describe("withTodayGroup", () => {
     const groups = groupNotifications([make({ created_at: iso(1) })], NOW);
     expect(groups.map((g) => g.label)).toEqual(["Vừa xong"]);
     expect(withTodayGroup(groups).map((g) => g.label)).toEqual(["Vừa xong"]);
+  });
+});
+
+describe("splitVehicleIdentity", () => {
+  it("pulls the plate out of a plate · frame title", () => {
+    expect(splitVehicleIdentity("Thu vào xe 92D1-746.75 · 4K123456")).toEqual({
+      before: "Thu vào xe ",
+      plate: "92D1-746.75",
+      after: " · 4K123456",
+    });
+  });
+  it("recognises legacy 4-digit and ungrouped serials", () => {
+    expect(splitVehicleIdentity("Bán xe 29A1-1234 · ABC").plate).toBe("29A1-1234");
+    expect(splitVehicleIdentity("BS 43A1-99999").plate).toBe("43A1-99999");
+  });
+  it("leaves internal codes and money untouched (no false highlight)", () => {
+    expect(splitVehicleIdentity("Thu vào xe XE-0042").plate).toBeNull();
+    expect(splitVehicleIdentity("Thu tiền đơn bán hàng 25.000.000 đ").plate).toBeNull();
   });
 });

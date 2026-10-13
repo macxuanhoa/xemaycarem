@@ -30,8 +30,8 @@ export type IntakeFieldKey =
   | "purchase_price"
   | "supplier_name"
   | "supplier_phone"
-  // "notes" chỉ còn là key tương thích payload (camera/server); tốc ký không
-  // còn tạo hay hiển thị Ghi chú.
+  // "notes" do tốc ký tạo ra từ dấu "#" cuối dòng (xem parseLine); camera
+  // và copilot không bao giờ tự nhét ghi chú.
   | "notes";
 
 export const INTAKE_FIELDS: { key: IntakeFieldKey; label: string }[] = [
@@ -243,6 +243,8 @@ function parseLine(
   const cleaned = line
     .replace(/^\s*(?:[-*•°·]|(?:\d{1,2}[.)]))\s*/, "")
     .trim();
+  // Dòng BẮT ĐẦU bằng #/= vẫn là tiêu đề ghi chú điện thoại → bỏ qua cả dòng;
+  // dấu # GIỮA dòng là quy tắc "ghi chú" (xem bên dưới).
   if (!cleaned || /^[#=]/.test(cleaned)) return null;
 
   const entry: IntakeEntry = {
@@ -271,6 +273,18 @@ function parseLine(
     } else {
       tokens.push(current);
     }
+  }
+  // "#" mở phần ghi chú chạy đến hết dòng: đuôi này bị cắt TRƯỚC khi quét
+  // loại xe nên chữ trong ghi chú (vd "# xe ga") không bao giờ rò sang trường
+  // khác — chỉ vào ô Ghi chú khi lưu.
+  let noteTail: string[] | null = null;
+  const hashAt = tokens.findIndex((token) => token.startsWith("#"));
+  if (hashAt >= 0) {
+    noteTail = tokens
+      .slice(hashAt)
+      .map((token, index) => (index === 0 ? token.replace(/^#+/, "") : token))
+      .filter(Boolean);
+    tokens.length = hashAt;
   }
   // Loại xe được quét trước, ngay trên cả dòng, rồi ăn bớt đúng các token đã
   // khớp. Số máy/số km/phiên bản không còn nên không có gì để tách sau đó.
@@ -410,6 +424,13 @@ function parseLine(
         continue;
       }
     }
+    if (/^\d{5}$/.test(key)) {
+      // Năm chữ số rời (vd 23412) là mảnh số khung rút gọn — không phải năm
+      // (4 số) cũng không phải tiền (≥6 số). Trùng khung thứ hai tự rơi vào
+      // chip lạ qua assign(), giống mọi mã khung đôi.
+      assign(entry, "frame_number", token.toUpperCase(), token);
+      continue;
+    }
     if (/^\d{1,2}$/.test(key) && pending === null) {
       // "22" hoặc "'22" — năm sản xuất viết tắt.
       const value = normalizeVehicleYear(key);
@@ -454,6 +475,10 @@ function parseLine(
   }
 
   if (pending?.field === "supplier_name") flushName();
+  if (noteTail?.length) {
+    const note = noteTail.join(" ").trim().slice(0, 500);
+    if (note) assign(entry, "notes", note, "#");
+  }
 
   return entry;
 }

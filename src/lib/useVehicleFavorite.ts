@@ -44,12 +44,18 @@ export function useToggleVehicleFavorite() {
         { p_vehicle_id: vehicleId },
       ),
     onMutate: (vehicleId: string) => {
-      // flipping against the list cache is enough: same screen, same query data
-      const current = client
+      // Xác định chiều bật/tắt từ dữ liệu thật đang hiển thị: ưu tiên hồ sơ xe
+      // đang mở (tab chi tiết có thể được đến thẳng từ dashboard, danh sách
+      // Kho không nằm trong cache), rồi mới quay về bản ghi trong danh sách.
+      // Đọc non tay từ danh sách suông từng khiến cú "bỏ yêu thích" vẽ ngược
+      // thành ngôi sao sáng khi xe không có mặt ở trang Kho nào đã cache.
+      const detail = client.getQueryData<Vehicle>(["vehicle", vehicleId]);
+      const inList = client
         .getQueriesData<Paged<Vehicle>>({ queryKey: ["vehicles"] })
         .flatMap(([, data]) => data?.items ?? [])
         .find((item) => item.id === vehicleId);
-      paintFavorite(client, vehicleId, !(current?.is_favorite ?? false));
+      const current = detail?.is_favorite ?? inList?.is_favorite ?? false;
+      paintFavorite(client, vehicleId, !current);
     },
     onSuccess: (result) => {
       // server trả trạng thái chuẩn — vẽ lại để cache khớp tuyệt đối với DB
@@ -67,11 +73,15 @@ export function useToggleVehicleFavorite() {
     },
     onSettled: () => {
       void client.invalidateQueries({ queryKey: FAVORITE_COUNT_QUERY_KEY });
+      // Tab "Yêu thích" lọc phía server theo trang: bỏ sao thì xe phải rơi
+      // khỏi danh sách, thêm sao thì xe phải xuất hiện — vẽ lạc quan một cờ
+      // không đủ, cần một lượt đối chiếu lại tập dòng và tổng số.
+      void client.invalidateQueries({ queryKey: ["vehicles"] });
     },
   });
 }
 
-/** Đếm xe yêu thích của chính mình — nuôi nhãn trên pill "Yêu thích" của Kho. */
+/** Đếm xe yêu thích của chính mình — nuôi nhãn trên tab "Yêu thích" của Kho. */
 export function useFavoriteVehicleCount(enabled = true) {
   return useQuery({
     queryKey: FAVORITE_COUNT_QUERY_KEY,

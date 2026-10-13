@@ -95,10 +95,28 @@ describe("VietQR EMVCo & Banks", () => {
   it("rejects long transfer contents instead of silently removing reconciliation information", () => {
     const input = {
       bankBin: "970422", accountNo: "0987654321", amount: 35000000,
-      description: "XE HOP DONG TEN NGUOI THANH TOAN ".repeat(3) + "CAREM GD100000",
+      description: "XE HOP DONG TEN NGUOI THANH TOAN ".repeat(5) + "CAREM GD100000",
     };
     expect(() => buildVietQrEmvCoPayload(input)).toThrow("không cắt mã đối soát");
     expect(() => buildVietQrQuickLink(input)).toThrow("không cắt mã đối soát");
+  });
+
+  it("keeps Vietnamese diacritics in the bank pre-fill exactly as displayed", () => {
+    const description =
+      "Nguyễn Văn An thanh toán tiền xe Honda Vision - XE-0101 với giá: 35.000.000; Mã giao dịch là: CAREM GD01001";
+    const payload = buildVietQrEmvCoPayload({
+      bankBin: "970422", accountNo: "0987654321", amount: 35000000, description,
+    });
+    // Payload nhét nguyên văn chuỗi có dấu (không bỏ dấu, không cắt) kèm tag 64 "vi".
+    expect(payload).toContain(description);
+    expect(payload).toContain("6402vi");
+
+    const link = buildVietQrQuickLink({
+      bankBin: "970422", accountNo: "0987654321", amount: 35000000, description,
+      accountName: "TRAN VAN REM",
+    });
+    // addInfo giải mã ra đúng từng ký tự nội dung hiển thị trên màn hình.
+    expect(new URL(link).searchParams.get("addInfo")).toBe(description);
   });
 
   it("searches banks catalog by code, BIN or name", () => {

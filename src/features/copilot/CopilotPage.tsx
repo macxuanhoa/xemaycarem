@@ -108,17 +108,19 @@ export default function CopilotPage() {
   const pendingRequest = useRef(false);
   const currentTurnId = useRef<string>("");
   const textareaRef = useRef<HTMLTextAreaElement>(null);
-  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const viewportRef = useRef<HTMLDivElement>(null);
 
   const owner = isOwner(profile);
 
+  // ChatGPT-style: the message frame is the only scroller. Auto-scroll runs
+  // when a turn is sent or an answer lands, never hijacking the document.
   const scrollToBottom = useCallback((smooth = true) => {
-    if (messagesEndRef.current) {
-      messagesEndRef.current.scrollIntoView({
-        behavior: smooth ? "smooth" : "auto",
-        block: "end",
-      });
-    }
+    const frame = viewportRef.current;
+    if (!frame) return;
+    frame.scrollTo({
+      top: frame.scrollHeight,
+      behavior: smooth ? "smooth" : "auto",
+    });
   }, []);
 
   const adjustTextareaHeight = useCallback(() => {
@@ -289,7 +291,7 @@ export default function CopilotPage() {
       </header>
 
       {/* 2. Chat Viewport: Dòng thời gian trò chuyện */}
-      <div className="copilot-messages-viewport">
+      <div className="copilot-messages-viewport" ref={viewportRef}>
         <div className="copilot-messages-inner">
           {/* Màn hình khởi đầu khi chưa gửi tin nhắn (ChatGPT Welcome Screen) */}
           {turns.length === 0 && !ask.isPending && (
@@ -566,8 +568,6 @@ export default function CopilotPage() {
               </div>
             </div>
           )}
-
-          <div ref={messagesEndRef} className="copilot-scroll-anchor" />
         </div>
       </div>
 

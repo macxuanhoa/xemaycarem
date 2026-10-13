@@ -3,7 +3,7 @@ import { Link, useParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { ArrowLeft, ArrowRight, Ban, CreditCard, MoreHorizontal, Printer, QrCode } from "lucide-react";
+import { ArrowLeft, ArrowRight, Ban, Check, Circle, CreditCard, MoreHorizontal, Printer, QrCode, X } from "lucide-react";
 import { VietQrPaymentModal } from "./VietQrPaymentModal";
 import { api } from "@/lib/api";
 import { confirmPayment, pendingPayment, retainPayment } from "@/lib/paymentRecovery";
@@ -170,60 +170,87 @@ export function SaleDetailPage() {
             className="modal-card sale-cancel-modal"
             role="dialog"
             aria-modal="true"
-            aria-label="Hủy giao dịch bán xe"
+            aria-labelledby="sale-cancel-title"
             onClick={(event) => event.stopPropagation()}
           >
-            <div className="modal-header">
-              <h3>Hủy giao dịch bán xe</h3>
-              <Button variant="ghost" onClick={() => setShowCancel(false)}>
-                Đóng
-              </Button>
-            </div>
-            <div className="modal-body">
-              <p className="notice">
-                Sau khi hủy, xe trở lại tồn kho, lịch sử vẫn được giữ. Đối
-                chiếu và hoàn trả tiền đã nhận ngoài hệ thống nếu có. Thao tác
-                này được ghi vào nhật ký.
-              </p>
-              <form
-                className="stack"
-                onSubmit={(event) => {
-                  event.preventDefault();
-                  if (reason.trim().length >= 5) cancel.mutate();
-                }}
+            {/* Đầu đề chuẩn: biểu tượng hủy trong ô tint đỏ + nhãn, nút X góc
+                phải — thay cho nút "Đóng" chữ trôi nổi cùng khoảng trống thừa. */}
+            <div className="modal-header sale-cancel-header">
+              <div className="sale-cancel-heading">
+                <span className="sale-cancel-icon" aria-hidden="true">
+                  <Ban size={17} />
+                </span>
+                <h3 id="sale-cancel-title">Hủy giao dịch bán xe</h3>
+              </div>
+              <button
+                type="button"
+                className="icon-button"
+                aria-label="Đóng hộp thoại"
+                onClick={() => setShowCancel(false)}
               >
-                <Field label="Lý do hủy *">
-                  <textarea
-                    autoFocus
-                    required
-                    minLength={5}
-                    maxLength={1000}
-                    value={reason}
-                    onChange={(event) => setReason(event.target.value)}
-                    placeholder="Nhập lý do cụ thể (ít nhất 5 ký tự)"
-                  />
-                </Field>
-                {cancel.isError && <ErrorState error={cancel.error} />}
-                <div className="modal-footer">
-                  <Button
-                    type="button"
-                    variant="secondary"
-                    onClick={() => setShowCancel(false)}
-                  >
-                    Giữ giao dịch
-                  </Button>
-                  <Button
-                    variant="danger"
-                    type="submit"
-                    disabled={cancel.isPending || reason.trim().length < 5}
-                  >
-                    {cancel.isPending
-                      ? "Đang hủy…"
-                      : "Xác nhận hủy giao dịch"}
-                  </Button>
-                </div>
-              </form>
+                <X size={18} />
+              </button>
             </div>
+            <form
+              className="sale-cancel-form"
+              onSubmit={(event) => {
+                event.preventDefault();
+                if (reason.trim().length >= 5) cancel.mutate();
+              }}
+            >
+              <p className="notice">
+                Xe trở lại tồn kho, lịch sử giao dịch vẫn được giữ. Khoản đã thu
+                cần đối chiếu và hoàn trả ngoài hệ thống nếu có. Thao tác này
+                được ghi vào nhật ký kiểm toán.
+              </p>
+              <Field
+                label="Lý do hủy *"
+                error={
+                  reason.length > 0 && reason.trim().length < 5
+                    ? "Ít nhất 5 ký tự."
+                    : undefined
+                }
+              >
+                <textarea
+                  autoFocus
+                  required
+                  minLength={5}
+                  maxLength={1000}
+                  rows={3}
+                  value={reason}
+                  onChange={(event) => setReason(event.target.value)}
+                  placeholder="Nhập lý do cụ thể (ít nhất 5 ký tự)"
+                />
+              </Field>
+              {/* Đếm ký hiệu im lặng: biết đã đủ dài hay chưa mà không cần lỗi. */}
+              <p className="sale-reason-counter muted small">
+                {reason.trim().length >= 5 ? (
+                  <Check size={13} aria-hidden="true" />
+                ) : (
+                  <Circle size={13} aria-hidden="true" />
+                )}{" "}
+                {reason.trim().length}/1000 · tối thiểu 5 ký tự
+              </p>
+              {cancel.isError && <ErrorState error={cancel.error} />}
+              <div className="modal-footer sale-cancel-footer">
+                <Button
+                  type="button"
+                  variant="secondary"
+                  onClick={() => setShowCancel(false)}
+                >
+                  Giữ giao dịch
+                </Button>
+                <Button
+                  variant="danger"
+                  type="submit"
+                  disabled={cancel.isPending || reason.trim().length < 5}
+                >
+                  {cancel.isPending
+                    ? "Đang hủy…"
+                    : "Xác nhận hủy giao dịch"}
+                </Button>
+              </div>
+            </form>
           </div>
         </div>
       )}
@@ -239,79 +266,50 @@ export function SaleDetailPage() {
           Giao dịch đã hủy. Khoản thu được giữ trong lịch sử và không tính vào
           tổng thu hiện tại. Đối chiếu hoàn tiền thực tế với khách hàng ngoài hệ
           thống.
-          {sale.cancellation_reason && ` Lý do: ${sale.cancellation_reason}`}
+          {sale.cancellation_reason && (
+            <> <em>Lý do: {sale.cancellation_reason}</em></>
+          )}
         </p>
       )}
       <div className="detail-grid">
         {/* Cột trái: Thông tin giao dịch & Lịch sử thanh toán */}
         <div className="stack">
           <Card>
-            <h2 className="section-title">Thông tin giao dịch xe</h2>
-            <div className="sale-info-grid">
-              <div className="sale-info-section">
-                <h3 className="sale-section-subtitle">Chi tiết xe đã bán</h3>
-                <dl className="sale-spec-list">
-                  <div>
-                    <dt>Loại xe</dt>
-                    <dd>
-                      <Link
-                        className="text-link"
-                        to={`/vehicles/${sale.vehicle_id}`}
-                      >
-                        <strong>{sale.vehicle_type || vehicleSubtitle(sale) || "Xem xe"}</strong>{" "}
-                        <ArrowRight size={14} />
-                      </Link>
-                    </dd>
-                  </div>
-                  <div>
-                    <dt>Biển số</dt>
-                    <dd>
-                      <span className="identity-chip-plate">
-                        <strong>{sale.license_plate || sale.vehicle?.license_plate || "Chưa có"}</strong>
-                      </span>
-                    </dd>
-                  </div>
-                  <div>
-                    <dt>Số khung</dt>
-                    <dd>
-                      <code>{displayFrame(sale.vehicle?.frame_number) || "Chưa có"}</code>
-                    </dd>
-                  </div>
-                  <div>
-                    <dt>Mã xe kho</dt>
-                    <dd>{sale.vehicle_code || sale.vehicle?.internal_code || "—"}</dd>
-                  </div>
-                </dl>
+            <h2 className="section-title">Thông tin giao dịch</h2>
+            {/* Xe đã bán: một dải định danh gọn (biển số · loại · khung · mã kho)
+                thay cho bốn dòng thông số lặp lại y hệt trang chi tiết xe. */}
+            <Link className="sale-vehicle-strip" to={`/vehicles/${sale.vehicle_id}`}>
+              <span className="identity-chip-plate">
+                <strong>{sale.license_plate || sale.vehicle?.license_plate || "Chưa có"}</strong>
+              </span>
+              <span className="sale-vehicle-text">
+                <strong>{sale.vehicle_type || vehicleSubtitle(sale) || "Xem chi tiết xe"}</strong>
+                <small>
+                  Khung {displayFrame(sale.vehicle?.frame_number) || "chưa có"} · Mã kho{" "}
+                  {sale.vehicle_code || sale.vehicle?.internal_code || "—"}
+                </small>
+              </span>
+              <ArrowRight size={16} className="sale-vehicle-arrow" aria-hidden="true" />
+            </Link>
+            <dl className="sale-spec-list sale-party-list">
+              <div>
+                <dt>Khách hàng</dt>
+                <dd>
+                  <strong>{sale.customer_name}</strong>
+                  {sale.customer_phone && (
+                    <a href={`tel:${sale.customer_phone}`} className="text-link">
+                      {sale.customer_phone}
+                    </a>
+                  )}
+                </dd>
               </div>
-
-              <div className="sale-info-section">
-                <h3 className="sale-section-subtitle">Khách hàng & Bán hàng</h3>
-                <dl className="sale-spec-list">
-                  <div>
-                    <dt>Khách hàng</dt>
-                    <dd><strong>{sale.customer_name}</strong></dd>
-                  </div>
-                  <div>
-                    <dt>Số điện thoại</dt>
-                    <dd>
-                      {sale.customer_phone ? (
-                        <a href={`tel:${sale.customer_phone}`} className="text-link">
-                          {sale.customer_phone}
-                        </a>
-                      ) : "—"}
-                    </dd>
-                  </div>
-                  <div>
-                    <dt>Ngày bán</dt>
-                    <dd>{dateLabel(sale.sale_date)}</dd>
-                  </div>
-                  <div>
-                    <dt>Nhân viên bán</dt>
-                    <dd>{sale.employee_name || "Nhân viên cửa hàng"}</dd>
-                  </div>
-                </dl>
+              <div>
+                <dt>Bán ngày</dt>
+                <dd>
+                  {dateLabel(sale.sale_date)} · {sale.employee_name || "Nhân viên cửa hàng"}
+                </dd>
               </div>
-            </div>
+            </dl>
 
             {sale.notes && (
               <div className="sale-notes-box">
@@ -399,11 +397,13 @@ export function SaleDetailPage() {
           {!sale.sale_price_hidden && sale.status === "COMPLETED" && <PaymentReceiptReview saleId={sale.id} />}
         </div>
 
-        {/* Cột phải: Thanh toán & Giá vốn */}
+        {/* Cột phải: một thẻ tài chính duy nhất — thanh toán ở trên,
+            hiệu quả bán hàng (chỉ người có quyền tài chính thấy) ngăn cách
+            bằng một vạch mờ, thay vì hai thẻ giá rời rạc chồng nhau. */}
         <aside className="stack">
           <Card>
             <div className="row between" style={{ alignItems: "center", marginBottom: 10 }}>
-              <h2 className="section-title" style={{ margin: 0 }}>Thanh toán</h2>
+              <h2 className="section-title" style={{ margin: 0 }}>Tài chính giao dịch</h2>
               {!sale.sale_price_hidden && sale.status === "COMPLETED" && (
                 sale.remaining_amount === 0 ? (
                   <span className="badge success small">Đã thanh toán đủ</span>
@@ -432,36 +432,33 @@ export function SaleDetailPage() {
                 </dd>
               </div>
             </dl>
+            {canFinance(profile) && (
+              <div className="sale-profit-block">
+                <h3 className="sale-profit-head">Hiệu quả bán hàng</h3>
+                <dl className="summary-list">
+                  <div>
+                    <dt>Tổng giá vốn</dt>
+                    <dd>
+                      {money(sale.total_cost_snapshot)}
+                      <small className="sale-cost-detail">
+                        {" "}· mua {money(sale.purchase_cost_snapshot)} · chi phí{" "}
+                        {money(sale.expense_cost_snapshot)}
+                      </small>
+                    </dd>
+                  </div>
+                  <div className="summary-total">
+                    <dt>Lợi nhuận gộp</dt>
+                    <dd style={{ color: (sale.gross_profit ?? 0) >= 0 ? "var(--color-primary-dark, #2b6127)" : "var(--color-danger, #dc2626)" }}>
+                      {money(sale.gross_profit)}
+                    </dd>
+                  </div>
+                </dl>
+                <p className="sale-profit-note">
+                  Giá vốn chốt tại thời điểm bán, giữ nguyên cho báo cáo lịch sử.
+                </p>
+              </div>
+            )}
           </Card>
-
-          {canFinance(profile) && (
-            <Card>
-              <h2 className="section-title">Giá vốn đã chốt</h2>
-              <dl className="summary-list">
-                <div>
-                  <dt>Giá mua</dt>
-                  <dd>{money(sale.purchase_cost_snapshot)}</dd>
-                </div>
-                <div>
-                  <dt>Chi phí xe</dt>
-                  <dd>{money(sale.expense_cost_snapshot)}</dd>
-                </div>
-                <div>
-                  <dt>Tổng giá vốn</dt>
-                  <dd>{money(sale.total_cost_snapshot)}</dd>
-                </div>
-                <div className="summary-total">
-                  <dt>Lợi nhuận gộp</dt>
-                  <dd style={{ color: (sale.gross_profit ?? 0) >= 0 ? "var(--color-primary-dark, #2b6127)" : "var(--color-danger, #dc2626)" }}>
-                    {money(sale.gross_profit)}
-                  </dd>
-                </div>
-              </dl>
-              <p className="muted small" style={{ marginTop: 10, marginBottom: 0 }}>
-                Giá vốn được lưu tại thời điểm bán để bảo toàn báo cáo lịch sử.
-              </p>
-            </Card>
-          )}
         </aside>
       </div>
       {showVietQr && !sale.sale_price_hidden && (

@@ -1,22 +1,18 @@
 /* =====================================================================
-   CaremRideLoader — loading animation cinematic "Nam lái Honda SH".
-   Prototype (chưa thay Loading hiện hành). Ba biến thể theo kích thước:
-   fullscreen / section / compact — độ phức tạp hiệu ứng giảm dần.
+   CaremRideLoader — màn chờ tối giản: một chiếc xe máy chạy ngang qua,
+   phía sau có làn khói. Ba biến thể chỉ khác nhau về KÍCH THƯỚC
+   (fullscreen / section / compact), không còn lớp trang trí nào khác.
    Chỉ animate transform/opacity/filter (compositor), không JS loop.
    ===================================================================== */
 
 .crl {
-  --crl-gold: 255, 196, 112;
-  --crl-warm: 255, 150, 70;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 0;
   width: 100%;
   user-select: none;
 }
-
 .crl[data-variant="fullscreen"] {
   position: relative;
   height: 100%;
@@ -29,135 +25,52 @@
   width: 100%;
   overflow: hidden;
   border-radius: inherit;
-  isolation: isolate; /* blend mode của overlay chỉ nội bộ scene */
 }
-
 .crl[data-variant="fullscreen"] .crl-scene {
   height: 100%;
   min-height: 320px;
-  background:
-    radial-gradient(120% 90% at 78% 108%, rgba(var(--crl-warm), 0.16), transparent 55%),
-    radial-gradient(90% 70% at 18% -20%, rgba(64, 96, 180, 0.22), transparent 60%),
-    linear-gradient(165deg, #0a0f1e 0%, #0d1428 52%, #131a33 100%);
+}
+.crl[data-variant="section"] .crl-scene {
+  height: 180px;
+  border-radius: 16px;
+  background: #0d1428;
 }
 
-.crl-sky {
-  position: absolute;
-  inset: 0;
-  background:
-    radial-gradient(60% 42% at 82% 24%, rgba(var(--crl-gold), 0.1), transparent 70%),
-    radial-gradient(45% 30% at 12% 62%, rgba(120, 160, 255, 0.07), transparent 70%);
-  pointer-events: none;
-}
-
-/* Vệt sáng môi trường chảy dọc màn hình — tạo chiều sâu parallax */
-.crl-ambient {
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-}
-.crl-ambient i {
-  position: absolute;
-  display: block;
-  height: 2px;
-  width: 34%;
-  border-radius: 2px;
-  background: linear-gradient(90deg, transparent, rgba(var(--crl-gold), 0.5), transparent);
-  filter: blur(1px);
-  opacity: 0;
-  will-change: transform, opacity;
-  animation: crlAmbient var(--dur, 5s) linear var(--delay, 0s) infinite;
-}
-@keyframes crlAmbient {
-  0% {
-    transform: translateX(-40vw);
-    opacity: 0;
-  }
-  12% {
-    opacity: 0.55;
-  }
-  70% {
-    opacity: 0.35;
-  }
-  100% {
-    transform: translateX(115vw);
-    opacity: 0;
-  }
-}
-
-/* Mặt đường + dải phản xạ — bottom khớp điểm bánh trước chạm đường */
-.crl-road {
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: 20.5%;
-  height: 1px;
-  background: linear-gradient(
-    90deg,
-    transparent,
-    rgba(var(--crl-gold), 0.28) 18%,
-    rgba(var(--crl-gold), 0.4) 50%,
-    rgba(var(--crl-gold), 0.28) 82%,
-    transparent
-  );
-  pointer-events: none;
-}
-.crl-road::after {
-  content: "";
-  position: absolute;
-  left: 10%;
-  right: 10%;
-  top: 1px;
-  height: 26%;
-  background: linear-gradient(180deg, rgba(var(--crl-warm), 0.09), transparent);
-  filter: blur(6px);
-}
-
-/* ---------------- Rider (quỹ đạo trái → phải) ---------------- */
+/* ---------------- Rider: xe chạy trái → phải, lặp vô hạn ---------------- */
 
 .crl-rider {
   position: absolute;
   left: 0;
   right: 0;
   bottom: 16%;
-  height: 58%;
+  height: 56%;
   display: flex;
   justify-content: center;
   will-change: transform;
-  animation: crlDrive var(--drive, 5s) infinite;
+  animation: crlDrive var(--drive, 5s) linear infinite;
 }
-/* Gia tốc vào → giữ nhịp giữa → tăng tốc thoát, lặp mượt khi ngoài khung hình */
 @keyframes crlDrive {
   0% {
-    transform: translateX(-115%);
-    animation-timing-function: cubic-bezier(0.5, 0.05, 0.72, 0.4);
-  }
-  42% {
-    transform: translateX(-6%);
-    animation-timing-function: cubic-bezier(0.32, 0.55, 0.5, 0.9);
-  }
-  62% {
-    transform: translateX(8%);
-    animation-timing-function: cubic-bezier(0.45, 0.05, 0.7, 0.35);
+    transform: translateX(-120%);
   }
   100% {
-    transform: translateX(118%);
+    transform: translateX(120%);
   }
 }
 
-/* Nhịp xóc giảm xóc + hơi nghiêng ga — chạy độc lập với quỹ đạo */
+/* Nhịp xóc giảm xóc nhẹ — chạy độc lập với quỹ đạo */
 .crl-bob {
   position: relative;
   height: 100%;
   will-change: transform;
-  animation: crlBob 1.55s ease-in-out infinite alternate;
+  animation: crlBob 1.5s ease-in-out infinite alternate;
 }
 @keyframes crlBob {
   from {
-    transform: translateY(-0.7%) rotate(-0.45deg);
+    transform: translateY(-0.7%) rotate(-0.4deg);
   }
   to {
-    transform: translateY(0.55%) rotate(0.35deg);
+    transform: translateY(0.6%) rotate(0.35deg);
   }
 }
 
@@ -170,301 +83,131 @@
   width: auto;
   height: 100%;
   pointer-events: none;
-  filter: drop-shadow(0 18px 28px rgba(0, 0, 0, 0.55));
+  filter: drop-shadow(0 16px 24px rgba(0, 0, 0, 0.5));
 }
 
-/* Bóng dưới bánh — co giãn theo nhịp bob, nằm tại điểm bánh chạm đường */
+/* Bóng tiếp xúc mềm dưới bánh — neo chiếc xe xuống "mặt đường" */
 .crl-shadow {
   position: absolute;
-  left: 8%;
-  bottom: 8%;
-  width: 78%;
-  height: 7%;
+  left: 10%;
+  bottom: 6%;
+  width: 76%;
+  height: 6%;
   border-radius: 50%;
   background: radial-gradient(
     ellipse at center,
-    rgba(0, 0, 0, 0.6) 0%,
-    rgba(var(--crl-warm), 0.12) 55%,
-    transparent 72%
+    rgba(0, 0, 0, 0.5) 0%,
+    transparent 70%
   );
   filter: blur(3px);
   will-change: transform;
-  animation: crlShadow 1.55s ease-in-out infinite alternate;
+  animation: crlShadow 1.5s ease-in-out infinite alternate;
 }
 @keyframes crlShadow {
   from {
-    transform: scaleX(0.94) translateY(4%);
-    opacity: 0.85;
-  }
-  to {
-    transform: scaleX(1.03);
-    opacity: 1;
-  }
-}
-
-/* ---------------- Overlay chuyển động trên chủ thể ---------------- */
-
-/* Bánh trước: ảnh gốc đã blur tạo hình — lớp gloss quay thật trên đỉnh
-   làm bánh "sống" đúng cách, không giả tạo nan hoa mới. */
-.crl-spin {
-  position: absolute;
-  translate: -50% -50%;
-  aspect-ratio: 1;
-  border-radius: 50%;
-  mix-blend-mode: screen;
-  pointer-events: none;
-  background: conic-gradient(
-    from 0deg,
-    transparent 0% 52%,
-    rgba(255, 236, 200, 0.32) 64%,
-    rgba(255, 255, 255, 0.75) 72%,
-    rgba(255, 236, 200, 0.3) 80%,
-    transparent 90% 100%
-  );
-  -webkit-mask: radial-gradient(circle, transparent 0 26%, #000 44% 86%, transparent 97%);
-  mask: radial-gradient(circle, transparent 0 26%, #000 44% 86%, transparent 97%);
-  filter: blur(3px);
-  will-change: transform;
-  animation: crlSpin 0.3s linear infinite;
-}
-@keyframes crlSpin {
-  to {
-    transform: rotate(360deg);
-  }
-}
-.crl-spin-front {
-  left: 81%;
-  top: 75.5%;
-  width: 37%;
-  transform: scaleY(0.96);
-  opacity: 0.65;
-}
-.crl-spin-rear {
-  left: 19%;
-  top: 67%;
-  width: 27%;
-  transform: scaleY(0.94);
-  opacity: 0.4;
-  animation-duration: 0.34s;
-}
-
-/* Đèn pha: lõi sáng + nón sáng chiếu tới trước */
-.crl-headlight {
-  position: absolute;
-  left: 71.5%;
-  top: 33%;
-  width: 24%;
-  aspect-ratio: 1.6;
-  translate: -50% -50%;
-  border-radius: 50%;
-  mix-blend-mode: screen;
-  pointer-events: none;
-  background: radial-gradient(
-    ellipse at center,
-    rgba(255, 252, 240, 0.95) 0%,
-    rgba(255, 222, 160, 0.45) 34%,
-    transparent 66%
-  );
-  filter: blur(2px);
-  will-change: transform, opacity;
-  animation: crlGlow 1.35s ease-in-out infinite alternate;
-}
-.crl-lightcone {
-  position: absolute;
-  left: 74%;
-  top: 30%;
-  width: 52%;
-  height: 16%;
-  mix-blend-mode: screen;
-  pointer-events: none;
-  background: linear-gradient(90deg, rgba(255, 226, 170, 0.4), transparent 82%);
-  clip-path: polygon(0 38%, 0 62%, 100% 100%, 100% 0);
-  filter: blur(7px);
-  transform-origin: left center;
-  will-change: opacity, transform;
-  animation: crlCone 1.35s ease-in-out infinite alternate;
-}
-@keyframes crlGlow {
-  from {
-    opacity: 0.72;
-    transform: translate(-50%, -50%) scale(0.94);
-  }
-  to {
-    opacity: 1;
-    transform: translate(-50%, -50%) scale(1.1);
-  }
-}
-@keyframes crlCone {
-  from {
-    opacity: 0.4;
-    transform: rotate(-0.6deg) scaleX(0.96);
-  }
-  to {
+    transform: scaleX(0.94);
     opacity: 0.8;
-    transform: rotate(0.8deg) scaleX(1.05);
   }
-}
-
-/* ---------------- Bụi + vệt sáng kéo sau ---------------- */
-
-.crl-trail {
-  position: absolute;
-  right: 86%;
-  top: 6%;
-  bottom: 4%;
-  width: 70%;
-  pointer-events: none;
-}
-.crl-trail i {
-  position: absolute;
-  right: 0;
-  display: block;
-  height: var(--h, 2px);
-  width: var(--w, 60%);
-  border-radius: 4px;
-  background: linear-gradient(270deg, rgba(var(--crl-gold), var(--a, 0.7)), transparent 92%);
-  filter: blur(1px);
-  will-change: transform, opacity;
-  animation: crlTrail var(--dur, 0.9s) ease-out var(--delay, 0s) infinite;
-  opacity: 0;
-}
-@keyframes crlTrail {
-  0% {
-    transform: translateX(30%) scaleX(0.4);
-    opacity: 0;
-  }
-  22% {
+  to {
+    transform: scaleX(1.04);
     opacity: 1;
   }
-  100% {
-    transform: translateX(-130%) scaleX(1.25);
-    opacity: 0;
-  }
 }
 
-.crl-dustfield {
+/* ---------------- Khói ống xả ----------------
+   Gốc khói đặt sát đuôi xe (trái chủ thể); cụm tròn xám trắng trôi ra sau
+   (trái) và bốc lên, nở to rồi tan. --sdist/--srise đổi theo biến thể. */
+.crl-smoke {
+  --sdist: -70px;
+  --srise: -14px;
   position: absolute;
-  left: -14%;
-  bottom: -2%;
-  width: 40%;
-  height: 34%;
+  right: 84%;
+  bottom: 28%;
+  width: 0;
+  height: 0;
   pointer-events: none;
 }
-.crl-dustfield i {
+.crl-smoke i {
   position: absolute;
-  left: var(--x, 40%);
-  bottom: var(--y, 10%);
-  width: var(--s, 26px);
-  height: var(--s, 26px);
+  left: 0;
+  bottom: 0;
+  width: 26px;
+  height: 26px;
+  margin-left: -13px;
   border-radius: 50%;
+  /* Xám trung tính: đọc được cả trên nền tối (lúc mở app) lẫn nền sáng. */
   background: radial-gradient(
     circle,
-    rgba(214, 186, 150, 0.34) 0%,
-    rgba(214, 186, 150, 0.12) 45%,
-    transparent 70%
+    rgba(150, 158, 172, 0.6) 0%,
+    rgba(150, 158, 172, 0.28) 45%,
+    transparent 72%
   );
-  filter: blur(4px);
-  will-change: transform, opacity;
-  animation: crlDust var(--dur, 1.3s) ease-out var(--delay, 0s) infinite;
+  filter: blur(3px);
   opacity: 0;
+  will-change: transform, opacity;
+  animation: crlSmoke var(--sdur, 1.6s) ease-out var(--sd, 0s) infinite;
 }
-@keyframes crlDust {
+.crl-smoke i:nth-child(1) {
+  width: 20px;
+  height: 20px;
+  margin-left: -10px;
+}
+.crl-smoke i:nth-child(2) {
+  width: 30px;
+  height: 30px;
+  margin-left: -15px;
+}
+.crl-smoke i:nth-child(3) {
+  width: 24px;
+  height: 24px;
+  margin-left: -12px;
+}
+.crl-smoke i:nth-child(4) {
+  width: 34px;
+  height: 34px;
+  margin-left: -17px;
+}
+.crl-smoke i:nth-child(5) {
+  width: 26px;
+  height: 26px;
+  margin-left: -13px;
+}
+@keyframes crlSmoke {
   0% {
-    transform: translate(10%, 8%) scale(0.35);
+    transform: translate(0, 0) scale(0.4);
     opacity: 0;
   }
-  25% {
+  18% {
     opacity: 0.85;
   }
   100% {
-    transform: translate(-150%, -60%) scale(1.7);
+    transform: translate(var(--sdist), var(--srise)) scale(1.9);
     opacity: 0;
   }
 }
 
-/* ---------------- Nhãn + progress ---------------- */
+/* ---------------- Nhãn ---------------- */
 
 .crl-meta {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 12px;
-  padding: 18px 8px 4px;
-  flex-wrap: wrap;
+  padding: 16px 8px 4px;
 }
 .crl[data-variant="fullscreen"] .crl-meta {
   position: absolute;
   left: 0;
   right: 0;
-  bottom: 7vh;
+  bottom: 8vh;
   padding: 0 8px;
 }
-.crl-wordmark {
-  font-style: italic;
-  font-weight: 750;
-  font-size: 17px;
-  letter-spacing: 0.4px;
-  background: linear-gradient(92deg, #ffe9c4, var(--crl-gold-deep, #f0b269) 55%, #ffd9a0);
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
-  filter: drop-shadow(0 2px 10px rgba(var(--crl-warm), 0.35));
-}
 .crl-label {
-  font-size: 12.5px;
-  color: #93a2c4;
+  font-size: 13px;
+  color: #9fb0d0;
   letter-spacing: 0.2px;
 }
-.crl-progress {
-  display: inline-block;
-  width: 120px;
-  height: 2px;
-  border-radius: 2px;
-  overflow: hidden;
-  background: rgba(147, 162, 196, 0.18);
-  position: relative;
-}
-.crl-progress i {
-  position: absolute;
-  inset: 0;
-  width: 45%;
-  border-radius: inherit;
-  background: linear-gradient(90deg, transparent, var(--crl-gold-deep, #f0b269), transparent);
-  will-change: transform;
-  animation: crlBar 1.5s cubic-bezier(0.5, 0.1, 0.5, 0.9) infinite;
-}
-@keyframes crlBar {
-  0% {
-    transform: translateX(-110%);
-  }
-  100% {
-    transform: translateX(260%);
-  }
-}
 
-/* ---------------- Biến thể SECTION ---------------- */
-
-.crl[data-variant="section"] {
-  gap: 0;
-}
-.crl[data-variant="section"] .crl-scene {
-  height: 210px;
-  border-radius: 16px;
-  background:
-    radial-gradient(90% 120% at 80% 118%, rgba(var(--crl-warm), 0.12), transparent 55%),
-    linear-gradient(160deg, #0b1224 0%, #101a35 100%);
-}
-.crl[data-variant="section"] .crl-meta {
-  padding: 12px 8px 2px;
-}
-.crl[data-variant="section"] .crl-wordmark {
-  font-size: 14.5px;
-}
-.crl[data-variant="section"] .crl-progress {
-  width: 88px;
-}
-
-/* ---------------- Biến thể COMPACT ---------------- */
+/* ---------------- Biến thể COMPACT (pill nhỏ inline) ---------------- */
 
 .crl[data-variant="compact"] {
   flex-direction: row;
@@ -472,23 +215,21 @@
   gap: 10px;
   padding: 5px 14px 5px 6px;
   border-radius: 999px;
-  background: linear-gradient(140deg, rgba(13, 20, 40, 0.94), rgba(19, 26, 51, 0.94));
-  border: 1px solid rgba(var(--crl-gold), 0.16);
-  box-shadow: 0 6px 22px -12px rgba(0, 0, 0, 0.7);
+  background: #0d1428;
+  border: 1px solid rgba(255, 196, 112, 0.16);
 }
 .crl[data-variant="compact"] .crl-scene {
   position: relative;
-  overflow: hidden;
   flex: none;
-  width: 58px;
-  height: 32px;
+  width: 60px;
+  height: 34px;
 }
 .crl[data-variant="compact"] .crl-rider {
   position: relative;
   left: auto;
   right: auto;
   bottom: auto;
-  height: auto;
+  height: 100%;
   animation: none;
 }
 .crl[data-variant="compact"] .crl-bob {
@@ -497,39 +238,27 @@
 .crl[data-variant="compact"] .crl-car {
   height: 30px;
 }
-.crl[data-variant="compact"] .crl-trail {
-  right: 96%;
-  width: 34px;
-  top: 10%;
-  bottom: 10%;
-}
-.crl[data-variant="compact"] .crl-trail i {
-  /* --w set inline per-streak — override trực tiếp width ở đây. */
-  width: 100%;
-}
 .crl[data-variant="compact"] .crl-shadow {
   display: none;
 }
-.crl[data-variant="compact"] .crl-road {
-  display: none;
+.crl[data-variant="compact"] .crl-smoke {
+  --sdist: -22px;
+  --srise: -9px;
+  right: 80%;
+  bottom: 34%;
+}
+.crl[data-variant="compact"] .crl-smoke i {
+  width: 8px;
+  height: 8px;
+  margin-left: -4px;
+  filter: blur(2px);
 }
 .crl[data-variant="compact"] .crl-meta {
-  display: flex;
-  align-items: center;
-  gap: 8px;
   padding: 0;
-  flex-wrap: nowrap;
-}
-.crl[data-variant="compact"] .crl-wordmark {
-  font-size: 13px;
-  white-space: nowrap;
 }
 .crl[data-variant="compact"] .crl-label {
-  font-size: 11.5px;
+  font-size: 12px;
   white-space: nowrap;
-}
-.crl[data-variant="compact"] .crl-progress {
-  width: 42px;
 }
 
 /* ---------------- Reduced motion ---------------- */
@@ -537,26 +266,16 @@
 @media (prefers-reduced-motion: reduce) {
   .crl-rider,
   .crl-bob,
-  .crl-spin,
-  .crl-headlight,
-  .crl-lightcone,
-  .crl-shadow,
-  .crl-trail i,
-  .crl-dustfield i,
-  .crl-ambient i {
+  .crl-shadow {
     animation: none !important;
-    opacity: 0.9;
   }
   .crl[data-variant="fullscreen"] .crl-rider,
   .crl[data-variant="section"] .crl-rider {
     transform: translateX(-4%);
   }
-  .crl-trail i,
-  .crl-dustfield i,
-  .crl-ambient i {
-    display: none;
-  }
-  .crl-progress i {
-    animation-duration: 2.6s;
+  .crl-smoke i {
+    animation: none !important;
+    opacity: 0.35;
+    transform: translate(calc(var(--sdist) / 2), var(--srise)) scale(1.3);
   }
 }

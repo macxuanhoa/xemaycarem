@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { Fragment, useEffect, useRef, useState } from "react";
 import { useDebouncedValue } from "@/lib/useDebouncedValue";
 import { useFormDraft } from "@/lib/useFormDraft";
 import { MoneyInput } from "@/components/ui/MoneyInput";
@@ -281,6 +281,38 @@ function SaleEditor({ vehicle }: { vehicle: Vehicle }) {
   const needsApproval = !owner && (isBelowCost || costHidden);
   const awaitingApproval = !!vehicle.pending_sale_approval;
   const qrRequiresApproval = needsApproval || awaitingApproval;
+  // MỘT dòng cảnh báo duy nhất cho mọi mức "bán dưới" (giá thu — ai thao tác
+  // được xe cũng thấy; giá vốn — chỉ role tài chính). Dùng chung cho cả form
+  // lẫn hộp "Kiểm tra giao dịch bán xe" để hai chỗ luôn cùng câu, cùng kiểu.
+  const belowPriceNotice = (salePrice: number, extraClass = "") => {
+    const parts: { label: string; amount: number }[] = [];
+    if (Number.isFinite(salePrice) && purchaseCost != null && salePrice < purchaseCost)
+      parts.push({ label: "giá thu", amount: purchaseCost - salePrice });
+    if (
+      canFinance(profile) &&
+      Number.isFinite(salePrice) &&
+      vehicle.total_cost != null &&
+      salePrice < vehicle.total_cost
+    )
+      parts.push({ label: "giá vốn", amount: vehicle.total_cost - salePrice });
+    if (!parts.length) return null;
+    return (
+      <p className={`notice warning${extraClass ? ` ${extraClass}` : ""}`}>
+        <AlertTriangle size={15} />
+        <span>
+          Bán dưới{" "}
+          {parts.map((part, index) => (
+            <Fragment key={part.label}>
+              {index > 0 ? " · " : ""}
+              {part.label}{" "}
+              <strong className="danger">−{money(part.amount)}</strong>
+            </Fragment>
+          ))}
+          .
+        </span>
+      </p>
+    );
+  };
 
   type Submission = { kind: "sale" | "approval"; id: string };
 
@@ -338,10 +370,14 @@ function SaleEditor({ vehicle }: { vehicle: Vehicle }) {
       void api.call<{ id?: string; status?: string }>("get_sale_communication", { p_sale_id: result.id })
         .then((job) => job.id && job.status === "QUEUED" ? api.processMessage(job.id) : undefined)
         .catch(() => undefined);
-      await client.invalidateQueries();
-      // Giao dịch đã chốt – chúc mừng một burst pháo hoa trước khi sang phiếu bán.
+      // Chốt giao dịch: bật pháo hoa và rời trang bán NGAY, không chờ refetch
+      // cache. Nếu await invalidate ở lại trang, xe đã SOLD sẽ bị màn "Xe
+      // chưa sẵn sàng để bán" nhấp lên một nhịp trước hiệu ứng chúc mừng —
+      // trông như giao dịch hỏng. Phiếu bán bên trang mới luôn tự fetch dữ
+      // liệu mới nhất từ server nên cache chạy nền là đủ.
       celebrateSale({ detail: vehicleTitle(vehicle) });
-      navigate(`/sales/${result.id}`);
+      navigate(`/sales/${result.id}`, { replace: true });
+      void client.invalidateQueries().catch(() => undefined);
     },
     onError: async (error, values) => {
       // Server là nơi chốt quyền. Nếu từ chối vì cần xác nhận của chủ (giá thu riêng
@@ -586,20 +622,9 @@ function SaleEditor({ vehicle }: { vehicle: Vehicle }) {
               )}
             </div>
 
-            {belowCost(snapshot.sale_price) && (
-              <p className="notice warning sale-confirm-below-cost">
-                <AlertTriangle size={15} />
-                <span>
-                  Bán dưới giá thu, thiếu{" "}
-                  <strong className="danger">
-                    {money(purchaseCost! - snapshot.sale_price)}
-                  </strong>
-                  .{" "}
-                  {owner
-                    ? "Chủ cửa hàng: hoàn tất ngay khi xác nhận."
-                    : "Sẽ chuyển sang mục Chờ duyệt."}
-                </span>
-              </p>
+            {belowPriceNotice(
+              snapshot.sale_price,
+              "sale-confirm-below-cost",
             )}
           </div>
         ),
@@ -628,11 +653,13 @@ function SaleEditor({ vehicle }: { vehicle: Vehicle }) {
       )}
       <OperationRecoveryNotice<string>
         userId={profile?.id} operation="sell_vehicle" scope={vehicle.id}
-        onConfirmed={async saleId => {
+        onConfirmed={saleId => {
           draftState.complete();
-          await client.invalidateQueries();
+          // Như onSuccess: chúc mừng và rời trang trước, cache refetch nền
+          // sau — tránh màn "Xe chưa sẵn sàng để bán" loé lên khi xe vừa SOLD.
           celebrateSale();
-          navigate(`/sales/${saleId}`);
+          navigate(`/sales/${saleId}`, { replace: true });
+          void client.invalidateQueries().catch(() => undefined);
         }}
       />
       {!owner && (
@@ -850,27 +877,7 @@ function SaleEditor({ vehicle }: { vehicle: Vehicle }) {
             </div>
           )}
           {mutation.isError && <ErrorState error={mutation.error} />}
-          {isBelowCost && (
-            <p className="notice warning">
-              <AlertTriangle size={15} />
-              <span>
-                Giá bán thấp hơn giá thu vào. Chênh lệch{" "}
-                <strong className="danger">{money(shortfall)}</strong>.{" "}
-                {owner
-                  ? "Bạn là chủ cửa hàng: xác nhận là giao dịch hoàn tất ngay, không cần gửi yêu cầu."
-                  : "Nhân viên không tự chốt giao dịch dưới giá thu. Bấm «Gửi yêu cầu duyệt» để chuyển sang mục Chờ duyệt của chủ cửa hàng."}
-              </span>
-            </p>
-          )}
-          {canFinance(profile) &&
-            Number.isFinite(price) &&
-            vehicle.total_cost != null &&
-            price < vehicle.total_cost && (
-              <p className="notice">
-                Giá bán thấp hơn giá vốn {money(vehicle.total_cost - price)} (đã
-                gồm chi phí làm xe). Kiểm tra trước khi xác nhận bán xe.
-              </p>
-            )}
+          {belowPriceNotice(price)}
         </div>
         <aside className="stack">
           <Card>

@@ -30,7 +30,6 @@ import { getBankByBin } from "@/lib/vietqr/banks";
 import {
   buildVietQrEmvCoPayload,
   buildVietQrQuickLink,
-  removeVietnameseTones,
   renderQrToDataUrl,
 } from "@/lib/vietqr/emvco";
 import type { VietQrPaymentRequest } from "@/types";
@@ -54,6 +53,12 @@ const formatCountdown = (seconds: number) =>
   `${Math.floor(seconds / 60)
     .toString()
     .padStart(2, "0")}:${(seconds % 60).toString().padStart(2, "0")}`;
+
+/** Số tiền trong nội dung CK: phân tách dấu chấm như server, không ký hiệu đ. */
+const moneyContent = (value: number) =>
+  Math.round(value)
+    .toString()
+    .replace(/\B(?=(\d{3})+(?!\d))/g, ".");
 
 /** Vòng đếm 15 phút theo chuẩn thẻ QR của Cà Rem. */
 const QR_LIFETIME_SECONDS = 15 * 60;
@@ -121,6 +126,12 @@ function CountdownRing({
   );
 }
 
+/** Đọc message từ lỗi RPC (Supabase trả PostgrestError dạng object có `.message`, không phải Error). */
+const errorText = (error: unknown) =>
+  error && typeof error === "object" && "message" in error
+    ? String((error as { message: unknown }).message)
+    : String(error ?? "");
+
 function paymentQrPayload(
   request: VietQrPaymentRequest | null,
   fallbackSettings?: ShopSettings | null,
@@ -143,27 +154,13 @@ function paymentQrPayload(
       : { payload: null, imageUrl: null, invalid: true };
   }
 
-  // Nội dung chuyển khoản theo chuẩn EMVCo Tag 62.08:
-  // Ưu tiên transfer_content (nếu backend đã cấp gọn), hoặc tóm tắt từ agreement_text / xe
-  let description =
+  // Nội dung chuyển khoản = transfer_content do server sinh — giữ NGUYÊN VĂN
+  // (có dấu, không cắt): đúng từng ký tự những gì app ngân hàng tự điền khi
+  // quét mã và những gì màn hình hiển thị. Cắt hoặc bỏ dấu là lệch đối soát.
+  const description =
     request.transfer_content?.trim() ||
-    request.agreement_text?.trim() ||
     request.qr_reference?.trim() ||
     "Thanh toan tien xe";
-
-  // Chuẩn hóa và giới hạn tối đa 50 ký tự theo chuẩn EMVCo Tag 62.08
-  const cleanDesc = removeVietnameseTones(description);
-  if (cleanDesc.length > 50) {
-    if (request.transfer_content && removeVietnameseTones(request.transfer_content).length <= 50) {
-      description = removeVietnameseTones(request.transfer_content);
-    } else if (request.qr_reference && removeVietnameseTones(request.qr_reference).length <= 50) {
-      description = request.qr_reference.trim();
-    } else {
-      description = cleanDesc.slice(0, 50).trim();
-    }
-  } else {
-    description = cleanDesc;
-  }
 
   // Ảnh VietQR chính thống (img.vietqr.io) theo chuẩn ngân hàng:
   // logo ngân hàng, số tài khoản, chủ tài khoản, số tiền và nội dung chuyển khoản.
@@ -313,62 +310,55 @@ export function VietQrPaymentModal({
   const replaceMutation = useMutation({
     mutationFn: async () => {
       const targetId = selectedRequest?.id || activeQuery.data?.id;
+      const details = {
+        amount,
+        payer_name: payerName?.trim() || "Khách mua xe",
+        contract_reference: saleCode,
+      };
       if (targetId) {
         try {
-          return await api.replaceVietQrPaymentRequest(targetId, {
-            amount,
-            payer_name: payerName?.trim() || "Khách mua xe",
-            contract_reference: saleCode,
-          });
-        } catch {
-          // Nếu đổi mã cũ gặp lỗi cooldown/conflict từ backend, tự động tạo mới
+          return await api.replaceVietQrPaymentRequest(targetId, details);
+        } catch (error) {
+          // Lỗi chờ đổi mã/giới hạn phải báo thật: bịa một "mã thành công"
+          // chỉ tồn tại ở máy khách sẽ bị vòng lặp polling 5 giây ghi đè bằng
+          // mã cũ trên server, khiến cảnh báo "biểu mẫu đã thay đổi" không
+          // bao giờ biến mất dù đã bấm Tạo mã mới.
+          const message = errorText(error);
+          if (
+            /VIETQR_REPLACEMENT_COOLDOWN|VIETQR_RATE_LIMITED|VIETQR_FUNDS_ALREADY_RECEIVED/i.test(
+              message,
+            )
+          )
+            throw error;
+          // Mã cũ đã bị thay/hủy ở nơi khác thì lập mã mới theo đúng biểu mẫu.
         }
       }
-      try {
-        return await api.createVietQrPaymentRequest({
-          vehicle_id: vehicle.id,
-          sale_id: saleId,
-          amount,
-          payer_name: payerName?.trim() || "Khách mua xe",
-          contract_reference: saleCode,
-        });
-      } catch {
-        // Fallback an toàn cho client nếu cả hai bị backend giới hạn
-        return {
-          id: selectedRequest?.id || crypto.randomUUID(),
-          qr_reference: selectedRequest?.qr_reference || `CAREM GD${Math.floor(10000 + Math.random() * 90000)}`,
-          vehicle_id: vehicle.id,
-          sale_id: saleId ?? null,
-          amount,
-          bank_bin: settings?.bank_bin || "",
-          bank_name: settings?.bank_name || "",
-          bank_account_no: settings?.bank_account_no || "",
-          bank_account_name: settings?.bank_account_name || "",
-          qr_payload: "",
-          expires_at: new Date(Date.now() + 15 * 60 * 1000).toISOString(),
-          replace_available_at: new Date(Date.now() + 3 * 1000).toISOString(),
-          server_now: new Date().toISOString(),
-          monitoring_available: false,
-          transfer_content: `Thanh toán tiền xe ${vehicle.vehicle_title || "xe"} ${vehicle.license_plate ? `· Biển ${vehicle.license_plate}` : vehicle.internal_code ? `· Mã ${vehicle.internal_code}` : ""}`.trim(),
-          agreement_text: `${payerName?.trim() || "Khách mua xe"} thanh toán tiền xe ${vehicle.vehicle_title || vehicle.vehicle_type || "xe"} ${vehicle.license_plate ? `· Biển số ${vehicle.license_plate}` : vehicle.internal_code ? `· Mã xe ${vehicle.internal_code}` : ""} · Hợp đồng ${saleCode || "HD"} · ${selectedRequest?.qr_reference || "Giao dịch Cà Rem"}`,
-          payer_name: payerName?.trim() || "Khách mua xe",
-          contract_reference: saleCode || "",
-          vehicle_label: vehicle.vehicle_title || "Xe",
-          bank_transaction_id: null,
-          receipt_id: null,
-          status: "PENDING" as const,
-          payment_id: null,
-          created_by: "",
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-        };
-      }
+      return api.createVietQrPaymentRequest({
+        vehicle_id: vehicle.id,
+        sale_id: saleId,
+        ...details,
+      });
     },
     onSuccess: (data) => {
       selectRequest(data);
       toast.info("Đã tạo mã QR mới", {
         description: "Mã có hiệu lực trong 15 phút.",
       });
+    },
+    onError: async (error) => {
+      // Server đang có mã mới hơn màn hình này: theo đúng mã thật hiện hành.
+      if (
+        /VIETQR_REPLACE_REQUIRED|VIETQR_REPLACEMENT_CONFLICT|VIETQR_REQUEST_NOT_FOUND/i.test(
+          errorText(error),
+        )
+      ) {
+        const latest = await activeQuery.refetch();
+        if (latest.data) selectRequest(latest.data);
+        return;
+      }
+      // Tự làm mới khi mở modal thất bại: vẫn hiển thị mã hiện có kèm lý do,
+      // không để modal trắng.
+      if (!selectedRequest && activeQuery.data) selectRequest(activeQuery.data);
     },
   });
 
@@ -539,25 +529,26 @@ export function VietQrPaymentModal({
   const displayAccountName =
     request?.bank_account_name || settings?.bank_account_name || "";
   const displayTransferContent = (() => {
-    if (request?.agreement_text?.trim()) return request.agreement_text.trim();
-    const parts: string[] = [];
-    const payer = request?.payer_name?.trim() || payerName?.trim() || "Khách mua xe";
-    const vTitle = request?.vehicle_label || vehicle.vehicle_title || vehicle.vehicle_type || "xe máy";
-    parts.push(`${payer} thanh toán tiền xe ${vTitle}`);
-    if (vehicle.license_plate) {
-      parts.push(`Biển số ${vehicle.license_plate}`);
-    } else if (vehicle.internal_code) {
-      parts.push(`Mã xe ${vehicle.internal_code}`);
-    }
-    const contract = request?.contract_reference || saleCode;
-    if (contract) {
-      parts.push(`Hợp đồng ${contract}`);
-    }
-    const ref = request?.qr_reference;
-    if (ref) {
-      parts.push(`Mã GD ${ref}`);
-    }
-    return parts.join(" · ");
+    // Điều ngân hàng tự điền khi quét mã = điều màn hình hiển thị — MỘT chuỗi
+    // duy nhất do server sinh, không tự bịa lại để lệch đối soát.
+    const serverContent = request?.transfer_content?.trim();
+    if (serverContent) return serverContent;
+    const agreement = request?.agreement_text?.trim();
+    if (agreement) return agreement;
+    // Dự phòng cuối cho mã cũ chưa có transfer_content: dựng đúng thứ tự chuẩn
+    // (tên khách) thanh toán tiền xe (tên xe) - (mã xe) với giá: X; Mã GD: Y —
+    // mã xe chỉ xuất hiện một lần.
+    const payer =
+      request?.payer_name?.trim() || payerName?.trim() || "Người thanh toán";
+    const vehicleName =
+      vehicle.vehicle_type?.trim() ||
+      vehicle.vehicle_subtitle?.trim().split(" · ")[0]?.trim() ||
+      vehicle.vehicle_title?.trim() ||
+      "xe";
+    const code = vehicle.internal_code?.trim();
+    const price = request?.amount ?? amount;
+    const ref = request?.qr_reference || saleCode || "CAREM GD…";
+    return `${payer} thanh toán tiền xe ${vehicleName}${code ? ` - ${code}` : ""} với giá: ${moneyContent(price)}; Mã giao dịch là: ${ref}`;
   })();
 
   // Mã mới → ưu tiên ảnh VietQR chính thống; chỉ vẽ QR nội bộ khi ảnh lỗi
@@ -943,8 +934,9 @@ export function VietQrPaymentModal({
 
             {changedDetails && !verifiedReceipt && (
               <p className="notice warning vietqr-changed">
-                Thông tin trên biểu mẫu đã thay đổi. Hãy tạo mã mới để cập nhật
-                đúng tên người thanh toán và số tiền {money(amount)}.
+                {cooldownSeconds > 0
+                  ? `Thông tin trên biểu mẫu đã thay đổi. Chờ hết ${cooldownSeconds} giây rồi bấm "Tạo mã mới" để cập nhật đúng tên người thanh toán và số tiền ${money(amount)}.`
+                  : `Thông tin trên biểu mẫu đã thay đổi. Hãy tạo mã mới để cập nhật đúng tên người thanh toán và số tiền ${money(amount)}.`}
               </p>
             )}
 

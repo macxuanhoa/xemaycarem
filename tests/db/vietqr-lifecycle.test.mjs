@@ -99,7 +99,7 @@ export async function runVietQrLifecycleTests(
     });
 
     await check(
-      "server creates fixed fifteen minute window and concise bank memo with full agreement",
+      "server creates fixed fifteen minute window and full-wording bank memo with full agreement",
       async () => {
         const q = await qr();
         assert.equal(
@@ -110,8 +110,15 @@ export async function runVietQrLifecycleTests(
           Date.parse(q.replace_available_at) - Date.parse(q.created_at),
           60_000,
         );
-        assert.ok(q.transfer_content.startsWith(q.qr_reference));
-        assert.ok(q.transfer_content.length <= 50);
+        assert.match(
+          q.transfer_content,
+          /^Nguyễn Văn An thanh toán tiền xe Honda Vision - \S+ với giá: 100; Mã giao dịch là: CAREM GD\d+$/,
+        );
+        assert.equal(
+          q.transfer_content.split(q.qr_reference).length - 1,
+          1,
+        );
+        assert.ok(q.transfer_content.length <= 130);
         assert.match(
           q.agreement_text,
           /Nguyễn Văn An đồng ý thanh toán cho TRAN VAN REM/,

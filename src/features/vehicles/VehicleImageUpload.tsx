@@ -19,6 +19,9 @@ const labels = {
   uploaded: "Đã tải",
   error: "Chưa tải được",
 };
+// Small pools stay fast on mobile networks without overwhelming Supabase
+// Storage; beyond three in flight the gains flatten and errors cluster.
+const UPLOAD_CONCURRENCY = 3;
 
 export function VehicleImageUpload({
   vehicleId,
@@ -34,7 +37,12 @@ export function VehicleImageUpload({
   const [items, setItems] = useState<UploadItem[]>([]);
   const [error, setError] = useState("");
   const serial = useRef(0);
-  const chain = useRef(Promise.resolve());
+  // Photos are compressed and uploaded through a small concurrent pool instead
+  // of one strict serial chain: a 20-photo batch no longer waits for each
+  // previous upload (and its gallery refetch) before the next one starts.
+  // Selection order is still preserved because the queue is drained FIFO.
+  const queue = useRef<UploadItem[]>([]);
+  const active = useRef(0);
   const mounted = useRef(true);
   const urls = useRef<string[]>([]);
   const pending = useRef(0);
@@ -88,31 +96,50 @@ export function VehicleImageUpload({
           : `${fail} ảnh chưa tải được. Bấm nút Thử lại trên từng ảnh.`,
       );
   };
+  const runOne = async (item: UploadItem) => {
+    try {
+      update(item.id, "uploading");
+      const compressed = await compressImage(item.file);
+      await api.uploadVehicleImage(vehicleId, compressed);
+      batch.current.ok++;
+      retire(item);
+      // Refresh the gallery in the background: awaiting it here used to stall
+      // the whole queue behind one refetch per photo.
+      void client.invalidateQueries({ queryKey: ["vehicle", vehicleId] });
+    } catch (reason) {
+      batch.current.fail++;
+      update(
+        item.id,
+        "error",
+        reason instanceof Error
+          ? reason.message
+          : "Không tải được ảnh. Thử lại khi có mạng.",
+      );
+    } finally {
+      pending.current--;
+      if (pending.current === 0) {
+        // Final guaranteed refetch so the gallery is accurate even if an
+        // earlier background invalidation raced with an in-flight fetch.
+        void client.invalidateQueries({ queryKey: ["vehicle", vehicleId] });
+        announce();
+      }
+    }
+  };
+  const pump = () => {
+    while (active.current < UPLOAD_CONCURRENCY && queue.current.length > 0) {
+      const item = queue.current.shift() as UploadItem;
+      active.current++;
+      void runOne(item).finally(() => {
+        active.current--;
+        pump();
+      });
+    }
+  };
   const schedule = (item: UploadItem) => {
     pending.current++;
     update(item.id, "waiting");
-    chain.current = chain.current.then(async () => {
-      try {
-        update(item.id, "uploading");
-        const compressed = await compressImage(item.file);
-        await api.uploadVehicleImage(vehicleId, compressed);
-        batch.current.ok++;
-        retire(item);
-        await client.invalidateQueries({ queryKey: ["vehicle", vehicleId] });
-      } catch (reason) {
-        batch.current.fail++;
-        update(
-          item.id,
-          "error",
-          reason instanceof Error
-            ? reason.message
-            : "Không tải được ảnh. Thử lại khi có mạng.",
-        );
-      } finally {
-        pending.current--;
-        if (pending.current === 0) announce();
-      }
-    });
+    queue.current.push(item);
+    pump();
   };
   const choose = (event: ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(event.target.files ?? []);

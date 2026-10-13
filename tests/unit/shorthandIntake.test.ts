@@ -161,7 +161,7 @@ describe("parseIntakeNotes", () => {
     expect(entries[0].fields.frame_number).toBe("RLH160-001");
     expect(entries[0].fields.color).toBe("Đen");
   });
-  it("reads dates and leaves leftover words as unknown tokens (Ghi chú đã gỡ)", () => {
+  it("reads dates and leaves leftover words as unknown tokens", () => {
     const entries = parseSingle("lead do 12/03/26 15tr ghcn phu tung zin");
     expect(entries.fields.purchase_date).toBe("2026-03-12");
     expect(entries.fields.color).toBe("Đỏ");
@@ -217,11 +217,28 @@ describe("parseIntakeNotes", () => {
     expect(parseFirst("den 21 18tr").year).toBe("2021");
     expect(parseFirst("den 2021 18tr").year).toBe("2021");
   });
-  it("no longer folds `#token` free text into notes — the mechanism is gone", () => {
-    const entries = parseSingle("xanh 27tr #chinh chu ban");
-    expect(entries.fields).not.toHaveProperty("notes");
+  it("folds the '#tail' of a line into notes without leaking into other fields", () => {
+    const entries = parseSingle("xanh 27tr # chinh chu ban");
+    expect(entries.fields.notes).toBe("chinh chu ban");
     expect(entries.fields.purchase_price).toBe("27000000");
-    expect(entries).not.toHaveProperty("variant");
+    expect(entries.unknownTokens).toEqual([]);
+    // Dạng dính "#chinh" cũng được; chữ trong ghi chú không bao giờ được
+    // quét loại xe ("xe ga" ở ghi chú KHÔNG được điền vào Loại xe).
+    const attached = parseSingle("lead 15tr # xe ga");
+    expect(attached.fields.notes).toBe("xe ga");
+    expect(attached.fields.vehicle_type).toBeUndefined();
+    // Dòng BẮT ĐẦU bằng # vẫn là tiêu đề bị bỏ qua — quy tắc chỉ áp dụng giữa dòng.
+    expect(parseIntakeNotes("# đanh sach thu\n\nsh 18tr")).toHaveLength(1);
+  });
+  it("reads a bare 5-digit number as the compact frame, never as year or price", () => {
+    const fields = parseFirst("wave den 23412 15tr");
+    expect(fields.frame_number).toBe("23412");
+    expect(fields.purchase_price).toBe("15000000");
+    expect(fields).not.toHaveProperty("year");
+    // Khung đã có (qua "fk") thì số 5 chữ số thứ hai thành chip lạ, không đè.
+    const second = parseSingle("fk RLH160-001 23412 15tr");
+    expect(second.fields.frame_number).toBe("RLH160-001");
+    expect(second.unknownTokens).toContain("23412");
   });
   it("rejects garbage after 'bs' instead of storing it as a plate", () => {
     const fields = parseFirst("den bs abcxyz");
@@ -322,6 +339,10 @@ describe("intake payload", () => {
     for (const purged of ["brand", "model", "variant", "engine_number", "odometer", "asking_price"]) {
       expect(row).not.toHaveProperty(purged);
     }
+  });
+  it("carries the '#' note through to the import payload", () => {
+    const [noted] = parseIntakeNotes("tay ga den 15tr # chinh chu gd");
+    expect(entryToImportRow(noted).notes).toBe("chinh chu gd");
   });
   it("rejects a garbage plate but keeps the field optional", () => {
     const garbage = {

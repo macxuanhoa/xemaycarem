@@ -131,11 +131,11 @@ test("OWNER toggles TET_2027 on and off from the Giao diện hệ thống tab", 
   await expect(page.getByRole("heading", { name: "Hồ sơ của bạn" })).toBeVisible();
 
   await openThemeTab(page);
-  await expect(page.getByText("Giao diện thường ngày", { exact: true })).toBeVisible();
+  await expect(page.getByText("Giao diện thường ngày.", { exact: true })).toBeVisible();
 
   await page.getByText("Tết 2027 — bật ngay", { exact: true }).click();
-  await page.getByRole("button", { name: /Lưu giao diện cho toàn hệ thống/ }).click();
-  await expect(page.getByText("Đang bật áo Tết", { exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Lưu giao diện", exact: true }).click();
+  await expect(page.getByText("Đã lưu giao diện", { exact: true })).toBeVisible();
   await expect(page.locator("html")).toHaveAttribute("data-seasonal", "tet");
   // The light/dark axis is untouched, and the payload is the documented partial shape.
   await expect(page.locator("html")).toHaveAttribute("data-theme", "light");
@@ -150,7 +150,7 @@ test("OWNER toggles TET_2027 on and off from the Giao diện hệ thống tab", 
   // And back off.
   await openThemeTab(page);
   await page.getByText("Mặc định", { exact: true }).click();
-  await page.getByRole("button", { name: /Lưu giao diện cho toàn hệ thống/ }).click();
+  await page.getByRole("button", { name: "Lưu giao diện", exact: true }).click();
   await expect(page.locator("html")).toHaveAttribute("data-seasonal", "default");
 });
 
@@ -175,8 +175,8 @@ test("AUTO flips by the server-resolved window; an incomplete window is refused"
   await page.goto("/settings");
   await openThemeTab(page);
   await page.getByText("Tự động theo lịch", { exact: true }).click();
-  await page.getByRole("button", { name: /Lưu giao diện cho toàn hệ thống/ }).click();
-  await expect(page.getByText("Chế độ tự động cần cả ngày bắt đầu và ngày kết thúc.")).toBeVisible();
+  await page.getByRole("button", { name: "Lưu giao diện", exact: true }).click();
+  await expect(page.getByText("Chế độ tự động cần cả ngày bắt đầu và kết thúc.")).toBeVisible();
   expect(calls.saves).toEqual([]); // the client-side guard stopped the payload
 });
 
@@ -186,13 +186,13 @@ async function openThemeTab(page) {
   await tab.scrollIntoViewIfNeeded();
   await tab.click();
   await expect(
-    page.getByRole("heading", { name: /Giao diện hệ thống — Tết 2027/ }),
+    page.getByRole("heading", { name: "Giao diện hệ thống", exact: true }),
   ).toBeVisible();
 }
 
 /** The preview button relabels itself while the preview is active. */
 function previewButton(page) {
-  return page.getByRole("button", { name: /Áo Tết|Đang xem thử/, exact: true });
+  return page.getByRole("button", { name: /Áo Tết|Đang xem Tết/, exact: true });
 }
 
 test("STAFF never sees the tab; a forced write is denied by the server", async ({ page }) => {

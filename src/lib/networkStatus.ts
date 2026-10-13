@@ -157,20 +157,18 @@ function heartbeat(): Promise<boolean> {
     try {
       const request = async () => {
         const options: RequestInit = {
-          method: "HEAD",
+          method: "GET",
           mode: "cors",
           cache: "no-store",
           credentials: "omit",
           headers,
           signal,
         };
-        let response = await fetch(url, options);
-        // Some proxies reject HEAD. This fallback never invokes a business RPC.
-        if (response.status === 405 || response.status === 501) {
-          await response.body?.cancel();
-          response = await fetch(url, { ...options, method: "GET" });
-          void response.body?.cancel().catch(() => {});
-        }
+        // The health endpoint is GET-only (HEAD takes a 405 that still lands in the
+        // browser console and trips smoke gates), so the probe is a read-only GET
+        // that drops its tiny body at once and never invokes a business RPC.
+        const response = await fetch(url, options);
+        void response.body?.cancel().catch(() => {});
         if (response.type === "opaque" || response.status === 0)
           throw new TypeError("Connectivity response is not observable");
         return response;

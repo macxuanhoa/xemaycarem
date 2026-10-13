@@ -1,7 +1,7 @@
 import { test, expect } from "@playwright/test";
 import { installUiuxMock } from "../helpers/uiux-fixtures.mjs";
 
-const healthUrl = "https://xe-test.supabase.co/rest/v1/";
+const healthUrl = "https://xe-test.supabase.co/auth/v1/health";
 const banner = (page) =>
   page.getByRole("region", { name: "Trạng thái kết nối" });
 const recovered = (page) => page.locator(".network-banner--recovered");

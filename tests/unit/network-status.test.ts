@@ -44,7 +44,7 @@ function deferredResponse() {
 }
 
 describe("centralized connection recovery", () => {
-  it("uses an authenticated observable HEAD check and shares concurrent retries", async () => {
+  it("uses an authenticated observable GET check and shares concurrent retries", async () => {
     const response = deferredResponse();
     fetchMock.mockReturnValue(response.promise);
     install();
@@ -53,7 +53,7 @@ describe("centralized connection recovery", () => {
     expect(network.getNetworkStatus().checking).toBe(true);
     expect(fetchMock).toHaveBeenCalledTimes(1);
     expect(fetchMock).toHaveBeenCalledWith("https://carem.example/auth/v1/health", {
-      method: "HEAD",
+      method: "GET",
       mode: "cors",
       cache: "no-store",
       credentials: "omit",
@@ -126,14 +126,12 @@ describe("centralized connection recovery", () => {
     });
   });
 
-  it("falls back to a read only GET when HEAD is unsupported", async () => {
-    fetchMock
-      .mockResolvedValueOnce(new Response(null, { status: 405 }))
-      .mockResolvedValue(new Response(null, { status: 200 }));
+  it("probes with one read only GET and never repeats on a rejected method", async () => {
+    fetchMock.mockResolvedValue(new Response(null, { status: 200 }));
     install();
     await network.retryConnection();
-    expect(fetchMock).toHaveBeenCalledTimes(2);
-    expect(fetchMock.mock.calls[1]?.[1]?.method).toBe("GET");
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock.mock.calls[0]?.[1]?.method).toBe("GET");
   });
 
   it("bounds hanging requests and adaptively retries without overlap", async () => {

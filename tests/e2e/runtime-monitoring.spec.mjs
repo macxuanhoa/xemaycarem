@@ -15,6 +15,7 @@ async function setup(page, { role = 'OWNER', unavailable = false } = {}) {
     const body = request.postData() ? request.postDataJSON() : {}
     const reply = (value, status = 200) => route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(value), headers: { 'access-control-allow-origin': '*', 'access-control-allow-headers': '*' } })
     if (request.method() === 'OPTIONS') return route.fulfill({ status: 204, headers: { 'access-control-allow-origin': '*', 'access-control-allow-headers': '*' } })
+    if (path === '/auth/v1/health') return reply({ status: 'ok' })
     if (path === '/auth/v1/user') return reply(user)
     if (path === '/rest/v1/profiles') return reply({ id: userId, username: 'runtime_fixture', full_name: 'Runtime Fixture', role, active: true, must_change_password: false, deleted_at: null, can_view_financials: role === 'OWNER' })
     const name = path.split('/').at(-1)

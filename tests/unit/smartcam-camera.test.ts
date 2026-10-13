@@ -13,6 +13,7 @@ import {
   currentZoomLevel,
   loadCameraSettings,
   nextCameraPlan,
+  nextVideoFrame,
   supportsContinuousFocus,
   torchMode,
   torchStateFromSettings,
@@ -22,17 +23,54 @@ import {
 
 afterEach(() => vi.unstubAllGlobals());
 
+describe("fresh-frame gating", () => {
+  it("resolves immediately when the browser has no frame callback", async () => {
+    vi.stubGlobal("document", { hidden: false });
+    await expect(nextVideoFrame({} as HTMLVideoElement)).resolves.toBeUndefined();
+  });
+
+  it("waits for a newly decoded frame when the API exists", async () => {
+    vi.stubGlobal("document", { hidden: false });
+    vi.stubGlobal("window", globalThis);
+    const holder: { fire: (() => void) | null } = { fire: null };
+    const video = {
+      requestVideoFrameCallback: (callback: () => void) => {
+        holder.fire = callback;
+        return 1;
+      },
+    } as unknown as HTMLVideoElement;
+    let done = false;
+    const settled = nextVideoFrame(video).then(() => {
+      done = true;
+    });
+    await Promise.resolve();
+    expect(done).toBe(false);
+    (holder.fire as () => void)();
+    await settled;
+    expect(done).toBe(true);
+  });
+
+  it("gives up waiting when no new frame arrives before the timeout", async () => {
+    vi.stubGlobal("document", { hidden: false });
+    vi.stubGlobal("window", globalThis);
+    const video = {
+      requestVideoFrameCallback: () => 1,
+    } as unknown as HTMLVideoElement;
+    await expect(nextVideoFrame(video, 5)).resolves.toBeUndefined();
+  });
+});
+
 describe("camera settings migration", () => {
-  it.each(["scan", "photo", "qr", "identity"])("restores %s while enabling built-in scan features", (mode) => {
+  it.each(["scan", "qr", "identity"])("restores %s while enabling built-in scan features", (mode) => {
     vi.stubGlobal("localStorage", { getItem: () => JSON.stringify({
       mode, sound: false, localOcr: false, autoOpen: false, cloudMode: "manual",
     }) });
     expect(loadCameraSettings()).toEqual({ mode, sound: true, localOcr: true, autoOpen: true, cloudMode: "off" });
   });
 
-  it("preserves explicit automatic AI consent without restoring old opt-outs", () => {
+  it("falls back to scan for the removed photo mode while preserving explicit automatic AI consent", () => {
     vi.stubGlobal("localStorage", { getItem: () => JSON.stringify({ mode: "photo", cloudMode: "auto", sound: false }) });
-    expect(loadCameraSettings()).toEqual({ mode: "photo", sound: true, localOcr: true, autoOpen: true, cloudMode: "auto" });
+    expect(loadCameraSettings()).toEqual({ mode: "scan", sound: true, localOcr: true, autoOpen: true, cloudMode: "auto" });
   });
 
   it.each([null, "invalid JSON", JSON.stringify({ mode: "old-recognition-mode" })])("uses safe defaults for absent or invalid saved settings: %s", (saved) => {
@@ -56,7 +94,7 @@ describe("viewfinder capture follows the visible camera guide", () => {
     {
       name: "large landscape video remains bounded after portrait cropping",
       source: [3840, 2160], preview: [300, 400],
-      crop: [1272, 475.2, 1296, 1252.8], output: [1280, 1237],
+      crop: [1272, 475.2, 1296, 1252.8], output: [1296, 1253],
     },
   ])("maps the guide accurately for $name", ({ source, preview, crop, output }) => {
     const drawImage = vi.fn();

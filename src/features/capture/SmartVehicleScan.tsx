@@ -41,6 +41,7 @@ import {
   applyTorch,
   applyZoom,
   cameraFlipLabel,
+  cameraViewportBounds,
   captureFromFile,
   captureVideoFrame,
   currentZoomLevel,
@@ -48,6 +49,7 @@ import {
   frameSharpness,
   loadCameraSettings,
   nextCameraPlan,
+  nextVideoFrame,
   prepareScanAudio,
   saveCameraSettings,
   scanTone,
@@ -93,6 +95,11 @@ import {
   type ScanSample,
 } from "@/lib/smartcam/local/frameWindow";
 import {
+  analyzeFrameOffThread,
+  releaseAnalysisWorker,
+  type OffThreadResult,
+} from "@/lib/smartcam/local/analysisBridge";
+import {
   nextTickMs,
   pushVote,
   type VoteState,
@@ -109,9 +116,6 @@ import {
 const FIELD_LABELS: Record<ScannedKey, string> = {
   license_plate: "Biển số",
   frame_number: "Số khung",
-  vehicle_type: "Loại xe",
-  color: "Màu",
-  year: "Năm",
 };
 const STATUS_LABELS = {
   IN_STOCK: "còn kho",
@@ -124,12 +128,6 @@ const MODES = [
     title: "Biển số / số khung",
     description: "Tự quét liên tục, có tiếng tít",
     icon: ScanLine,
-  },
-  {
-    value: "photo",
-    title: "Nhận diện ảnh xe",
-    description: "Loại xe, màu và năm từ ảnh",
-    icon: Camera,
   },
   {
     value: "qr",
@@ -150,6 +148,40 @@ const OCR_LABELS: Record<OcrStage, string> = {
   ready: "Đọc trên máy đã sẵn sàng",
   unavailable: "Bộ đọc trên máy chưa tải được. Có thể bật AI để đọc ảnh.",
 };
+
+/**
+ * Off-thread frame analysis for one live tick. Null = unsupported/failed,
+ * and the caller repeats the same work on the main canvas. Results whose
+ * dimensions disagree with the OCR canvas keep the motion signature (pure
+ * scene statistics) but drop the region map — crops must stay pixel-exact.
+ */
+async function remoteAnalyze(
+  video: HTMLVideoElement,
+  canvas: HTMLCanvasElement,
+): Promise<OffThreadResult | null> {
+  if (typeof createImageBitmap !== "function") return null;
+  const bounds = cameraViewportBounds(
+    video.videoWidth,
+    video.videoHeight,
+    video.clientWidth,
+    video.clientHeight,
+    false,
+  );
+  try {
+    const bitmap = await createImageBitmap(video);
+    const result = await analyzeFrameOffThread({
+      bitmap,
+      crop: bounds ?? null,
+      maxEdge: 1600,
+    });
+    if (!result) return null;
+    if (result.width !== canvas.width || result.height !== canvas.height)
+      return { ...result, analysis: null };
+    return result;
+  } catch {
+    return null;
+  }
+}
 
 function ResultChips({ recognition }: { recognition: Recognition }) {
   const entries = (Object.keys(FIELD_LABELS) as ScannedKey[]).filter(
@@ -203,13 +235,6 @@ function ResultChips({ recognition }: { recognition: Recognition }) {
           );
         })}
       </dl>
-      {recognition.fields.year ? (
-        <p className="muted small">
-          Năm nhận diện từ ảnh cần đối chiếu giấy tờ xe.
-        </p>
-      ) : recognition.fields.vehicle_type ? (
-        <p className="muted small">Chưa xác định chắc năm từ ảnh này.</p>
-      ) : null}
     </div>
   );
 }
@@ -218,9 +243,6 @@ export type SmartVehicleScanProps = {
   onScanComplete?: (scanned: {
     license_plate: string;
     frame_number: string;
-    vehicle_type?: string;
-    color?: string;
-    year?: number;
   }) => void;
   onClose?: () => void;
   isModal?: boolean;
@@ -244,10 +266,16 @@ export default function SmartVehicleScan({
   const busyRef = useRef(false);
   const cloudPending = useRef(false);
   const resultRef = useRef<Recognition | null>(null);
-  const photoDraft = useRef<Recognition | null>(null);
+  const followUpDraft = useRef<Recognition | null>(null);
   const voteRef = useRef<VoteState>(null);
   const misses = useRef(0);
   const previousScene = useRef<Float32Array | null>(null);
+  // Pixel localization is the heaviest main-thread work in the tick; a stable
+  // view reuses its regions briefly instead of re-scanning every frame.
+  const analysisCache = useRef<{ at: number; analysis: FrameAnalysis | null }>({
+    at: 0,
+    analysis: null,
+  });
   const frameWindow = useRef<
     ScanSample<{ canvas: HTMLCanvasElement; read: LocalRead | null }>[]
   >([]);
@@ -264,7 +292,6 @@ export default function SmartVehicleScan({
   const [result, setResult] = useState<Recognition | null>(null);
   const [identityMatch, setIdentityMatch] = useState<VehicleMatch | null>(null);
   const identityMatchRef = useRef<VehicleMatch | null>(null);
-  const [photoReady, setPhotoReady] = useState(false);
   const [openFollowup, setOpenFollowup] = useState(false);
   const [frozenPreview, setFrozenPreview] = useState<string | null>(null);
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
@@ -347,6 +374,7 @@ export default function SmartVehicleScan({
       streamRef.current?.getTracks().forEach((track) => track.stop());
       streamRef.current = null;
       releaseOcrWorker();
+      releaseAnalysisWorker();
     };
   }, [stopCamera]);
 
@@ -363,11 +391,10 @@ export default function SmartVehicleScan({
       setMessage("");
       setLiveHint("");
       setFrozenPreview(null);
-      if (resultRef.current) photoDraft.current = null;
+      if (resultRef.current) followUpDraft.current = null;
       commitResult(null);
       identityMatchRef.current = null;
       setIdentityMatch(null);
-      setPhotoReady(false);
       voteRef.current = null;
       misses.current = 0;
       previousScene.current = null;
@@ -511,36 +538,23 @@ export default function SmartVehicleScan({
       token: number,
     ) => {
       if (!isCurrent(token)) return false;
-      const filtered = { ...draft };
-      if (mode === "photo") {
-        filtered.license_plate = null;
-        filtered.frame_number = null;
-      }
-      if (mode === "scan") {
-        filtered.vehicle_type = null;
-        filtered.color = null;
-        filtered.year = null;
-      }
-      const current = normalizeScan(filtered);
+      const current = normalizeScan(draft);
       if (!Object.values(current).some(Boolean)) return false;
       const fields =
-        photoDraft.current && mode === "scan"
-          ? { ...photoDraft.current.fields }
+        followUpDraft.current && mode === "scan"
+          ? { ...followUpDraft.current.fields }
           : { ...current };
       for (const key of Object.keys(current) as ScannedKey[])
         if (current[key]) fields[key] = current[key];
-      const riskCharacters = { ...photoDraft.current?.riskCharacters };
-      const currentRisks = normalizeScanRisks(filtered, current);
+      const riskCharacters = { ...followUpDraft.current?.riskCharacters };
+      const currentRisks = normalizeScanRisks(draft, current);
       for (const key of ["license_plate", "frame_number"] as const) {
         if (current[key]) {
           delete riskCharacters[key];
           if (currentRisks[key]) riskCharacters[key] = currentRisks[key];
         }
       }
-      const match =
-        mode === "photo"
-          ? ({ state: "none" } as const)
-          : await lookupScan(fields);
+      const match = await lookupScan(fields);
       if (!isCurrent(token)) return false;
       const recognition: Recognition = {
         version: 1,
@@ -549,7 +563,7 @@ export default function SmartVehicleScan({
         statuses: classifyFields(fields, match, riskCharacters),
         match,
         photos: [
-          ...(photoDraft.current?.photos ?? []),
+          ...(followUpDraft.current?.photos ?? []),
           ...(frame ? [frame.dataUrl] : []),
         ].slice(0, 4),
         source: via,
@@ -565,9 +579,7 @@ export default function SmartVehicleScan({
       );
       commitResult(recognition);
       saveRecognitionDraft(profile?.id, recognition);
-      const continuingPhoto = !!photoDraft.current?.fields.vehicle_type;
-      photoDraft.current = recognition;
-      if (mode === "photo") setPhotoReady(true);
+      followUpDraft.current = recognition;
       setLiveHint("");
       await stopCamera();
 
@@ -576,9 +588,6 @@ export default function SmartVehicleScan({
         onScanComplete({
           license_plate: fields.license_plate || "",
           frame_number: fields.frame_number || "",
-          vehicle_type: fields.vehicle_type || "",
-          color: fields.color || "",
-          year: fields.year ? Number(fields.year) : undefined,
         });
         return true;
       }
@@ -590,8 +599,7 @@ export default function SmartVehicleScan({
         mode === "scan" &&
         match.state === "unique" &&
         safeIdentity &&
-        !uncertain &&
-        !continuingPhoto
+        !uncertain
       ) {
         navigate("/vehicles/" + match.vehicle.id);
         return true;
@@ -602,8 +610,7 @@ export default function SmartVehicleScan({
       if (
         mode === "scan" &&
         match.state === "none" &&
-        (fields.license_plate || fields.frame_number) &&
-        !continuingPhoto
+        (fields.license_plate || fields.frame_number)
       ) {
         const queryParams = new URLSearchParams(window.location.search);
         const returnTo = queryParams.get("returnTo") || "/acquisitions/new";
@@ -620,9 +627,6 @@ export default function SmartVehicleScan({
             aiDraft: {
               license_plate: fields.license_plate || "",
               frame_number: fields.frame_number || "",
-              vehicle_type: fields.vehicle_type || "",
-              color: fields.color || "",
-              year: fields.year ? Number(fields.year) : undefined,
             },
             recognition,
           },
@@ -660,11 +664,7 @@ export default function SmartVehicleScan({
           task: "vehicle_scan",
           consent: true,
           scan_mode:
-            mode === "photo"
-              ? "vehicle"
-              : mode === "identity"
-                ? "identity"
-                : "identifiers",
+            mode === "identity" ? ("identity" as const) : ("identifiers" as const),
           ...(mode === "scan" ? { scan_target: "both" as const } : {}),
           image: { mime_type: "image/jpeg", base64: frame.jpegBase64 },
         });
@@ -777,6 +777,10 @@ export default function SmartVehicleScan({
       return;
     const video = videoRef.current;
     if (!video) return;
+    // Only read pixels from a freshly decoded frame — the same stale or
+    // half-moved frame must not burn an OCR pass or poison the vote.
+    await nextVideoFrame(video);
+    if (!streamRef.current) return;
     const canvas =
       mode === "scan" ? visibleCameraCanvas(video) : viewfinderCanvas(video);
     if (!canvas) return;
@@ -788,9 +792,40 @@ export default function SmartVehicleScan({
         if (mode === "qr") return;
       }
       if (!isCurrent(token)) return;
-      let analysis: FrameAnalysis | null = null;
+      const remote = mode === "scan" ? await remoteAnalyze(video, canvas) : null;
+      if (!isCurrent(token)) return;
+      let analysis: FrameAnalysis | null = remote?.analysis ?? null;
+      // Greyscale on the main thread only when the worker gave no signature.
+      const gray = remote?.signature ? null : toGray(canvas);
+      const sig = remote?.signature ?? (gray ? sceneSignature(gray) : null);
+      let motionStable = false;
+      if (sig) {
+        const motion = motionScore(previousScene.current, sig);
+        motionStable = motion < 0.1;
+        if (motion > 0.60) {
+          voteRef.current = null;
+          frameWindow.current = [];
+          misses.current = 0;
+          analysisCache.current = { at: 0, analysis: null };
+        }
+        previousScene.current = sig;
+      }
+      if (mode === "scan" && !analysis) {
+        const cached = analysisCache.current;
+        analysis =
+          motionStable &&
+          Date.now() - cached.at < 700 &&
+          cached.analysis &&
+          cached.analysis.width === canvas.width &&
+          cached.analysis.height === canvas.height
+            ? cached.analysis
+            : null;
+        if (!analysis) {
+          analysis = analyzeFrame(canvas, gray);
+          analysisCache.current = { at: Date.now(), analysis };
+        }
+      }
       if (mode === "scan") {
-        analysis = analyzeFrame(canvas);
         setFocusRegions(analysis?.regions.slice(0, 2) ?? []);
         setLiveHint(analysis?.quality.message ?? "Đang tìm vùng chữ để đọc…");
       }
@@ -798,16 +833,6 @@ export default function SmartVehicleScan({
         if (isCurrent(token))
           setLiveHint("Giữ yên, đưa gần hơn và tăng ánh sáng để đọc rõ.");
         return;
-      }
-      const gray = toGray(canvas);
-      if (gray) {
-        const sig = sceneSignature(gray);
-        if (motionScore(previousScene.current, sig) > 0.60) {
-          voteRef.current = null;
-          frameWindow.current = [];
-          misses.current = 0;
-        }
-        previousScene.current = sig;
       }
       if (mode === "identity") {
         const read = await localReadIdentity(canvas);
@@ -829,7 +854,10 @@ export default function SmartVehicleScan({
         )
           return;
         if (read) setLiveHint("Đang kiểm tra số CCCD — giữ yên căn cước…");
-        misses.current++;
+        // Only unreadable ticks starve the sampler; a mid-vote CCCD keeps the
+        // fast cadence and must not trigger the cloud fallback.
+        if (read?.document_number) misses.current = 0;
+        else misses.current++;
       } else {
         const read = await localReadFrame(canvas, {
           analysis: analysis ?? undefined,
@@ -889,7 +917,10 @@ export default function SmartVehicleScan({
           )
             return;
         }
-        misses.current++;
+        // Ticks that read a candidate (waiting on the vote) are productive:
+        // keep the base cadence and don't count them toward the cloud fallback.
+        if (hasIdentifier) misses.current = 0;
+        else misses.current++;
       }
       if (isCurrent(token) && misses.current >= 4 && aiEnabled) {
         misses.current = 0;
@@ -912,7 +943,7 @@ export default function SmartVehicleScan({
   ]);
 
   useEffect(() => {
-    if (!running || mode === "photo" || result || identityMatch) return;
+    if (!running || result || identityMatch) return;
     let cancelled = false;
     let timer = 0;
     const step = async () => {
@@ -948,12 +979,6 @@ export default function SmartVehicleScan({
     if (!isCurrent(token)) return;
     const canvas = await dataUrlToCanvas(frame.dataUrl);
     if (!isCurrent(token)) return;
-    if (mode === "photo") {
-      if (aiEnabled) await cloudRead(frame, token);
-      else
-        setMessage("Bật “Dùng AI” để nhận diện loại xe, màu và năm từ ảnh xe.");
-      return;
-    }
     if (!canvas) {
       setMessage("Không đọc được ảnh. Chọn ảnh khác rõ hơn.");
       return;
@@ -1001,26 +1026,6 @@ export default function SmartVehicleScan({
       );
   };
 
-  const shootNow = async () => {
-    if (mode !== "photo" || busyRef.current || !videoRef.current) return;
-    prepareScanAudio();
-    const token = epoch.current;
-    photoDraft.current = null;
-    busyRef.current = true;
-    setBusy(true);
-    try {
-      const frame = await captureVideoFrame(videoRef.current);
-      if (!frame || !isCurrent(token)) return;
-      setFrozenPreview(frame.dataUrl);
-      await processImage(frame, token);
-    } catch (error) {
-      if (isCurrent(token)) setMessage(friendlyError(error));
-    } finally {
-      busyRef.current = false;
-      if (mounted.current) setBusy(false);
-    }
-  };
-
   const pickFromLibrary = async (
     event: React.ChangeEvent<HTMLInputElement>,
   ) => {
@@ -1035,9 +1040,8 @@ export default function SmartVehicleScan({
     try {
       scanSession.current++;
       setMessage("");
-      if (resultRef.current || mode === "photo") photoDraft.current = null;
+      if (resultRef.current) followUpDraft.current = null;
       commitResult(null);
-      setPhotoReady(false);
       identityMatchRef.current = null;
       setIdentityMatch(null);
       const frame = await captureFromFile(file);
@@ -1061,9 +1065,8 @@ export default function SmartVehicleScan({
   const chooseMode = async (next: CaptureMode) => {
     if (busy || (next === "identity" && !identityAllowed)) return;
     await stopCamera();
-    photoDraft.current = null;
+    followUpDraft.current = null;
     commitResult(null);
-    setPhotoReady(false);
     setFrozenPreview(null);
     setMessage("");
     setLiveHint("");
@@ -1075,9 +1078,8 @@ export default function SmartVehicleScan({
   };
 
   const continueIdentifiers = () => {
-    photoDraft.current = result;
+    followUpDraft.current = result;
     commitResult(null);
-    setPhotoReady(false);
     setFrozenPreview(null);
     setOpenFollowup(true);
     const updated = { ...settings, mode: "scan" as const };
@@ -1192,9 +1194,7 @@ export default function SmartVehicleScan({
       ? "Đưa một mã QR xe vào khung"
       : mode === "identity"
         ? "Đưa mặt có số hoặc QR CCCD vào khung"
-        : mode === "photo"
-          ? "Lấy toàn cảnh xe rồi chụp ảnh"
-          : "Đưa biển số hoặc số khung vào khung";
+        : "Đưa biển số hoặc số khung vào khung";
   const candidates =
     identityMatch?.state === "ambiguous" || identityMatch?.state === "conflict"
       ? identityMatch.candidates
@@ -1216,9 +1216,7 @@ export default function SmartVehicleScan({
               {busy
                 ? "Đang đọc"
                 : running
-                  ? mode === "photo"
-                    ? "Sẵn sàng chụp"
-                    : "Đang quét"
+                  ? "Đang quét"
                   : "Chờ mở"}
             </span>
           </div>
@@ -1235,9 +1233,7 @@ export default function SmartVehicleScan({
           )}
         </div>
         <p className="muted small">
-          {mode === "photo"
-            ? "Chụp hoặc chọn ảnh xe để nhận diện loại xe, màu và năm."
-            : "Mở camera là tự quét. Có tiếng tít khi đọc được kết quả."}
+          Mở camera là tự quét. Có tiếng tít khi đọc được kết quả.
         </p>
       </div>
       <div className="smartcam-workspace">
@@ -1278,9 +1274,9 @@ export default function SmartVehicleScan({
           </div>
         </div>
         <div className="smartcam-viewport-column">
-          {photoDraft.current && !result && mode === "scan" && (
+          {followUpDraft.current && !result && mode === "scan" && (
             <p className="notice">
-              Đã giữ thông tin và ảnh xe. Quét thêm biển số hoặc số khung để
+              Đã giữ thông tin đã quét. Quét thêm biển số hoặc số khung để
               ghép vào cùng kết quả.
             </p>
           )}
@@ -1333,7 +1329,6 @@ export default function SmartVehicleScan({
               <div
                 className={
                   "smartcam-guide" +
-                  (mode === "photo" ? " photo" : "") +
                   (mode === "scan" ? " full-preview" : "")
                 }
                 aria-hidden="true"
@@ -1367,17 +1362,6 @@ export default function SmartVehicleScan({
           </div>
           <div className="smartcam-control-panel">
             <div className="smartcam-controls">
-              {running && mode === "photo" && (
-                <Button
-                  type="button"
-                  className="smartcam-btn-shutter"
-                  disabled={busy || cameraBusy || torchBusy}
-                  onClick={() => void shootNow()}
-                >
-                  <Camera size={16} />
-                  <span>{frozenPreview ? "Chụp tấm khác" : "Chụp ảnh xe"}</span>
-                </Button>
-              )}
               {!running && (
                 <div className="smartcam-idle-actions">
                   <Button
@@ -1609,12 +1593,7 @@ export default function SmartVehicleScan({
               )}
             </span>
             <span className="smartcam-verdict-text">
-              {photoReady ||
-              (mode === "photo" &&
-                !result.fields.license_plate &&
-                !result.fields.frame_number) ? (
-                "Đã nhận diện ảnh xe — kiểm tra các thông tin bên dưới."
-              ) : match.state === "unique" ? (
+              {match.state === "unique" ? (
                 <>
                   {(["license_plate", "frame_number"] as const).every(
                     (key) =>
@@ -1654,27 +1633,7 @@ export default function SmartVehicleScan({
               ))}
             </div>
           )}
-          {photoReady && (
-            <div className="smartcam-followup">
-              <p>Cần quét thêm biển số và số khung cho xe này không?</p>
-              <div className="smartcam-actions">
-                <Button type="button" onClick={continueIdentifiers}>
-                  Quét biển số / số khung
-                </Button>
-                <Button
-                  type="button"
-                  variant="secondary"
-                  onClick={() => {
-                    setPhotoReady(false);
-                    photoDraft.current = null;
-                  }}
-                >
-                  Để sau
-                </Button>
-              </div>
-            </div>
-          )}
-          {mode === "scan" && match.state === "none" && !photoReady && (
+          {mode === "scan" && match.state === "none" && (
             <div className="smartcam-followup">
               <p>
                 {result.fields.frame_number && result.fields.license_plate
@@ -1719,22 +1678,21 @@ export default function SmartVehicleScan({
                 Mở hồ sơ xe
               </Button>
             )}
-            {!photoReady &&
-              !(mode === "scan" && match.state === "none") && (
-                <Button
-                  type="button"
-                  variant="secondary"
-                  onClick={() => goIntake(result)}
-                >
-                  Thu xe mới (sau khi đã kiểm tra)
-                </Button>
-              )}
+            {!(mode === "scan" && match.state === "none") && (
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={() => goIntake(result)}
+              >
+                Thu xe mới (sau khi đã kiểm tra)
+              </Button>
+            )}
             <Button
               type="button"
               variant="ghost"
               disabled={busy}
               onClick={() => {
-                photoDraft.current = null;
+                followUpDraft.current = null;
                 void startCamera();
               }}
             >

@@ -134,6 +134,7 @@ Toàn bộ hàm `public` mà ứng dụng gọi được, lấy từ định ngh
 | set_announcement_active | p_id uuid, p_active boolean | OWNER |
 | set_post_draft_status | p_id uuid, p_status text, p_add_to_library boolean DEFAULT false | OWNER, MANAGER, STAFF |
 | skip_message | p_message_id uuid,p_error_code text,p_safe_message text | OWNER, MANAGER, STAFF |
+| toggle_vehicle_favorite | p_vehicle_id uuid | OWNER, MANAGER, STAFF |
 | transfer_ownership | p_target_user uuid | OWNER |
 | update_profile | p_id uuid, p_data jsonb | OWNER, MANAGER, STAFF |
 | update_sale_due_date | p_sale_id uuid,p_due_date date | OWNER, MANAGER, STAFF |

@@ -19,6 +19,7 @@ import {
   CirclePlus,
   Search,
   SlidersHorizontal,
+  Star,
   MoreHorizontal,
 } from "lucide-react";
 import { api } from "@/lib/api";
@@ -52,6 +53,8 @@ import { useDebouncedValue } from "@/lib/useDebouncedValue";
 import { Highlight } from "@/components/search/Highlight";
 import { QuickExpenseModal } from "@/features/expenses/QuickExpenseModal";
 import { VehicleActionsSheet } from "./VehicleActionsSheet";
+import { VehicleFavoriteButton } from "./VehicleFavoriteButton";
+import { useFavoriteVehicleCount } from "@/lib/useVehicleFavorite";
 import { useVehicleTypes } from "@/lib/useVehicleTypes";
 import { vehicleSubtitle, vehicleTitle } from "@/lib/vehicleDisplay";
 import {
@@ -70,7 +73,7 @@ const quickPresets: Array<{ id: string; label: string; filters: Record<string, s
 ];
 const inventoryFilterKeys = [
   "vehicle_type_id", "year", "date_from", "date_to",
-  "cost_pending", "min_days", "status", "sort", "page",
+  "cost_pending", "min_days", "status", "sort", "page", "fav",
 ];
 
 /**
@@ -180,6 +183,8 @@ export function InventoryPage() {
   const date_to = params.get("date_to") ?? "";
   const cost_pending = params.get("cost_pending") ?? "";
   const min_days = params.get("min_days") ?? "";
+  // Dấu sao "Yêu thích" là bộ lọc cá nhân theo tài khoản (server đối chiếu JWT).
+  const fav = params.get("fav") === "1";
 
   const filters = useMemo(
     () => ({
@@ -196,7 +201,7 @@ export function InventoryPage() {
     Object.values(filters).some(Boolean),
   );
   const [rangeOpen, setRangeOpen] = useState(false);
-  const [actionVehicle, setActionVehicle] = useState<Vehicle | null>(null);
+  const [actionVehicleId, setActionVehicleId] = useState<string | null>(null);
   const [expenseVehicle, setExpenseVehicle] = useState<Vehicle | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Vehicle | null>(null);
   const [requestTarget, setRequestTarget] = useState<Vehicle | null>(null);
@@ -240,7 +245,7 @@ export function InventoryPage() {
     });
   }
   const query = useQuery({
-    queryKey: ["vehicles", deferredSearch, status, sort, filters, page],
+    queryKey: ["vehicles", deferredSearch, status, sort, filters, fav, page],
     queryFn: () =>
       api.call<Paged<Vehicle>>("list_vehicles", {
         p_filters: {
@@ -248,6 +253,7 @@ export function InventoryPage() {
           search: deferredSearch,
           status,
           sort,
+          favorite: fav ? "true" : "",
           offset: (page - 1) * pageSize,
           limit: pageSize,
         },
@@ -258,7 +264,7 @@ export function InventoryPage() {
   useEffect(() => {
     if (query.data && page * pageSize < query.data.total) {
       void client.prefetchQuery({
-        queryKey: ["vehicles", deferredSearch, status, sort, filters, page + 1],
+        queryKey: ["vehicles", deferredSearch, status, sort, filters, fav, page + 1],
         queryFn: () =>
           api.call<Paged<Vehicle>>("list_vehicles", {
             p_filters: {
@@ -266,13 +272,14 @@ export function InventoryPage() {
               search: deferredSearch,
               status,
               sort,
+              favorite: fav ? "true" : "",
               offset: page * pageSize,
               limit: pageSize,
             },
           }),
       });
     }
-  }, [query.data, page, deferredSearch, status, sort, filters, client]);
+  }, [query.data, page, deferredSearch, status, sort, filters, fav, client]);
 
   useEffect(() => {
     if (!query.isSuccess || query.isPlaceholderData) return;
@@ -329,7 +336,13 @@ export function InventoryPage() {
     });
   }
   const vehicles = query.data?.items ?? [];
+  // Sheet 3 chấm giữ id chứ không giữ bản sao cũ: bấm sao trong sheet phải thấy
+  // dấu sáng/tắt ngay trên chính sheet.
+  const actionVehicle = actionVehicleId
+    ? vehicles.find((item) => item.id === actionVehicleId) ?? null
+    : null;
   const total = query.data?.total ?? 0;
+  const favoriteCount = useFavoriteVehicleCount(!pickMode);
   const statusOptions = pickMode ? PICK_STATUS_OPTIONS : VEHICLE_STATUS_OPTIONS;
   // Khi đang ở tab "Đã bán" (không phải chế độ chọn xe đăng bài), bấm vào xe sẽ
   // ưu tiên hiện giao dịch bán ra trước, rồi mới cho phép mở chi tiết xe.
@@ -439,6 +452,21 @@ export function InventoryPage() {
               </button>
             );
           })}
+          {/* Sao yêu thích là bộ lọc cá nhân, không clear các filter đang có —
+              chỉ bật/tắt tham số `fav` trên URL. */}
+          <button
+            type="button"
+            className={fav ? "quick-pill quick-pill-active quick-pill-fav" : "quick-pill quick-pill-fav"}
+            aria-pressed={fav}
+            title="Chỉ xem xe bạn đã đánh dấu yêu thích"
+            onClick={() => updateParams({ fav: fav ? "" : "1" })}
+          >
+            <Star size={13} fill={fav ? "currentColor" : "none"} aria-hidden="true" />
+            Yêu thích
+            {!!favoriteCount.data && favoriteCount.data > 0 && (
+              <kbd>{favoriteCount.data}</kbd>
+            )}
+          </button>
         </div>
         )}
         {!pickMode && expanded && (
@@ -512,6 +540,7 @@ export function InventoryPage() {
                     date_to: "",
                     cost_pending: "",
                     min_days: "",
+                    fav: "",
                     q: "",
                     status: "",
                     page: "",
@@ -697,12 +726,15 @@ export function InventoryPage() {
                           />
                         </div>
                       ) : (
-                        <RowViewAction
-                          to={`/vehicles/${vehicle.id}`}
-                          state={{ fromInventory: returnTo, saleFirst: soldTabView }}
-                          onClick={rememberPosition}
-                          label={`xe ${vehicleTitle(vehicle)}`}
-                        />
+                        <div className="row inventory-row-actions">
+                          <VehicleFavoriteButton vehicle={vehicle} />
+                          <RowViewAction
+                            to={`/vehicles/${vehicle.id}`}
+                            state={{ fromInventory: returnTo, saleFirst: soldTabView }}
+                            onClick={rememberPosition}
+                            label={`xe ${vehicleTitle(vehicle)}`}
+                          />
+                        </div>
                       )}
                     </td>
                   </tr>
@@ -766,17 +798,23 @@ export function InventoryPage() {
                       <Check size={15} aria-hidden="true" /> Chọn
                     </Button>
                   ) : (
-                    <button
-                      type="button"
-                      className="record-more-btn"
-                      aria-label={`Thao tác với ${vehicleTitle(vehicle)}`}
-                      onClick={() => {
-                        rememberPosition();
-                        setActionVehicle(vehicle);
-                      }}
-                    >
-                      <MoreHorizontal size={20} />
-                    </button>
+                    <>
+                      <VehicleFavoriteButton
+                        vehicle={vehicle}
+                        className="record-fav-btn"
+                      />
+                      <button
+                        type="button"
+                        className="record-more-btn"
+                        aria-label={`Thao tác với ${vehicleTitle(vehicle)}`}
+                        onClick={() => {
+                          rememberPosition();
+                          setActionVehicleId(vehicle.id);
+                        }}
+                      >
+                        <MoreHorizontal size={20} />
+                      </button>
+                    </>
                   )}
                 </div>
               </article>
@@ -794,18 +832,18 @@ export function InventoryPage() {
         <VehicleActionsSheet
           vehicle={actionVehicle}
           returnTo={returnTo}
-          onClose={() => setActionVehicle(null)}
+          onClose={() => setActionVehicleId(null)}
           onExpense={() => {
             setExpenseVehicle(actionVehicle);
-            setActionVehicle(null);
+            setActionVehicleId(null);
           }}
           onDelete={() => {
             setDeleteTarget(actionVehicle);
-            setActionVehicle(null);
+            setActionVehicleId(null);
           }}
           onRequestDelete={() => {
             setRequestTarget(actionVehicle);
-            setActionVehicle(null);
+            setActionVehicleId(null);
           }}
         />
       )}

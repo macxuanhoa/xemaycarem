@@ -164,9 +164,6 @@ export default function ShorthandIntakePage() {
     const fields: ScannedFields = {
       license_plate: scanned.license_plate || "",
       frame_number: scanned.frame_number || "",
-      vehicle_type: scanned.vehicle_type || "",
-      color: scanned.color || "",
-      year: scanned.year ? String(scanned.year) : "",
     };
     const match = { state: "none" } as const;
     const recognition: Recognition = {

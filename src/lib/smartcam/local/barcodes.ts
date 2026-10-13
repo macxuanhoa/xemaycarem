@@ -1,12 +1,44 @@
 /**
- * Local QR/barcode recognition with ZXing (WASM-free, pure JS, lazy-loaded).
- * A frame is decoded on two regions — the whole picture and the lower band
- * where stickers usually sit — and distinct payloads are merged, so multiple
- * visible codes in one frame are all reported. Decoding is synchronous CPU
- * work, so callers keep it behind the loop's busy guard and a slower cadence
- * than the sharpness check.
+ * QR/barcode recognition. The browser-native BarcodeDetector API is tried
+ * first — it is a hardware-accelerated system service on Chrome/Edge/Android
+ * and decodes a frame in milliseconds. Browsers without it (iOS Safari) fall
+ * back to ZXing (pure JS, lazy-loaded). A frame is decoded on two regions —
+ * the whole picture and the lower band where stickers usually sit — and
+ * distinct payloads are merged, so multiple visible codes in one frame are
+ * all reported.
  */
 import { sourceCanvas, toGray } from "./frames";
+
+type NativeBarcode = { rawValue?: string };
+type NativeBarcodeDetectorLike = {
+  detect: (image: CanvasImageSource) => Promise<NativeBarcode[]>;
+};
+type NativeBarcodeDetectorCtor = new (
+  options?: { formats?: string[] },
+) => NativeBarcodeDetectorLike;
+
+/** Undefined = not probed yet; null = native decoding not usable here. */
+let nativeDetector: NativeBarcodeDetectorLike | null | undefined;
+
+function getNativeDetector(): NativeBarcodeDetectorLike | null {
+  if (nativeDetector === undefined) {
+    const Ctor =
+      typeof window === "undefined"
+        ? undefined
+        : (
+            window as unknown as {
+              BarcodeDetector?: NativeBarcodeDetectorCtor;
+            }
+          ).BarcodeDetector;
+    try {
+      // No explicit formats: every code type the browser supports.
+      nativeDetector = Ctor ? new Ctor() : null;
+    } catch {
+      nativeDetector = null;
+    }
+  }
+  return nativeDetector;
+}
 
 /** Reusable module handle; a failed import disables codes for the session. */
 let zxDynamic: Promise<typeof import("@zxing/library") | null> | null = null;
@@ -39,25 +71,59 @@ function buildHints(mod: typeof import("@zxing/library")): Map<import("@zxing/li
   return map;
 }
 
+/** The lower-middle band where vehicle stickers usually sit below the plate. */
+function lowerBand(full: HTMLCanvasElement): HTMLCanvasElement | null {
+  const band = document.createElement("canvas");
+  band.width = full.width;
+  band.height = Math.round(full.height * 0.45);
+  const ctx = band.getContext("2d", { willReadFrequently: true });
+  if (!ctx || band.width <= 0 || band.height <= 0) return null;
+  ctx.drawImage(
+    full,
+    0,
+    Math.round(full.height * 0.4),
+    full.width,
+    band.height,
+    0,
+    0,
+    band.width,
+    band.height,
+  );
+  return band;
+}
+
 /** Decode every configured region of one frame; returns distinct payloads. */
-export async function detectCodes(video: HTMLVideoElement | HTMLCanvasElement): Promise<string[]> {
+export async function detectCodes(
+  video: HTMLVideoElement | HTMLCanvasElement,
+): Promise<string[]> {
+  const full =
+    video instanceof HTMLCanvasElement ? video : sourceCanvas(video, 640);
+  if (!full) return [];
+  const regions: HTMLCanvasElement[] = [full];
+  const band = lowerBand(full);
+  if (band) regions.push(band);
+
+  const native = getNativeDetector();
+  if (native) {
+    try {
+      const found = new Set<string>();
+      for (const region of regions)
+        for (const code of await native.detect(region)) {
+          const text = code.rawValue?.trim();
+          if (text) found.add(text);
+        }
+      return [...found];
+    } catch {
+      // Construction succeeded but runtime decoding is broken (common on
+      // desktop Safari) — ZXing takes the rest of this session.
+      nativeDetector = null;
+    }
+  }
+
   const mod = await zxing();
   if (!mod) return [];
   reader ??= new mod.MultiFormatReader();
   hints ??= buildHints(mod);
-  const full = video instanceof HTMLCanvasElement ? video : sourceCanvas(video, 640);
-  if (!full) return [];
-  const height = full.height;
-  const regions: HTMLCanvasElement[] = [full];
-  // Lower-middle band (vehicle stickers often sit below the plate line).
-  const band = document.createElement("canvas");
-  band.width = full.width;
-  band.height = Math.round(height * 0.45);
-  const ctx = band.getContext("2d", { willReadFrequently: true });
-  if (ctx && band.width > 0 && band.height > 0) {
-    ctx.drawImage(full, 0, Math.round(height * 0.4), full.width, band.height, 0, 0, band.width, band.height);
-    regions.push(band);
-  }
   const found = new Set<string>();
   for (const region of regions) {
     const gray = toGray(region);

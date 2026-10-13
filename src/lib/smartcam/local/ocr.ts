@@ -6,8 +6,9 @@
  * jsDelivr CDN on first use and then kept in the browser/service-worker
  * cache; recognition itself is entirely local.
  *
- * The worker lives off the main thread, so the camera UI never freezes while
- * a frame is read. A failed load degrades to "unavailable" once per page
+ * The workers live off the main thread, so the camera UI never freezes while
+ * a frame is read — a two-worker pool runs the focused crops of one tick in
+ * parallel. A failed load degrades to "unavailable" once per page
  * lifetime — the loop stops hammering a broken download, and the cloud
  * fallback stays available.
  */
@@ -26,7 +27,7 @@ import {
   regionCanvas,
   sourceCanvas,
 } from "./frames";
-import type { FrameAnalysis } from "./regions";
+import type { DetectedRegion, FrameAnalysis } from "./regions";
 import { parseIdentityDocumentText, type IdentityRead } from "./identity";
 
 type OcrWorker = Awaited<ReturnType<typeof createWorker>>;
@@ -63,9 +64,16 @@ const WORKER_PATH = "/tesseract/worker.min.js";
 const CORE_PATH = "/tesseract/core";
 /** Digits, plate letters and stamp separators — nothing else can appear. */
 const WHITELIST = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ.- ";
+/** Two workers let the live tick read its focused crops in parallel. */
+const POOL_SIZE = 2;
 
-let workerPromise: Promise<OcrWorker | null> | null = null;
-let recognitionQueue: Promise<void> = Promise.resolve();
+let poolPromise: Promise<OcrWorker[]> | null = null;
+/** Per-slot chains: one read at a time per worker, no shared-parameter races. */
+const taskQueues: Promise<unknown>[] = Array.from(
+  { length: POOL_SIZE },
+  () => Promise.resolve(),
+);
+let nextSlot = 0;
 let stage: OcrStage = "idle";
 const listeners = new Set<(stage: OcrStage) => void>();
 
@@ -85,38 +93,40 @@ export function onOcrStageChange(
   return () => void listeners.delete(listener);
 }
 
-async function buildWorker(): Promise<OcrWorker | null> {
+async function buildPool(): Promise<OcrWorker[]> {
   try {
     setStage("loading");
     // OEM 1 = LSTM only; langs 'eng' covers plates and VIN-style stamps
     // (Vietnamese plates are Latin-0-9 only).
-    const worker = await createWorker("eng", 1, {
-      workerPath: WORKER_PATH,
-      corePath: CORE_PATH,
-    });
+    const workers = await Promise.all(
+      Array.from({ length: POOL_SIZE }, () =>
+        createWorker("eng", 1, {
+          workerPath: WORKER_PATH,
+          corePath: CORE_PATH,
+        }),
+      ),
+    );
     setStage("ready");
-    return worker;
+    return workers;
   } catch {
     setStage("unavailable");
-    return null;
+    return [];
   }
 }
 
-/** Ensure the shared worker exists; false = local OCR unavailable this session. */
+/** Ensure the shared worker pool exists; false = local OCR unavailable this session. */
 export async function ensureOcrWorker(): Promise<boolean> {
-  if (!workerPromise) workerPromise = buildWorker();
-  const worker = await workerPromise;
-  if (worker && stage !== "ready") setStage("ready");
-  return !!worker;
+  poolPromise ??= buildPool();
+  const workers = await poolPromise;
+  if (workers.length && stage !== "ready") setStage("ready");
+  return !!workers.length;
 }
 
-async function recognizeNow(
+async function recognizeOn(
+  worker: OcrWorker,
   canvas: HTMLCanvasElement,
   mode: "line" | "block" | "sparse",
 ): Promise<OcrPass | null> {
-  if (!(await ensureOcrWorker())) return null;
-  const worker = await workerPromise;
-  if (!worker) return null;
   const started = performance.now();
   try {
     // Built as a variable so no excess-property checks fight the WASM params.
@@ -183,8 +193,15 @@ function recognize(
   canvas: HTMLCanvasElement,
   mode: "line" | "block" | "sparse",
 ): Promise<OcrPass | null> {
-  const result = recognitionQueue.then(() => recognizeNow(canvas, mode));
-  recognitionQueue = result.then(
+  poolPromise ??= buildPool();
+  const pool = poolPromise;
+  const slot = nextSlot++ % POOL_SIZE;
+  const result = taskQueues[slot].then(async () => {
+    const workers = await pool;
+    const worker = workers[slot];
+    return worker ? recognizeOn(worker, canvas, mode) : null;
+  });
+  taskQueues[slot] = result.then(
     () => undefined,
     () => undefined,
   );
@@ -193,10 +210,15 @@ function recognize(
 
 /** Free the WASM heap (call when the camera screen unmounts for good). */
 export function releaseOcrWorker(): void {
-  const pending = workerPromise;
-  workerPromise = null;
+  const pending = poolPromise;
+  poolPromise = null;
   stage = "idle";
-  void pending?.then((worker) => worker?.terminate());
+  nextSlot = 0;
+  for (const slotIndex of taskQueues.keys())
+    taskQueues[slotIndex] = Promise.resolve();
+  void pending?.then((workers) =>
+    workers.forEach((worker) => worker.terminate()),
+  );
 }
 
 /**
@@ -299,12 +321,26 @@ export async function localReadFrame(
       ? options.analysis
       : analyzeFrame(full);
   const regions = analysis?.regions.slice(0, 2) ?? [];
-  for (const region of regions) {
+  const mergedRead = () =>
+    passes.length ? chooseIdentifierRead(passes, options.target) : null;
+  const regionPass = async (
+    region: DetectedRegion,
+  ): Promise<OcrPass | null> => {
     const crop = regionCanvas(full, region);
-    const pass = crop
+    return crop
       ? await recognize(crop, region.kind === "block" ? "block" : "line")
       : null;
-    if (pass) passes.push(pass);
+  };
+  if (options.fast && regions.length > 1) {
+    // Live ticks read both focused crops at once — the tick costs max(crops),
+    // not sum(crops), because each crop runs on its own worker.
+    for (const pass of await Promise.all(regions.map(regionPass)))
+      if (pass) passes.push(pass);
+  } else {
+    for (const region of regions) {
+      const pass = await regionPass(region);
+      if (pass) passes.push(pass);
+    }
   }
   if (!regions.length) {
     const band = bandCanvas(full);
@@ -312,21 +348,18 @@ export async function localReadFrame(
     if (linePass) passes.push(linePass);
   }
   // In fast live-scanning mode, if focused crops/band already found a confident candidate,
-  // skip the expensive full 1080p sparse pass to drastically reduce latency and save CPU.
+  // skip the expensive full-frame sparse pass to drastically reduce latency and save CPU.
+  const partial = options.fast ? mergedRead() : null;
   const hasConfidentCandidate =
-    options.fast &&
-    passes.some((p) => {
-      const read = chooseIdentifierRead([p], options.target);
-      return (
-        (read.license_plate && read.plateConfidence >= 55) ||
-        (read.frame_number && read.frameConfidence >= 55)
-      );
-    });
+    !!partial &&
+    ((!!partial.license_plate && partial.plateConfidence >= 55) ||
+      (!!partial.frame_number && partial.frameConfidence >= 55));
 
   if (!hasConfidentCandidate) {
     // Always inspect the full photo too. A crop must never hide a conflicting
     // second plate/frame elsewhere, or prevent reading text the locator missed.
-    const widened = preprocessedFull(full, 1080);
+    // Live fast ticks use a smaller sparse canvas — the dominant WASM cost.
+    const widened = preprocessedFull(full, options.fast ? 960 : 1080);
     const sparsePass = widened ? await recognize(widened, "sparse") : null;
     if (sparsePass) passes.push(sparsePass);
   }

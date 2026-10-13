@@ -14,7 +14,7 @@ const pixel = await sharp({ create: { width: 480, height: 320, channels: 3, back
 const known = { id: vehicleId, internal_code: 'XE-TEST-000001', vehicle_type_id: 'vt-ga', vehicle_type: 'Xe tay ga',
   frame_number: 'RLHTEST000001', license_plate: '59A1-234.56', status: 'IN_STOCK', purchase_date: '2026-10-01', year: 2022, color: 'Đen' }
 function scanDraft(values) {
-  const empty = { license_plate: null, frame_number: null, vehicle_type: null, color: null, year: null }
+  const empty = { license_plate: null, frame_number: null }
   return { kind: 'draft', task: 'vehicle_scan', vehicle_id: null, draft: { ...empty, ...values },
     human_confirmation_required: true, warnings: ['Kiểm tra lại từng trường trước khi lưu.'] }
 }
@@ -226,12 +226,12 @@ test('smart camera: known plate scan resolves to the existing vehicle profile', 
   const calls = await setup(page)
   await page.goto('/capture')
   await expect(page.getByRole('heading', { name: 'Camera thông minh' })).toBeVisible()
-  await expect(page.getByRole('group', { name: 'Chế độ camera' }).getByRole('button')).toHaveCount(4)
+  await expect(page.getByRole('group', { name: 'Chế độ camera' }).getByRole('button')).toHaveCount(3)
   await expectUnifiedIdentifierScan(page)
   await expect(page.getByText('Tra cứu xe thủ công', { exact: true })).toHaveCount(0)
   await expect(page.getByRole('checkbox')).toHaveCount(1)
   await expect(page.getByText('Quét liên tục khi mở camera', { exact: true })).toHaveCount(0)
-  await expect(page.getByRole('button', { name: /Chụp ngay|Chụp ảnh xe|Nhận diện ngay|AI đọc ảnh/ })).toHaveCount(0)
+  await expect(page.getByRole('button', { name: /Chụp ngay|Nhận diện ngay/ })).toHaveCount(0)
   await scanFromLibrary(page)
   // A safe exact identifier opens the vehicle immediately; no confirmation button.
   await expect(page).toHaveURL(new RegExp(`/vehicles/${vehicleId}$`))
@@ -240,60 +240,6 @@ test('smart camera: known plate scan resolves to the existing vehicle profile', 
   expect(typeof assist.image.base64).toBe('string')
   // No write ever happened for a read-only identification.
   expect(calls.writes).toEqual([])
-})
-
-test('smart camera: photo then identifier followup prefills intake and saves only after confirmation', async ({ page }) => {
-  const calls = await setup(page, { result: body => body.scan_mode === 'vehicle'
-    ? scanDraft({ vehicle_type: 'Xe tay ga', color: 'Trắng', year: 2023, license_plate: known.license_plate })
-    : scanDraft({ license_plate: '61B1-777.77', vehicle_type: 'Sai loại', color: 'Sai màu', year: 1999 }) })
-  await page.goto('/capture')
-  await page.getByRole('button', { name: /Nhận diện ảnh xe/ }).click()
-  await scanFromLibrary(page)
-  await expect(page.getByText('Cần quét thêm biển số và số khung cho xe này không?')).toBeVisible()
-  await expect(page.locator('.smartcam-fields')).toContainText('Xe tay ga')
-  await expect(page.locator('.smartcam-fields')).toContainText('Trắng')
-  await expect(page.locator('.smartcam-fields')).toContainText('2023')
-  await expect(page.locator('.smartcam-fields')).not.toContainText(known.license_plate)
-  // Photo appearance alone cannot resolve a vehicle, even if provider adds a plate.
-  expect(calls.reads.filter(entry => entry.name === 'list_vehicles')).toEqual([])
-  await expect(page).toHaveURL(/\/capture$/)
-  await page.getByRole('button', { name: 'Quét biển số / số khung', exact: true }).click()
-  await expect(page.getByText('Đã giữ thông tin và ảnh xe.', { exact: false })).toBeVisible()
-  await scanFromLibrary(page)
-  await expect(page.getByText('Không tìm thấy xe này trong kho. Có thể là xe mới về.')).toBeVisible()
-  await expect(page.locator('.smartcam-fields')).toContainText('Xe tay ga')
-  await expect(page.locator('.smartcam-fields')).toContainText('Trắng')
-  await expect(page.locator('.smartcam-fields')).toContainText('2023')
-  await expect(page.locator('.smartcam-fields')).not.toContainText('Sai loại')
-  await page.getByRole('button', { name: 'Thu xe mới', exact: true }).click()
-  await expect(page).toHaveURL(/\/intake$/)
-  // Structured handoff: fields land in the existing intake cards, marked for review.
-  await expect(page.getByPlaceholder('59A1-234.56')).toHaveValue('61B1-777.77')
-  await expect(page.getByText('Bản nháp từ Camera thông minh', { exact: false })).toBeVisible()
-  await expect(page.locator('.fs-badge.warn').first()).toBeVisible()
-  // Loại xe remains the existing free-text input, prefilled from the photo.
-  await expect(page.getByLabel('Loại xe *')).toHaveValue('Xe tay ga')
-  // Camera recognition cannot infer a purchase price. The operator supplies
-  // this required business field after reviewing the transferred vehicle.
-  await expect(page.getByLabel('Giá thu', { exact: true })).toHaveValue('')
-  await page.getByLabel('Giá thu', { exact: true }).fill('18tr5')
-  await page.getByRole('button', { name: /Thu 1 xe vào kho/ }).click()
-  await page.getByRole('button', { name: 'Xác nhận thu xe' }).click()
-  const imported = calls.writes.find(entry => entry.name === 'import_vehicles')
-  const row = imported.body.p_vehicles.rows[0]
-  expect(row).toMatchObject({ license_plate: '61B1-777.77', vehicle_type: 'Xe tay ga', color: 'Trắng', year: 2023, purchase_price: 18500000 })
-  expect('brand' in row).toBe(false)
-  expect('model' in row).toBe(false)
-  // The approved scan photo rides the normal secure upload path afterwards —
-  // attached via the trusted vehicle_ids from THIS transaction, never a
-  // substring re-search of the inventory.
-  await expect(page.getByText(/Đã đính 2 ảnh camera/)).toBeVisible()
-  expect(calls.storage.length).toBeGreaterThan(0)
-  expect(calls.writes.filter(entry => entry.name === 'import_vehicles')).toHaveLength(1)
-  const photoRegistrations = calls.writes.filter(entry => entry.name === 'register_vehicle_image')
-  expect(photoRegistrations.map(entry => entry.body.p_vehicle_id)).toEqual(['77777777-7777-4777-8777-777777777770', '77777777-7777-4777-8777-777777777770'])
-  expect(calls.assist.map(entry => entry.scan_mode)).toEqual(['vehicle', 'identifiers'])
-  expect(calls.assist[1].scan_target).toBe('both')
 })
 
 test('smart camera: disabling AI sends no image when local OCR is unavailable', async ({ page }) => {
@@ -316,7 +262,7 @@ for (const format of ['legacy URL', 'stable payload']) test(`smart camera: a rea
   await page.goto('/capture')
   await page.getByRole('button', { name: /QR xe/ }).click()
   await expectUnifiedIdentifierScan(page)
-  await expect(page.getByRole('button', { name: /Chụp ngay|Chụp ảnh xe/ })).toHaveCount(0)
+  await expect(page.getByRole('button', { name: /Chụp ngay/ })).toHaveCount(0)
   const payload = format === 'stable payload' ? `carem:vehicle:v1:${vehicleId}` : `http://127.0.0.1:4184/vehicles/${vehicleId}`
   await page.getByLabel('Chọn ảnh QR xe từ thư viện').setInputFiles(await qrImage(payload))
   await expect(page).toHaveURL(new RegExp(`/vehicles/${vehicleId}$`))
@@ -434,42 +380,9 @@ test('smart camera: CCCD with no stored number explains the missing card number 
   expect(calls.writes).toEqual([])
 })
 
-test('smart camera: successive plate and frame followups detect either input and retain the same photo vehicle draft', async ({ page }) => {
-  let identifierScanCount = 0
-  const calls = await setup(page, { result: body => body.scan_mode === 'vehicle'
-    ? scanDraft({ vehicle_type: 'Xe số', color: 'Xanh', year: 2024 })
-    : identifierScanCount++ === 0
-      ? scanDraft({ license_plate: '61B1-777.77' })
-      : scanDraft({ frame_number: 'RLHNEWTARGET12345' }) })
-  await page.goto('/capture')
-  await page.getByRole('button', { name: /Nhận diện ảnh xe/ }).click()
-  await scanFromLibrary(page)
-  await page.getByRole('button', { name: 'Quét biển số / số khung', exact: true }).click()
-  await scanFromLibrary(page)
-  await expect(page.locator('.smartcam-fields')).toContainText('61B1-777.77')
-  await expectUnifiedIdentifierScan(page)
-  await page.getByRole('button', { name: 'Quét tiếp số khung', exact: true }).click()
-  await scanFromLibrary(page)
-  await expect(page.locator('.smartcam-fields')).toContainText('61B1-777.77')
-  await expect(page.locator('.smartcam-fields')).toContainText('RLHNEWTARGET12345')
-  await expect(page.locator('.smartcam-fields')).toContainText('Xe số')
-  await expect(page.locator('.smartcam-fields')).toContainText('Xanh')
-  await expect(page.locator('.smartcam-fields')).toContainText('2024')
-  await expect(page.locator('.smartcam-result-photos img')).toHaveCount(3)
-  await page.getByRole('button', { name: 'Thu xe mới', exact: true }).click()
-  await expect(page).toHaveURL(/\/intake$/)
-  await expect(page.getByLabel('Loại xe *')).toHaveValue('Xe số')
-  await expect(page.getByLabel('Số khung', { exact: true })).toHaveValue('RLHNEWTARGET12345')
-  await expect(page.getByPlaceholder('59A1-234.56')).toHaveValue('61B1-777.77')
-  await expect(page.getByLabel('Màu sắc', { exact: true })).toHaveValue('Xanh')
-  await expect(page.getByLabel('Năm sản xuất', { exact: true })).toHaveValue('2024')
-  expect(calls.writes).toEqual([])
-  expect(calls.assist.map(entry => [entry.scan_mode, entry.scan_target])).toEqual([['vehicle', undefined], ['identifiers', 'both'], ['identifiers', 'both']])
-})
-
 async function waitForCameraLayout(page, width) {
   await expect(page.getByRole('heading', { name: 'Camera thông minh' })).toBeVisible()
-  await expect(page.getByRole('group', { name: 'Chế độ camera' }).getByRole('button')).toHaveCount(4)
+  await expect(page.getByRole('group', { name: 'Chế độ camera' }).getByRole('button')).toHaveCount(3)
   await expectUnifiedIdentifierScan(page)
   if (width < 1000) {
     await expect(page.locator('.sidebar')).toHaveAttribute('aria-hidden', 'true')
@@ -573,17 +486,6 @@ test('smart camera: desktop workspace and mobile controls stay accessible at res
       await expectCameraControlsAboveNavigation(surface, true)
       if (viewport.width === 390) await surface.screenshot({ path: resolve('scratch/camera-mobile-live.png'), fullPage: true, animations: 'disabled' })
       await surface.getByRole('button', { name: 'Tắt camera', exact: true }).click()
-      if (viewport.width === 390) {
-        await surface.getByRole('button', { name: /Nhận diện ảnh xe/ }).click()
-        await surface.getByRole('button', { name: 'Mở camera', exact: true }).click()
-        await expect(surface.getByRole('button', { name: 'Chụp ảnh xe', exact: true })).toBeVisible()
-        await expectCameraControlsAboveNavigation(surface, true)
-        const shutter = await surface.getByRole('button', { name: 'Chụp ảnh xe', exact: true }).boundingBox()
-        const navigation = await surface.locator('.bottom-nav').boundingBox()
-        expect(shutter.y + shutter.height).toBeLessThan(navigation.y)
-        await surface.screenshot({ path: resolve('scratch/camera-mobile-photo.png'), fullPage: true, animations: 'disabled' })
-        await surface.getByRole('button', { name: 'Tắt camera', exact: true }).click()
-      }
     }
     await surface.close()
   }

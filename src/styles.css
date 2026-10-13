@@ -636,6 +636,14 @@ pre {
   gap: 12px;
   color: #72806e;
 }
+/* Màn chờ lúc mở app / kiểm tra quyền: phủ toàn viewport */
+.loading-fullscreen {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  padding: 0;
+  background: #0a0f1e;
+}
 .error-state {
   display: flex;
   align-items: center;
@@ -5563,7 +5571,7 @@ mark.search-hit {
   }
 }
 
-/* Quick Scan Modal & Form Scanner Bar */
+/* Quick Scan Modal */
 .quick-scan-dialog {
   max-width: 820px;
   width: 95vw;
@@ -5594,35 +5602,6 @@ mark.search-hit {
 
 .smartcam-card.is-modal .smartcam-workspace {
   display: block;
-}
-
-.quick-scan-bar {
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  margin-bottom: 12px;
-}
-
-.quick-scan-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  background: linear-gradient(135deg, rgba(225, 29, 72, 0.08), rgba(249, 115, 22, 0.12));
-  border: 1px solid rgba(225, 29, 72, 0.28);
-  color: var(--primary, #e11d48);
-  font-weight: 600;
-  border-radius: var(--radius-md, 8px);
-  padding: 7px 14px;
-  font-size: 13.5px;
-  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
-  cursor: pointer;
-}
-
-.quick-scan-btn:hover {
-  background: linear-gradient(135deg, rgba(225, 29, 72, 0.16), rgba(249, 115, 22, 0.22));
-  border-color: var(--primary, #e11d48);
-  transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(225, 29, 72, 0.16);
 }
 
 /* Smart Camera Card & Header */
@@ -6069,9 +6048,6 @@ mark.search-hit {
   backdrop-filter: blur(4px);
   border: 1px solid rgba(255, 255, 255, 0.15);
 }
-.smartcam-guide.photo {
-  inset: 8%;
-}
 .smartcam-guide.full-preview {
   inset: 12% 6%;
   box-shadow: none;
@@ -6225,8 +6201,7 @@ mark.search-hit {
   gap: 10px;
 }
 
-.smartcam-btn-primary,
-.smartcam-btn-shutter {
+.smartcam-btn-primary {
   background: linear-gradient(135deg, #16a34a, #15803d) !important;
   color: #fff !important;
   border-color: #15803d !important;
@@ -6241,8 +6216,7 @@ mark.search-hit {
   border-radius: 8px;
   box-shadow: 0 2px 8px rgba(22, 163, 74, 0.28);
 }
-.smartcam-btn-primary:hover,
-.smartcam-btn-shutter:hover {
+.smartcam-btn-primary:hover {
   background: linear-gradient(135deg, #15803d, #166534) !important;
 }
 
@@ -6414,12 +6388,6 @@ mark.search-hit {
   .smartcam-controls {
     align-items: stretch;
     gap: 6px;
-  }
-  .smartcam-btn-shutter {
-    width: 100%;
-    height: 46px;
-    min-height: 46px;
-    font-size: 14px;
   }
   .smartcam-sub-actions {
     display: flex;
@@ -7619,6 +7587,156 @@ mark.search-hit {
   font-weight: 600;
   color: #4f46e5;
 }
+
+/* ── "Xe yêu thích" — dấu sao vàng cam dùng chung: pill lọc Kho, nút trên
+      bảng/thẻ mobile, sheet 3 chấm và header hồ sơ xe. ── */
+.fav-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 6px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: #94a3b8;
+  cursor: pointer;
+  transition:
+    background 0.16s ease,
+    color 0.16s ease,
+    transform 0.12s ease;
+}
+
+.fav-toggle:hover {
+  color: #f59e0b;
+  background: rgba(245, 158, 11, 0.1);
+}
+
+.fav-toggle:active {
+  transform: scale(0.88);
+}
+
+.fav-toggle.is-favorite {
+  color: #f59e0b;
+}
+
+.fav-toggle:focus-visible {
+  outline: 2px solid #f59e0b;
+  outline-offset: 1px;
+}
+
+/* Pill "Yêu thích" trong hàng lọc nhanh: bản vàng cam của quick-pill. */
+.quick-pill-fav.quick-pill-active {
+  background: #fef3c7;
+  border-color: #fcd34d;
+  color: #92400e;
+  box-shadow: 0 0 0 1px #fcd34d;
+}
+
+.quick-pill-fav.quick-pill-active:hover {
+  background: #fde68a;
+  border-color: #f59e0b;
+  color: #78350f;
+}
+
+.quick-pill-fav kbd {
+  background: #ffffff;
+  border-color: #fcd34d;
+  color: #92400e;
+}
+
+/* Kho (bảng desktop): sao đứng trước nút Xem trong cột thao tác. */
+.inventory-row-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 4px;
+}
+
+/* Sao trên corner của thẻ mobile — cùng cỡ với nút ••• đang có. */
+.record-actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.record-fav-btn {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+}
+
+/* Hai nút chia sẻ góc phải nên dòng đầu thẻ phải chừa chỗ rộng hơn. */
+.inventory-record > .vehicle-record-link > .row:first-child {
+  padding-right: 76px;
+}
+
+/* Sheet 3 chấm + menu hồ sơ xe: ô sao vàng cam khi đang yêu thích. */
+.vas-tile-fav,
+.vam-tile-fav {
+  background: #fef3c7;
+  color: #b45309;
+}
+
+/* Header hồ sơ xe: cụm star + 3 chấm nằm cùng góc phải tiêu đề. */
+.vehicle-head-actions {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.vehicle-fav-btn {
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  background: #f1f5f9;
+  color: #475569;
+}
+
+.vehicle-fav-btn.is-favorite {
+  color: #f59e0b;
+}
+
+[data-theme="dark"] .fav-toggle {
+  color: #8f96a8;
+}
+
+[data-theme="dark"] .fav-toggle:hover {
+  color: #fbbf24;
+  background: rgba(245, 158, 11, 0.14);
+}
+
+[data-theme="dark"] .fav-toggle.is-favorite,
+[data-theme="dark"] .vehicle-fav-btn.is-favorite {
+  color: #fbbf24;
+}
+
+[data-theme="dark"] .quick-pill-fav.quick-pill-active {
+  background: rgba(245, 158, 11, 0.16);
+  border-color: #b45309;
+  color: #fcd34d;
+  box-shadow: 0 0 0 1px #b45309;
+}
+
+[data-theme="dark"] .quick-pill-fav kbd {
+  background: #23252f;
+  border-color: #b45309;
+  color: #fcd34d;
+}
+
+[data-theme="dark"] .vas-tile-fav,
+[data-theme="dark"] .vam-tile-fav {
+  background: rgba(245, 158, 11, 0.16);
+  color: #fbbf24;
+}
+
+[data-theme="dark"] .vehicle-fav-btn {
+  background: #23252f;
+  color: #cbd0dd;
+}
+
 
 /* Responsive adjustments */
 @media (max-width: 768px) {
@@ -11216,11 +11334,8 @@ mark.search-hit {
   white-space: nowrap;
   border: 0;
 }
-.copilot-input {
-  width: 100%;
-  resize: vertical;
-  min-height: 76px;
-}
+/* .copilot-input is defined once, in the Composer section below — no
+   legacy duplicate rule here to fight over resize/min-height. */
 .copilot-chips {
   display: flex;
   flex-wrap: wrap;
@@ -11243,18 +11358,6 @@ mark.search-hit {
 .copilot-chip:hover {
   border-color: var(--primary);
   color: var(--primary);
-}
-.copilot-controls {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 12px;
-  align-items: center;
-  justify-content: space-between;
-}
-.copilot-controls .row {
-  flex: 1 1 260px;
-  align-items: flex-start;
-  gap: 8px;
 }
 /* Keep the AI-mode toggle icon inline and vertically centered with its
    label; the muted note wraps to the next line instead of floating up. */
@@ -11317,30 +11420,6 @@ mark.search-hit {
   color: var(--muted);
   font-size: 12px;
   font-style: normal;
-}
-.copilot-history {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: grid;
-  gap: 6px;
-}
-.copilot-history li {
-  display: flex;
-  gap: 10px;
-  align-items: baseline;
-  justify-content: space-between;
-}
-.copilot-history-link {
-  background: none;
-  border: 0;
-  padding: 0;
-  color: var(--primary);
-  cursor: pointer;
-  text-align: left;
-}
-.copilot-history-link:hover {
-  text-decoration: underline;
 }
 .citation-chip {
   display: inline-flex;
@@ -11484,12 +11563,16 @@ mark.search-hit {
   border-bottom: 0;
 }
 /* ============================================================
-   Trợ lý Cà Rem (AI Copilot): Modern ChatGPT Conversation Layout
+   Trợ lý Cà Rem (AI Copilot): conversation layout, on-brand indigo.
+   Palette mirrors the app-wide accent (--primary #4f46e5 family) used by
+   the dashboard CTA, sidebar, theme toggle and citation chips, so this page
+   no longer reads as a different, off-brand green product.
    ============================================================ */
 .copilot-layout-container {
   display: flex;
   flex-direction: column;
   min-height: calc(100vh - 120px);
+  min-height: calc(100dvh - 120px);
   position: relative;
   overflow: visible;
 }
@@ -11517,13 +11600,13 @@ mark.search-hit {
 .copilot-avatar-badge {
   width: 38px;
   height: 38px;
-  border-radius: 12px;
-  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+  border-radius: var(--radius, 12px);
+  background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%);
   color: #fff;
   display: flex;
   align-items: center;
   justify-content: center;
-  box-shadow: 0 4px 12px rgba(16, 185, 129, 0.25);
+  box-shadow: 0 4px 12px rgba(79, 70, 229, 0.25);
   flex-shrink: 0;
 }
 
@@ -11551,32 +11634,35 @@ mark.search-hit {
   display: inline-flex;
   align-items: center;
   gap: 5px;
-  background: rgba(16, 185, 129, 0.1);
-  color: #059669;
+  background: rgba(79, 70, 229, 0.09);
+  color: var(--primary-dark, #3730a3);
   border-radius: 999px;
   padding: 2px 8px;
   font-size: 11.5px;
   font-weight: 600;
 }
 
+/* Static "ready" dot. Per the UI-craft rules, an idle state must not run a
+   looping background animation (battery drain / distraction on the shop
+   tablet) — the pulse is reserved for the transient "thinking" state below. */
 .copilot-pulse-dot {
   width: 6px;
   height: 6px;
   border-radius: 50%;
-  background: #10b981;
-  box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.6);
-  animation: copilot-pulse 2s infinite ease-out;
+  background: var(--primary, #4f46e5);
+  box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.14);
 }
 
+/* Kept for the one transient use below (.copilot-turn-avatar.pulsing). */
 @keyframes copilot-pulse {
   0% {
-    box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.6);
+    box-shadow: 0 0 0 0 rgba(79, 70, 229, 0.55);
   }
   70% {
-    box-shadow: 0 0 0 6px rgba(16, 185, 129, 0);
+    box-shadow: 0 0 0 6px rgba(79, 70, 229, 0);
   }
   100% {
-    box-shadow: 0 0 0 0 rgba(16, 185, 129, 0);
+    box-shadow: 0 0 0 0 rgba(79, 70, 229, 0);
   }
 }
 
@@ -11627,7 +11713,10 @@ mark.search-hit {
 .copilot-messages-viewport {
   flex: 1 1 auto;
   overflow-y: visible;
-  padding: 10px 4px 170px;
+  /* Chừa khoảng trống dưới để thẻ trả lời cuối không bị composer dính
+     (position: sticky) che khi cuộn tới đáy. 170px cũ nhỏ hơn chiều cao
+     thật của composer (pill + textarea nở + controls) nên bị lệch. */
+  padding: 10px 4px 220px;
 }
 
 .copilot-messages-inner {
@@ -11659,13 +11748,13 @@ mark.search-hit {
 .copilot-welcome-icon {
   width: 60px;
   height: 60px;
-  border-radius: 18px;
-  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+  border-radius: var(--radius-xl, 20px);
+  background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%);
   color: #fff;
   display: flex;
   align-items: center;
   justify-content: center;
-  box-shadow: 0 10px 25px -4px rgba(16, 185, 129, 0.35);
+  box-shadow: 0 10px 25px -4px rgba(79, 70, 229, 0.35);
 }
 
 .copilot-welcome-heading {
@@ -11700,24 +11789,33 @@ mark.search-hit {
   padding: 14px 16px;
   background: var(--card, #fff);
   border: 1px solid var(--line);
-  border-radius: 14px;
+  border-radius: var(--radius-lg, 16px);
   cursor: pointer;
-  transition: border-color 150ms ease, background 150ms ease, box-shadow 150ms ease;
+  text-align: left;
+  transition:
+    border-color 150ms ease,
+    background 150ms ease,
+    box-shadow 150ms ease;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.03);
 }
 
 .copilot-starter-card:hover {
-  border-color: #10b981;
-  background: #f8fbf9;
-  box-shadow: 0 4px 14px rgba(16, 185, 129, 0.08);
+  border-color: var(--primary-light, #6366f1);
+  background: #f7f7fe;
+  box-shadow: 0 4px 14px rgba(79, 70, 229, 0.09);
+}
+
+.copilot-starter-card:focus-visible {
+  outline: 2px solid var(--primary, #4f46e5);
+  outline-offset: 2px;
 }
 
 .copilot-starter-icon-wrap {
   width: 38px;
   height: 38px;
-  border-radius: 10px;
-  background: rgba(16, 185, 129, 0.1);
-  color: #059669;
+  border-radius: var(--radius, 12px);
+  background: rgba(79, 70, 229, 0.09);
+  color: var(--primary, #4f46e5);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -11736,7 +11834,7 @@ mark.search-hit {
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.5px;
-  color: #059669;
+  color: var(--primary, #4f46e5);
 }
 
 .copilot-starter-title {
@@ -11770,11 +11868,11 @@ mark.search-hit {
 
 .copilot-user-bubble {
   max-width: min(80%, 640px);
-  background: #1e293b;
-  color: #f8fafc;
-  border-radius: 20px 20px 4px 20px;
+  background: linear-gradient(135deg, #4f46e5 0%, #4338ca 100%);
+  color: #fff;
+  border-radius: var(--radius-xl) var(--radius-xl) 4px var(--radius-xl);
   padding: 12px 18px;
-  box-shadow: 0 3px 12px rgba(15, 23, 42, 0.12);
+  box-shadow: 0 3px 12px rgba(79, 70, 229, 0.18);
   display: flex;
   flex-direction: column;
   gap: 4px;
@@ -11803,15 +11901,15 @@ mark.search-hit {
 .copilot-turn-avatar {
   width: 32px;
   height: 32px;
-  border-radius: 10px;
-  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+  border-radius: var(--radius, 12px);
+  background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%);
   color: #fff;
   display: flex;
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
   margin-top: 4px;
-  box-shadow: 0 2px 8px rgba(16, 185, 129, 0.25);
+  box-shadow: 0 2px 8px rgba(79, 70, 229, 0.25);
 }
 
 .copilot-turn-avatar.pulsing {
@@ -11830,7 +11928,7 @@ mark.search-hit {
 .copilot-answer-card {
   border: 1px solid var(--line);
   background: var(--card, #fff);
-  border-radius: 18px;
+  border-radius: var(--radius-lg, 16px);
   box-shadow: 0 2px 10px rgba(0, 0, 0, 0.04);
   padding: 18px 20px;
 }
@@ -11855,7 +11953,7 @@ mark.search-hit {
 .copilot-answer-by {
   font-size: 13px;
   font-weight: 700;
-  color: #047857;
+  color: var(--primary-dark, #3730a3);
   display: inline-flex;
   align-items: center;
   gap: 6px;
@@ -11893,8 +11991,8 @@ mark.search-hit {
 .copilot-question-echo {
   margin: 0 0 10px;
   padding: 6px 12px;
-  border-left: 3px solid #10b981;
-  background: #f8fafc;
+  border-left: 3px solid var(--primary, #4f46e5);
+  background: #f7f7fe;
   color: #475569;
   font-size: 13px;
   font-style: italic;
@@ -11907,10 +12005,10 @@ mark.search-hit {
   gap: 8px;
   margin: 10px 0;
   padding: 8px 12px;
-  border-radius: 10px;
-  background: #f0fdf4;
-  border: 1px solid #bbf7d0;
-  color: #166534;
+  border-radius: var(--radius, 12px);
+  background: #f5f6fd;
+  border: 1px solid #e0e7ff;
+  color: #3730a3;
   font-size: 13px;
   line-height: 1.45;
 }
@@ -11926,9 +12024,9 @@ mark.search-hit {
   display: inline-flex;
   align-items: baseline;
   gap: 8px;
-  background: #f8fafc;
+  background: #f5f6fd;
   border: 1px solid var(--line);
-  border-radius: 10px;
+  border-radius: var(--radius, 12px);
   padding: 6px 12px;
 }
 
@@ -11975,7 +12073,7 @@ mark.search-hit {
 .copilot-evidence {
   margin-top: 14px;
   border: 1px solid var(--line);
-  border-radius: 12px;
+  border-radius: var(--radius, 12px);
   overflow: hidden;
   background: #fbfbfd;
 }
@@ -12034,7 +12132,7 @@ mark.search-hit {
   align-items: center;
   gap: 12px;
   padding: 12px 18px;
-  border-radius: 16px;
+  border-radius: var(--radius-lg, 16px);
   background: var(--card, #fff);
   border: 1px solid var(--line);
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
@@ -12050,7 +12148,7 @@ mark.search-hit {
   width: 6px;
   height: 6px;
   border-radius: 50%;
-  background: #10b981;
+  background: var(--primary, #4f46e5);
   animation: copilot-bounce 1.4s infinite ease-in-out both;
 }
 
@@ -12088,6 +12186,8 @@ mark.search-hit {
   bottom: 0;
   left: 0;
   right: 0;
+  /* Same tier as the app topbar per the shell z-index convention. It must
+     sit above page content but never needs to cover the drawer/modal layer. */
   z-index: 30;
   padding: 12px 12px 14px;
   background: linear-gradient(to top, rgba(247, 247, 249, 1) 78%, rgba(247, 247, 249, 0) 100%);
@@ -12110,7 +12210,7 @@ mark.search-hit {
 }
 
 .copilot-composer {
-  border-radius: 18px !important;
+  border-radius: var(--radius-lg, 16px) !important;
   box-shadow: 0 8px 30px rgba(0, 0, 0, 0.08) !important;
   border: 1px solid var(--line) !important;
   padding: 10px 14px !important;
@@ -12127,17 +12227,20 @@ mark.search-hit {
   display: flex;
   align-items: flex-end;
   gap: 10px;
-  background: #f8fafc;
+  background: #f8f9fc;
   border: 1.5px solid var(--line);
-  border-radius: 14px;
+  border-radius: var(--radius, 12px);
   padding: 6px 8px 6px 14px;
-  transition: border-color 150ms ease, background 150ms ease, box-shadow 150ms ease;
+  transition:
+    border-color 150ms ease,
+    background 150ms ease,
+    box-shadow 150ms ease;
 }
 
 .copilot-input-capsule:focus-within {
-  border-color: #10b981;
+  border-color: var(--primary, #4f46e5);
   background: #fff;
-  box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.12);
+  box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.12);
 }
 
 .copilot-input {
@@ -12161,14 +12264,19 @@ mark.search-hit {
   display: inline-flex !important;
   align-items: center !important;
   gap: 6px !important;
-  background: #10b981 !important;
+  background: linear-gradient(180deg, #6366f1 0%, #4f46e5 100%) !important;
   color: #fff !important;
   font-weight: 600 !important;
   flex-shrink: 0;
 }
 
+/* No lift/scale on hover per the UI-craft rules — brightness + shadow only. */
 .copilot-send-button:hover:not(:disabled) {
-  background: #059669 !important;
+  background: linear-gradient(180deg, #818cf8 0%, #6366f1 100%) !important;
+}
+
+.copilot-send-button:active:not(:disabled) {
+  transform: scale(0.97);
 }
 
 .copilot-send-button:disabled {
@@ -12199,6 +12307,27 @@ mark.search-hit {
   font-size: 11.5px;
   color: var(--muted);
   margin: 0;
+}
+
+/* Mobile: composer sticky phải nằm NGAY TRÊN thanh điều hướng đáy
+   (.bottom-nav: fixed, z-index 25, hiện từ ≤768px trên /copilot). Nếu để
+   bottom: 0 thì composer (z-index 30) phủ lên tab bar → lệch, khó bấm. */
+@media (max-width: 768px) {
+  .copilot-composer-dock {
+    bottom: calc(92px + env(safe-area-inset-bottom));
+    padding: 10px 10px 12px;
+  }
+  /* Dự phòng khoảng trống lớn hơn: composer + tab bar đáy. */
+  .copilot-messages-viewport {
+    padding-bottom: calc(300px + env(safe-area-inset-bottom));
+  }
+  /* Một cột cho thẻ mở đầu để chữ không bị dồn chật trên màn hẹp. */
+  .copilot-starters-grid {
+    grid-template-columns: 1fr;
+  }
+  .copilot-user-bubble {
+    max-width: 88%;
+  }
 }
 .doc-body {
   gap: 10px;
@@ -13350,10 +13479,23 @@ html[data-theme="dark"] .header-theme-toggle {
   background: #171821;
 }
 
-/* --- Trợ lý AI & Tài liệu --- */
+/* --- Trợ lý AI & Tài liệu ---
+   Nền tối theo chuẩn palette riêng của app (surfaces #171821/#13141b,
+   borders #262833/#2b2e3c); điểm nhấn chuyển sang họ indigo (#818cf8 /
+   #a5b4fc) đồng bộ với --primary — không còn xanh lá lệch thương hiệu. */
 [data-theme="dark"] .copilot-topbar {
   background: #171821;
   border-color: #262833;
+}
+
+[data-theme="dark"] .copilot-status-indicator {
+  background: rgba(129, 140, 248, 0.14);
+  color: #a5b4fc;
+}
+
+[data-theme="dark"] .copilot-pulse-dot {
+  background: var(--primary-light, #6366f1);
+  box-shadow: 0 0 0 3px rgba(129, 140, 248, 0.18);
 }
 
 [data-theme="dark"] .copilot-topbar-btn {
@@ -13372,8 +13514,17 @@ html[data-theme="dark"] .header-theme-toggle {
 }
 
 [data-theme="dark"] .copilot-starter-card:hover {
-  border-color: #10b981;
+  border-color: #818cf8;
   background: #1d202b;
+}
+
+[data-theme="dark"] .copilot-starter-icon-wrap {
+  background: rgba(129, 140, 248, 0.16);
+  color: #a5b4fc;
+}
+
+[data-theme="dark"] .copilot-starter-tag {
+  color: #a5b4fc;
 }
 
 [data-theme="dark"] .copilot-composer-dock {
@@ -13392,6 +13543,8 @@ html[data-theme="dark"] .header-theme-toggle {
 
 [data-theme="dark"] .copilot-input-capsule:focus-within {
   background: #171821;
+  border-color: rgba(129, 140, 248, 0.55);
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.16);
 }
 
 [data-theme="dark"] .copilot-chip {
@@ -13410,30 +13563,32 @@ html[data-theme="dark"] .header-theme-toggle {
 }
 
 [data-theme="dark"] .copilot-answer-by {
-  color: #34d399;
+  color: #a5b4fc;
 }
 
-[data-theme="dark"] .copilot-answer-avatar {
-  background: rgba(16, 185, 129, 0.2);
-  color: #6ee7b7;
+[data-theme="dark"] .copilot-turn-avatar {
+  background: rgba(99, 102, 241, 0.24);
+  color: #c7d2fe;
+  box-shadow: none;
 }
 
 [data-theme="dark"] .copilot-user-bubble {
-  background: #252837;
-  color: #f1f5f9;
+  background: linear-gradient(135deg, #4338ca 0%, #3730a3 100%);
+  color: #eef2ff;
+  box-shadow: 0 3px 14px rgba(0, 0, 0, 0.35);
 }
 
 [data-theme="dark"] .copilot-question-echo {
   background: rgba(23, 24, 33, 0.72);
   border-color: #262833;
-  border-left-color: #10b981;
+  border-left-color: #818cf8;
   color: #98a0b3;
 }
 
 [data-theme="dark"] .copilot-stock-note {
-  background: rgba(16, 185, 129, 0.12);
-  border-color: rgba(16, 185, 129, 0.25);
-  color: #6ee7b7;
+  background: rgba(129, 140, 248, 0.1);
+  border-color: rgba(129, 140, 248, 0.26);
+  color: #c7d2fe;
 }
 
 [data-theme="dark"] .copilot-metric-badge {
@@ -13464,6 +13619,10 @@ html[data-theme="dark"] .header-theme-toggle {
   border-color: #262833;
 }
 
+[data-theme="dark"] .copilot-thinking-dots span {
+  background: #818cf8;
+}
+
 [data-theme="dark"] .copilot-facts li {
   background: #171821;
 }
@@ -13479,15 +13638,15 @@ html[data-theme="dark"] .header-theme-toggle {
 }
 
 [data-theme="dark"] .citation-chip {
-  background: rgba(16, 185, 129, 0.16);
-  border-color: rgba(16, 185, 129, 0.36);
-  color: #6ee7b7;
+  background: rgba(165, 180, 252, 0.14);
+  border-color: rgba(165, 180, 252, 0.32);
+  color: #a5b4fc;
 }
 
 [data-theme="dark"] .citation-chip:hover {
-  background: #10b981;
-  border-color: #10b981;
-  color: #fff;
+  background: #818cf8;
+  border-color: #818cf8;
+  color: #0f1015;
 }
 [data-theme="dark"] .markdown :not(pre) > code {
   background: #1d1f2a;
@@ -14026,12 +14185,8 @@ html[data-theme="dark"] .header-theme-toggle {
   gap: 7px;
   padding: 4px 12px 4px 9px;
   border-radius: 999px;
-  background: #f1f4f9;
-  border: 1px solid rgba(15, 23, 42, 0.09);
-  box-shadow:
-    0 2px 6px -1px rgba(15, 23, 42, 0.12),
-    0 1px 2px 0 rgba(15, 23, 42, 0.06),
-    inset 0 1px 0 rgba(255, 255, 255, 0.95);
+  background: #eef1fb;
+  box-shadow: inset 0 0 0 1px rgba(79, 70, 229, 0.12);
   line-height: 1;
 }
 .notification-led-dot {
@@ -14039,86 +14194,27 @@ html[data-theme="dark"] .header-theme-toggle {
   height: 7px;
   border-radius: 50%;
   flex-shrink: 0;
-  background: linear-gradient(135deg, #00e676, #00e5ff);
-  box-shadow:
-    0 0 5px #00e676,
-    0 0 9px rgba(0, 229, 255, 0.85);
+  background: var(--primary);
+  box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.14);
 }
-.notification-led-badge[data-group-type="yesterday"] .notification-led-dot {
-  background: linear-gradient(135deg, #ff7a00, #ffd600);
-  box-shadow:
-    0 0 5px #ff7a00,
-    0 0 9px rgba(255, 214, 0, 0.85);
-}
-.notification-led-badge[data-group-type="recent"] .notification-led-dot {
-  background: linear-gradient(135deg, #ff1a53, #00e5ff);
-  box-shadow:
-    0 0 5px #ff1a53,
-    0 0 9px rgba(0, 229, 255, 0.85);
-}
+/* Nhãn nhóm thời gian: một màu chủ đạo, chữ đậm rõ nét, không hiệu ứng LED. */
 .notification-led-text {
   font-size: 11.5px;
-  font-weight: 850;
+  font-weight: 800;
   letter-spacing: 0.06em;
   text-transform: uppercase;
-  background-image: linear-gradient(
-    90deg,
-    #ff1a53 0%,
-    #ff7a00 16.6%,
-    #ffd600 33.3%,
-    #00e676 50%,
-    #00e5ff 66.6%,
-    #3d5afe 83.3%,
-    #d500f9 100%
-  );
-  -webkit-background-clip: text;
-  background-clip: text;
-  -webkit-text-fill-color: transparent;
-  color: transparent;
-  filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.52))
-          drop-shadow(0 2px 4px rgba(15, 23, 42, 0.35))
-          drop-shadow(0 0 6px rgba(0, 229, 255, 0.32));
+  color: var(--primary);
 }
 .notification-led-text-mini {
   display: inline-block;
   font-size: 11px;
-  font-weight: 800;
+  font-weight: 700;
   letter-spacing: 0.03em;
-  background-image: linear-gradient(
-    90deg,
-    #ff1a53 0%,
-    #ff7a00 16.6%,
-    #ffd600 33.3%,
-    #00e676 50%,
-    #00e5ff 66.6%,
-    #3d5afe 83.3%,
-    #d500f9 100%
-  );
-  -webkit-background-clip: text;
-  background-clip: text;
-  -webkit-text-fill-color: transparent;
-  color: transparent;
-  filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.45))
-          drop-shadow(0 0 4px rgba(0, 229, 255, 0.28));
+  color: var(--primary);
 }
 .notification-led-text-inline {
-  font-weight: 800;
-  background-image: linear-gradient(
-    90deg,
-    #ff1a53 0%,
-    #ff7a00 16.6%,
-    #ffd600 33.3%,
-    #00e676 50%,
-    #00e5ff 66.6%,
-    #3d5afe 83.3%,
-    #d500f9 100%
-  );
-  -webkit-background-clip: text;
-  background-clip: text;
-  -webkit-text-fill-color: transparent;
-  color: transparent;
-  filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.4))
-          drop-shadow(0 0 4px rgba(0, 229, 255, 0.28));
+  font-weight: 700;
+  color: var(--primary);
 }
 .notification-group-empty {
   margin: 0;
@@ -14437,22 +14533,17 @@ html[data-theme="dark"] .header-theme-toggle {
   box-shadow: 0 0 0 3px rgba(165, 180, 252, 0.16);
 }
 [data-theme="dark"] .notification-led-badge {
-  background: rgba(15, 23, 42, 0.88);
-  border: 1px solid rgba(255, 255, 255, 0.14);
-  box-shadow:
-    0 4px 12px -2px rgba(0, 0, 0, 0.7),
-    inset 0 1px 0 rgba(255, 255, 255, 0.12),
-    0 0 12px -2px rgba(0, 229, 255, 0.25);
+  background: rgba(79, 70, 229, 0.16);
+  box-shadow: inset 0 0 0 1px rgba(165, 180, 252, 0.22);
 }
-[data-theme="dark"] .notification-led-text {
-  filter: drop-shadow(0 1.5px 2px rgba(0, 0, 0, 0.95))
-          drop-shadow(0 0 8px rgba(0, 229, 255, 0.6))
-          drop-shadow(0 0 14px rgba(213, 0, 249, 0.45));
+[data-theme="dark"] .notification-led-dot {
+  background: #a5b4fc;
+  box-shadow: 0 0 0 3px rgba(165, 180, 252, 0.18);
 }
+[data-theme="dark"] .notification-led-text,
 [data-theme="dark"] .notification-led-text-mini,
 [data-theme="dark"] .notification-led-text-inline {
-  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.9))
-          drop-shadow(0 0 6px rgba(0, 229, 255, 0.5));
+  color: #a5b4fc;
 }
 [data-theme="dark"] .notification-group-label-date {
   color: #67718a;
@@ -16531,13 +16622,11 @@ html[data-theme="dark"] .header-theme-toggle {
   gap: var(--space-md);
 }
 .copilot-more-questions,
-.copilot-evidence,
-.copilot-history-details {
+.copilot-evidence {
   min-width: 0;
 }
 .copilot-more-questions > summary,
-.copilot-evidence > summary,
-.copilot-history-details > summary {
+.copilot-evidence > summary {
   min-height: var(--touch-target);
   display: list-item;
   cursor: pointer;
@@ -16561,11 +16650,6 @@ html[data-theme="dark"] .header-theme-toggle {
   color: var(--readable-muted);
   font-size: 13px;
   line-height: 1.6;
-}
-.copilot-history-link {
-  min-height: var(--touch-target);
-  padding-block: 8px;
-  overflow-wrap: anywhere;
 }
 .citation-text {
   min-width: 0;
@@ -16607,82 +16691,177 @@ html[data-theme="dark"] .header-theme-toggle {
 /* Nút mở/đóng khu "chi tiết thanh toán" – tách khỏi hàng giá/ngày bán bên trên
    bằng khoảng thở + viền đứt nét, để nhân viên nhìn thấy ngay khu tuỳ chọn
    mà vẫn nhẹ nhàng, không cướp sự chú ý khỏi giá bán. */
-/* VietQR: modern fintech payment modal with clean hierarchy, validity status, and precision mobile layout */
+/* ═══ VietQR "Đêm Cà Rem" — màn hình chuyển khoản điện ảnh ═══
+   Bề mặt noir cố định cho cả Light lẫn Dark: một giao dịch tiền nong cần
+   "phòng đêm" tập trung thị giác; QR luôn nằm trên thẻ trắng để máy quét bắt
+   sáng tốt, còn quầng đỏ - huy hiệu - chữ ký lấy thẳng từ nhận diện Cà Rem.
+   Toàn bộ màu chỉ khai báo một lần ở khối token bên dưới. */
 .vietqr-modal-panel {
+  --vq-text: #f5f7fb;
+  --vq-muted: #98a1b3;
+  --vq-line: rgba(255, 255, 255, 0.09);
+  --vq-glass: rgba(255, 255, 255, 0.05);
+  --vq-red: #e01b2d;
+  --vq-red-bright: #ff3a4a;
+  --vq-amber: #f5a50b;
+  --vq-emerald: #34d399;
+  position: relative;
+  isolation: isolate;
   width: min(440px, 100%);
-  max-height: min(94dvh, 800px);
+  max-height: min(94dvh, 820px);
   display: flex;
   flex-direction: column;
-  padding: 15px 18px 14px;
+  padding: 14px 16px calc(14px + env(safe-area-inset-bottom, 0px));
   box-sizing: border-box;
   overflow: hidden;
-  border-radius: 18px;
-  background: var(--card, #ffffff);
-  border: 1px solid var(--line, #e2e8f0);
-  box-shadow: 0 16px 36px rgba(0, 0, 0, 0.08), 0 1px 3px rgba(0, 0, 0, 0.04);
+  border-radius: 22px;
+  color: var(--vq-text);
+  background: radial-gradient(120% 80% at 50% -8%, #1d1e28 0%, #0c0d13 52%, #07070b 100%);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow:
+    0 34px 74px -22px rgba(0, 0, 0, 0.82),
+    0 0 30px -6px rgba(224, 27, 45, 0.3),
+    inset 0 1px 0 rgba(255, 255, 255, 0.06);
   animation: modalFadeIn 0.18s ease-out;
 }
+.vietqr-modal-panel .muted {
+  color: var(--vq-muted);
+}
+/* Lớp nền môi trường: ảnh showroom + quầng đỏ + vân hạt + chữ ký neon.
+   Mọi lớp con nằm trong khối overflow:hidden nên không sinh cuộn ngang. */
+.vietqr-ambient {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  overflow: hidden;
+  border-radius: inherit;
+  pointer-events: none;
+}
+.vietqr-ambient-photo {
+  position: absolute;
+  inset: -6%;
+  background: url("/bike-red.jpg") center 58% / cover no-repeat;
+  opacity: 0.26;
+  filter: saturate(1.12) contrast(1.04) brightness(0.82);
+}
+.vietqr-ambient-scrim {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(85% 52% at 50% 0%, rgba(224, 27, 45, 0.2), transparent 64%),
+    radial-gradient(60% 42% at 104% 46%, rgba(224, 27, 45, 0.16), transparent 72%),
+    linear-gradient(
+      180deg,
+      rgba(8, 8, 12, 0.7) 0%,
+      rgba(8, 8, 12, 0.86) 36%,
+      rgba(6, 6, 10, 0.96) 100%
+    );
+}
+.vietqr-ambient-grain {
+  position: absolute;
+  inset: 0;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.82' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='140' height='140' filter='url(%23n)' opacity='0.55'/%3E%3C/svg%3E");
+  opacity: 0.05;
+  mix-blend-mode: overlay;
+}
+/* Chữ ký thương hiệu chạy sau lớp thẻ QR — chỉ là ánh neon, không tương tác. */
+.vietqr-ambient-sign {
+  position: absolute;
+  right: 8px;
+  top: 176px;
+  display: grid;
+  gap: 1px;
+  justify-items: end;
+  max-width: 132px;
+  transform: rotate(-9deg);
+  font-family: "Allura", "Segoe Script", cursive;
+  line-height: 1.05;
+  color: #ff5562;
+  text-align: right;
+  text-shadow: 0 0 10px rgba(224, 27, 45, 0.8), 0 0 26px rgba(224, 27, 45, 0.45);
+  opacity: 0.75;
+}
+.vietqr-ambient-sign em {
+  font-style: normal;
+}
+.vietqr-ambient-sign em:first-child {
+  font-size: 34px;
+}
+.vietqr-ambient-sign em:last-child {
+  font-size: 17px;
+  letter-spacing: 0.01em;
+}
+.vietqr-backdrop {
+  background: radial-gradient(
+    130% 100% at 50% 0%,
+    rgba(41, 6, 12, 0.72) 0%,
+    rgba(3, 3, 6, 0.93) 62%
+  );
+}
 .vietqr-modal-heading {
-  display: flex;
+  position: relative;
+  z-index: 1;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  margin-bottom: 8px;
-  padding-bottom: 8px;
-  border-bottom: 1px solid var(--line, #e2e8f0);
+  gap: 11px;
+  margin-bottom: 10px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--vq-line);
   flex-shrink: 0;
 }
-.vietqr-heading-content {
-  display: flex;
-  align-items: center;
-  gap: 9px;
-  min-width: 0;
-}
-.vietqr-heading-icon {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 30px;
-  height: 30px;
-  border-radius: 8px;
-  background: #ecfdf5;
-  color: #047857;
-  border: 1px solid #a7f3d0;
+/* Huy hiệu Cà Rem: crop thẳng vào khối khiên + chữ + hotline của /logo.jpg. */
+.vietqr-brand-badge {
+  width: 54px;
+  height: 54px;
   flex-shrink: 0;
+  border-radius: 14px;
+  background-color: #0a0a0f;
+  background-image: url("/logo.jpg");
+  background-size: auto 142%;
+  background-position: center 80%;
+  background-repeat: no-repeat;
+  border: 1px solid rgba(224, 27, 45, 0.55);
+  box-shadow:
+    0 0 18px -2px rgba(224, 27, 45, 0.4),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.05);
 }
 .vietqr-heading-text {
   min-width: 0;
 }
 .vietqr-heading-text h2 {
   margin: 0;
-  font-size: 15.5px;
-  font-weight: 700;
+  font-size: 16.5px;
+  font-weight: 750;
+  letter-spacing: -0.015em;
   line-height: 1.25;
-  color: var(--foreground, #0f172a);
+  color: #fff;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 .vietqr-heading-text p {
-  margin: 1px 0 0;
-  font-size: 11px;
-  color: var(--muted, #64748b);
-  line-height: 1.25;
+  margin: 2px 0 0;
+  font-size: 11.5px;
+  color: var(--vq-muted);
+  line-height: 1.3;
 }
 .vietqr-close {
   flex-shrink: 0;
-  width: 32px;
-  min-height: 32px;
+  width: 34px;
+  min-height: 34px;
   padding: 0;
-  border-radius: 8px;
-  color: var(--muted, #64748b);
+  border-radius: 10px;
+  color: #aeb6c6;
   transition: background-color 150ms ease, color 150ms ease;
 }
 .vietqr-close:hover {
-  background: rgba(0, 0, 0, 0.05);
-  color: var(--foreground, #0f172a);
+  background: rgba(255, 255, 255, 0.08);
+  color: #fff;
 }
 .vietqr-content {
+  position: relative;
+  z-index: 1;
   flex: 1;
   min-height: 0;
   overflow-y: auto;
@@ -16691,23 +16870,27 @@ html[data-theme="dark"] .header-theme-toggle {
   overscroll-behavior: contain;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 9px;
   padding-right: 1px;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.18) transparent;
 }
 .vietqr-state {
   padding-block: 16px;
   text-align: center;
+  color: var(--vq-text);
 }
+/* Trạng thái tiền vào tài khoản - giữ nguyên ngữ nghĩa, đổi sang bản đêm. */
 .vietqr-bank-status {
   flex-shrink: 0;
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 6px 10px;
-  border: 1px solid var(--line, #e2e8f0);
-  border-radius: 10px;
-  background: #f8fafc;
-  color: #475569;
+  gap: 9px;
+  padding: 7px 11px;
+  border: 1px solid var(--vq-line);
+  border-radius: 11px;
+  background: var(--vq-glass);
+  color: #dbe0ea;
 }
 .vietqr-bank-status > svg {
   flex-shrink: 0;
@@ -16717,175 +16900,288 @@ html[data-theme="dark"] .header-theme-toggle {
   flex: 1;
 }
 .vietqr-bank-status-text strong {
-  font-size: 12px;
-  line-height: 1.25;
+  font-size: 12.5px;
+  line-height: 1.3;
+  color: #fff;
   display: block;
 }
 .vietqr-bank-status-text p {
   margin: 1px 0 0;
   font-size: 11px;
-  line-height: 1.3;
-  color: var(--muted, #64748b);
+  line-height: 1.35;
+  color: var(--vq-muted);
 }
 .vietqr-bank-status--success {
-  color: #047857;
-  background: #ecfdf5;
-  border-color: #a7f3d0;
+  color: #8ff0c8;
+  background: rgba(52, 211, 153, 0.12);
+  border-color: rgba(52, 211, 153, 0.34);
+}
+.vietqr-bank-status--success .vietqr-bank-status-text strong {
+  color: #b7f5dc;
 }
 .vietqr-bank-status--warning {
-  color: #92400e;
-  background: #fffbeb;
-  border-color: #fcd34d;
+  color: #fcd34d;
+  background: rgba(245, 165, 11, 0.12);
+  border-color: rgba(245, 165, 11, 0.32);
+}
+.vietqr-bank-status--warning .vietqr-bank-status-text strong {
+  color: #fde7a8;
+}
+/* Khối nạp/lỗi dùng chung của app đang mặc định cho nền sáng. */
+.vietqr-modal-panel .loading {
+  color: var(--vq-muted);
+}
+.vietqr-modal-panel .error-state {
+  color: #fde0e3;
+}
+.vietqr-modal-panel .notice.warning {
+  background: rgba(245, 165, 11, 0.12);
+  border-color: rgba(245, 165, 11, 0.32);
+  color: #fde7a8;
 }
 .vietqr-display-box {
   flex-shrink: 0;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 8px;
-  padding: 10px 12px;
-  border: 1px solid var(--line, #e2e8f0);
-  border-radius: 14px;
-  background: #fafcfb;
+  gap: 11px;
+  padding-top: 2px;
 }
-.vietqr-status-bar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
+/* ─── Đồng hồ xuyến 15 phút: đỏ đang đếm → cam sắp hết hạn → xám hết hạn ─── */
+.vietqr-clock {
   width: 100%;
-  padding: 6px 10px;
-  box-sizing: border-box;
-  background: #ecfdf5;
-  border: 1px solid #a7f3d0;
-  border-radius: 10px;
-}
-.vietqr-status-bar-left {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 13px;
+  padding: 10px 14px;
+  border-radius: 16px;
+  border: 1px solid rgba(224, 27, 45, 0.3);
+  background: linear-gradient(
+    180deg,
+    rgba(224, 27, 45, 0.15) 0%,
+    rgba(224, 27, 45, 0.04) 100%
+  );
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.06),
+    0 0 24px -8px rgba(224, 27, 45, 0.65);
+  transition: background 200ms ease, border-color 200ms ease, box-shadow 200ms ease;
+}
+.vietqr-clock--urgent {
+  border-color: rgba(245, 165, 11, 0.42);
+  background: linear-gradient(
+    180deg,
+    rgba(245, 165, 11, 0.15) 0%,
+    rgba(245, 165, 11, 0.04) 100%
+  );
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.06),
+    0 0 24px -8px rgba(245, 165, 11, 0.6);
+}
+.vietqr-clock--expired {
+  border-color: var(--vq-line);
+  background: var(--vq-glass);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+.vietqr-clock-dial {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 54px;
+  height: 54px;
   flex-shrink: 0;
+  color: #fff;
 }
-.vietqr-status-clock {
-  color: #059669;
-  flex-shrink: 0;
+.vietqr-clock--expired .vietqr-clock-dial {
+  color: #8b93a5;
 }
-.vietqr-status-label {
-  font-size: 10.5px;
-  font-weight: 700;
-  letter-spacing: 0.05em;
-  color: #047857;
-  text-transform: uppercase;
+.vietqr-clock-arc-svg {
+  position: absolute;
+  inset: 0;
 }
-.vietqr-countdown {
-  display: inline-flex;
-  align-items: center;
+.vietqr-clock-track {
+  fill: none;
+  stroke: rgba(255, 255, 255, 0.1);
+}
+.vietqr-clock-arc {
+  fill: none;
+  stroke: var(--vq-red-bright);
+  stroke-linecap: round;
+  transform: rotate(-90deg);
+  transform-box: view-box;
+  transform-origin: 50% 50%;
+  filter: drop-shadow(0 0 4px rgba(255, 58, 74, 0.9));
+  transition: stroke-dashoffset 1s linear, stroke 200ms ease;
+}
+.vietqr-clock-head {
+  fill: #ffe9eb;
+  filter: drop-shadow(0 0 4px rgba(255, 58, 74, 0.9));
+}
+.vietqr-clock--urgent .vietqr-clock-arc {
+  stroke: var(--vq-amber);
+  filter: drop-shadow(0 0 4px rgba(245, 165, 11, 0.85));
+}
+.vietqr-clock--urgent .vietqr-clock-head {
+  fill: #ffeec2;
+}
+.vietqr-clock--expired .vietqr-clock-arc {
+  stroke: #4b5563;
+  filter: none;
+}
+.vietqr-clock-body {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.vietqr-clock-label {
+  font-size: 11.5px;
+  letter-spacing: 0.01em;
+  color: var(--vq-muted);
+}
+/* Hai hàng dùng chung lưới 3 cột (cột giữa định cỡ cố định cho dấu hai chấm)
+   nên PHÚT/GIÂY luôn thẳng tâm với từng cặp số mà không kéo giãn đồng hồ. */
+.vietqr-clock-readout {
+  display: grid;
+  gap: 1px;
+}
+.vietqr-countdown,
+.vietqr-clock-units {
+  display: grid;
+  grid-template-columns: 1fr 14px 1fr;
+  align-items: baseline;
 }
 .vietqr-countdown strong {
-  font-size: 16px;
+  justify-self: center;
+  font-size: 31px;
   font-weight: 800;
-  line-height: 1;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+  line-height: 1.05;
   font-variant-numeric: tabular-nums;
-  color: #065f46;
-  letter-spacing: 0.02em;
+  letter-spacing: 0.01em;
+  color: #fff;
+  text-shadow: 0 0 16px rgba(224, 27, 45, 0.75);
 }
-.vietqr-status-bar-right {
-  font-size: 11px;
-  color: #047857;
-  opacity: 0.85;
-  text-align: right;
+.vietqr-clock-sep {
+  color: rgba(255, 255, 255, 0.45);
+  text-shadow: none;
 }
+.vietqr-clock--urgent .vietqr-countdown strong {
+  color: #fff3d6;
+  text-shadow: 0 0 16px rgba(245, 165, 11, 0.7);
+}
+.vietqr-clock--expired .vietqr-countdown strong {
+  color: #8b93a5;
+  text-shadow: none;
+}
+.vietqr-clock-units b {
+  justify-self: center;
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  color: var(--vq-muted);
+}
+.vietqr-invalid-box {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+}
+/* Thẻ QR: giấy trắng nổi trên nền đêm, viền quét đỏ như khung camera ngân hàng.
+   Khổ thẻ khai báo thẳng trên khung (không để ảnh tự quyết chiều ngang) để
+   kích thước tuyệt đối ổn định trên mọi nguồn QR. */
 .vietqr-qr-frame {
   position: relative;
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 8px;
+  width: min(244px, 100%);
+  padding: 12px;
   background: #ffffff;
-  border-radius: 14px;
-  border: 1px solid #e2e8f0;
+  border-radius: 20px;
+  border: 1px solid rgba(255, 255, 255, 0.6);
   box-shadow:
-    0 1px 3px rgba(0, 0, 0, 0.03),
-    0 4px 14px rgba(16, 185, 129, 0.06);
+    0 0 0 1px rgba(224, 27, 45, 0.2),
+    0 20px 44px -14px rgba(0, 0, 0, 0.8),
+    0 0 36px -4px rgba(224, 27, 45, 0.45);
 }
 .vietqr-qr-corner {
   position: absolute;
-  width: 12px;
-  height: 12px;
+  width: 15px;
+  height: 15px;
   pointer-events: none;
 }
 .vietqr-qr-corner--tl {
-  top: 4px;
-  left: 4px;
-  border-top: 2px solid #059669;
-  border-left: 2px solid #059669;
-  border-top-left-radius: 4px;
+  top: 6px;
+  left: 6px;
+  border-top: 2.5px solid var(--vq-red);
+  border-left: 2.5px solid var(--vq-red);
+  border-top-left-radius: 7px;
 }
 .vietqr-qr-corner--tr {
-  top: 4px;
-  right: 4px;
-  border-top: 2px solid #059669;
-  border-right: 2px solid #059669;
-  border-top-right-radius: 4px;
+  top: 6px;
+  right: 6px;
+  border-top: 2.5px solid var(--vq-red);
+  border-right: 2.5px solid var(--vq-red);
+  border-top-right-radius: 7px;
 }
 .vietqr-qr-corner--bl {
-  bottom: 4px;
-  left: 4px;
-  border-bottom: 2px solid #059669;
-  border-left: 2px solid #059669;
-  border-bottom-left-radius: 4px;
+  bottom: 6px;
+  left: 6px;
+  border-bottom: 2.5px solid var(--vq-red);
+  border-left: 2.5px solid var(--vq-red);
+  border-bottom-left-radius: 7px;
 }
 .vietqr-qr-corner--br {
-  bottom: 4px;
-  right: 4px;
-  border-bottom: 2px solid #059669;
-  border-right: 2px solid #059669;
-  border-bottom-right-radius: 4px;
+  bottom: 6px;
+  right: 6px;
+  border-bottom: 2.5px solid var(--vq-red);
+  border-right: 2.5px solid var(--vq-red);
+  border-bottom-right-radius: 7px;
 }
 .vietqr-qr-frame img {
   display: block;
-  width: min(168px, 100%);
+  width: 100%;
   height: auto;
   border-radius: 4px;
 }
 /* Ảnh VietQR chính thống (img.vietqr.io): thẻ đứng chuẩn ngân hàng
    logo ngân hàng → chủ TK → QR → số tiền → nội dung chuyển khoản. */
 .vietqr-qr-frame--card {
-  padding: 6px;
-  border-radius: 14px;
+  width: min(272px, 100%);
+  padding: 10px;
+  border-radius: 22px;
 }
 .vietqr-qr-frame--card img {
-  width: min(224px, 100%);
-  border-radius: 10px;
+  border-radius: 12px;
 }
 .vietqr-download {
   align-self: center;
-  min-height: 32px;
-  padding: 0 14px;
-  font-size: 12px;
-  font-weight: 600;
-  border-radius: 8px;
-  color: #047857;
-  background: #ecfdf5;
-  border: 1px solid #a7f3d0;
+  min-height: 38px;
+  padding: 0 18px;
+  font-size: 12.5px;
+  font-weight: 650;
+  border-radius: 999px;
+  color: #fff;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(224, 27, 45, 0.5);
+  box-shadow: 0 0 18px -8px rgba(224, 27, 45, 0.9);
   transition: background-color 150ms ease, border-color 150ms ease;
 }
 .vietqr-download:hover:not(:disabled) {
-  background: #d1fae5;
-  border-color: #6ee7b7;
+  background: rgba(224, 27, 45, 0.18);
+  border-color: var(--vq-red-bright);
 }
 .vietqr-unavailable {
   display: grid;
   justify-items: center;
   gap: 6px;
-  padding: 16px 0;
+  padding: 10px 0 14px;
   text-align: center;
-  color: #64748b;
+  color: var(--vq-muted);
 }
 .vietqr-unavailable strong {
-  color: #334155;
-  font-size: 13px;
+  color: #e6e9f0;
+  font-size: 13.5px;
 }
 .vietqr-unavailable span {
   font-size: 11.5px;
@@ -16893,86 +17189,108 @@ html[data-theme="dark"] .header-theme-toggle {
 .vietqr-changed {
   margin: 0;
   font-size: 11.5px;
-  padding: 6px 10px;
+  padding: 7px 10px;
 }
+/* ─── Thẻ kính mờ: thông tin chuyển khoản ───
+   Glassmorphism nhẹ trên nền đêm: để nổi khối QR, thẻ này không tranh sáng. */
 .vietqr-details-card {
   flex-shrink: 0;
-  padding: 10px 12px;
-  border: 1px solid var(--line, #e2e8f0);
-  border-radius: 12px;
-  background: #f8fafc;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 7px;
+  padding: 11px 12px;
+  border-radius: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.08) 0%,
+    rgba(255, 255, 255, 0.03) 100%
+  );
+  backdrop-filter: blur(16px) saturate(130%);
+  -webkit-backdrop-filter: blur(16px) saturate(130%);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.08),
+    0 14px 34px -16px rgba(0, 0, 0, 0.8);
 }
-.vietqr-amount-row {
-  display: flex;
+.vietqr-detail-row {
+  display: grid;
+  grid-template-columns: 22px minmax(0, 1fr) auto;
   align-items: center;
-  justify-content: space-between;
   gap: 8px;
-  padding-bottom: 7px;
-  border-bottom: 1px dashed var(--line, #e2e8f0);
+  min-height: 26px;
 }
-.vietqr-amount-label {
-  color: var(--muted, #64748b);
-  font-size: 11.5px;
+.vietqr-detail-icon {
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 7px;
+  background: rgba(224, 27, 45, 0.14);
+  border: 1px solid rgba(224, 27, 45, 0.26);
+  color: #ff8b95;
+  flex-shrink: 0;
+}
+.vietqr-detail-key {
+  min-width: 0;
+  font-size: 12px;
   font-weight: 600;
+  letter-spacing: -0.005em;
+  color: #c6cddb;
 }
-.vietqr-amount-value-group {
+.vietqr-detail-val {
   display: flex;
   align-items: center;
+  justify-content: flex-end;
   gap: 5px;
+  min-width: 0;
+}
+.vietqr-detail-row--amount {
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--vq-line);
+}
+.vietqr-detail-row--amount .vietqr-detail-key {
+  font-size: 12.5px;
+  color: #eef1f7;
 }
 .vietqr-amount-value {
-  color: #047857;
-  font-size: 20px;
+  font-size: 19.5px;
   font-weight: 800;
   line-height: 1;
   font-variant-numeric: tabular-nums;
-}
-.vietqr-transfer-content {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  padding-bottom: 7px;
-  border-bottom: 1px solid var(--line, #e2e8f0);
-}
-.vietqr-transfer-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-}
-.vietqr-field-label {
-  color: var(--muted, #64748b);
-  font-size: 11.5px;
-  font-weight: 600;
+  color: #fff;
+  text-shadow: 0 0 16px rgba(255, 255, 255, 0.16);
 }
 .vietqr-transfer-badge {
-  font-size: 10px;
-  font-weight: 600;
-  color: #047857;
-  background: #ecfdf5;
-  border: 1px solid #a7f3d0;
-  padding: 1px 6px;
-  border-radius: 9999px;
-  line-height: 1.3;
+  justify-self: end;
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  color: #ffd7ab;
+  background: rgba(245, 165, 11, 0.14);
+  border: 1px solid rgba(245, 165, 11, 0.3);
+  padding: 2px 7px;
+  border-radius: 999px;
+  line-height: 1.35;
+  white-space: nowrap;
 }
+/* Lùi đúng mép chữ của nhãn để nội dung chuyển khoản thành một khối riêng. */
 .vietqr-transfer-box {
   display: flex;
   align-items: flex-start;
   gap: 5px;
+  padding-left: 30px;
 }
 .vietqr-transfer-text {
   flex: 1;
+  min-width: 0;
   font-size: 12px;
-  line-height: 1.45;
+  line-height: 1.5;
   font-weight: 600;
-  color: #0f172a;
-  background: #ffffff;
-  padding: 6px 8px;
-  border-radius: 6px;
-  border: 1px solid rgba(15, 23, 42, 0.1);
+  color: #f2f4f9;
+  background: rgba(0, 0, 0, 0.32);
+  padding: 7px 9px;
+  border-radius: 9px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
   overflow-wrap: anywhere;
   word-break: break-word;
 }
@@ -16981,202 +17299,156 @@ html[data-theme="dark"] .header-theme-toggle {
   width: 28px;
   min-height: 28px;
   padding: 0;
-  border-radius: 6px;
-  color: var(--muted, #64748b);
+  border-radius: 7px;
+  color: #aeb6c6;
   transition: background-color 150ms ease, color 150ms ease;
 }
 .vietqr-copy-btn:hover {
-  background: rgba(0, 0, 0, 0.05);
-  color: var(--foreground, #0f172a);
+  background: rgba(255, 255, 255, 0.1);
+  color: #fff;
 }
 .vietqr-copied-icon {
-  color: #059669;
+  color: var(--vq-emerald);
 }
+/* Khối Ngân hàng / Số tài khoản / Chủ tài khoản: dt mang icon + nhãn, dd mang giá trị */
 .vietqr-detail-list {
   display: grid;
-  gap: 4px;
-  margin: 0;
-  font-size: 12px;
+  gap: 0;
+  margin: 5px 0 0;
+  padding-top: 7px;
+  border-top: 1px solid var(--vq-line);
 }
-.vietqr-detail-row {
+.vietqr-detail-list .vietqr-detail-row {
+  grid-template-columns: minmax(0, 1fr) auto;
+  min-height: 28px;
+}
+.vietqr-detail-list dt {
   display: flex;
   align-items: center;
-  justify-content: space-between;
   gap: 8px;
-  min-height: 22px;
-}
-.vietqr-detail-row dt {
-  color: var(--muted, #64748b);
-  font-size: 11.5px;
-  flex-shrink: 0;
-  width: 85px;
-}
-.vietqr-detail-row dd {
-  margin: 0;
-  font-weight: 600;
-  color: var(--foreground, #0f172a);
-  text-align: right;
-  flex: 1;
   min-width: 0;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--vq-muted);
+}
+.vietqr-detail-list dd {
+  margin: 0;
   display: flex;
   align-items: center;
   justify-content: flex-end;
   gap: 5px;
+  min-width: 0;
+  font-size: 12.5px;
+  font-weight: 700;
+  color: #f4f6fb;
+  text-align: right;
   overflow-wrap: anywhere;
   word-break: break-word;
 }
 .vietqr-acc-no {
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
   font-variant-numeric: tabular-nums;
-  letter-spacing: 0.02em;
+  letter-spacing: 0.03em;
+  font-size: 13px;
+  color: #fff;
 }
+/* Hàng actions: hai nút lớn, cách rõ, không đổ bóng chữ theo công thức. */
 .vietqr-actions {
-  display: flex;
-  justify-content: flex-end;
-  flex-wrap: wrap;
-  gap: 8px;
-  padding-top: 8px;
-  border-top: 1px solid var(--line, #e2e8f0);
-  margin-top: 0;
+  display: grid;
+  grid-template-columns: 1fr 1.28fr;
+  gap: 10px;
+  padding-top: 12px;
+  margin-top: 3px;
+  border-top: 1px solid var(--vq-line);
 }
 .vietqr-actions .button {
-  min-height: 36px;
-  font-size: 12.5px;
-  font-weight: 600;
-  border-radius: 8px;
+  width: 100%;
+  min-height: 44px;
+  justify-content: center;
+  gap: 7px;
+  font-size: 13.5px;
+  font-weight: 700;
+  border-radius: 13px;
+  text-shadow: none;
+}
+/* "Quay lại": kính mờ lùi thị giác, không tranh với hành động chính. */
+.vietqr-modal-panel .button.vietqr-btn-ghost {
+  color: #dfe4ee;
+  background: rgba(255, 255, 255, 0.07);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  transition: background-color 150ms ease, border-color 150ms ease, color 150ms ease;
+}
+.vietqr-modal-panel .button.vietqr-btn-ghost:hover {
+  background: rgba(255, 255, 255, 0.13);
+  border-color: rgba(255, 255, 255, 0.26);
+  color: #fff;
+}
+/* "Tạo mã mới": khối đỏ thương hiệu, viền sáng và quầng đỏ nhẹ. */
+.vietqr-modal-panel .button.vietqr-btn-reissue {
+  color: #fff;
+  background: linear-gradient(180deg, #f0202f 0%, #b3121f 100%);
+  border: 1px solid #ff4a56;
+  box-shadow:
+    0 10px 26px -10px rgba(224, 27, 45, 0.75),
+    inset 0 1px 0 rgba(255, 255, 255, 0.22);
+  transition: filter 150ms ease, opacity 150ms ease;
+}
+.vietqr-modal-panel .button.vietqr-btn-reissue:hover:not(:disabled) {
+  filter: brightness(1.06);
+}
+.vietqr-modal-panel .button.vietqr-btn-reissue:disabled {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: var(--vq-line);
+  color: var(--vq-muted);
+  box-shadow: none;
+}
+/* "Xác nhận và đóng": ngọc lục bảo = tiền đã về, đổi trạng thái rõ ràng. */
+.vietqr-modal-panel .button.vietqr-btn-confirm {
+  color: #03251b;
+  background: linear-gradient(180deg, #45e0a1 0%, #0f9d63 100%);
+  border: 1px solid #6ff2bb;
+  box-shadow:
+    0 10px 26px -10px rgba(15, 157, 99, 0.7),
+    inset 0 1px 0 rgba(255, 255, 255, 0.32);
+  transition: filter 150ms ease;
+}
+.vietqr-modal-panel .button.vietqr-btn-confirm:hover {
+  filter: brightness(1.05);
 }
 .vietqr-footnote {
-  margin: 0;
-  color: var(--muted, #64748b);
-  font-size: 10.5px;
-  line-height: 1.35;
+  display: grid;
+  justify-items: center;
+  gap: 4px;
+  margin: 2px 0 0;
   text-align: center;
 }
-
-/* Dark theme */
-[data-theme="dark"] .vietqr-modal-panel {
-  background: #0f172a;
-  border-color: rgba(255, 255, 255, 0.1);
-  box-shadow: 0 16px 36px rgba(0, 0, 0, 0.4);
+.vietqr-secure {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  color: #b9c2d4;
 }
-[data-theme="dark"] .vietqr-heading-content h2 {
-  color: #f8fafc;
+.vietqr-secure svg {
+  color: var(--vq-emerald);
 }
-[data-theme="dark"] .vietqr-heading-content p {
-  color: #94a3b8;
-}
-[data-theme="dark"] .vietqr-heading-icon {
-  background: rgba(16, 185, 129, 0.15);
-  border-color: rgba(16, 185, 129, 0.3);
-  color: #34d399;
-}
-[data-theme="dark"] .vietqr-close {
-  color: #94a3b8;
-}
-[data-theme="dark"] .vietqr-close:hover {
-  background: rgba(255, 255, 255, 0.08);
-  color: #f8fafc;
-}
-[data-theme="dark"] .vietqr-amount-label {
-  color: #94a3b8;
-}
-[data-theme="dark"] .vietqr-amount-value {
-  color: #34d399;
-}
-[data-theme="dark"] .vietqr-display-box {
-  background: #111827;
-  border-color: #1e293b;
-}
-[data-theme="dark"] .vietqr-status-bar {
-  background: #064e3b;
-  border-color: #059669;
-}
-[data-theme="dark"] .vietqr-status-clock,
-[data-theme="dark"] .vietqr-status-label {
-  color: #6ee7b7;
-}
-[data-theme="dark"] .vietqr-countdown strong {
-  color: #6ee7b7;
-}
-[data-theme="dark"] .vietqr-status-bar-right {
-  color: #a7f3d0;
-}
-[data-theme="dark"] .vietqr-qr-frame {
-  background: #ffffff;
-  border-color: #334155;
-  box-shadow: 0 4px 14px rgba(16, 185, 129, 0.15);
-}
-[data-theme="dark"] .vietqr-qr-corner {
-  border-color: #10b981;
-}
-[data-theme="dark"] .vietqr-download {
-  color: #a7f3d0;
-  background: rgba(16, 185, 129, 0.12);
-  border-color: rgba(16, 185, 129, 0.25);
-}
-[data-theme="dark"] .vietqr-download:hover:not(:disabled) {
-  background: rgba(16, 185, 129, 0.2);
-  border-color: rgba(16, 185, 129, 0.4);
-}
-[data-theme="dark"] .vietqr-details-card {
-  background: #131d2e;
-  border-color: #1e293b;
-}
-[data-theme="dark"] .vietqr-field-label {
-  color: #94a3b8;
-}
-[data-theme="dark"] .vietqr-transfer-badge {
-  background: #064e3b;
-  border-color: #047857;
-  color: #a7f3d0;
-}
-[data-theme="dark"] .vietqr-transfer-text {
-  background: #0f172a;
-  border-color: #334155;
-  color: #f8fafc;
-}
-[data-theme="dark"] .vietqr-copy-btn {
-  color: #94a3b8;
-}
-[data-theme="dark"] .vietqr-copy-btn:hover {
-  background: rgba(255, 255, 255, 0.08);
-  color: #f8fafc;
-}
-[data-theme="dark"] .vietqr-copied-icon {
-  color: #34d399;
-}
-[data-theme="dark"] .vietqr-detail-row dt {
-  color: #94a3b8;
-}
-[data-theme="dark"] .vietqr-detail-row dd {
-  color: #f8fafc;
-}
-[data-theme="dark"] .vietqr-footnote {
-  color: #94a3b8;
-}
-[data-theme="dark"] .vietqr-bank-status {
-  background: #1e293b;
-  color: #e2e8f0;
-  border-color: #334155;
-}
-[data-theme="dark"] .vietqr-bank-status-text strong {
-  color: #f8fafc;
-}
-[data-theme="dark"] .vietqr-bank-status-text p {
-  color: #94a3b8;
-}
-[data-theme="dark"] .vietqr-bank-status--success {
-  color: #a7f3d0;
-  background: #10352b;
-  border-color: #23634e;
-}
-[data-theme="dark"] .vietqr-bank-status--warning {
-  color: #fcd34d;
-  background: #342818;
-  border-color: #72551d;
+.vietqr-footnote small {
+  max-width: 48ch;
+  font-size: 10.5px;
+  line-height: 1.45;
+  color: var(--vq-muted);
 }
 
-/* Responsive mobile */
+/* ═══ Bảng màu đêm là hằng số cho cả Light lẫn Dark ═══
+   Màn hình tiền bạc cần một "phòng đêm" tập trung, và mã QR bắt buộc nằm trên
+   giấy trắng để máy quét nhận ổn định — nên không đảo sáng/tối theo theme. */
+
+/* ─── Mobile 375–540px: nén vừa đủ, ưu tiên tối đa kích thước khối QR ─── */
 @media (max-width: 540px) {
   .vietqr-backdrop {
     padding: 6px;
@@ -17184,8 +17456,13 @@ html[data-theme="dark"] .header-theme-toggle {
   .vietqr-modal-panel {
     padding: 12px 12px calc(12px + env(safe-area-inset-bottom, 0px));
     max-height: min(96dvh, 760px);
-    border-radius: 16px;
+    border-radius: 18px;
     width: 100%;
+  }
+  .vietqr-brand-badge {
+    width: 46px;
+    height: 46px;
+    border-radius: 13px;
   }
   .vietqr-heading-text h2 {
     font-size: 15px;
@@ -17193,35 +17470,65 @@ html[data-theme="dark"] .header-theme-toggle {
   .vietqr-heading-text p {
     font-size: 10.5px;
   }
-  .vietqr-status-bar {
-    flex-direction: column;
-    align-items: stretch;
-    gap: 3px;
-    padding: 5px 8px;
+  /* Bỏ chữ ký neon: trên máy dọc nó sát mép và không thêm thông tin. */
+  .vietqr-ambient-sign {
+    display: none;
   }
-  .vietqr-status-bar-left {
-    justify-content: space-between;
+  .vietqr-clock {
+    gap: 11px;
+    padding: 9px 12px;
   }
-  .vietqr-status-bar-right {
-    text-align: left;
-    font-size: 10.5px;
+  .vietqr-clock-dial {
+    width: 46px;
+    height: 46px;
   }
-  .vietqr-qr-frame img {
-    width: 152px;
-    height: 152px;
+  .vietqr-clock-arc-svg {
+    width: 100%;
+    height: 100%;
+  }
+  .vietqr-countdown strong {
+    font-size: 26px;
+  }
+  .vietqr-clock-units b {
+    font-size: 8.5px;
+    letter-spacing: 0.1em;
+  }
+  .vietqr-qr-frame {
+    width: min(226px, 100%);
+  }
+  .vietqr-qr-frame--card {
+    width: min(258px, 100%);
   }
   .vietqr-amount-value {
     font-size: 18px;
   }
-  .vietqr-detail-row dt {
-    width: 78px;
-    font-size: 11px;
-  }
-  .vietqr-detail-row dd {
-    font-size: 11.5px;
-  }
   .vietqr-actions .button {
-    flex: 1;
+    font-size: 13px;
+  }
+}
+
+/* ─── Màn hình thấp / bàn phím ảo: dồn chiều dọc, không cắt mất QR ─── */
+@media (max-height: 700px) {
+  .vietqr-modal-panel {
+    max-height: min(96dvh, 999px);
+  }
+  .vietqr-display-box {
+    gap: 8px;
+  }
+  .vietqr-details-card {
+    gap: 5px;
+    padding: 9px 11px;
+  }
+  .vietqr-footnote small {
+    max-width: 60ch;
+  }
+}
+
+/* Vòng đếm là đồng hồ chức năng, không phải trang trí: tắt transition khi
+   người dùng yêu cầu giảm chuyển động. */
+@media (prefers-reduced-motion: reduce) {
+  .vietqr-clock-arc {
+    transition: none;
   }
 }
 /* Nút mở/đóng khu "chi tiết thanh toán" – độc lập, toàn chiều ngang, nét đứt nhã nhặn */
@@ -18519,11 +18826,75 @@ html[data-theme="dark"] .header-theme-toggle {
    .sale-celebrate-banner, mà khối mobile của class đó khai báo ở cuối file
    (top: 13vh). Không thắng về đặc tính thì thẻ vừa có `top` vừa có `bottom`
    → bị kéo căng thành một dải cao 600px che kín màn điện thoại. */
+/* Nâng tầm biểu ngữ rồng: chữ to rõ, chiều sâu nổi và ánh vàng kim sa lấp láy. */
+.sale-celebrate-banner.dragon3d-banner {
+  padding: 18px 28px 20px;
+  border-radius: 22px;
+  border: 1px solid rgba(253, 224, 71, 0.55);
+  /* Nền kim loại vàng thau chuyển khối sáng–tối để thẻ "có hình khối", không phẳng. */
+  background: linear-gradient(
+    162deg,
+    rgba(58, 40, 12, 0.95) 0%,
+    rgba(40, 26, 8, 0.96) 46%,
+    rgba(24, 15, 5, 0.97) 100%
+  );
+  /* Chiều sâu: bóng đổ lớp (sát + tản xa) + viền sáng trong (bevel nổi) + hào quang vàng. */
+  box-shadow:
+    0 34px 92px -28px rgba(0, 0, 0, 0.8),
+    0 12px 30px -12px rgba(0, 0, 0, 0.62),
+    inset 0 1px 0 rgba(255, 241, 194, 0.4),
+    inset 0 -2px 10px -4px rgba(0, 0, 0, 0.6),
+    inset 0 0 62px -18px rgba(251, 191, 36, 0.5),
+    0 0 72px -12px rgba(251, 191, 36, 0.42);
+}
+/* Lớp nhũ vàng kim sa: chấm sáng li ti lấp láy phủ mặt biểu ngữ, trộn screen để ánh lên trên nền thau. */
+.sale-celebrate-banner.dragon3d-banner::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  mix-blend-mode: screen;
+  background-image:
+    radial-gradient(1.5px 1.5px at 12% 24%, rgba(255, 246, 214, 0.95), transparent 62%),
+    radial-gradient(1.2px 1.2px at 82% 16%, rgba(255, 226, 138, 0.9), transparent 62%),
+    radial-gradient(1.3px 1.3px at 68% 78%, rgba(255, 240, 190, 0.85), transparent 62%),
+    radial-gradient(1.1px 1.1px at 28% 82%, rgba(253, 224, 71, 0.85), transparent 62%),
+    radial-gradient(1px 1px at 46% 34%, rgba(255, 251, 235, 0.9), transparent 62%),
+    radial-gradient(1.4px 1.4px at 92% 56%, rgba(251, 191, 36, 0.85), transparent 62%),
+    radial-gradient(1px 1px at 6% 62%, rgba(255, 244, 200, 0.8), transparent 62%),
+    radial-gradient(1.2px 1.2px at 58% 12%, rgba(255, 224, 130, 0.8), transparent 62%);
+  background-repeat: no-repeat;
+  animation: dragon3d-glitter 2.6s ease-in-out infinite;
+}
+/* Đẩy chữ lên trên lớp kim sa. */
+.sale-celebrate-banner.dragon3d-banner > * {
+  position: relative;
+  z-index: 1;
+}
+@keyframes dragon3d-glitter {
+  0%,
+  100% {
+    opacity: 0.55;
+  }
+  50% {
+    opacity: 1;
+  }
+}
 .sale-celebrate-banner.dragon3d-banner strong {
-  font-size: clamp(1.15rem, 2.1vw, 1.7rem);
+  /* Chữ to rõ hơn hẳn bản cũ (1,15rem→) và giữ ánh kim chuyển động của class nền. */
+  font-size: clamp(1.5rem, 3.2vw, 2.35rem);
+  /* Nổi khối cho dòng chữ vàng: sáng ở trên, bóng đậm ở dưới, viền tối sắc nét. */
+  text-shadow:
+    0 1px 0 rgba(122, 68, 8, 0.55),
+    0 2px 10px rgba(0, 0, 0, 0.5),
+    0 0 26px rgba(251, 191, 36, 0.5);
 }
 .sale-celebrate-banner.dragon3d-banner span {
-  font-size: clamp(0.78rem, 1.05vw, 0.95rem);
+  font-size: clamp(0.98rem, 1.7vw, 1.24rem);
+  font-weight: 600;
+  color: #ffeec2;
 }
 @keyframes dragon3d-banner-in {
   from {

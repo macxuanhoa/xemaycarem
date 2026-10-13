@@ -53,7 +53,7 @@ function RouteLoadingFallback() {
       role="status"
       aria-label="Đang tải trang"
     >
-      <Loading />
+      <Loading variant="section" label="Đang tải trang…" />
     </div>
   );
 }

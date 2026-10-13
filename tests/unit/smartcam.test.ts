@@ -35,20 +35,19 @@ const vehicle = (over: Partial<Vehicle>): Vehicle =>
 const fields = (over: Partial<ScannedFields> = {}): ScannedFields => ({
   license_plate: "",
   frame_number: "",
-  vehicle_type: "",
-  color: "",
-  year: "",
   ...over,
 });
 
 describe("normalizeScan", () => {
-  it("canonicalizes plates, uppercases codes and drops implausible numbers", () => {
+  it("canonicalizes plates, uppercases codes and drops appearance fields entirely", () => {
     const scan = normalizeScan({
       license_plate: "59 a1 234.56",
       frame_number: "rlh160 kd12345",
+      // Nhận diện ảnh xe đã bị xoá hẳn: mọi trường ngoại dạng bị bỏ, không lưu.
       color: "Đen",
-      year: 1850,
-      // Key cũ của hợp đồng xe ảnh: không còn trường nào để lưu, bị bỏ hẳn.
+      year: 2019,
+      vehicle_type: "Honda Vision",
+      // Key cũ của hợp đồng xe ảnh: cũng không còn trường nào để lưu.
       engine_number: "kf30e-99999",
       brand: "Honda",
       model: "Vision 2022",
@@ -57,22 +56,14 @@ describe("normalizeScan", () => {
     });
     expect(scan.license_plate).toBe("59A1-234.56");
     expect(scan.frame_number).toBe("RLH160KD12345");
-    expect(scan.color).toBe("Đen");
-    // Năm ngoài khoảng 1900..2100 coi như đọc không được, không đoán.
-    expect(scan.year).toBe("");
-    for (const purged of ["engine_number", "brand", "model", "variant", "odometer"]) {
+    for (const purged of ["color", "year", "vehicle_type", "engine_number", "brand", "model", "variant", "odometer"]) {
       expect(scan).not.toHaveProperty(purged);
     }
   });
-  it("treats a digit-only colour as an artifact and keeps a plausible year", () => {
-    const scan = normalizeScan({ color: "123", year: 2019, frame_number: "  RLH160-001 " });
-    expect(scan.color).toBe("");
-    expect(scan.year).toBe("2019");
+  it("keeps only the two identifiers the camera is allowed to read", () => {
+    const scan = normalizeScan({ color: "123", year: 2019, vehicle_type: "  Honda  Vision \u0000", frame_number: "  RLH160-001 " });
+    expect(Object.keys(scan)).toEqual(["license_plate", "frame_number"]);
     expect(scan.frame_number).toBe("RLH160001");
-  });
-  it("retains a visible motorcycle name only in the existing vehicle type field", () => {
-    expect(normalizeScan({ vehicle_type: "  Honda  Vision \u0000", color: "Đen" }).vehicle_type).toBe("Honda Vision");
-    expect(normalizeScan({ vehicle_type: "12345" }).vehicle_type).toBe("");
   });
   it("maps uncertain compact positions onto canonical plate characters", () => {
     const scanned = normalizeScan({ license_plate: "59 a1 23456", frame_number: "RLH160KD12345" });
@@ -97,9 +88,6 @@ describe("CRM identity resolution", () => {
     const statuses = classifyFields(scanned, match);
     expect(statuses.license_plate).toBe("VERIFIED");
     expect(statuses.frame_number).toBe("VERIFIED");
-    // Ảnh chỉ đọc danh tính; màu và năm không đọc được thì UNREADABLE.
-    expect(statuses.color).toBe("UNREADABLE");
-    expect(statuses.year).toBe("UNREADABLE");
   });
 
   it("B: neither identifier found is the only path to 'new vehicle'", () => {
@@ -178,20 +166,15 @@ describe("intake handoff", () => {
     expect(entry.fields.purchase_date).toBe("2026-10-06");
     expect(entry.fields.license_plate).toBe("59A1-234.56");
     expect(entry.fields.frame_number).toBe("RLH160KD12345");
-    expect(entry.fields.color).toBe("Đen");
-    expect(entry.fields.year).toBe("2022");
-    // Trường đã bị xoá vĩnh viễn: camera không đọc và cũng không có chỗ lưu.
-    for (const purged of ["brand", "model", "variant", "engine_number", "odometer"]) {
+    // Nhận diện ảnh xe đã xoá hẳn: loại xe/màu/năm không bao giờ đi từ camera vào tốc ký.
+    for (const purged of ["vehicle_type", "color", "year", "brand", "model", "variant", "engine_number", "odometer"]) {
       expect(entry.fields).not.toHaveProperty(purged);
     }
-    expect(entry.fields.vehicle_type).toBe("Honda Vision");
-    expect(entry.fieldStatus?.vehicle_type).toBe("SUGGESTED");
     // Never invents financial or customer data the camera cannot see.
     expect(entry.fields.purchase_price).toBeUndefined();
     expect(entry.fields.supplier_name).toBeUndefined();
-    expect(entry.provenance.color).toBe("camera");
-    // Nguồn gốc đọc được chỉ gắn cho bốn trường còn lại.
-    for (const purged of ["brand", "model", "variant", "engine_number", "odometer"])
+    // Nguồn gốc camera chỉ gắn cho hai định danh còn lại.
+    for (const purged of ["color", "vehicle_type", "brand", "model", "variant", "engine_number", "odometer"])
       expect(entry.provenance as Record<string, unknown>).not.toHaveProperty(purged);
     expect(entry.fieldStatus?.license_plate).toBe("SUGGESTED");
     // Cơ chế Ghi chú đã gỡ khỏi tốc ký — camera không còn nhét lời nhắn notes.
@@ -266,7 +249,7 @@ describe("intakeRows compatibility", () => {
     };
     recognition.statuses = classifyFields(recognition.fields, recognition.match);
     const entry = recognitionToIntakeEntry(recognition, "entry-2", "2026-10-06");
-    // Ảnh không đọc được loại xe -> thẻ bắt buộc nhân viên nhập tên loại xe,
+    // Camera không đọc loại xe -> thẻ bắt buộc nhân viên nhập tên loại xe,
     // đúng luật VEHICLE_TYPE_REQUIRED phía server.
     expect(Object.values(validateIntakeEntry(entry)).join(" ")).toMatch(/dòng xe/);
     // Giá thu là bắt buộc với mọi role khi đưa xe vào kho (2026-10-10).

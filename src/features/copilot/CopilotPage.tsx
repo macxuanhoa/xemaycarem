@@ -637,7 +637,7 @@ export default function CopilotPage() {
               {/* Tùy chọn quyền hạn & Chế độ AI */}
               <div className="copilot-controls">
                 {owner ? (
-                  <label className="row copilot-mode-toggle">
+                  <label className="copilot-mode-toggle">
                     <input
                       type="checkbox"
                       checked={mode === "llm"}

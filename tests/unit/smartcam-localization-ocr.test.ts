@@ -146,4 +146,21 @@ describe("localized OCR with complete-photo safeguards", () => {
     await localReadFrame(source, { analysis: { ...analysis(), width: 320 } });
     expect(doubles.analyzeFrame).toHaveBeenCalledWith(source);
   });
+
+  it("reads both live crops in parallel and skips the full-frame pass once a crop is confident", async () => {
+    doubles.recognize
+      .mockResolvedValueOnce(observation("59B1-234.56"))
+      .mockResolvedValueOnce(observation(""));
+    const read = await localReadFrame(source, {
+      analysis: analysis(2),
+      fast: true,
+    });
+    expect(doubles.regionCanvas).toHaveBeenCalledTimes(2);
+    expect(doubles.recognize).toHaveBeenCalledTimes(2);
+    // The merged crops clear the confidence gate — the expensive sparse pass
+    // must not run, and the plate still passes the same validator.
+    expect(doubles.preprocessedFull).not.toHaveBeenCalled();
+    expect(read?.license_plate).toBe("59B1-234.56");
+    expect(read?.passes).toBe(2);
+  });
 });

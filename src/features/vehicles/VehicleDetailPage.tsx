@@ -15,6 +15,7 @@ import {
   SendHorizontal,
   ShieldCheck,
   ShoppingBag,
+  Star,
   Trash2,
   TriangleAlert,
 } from "lucide-react";
@@ -52,6 +53,10 @@ import {
 } from "./VehicleDeleteDialogs";
 import { VehicleImageUpload } from "./VehicleImageUpload";
 import { VehicleQr } from "./VehicleQr";
+import { VehicleFavoriteButton } from "./VehicleFavoriteButton";
+import {
+  useToggleVehicleFavorite,
+} from "@/lib/useVehicleFavorite";
 import { IdentityDocumentPanel } from "@/components/IdentityDocumentPanel";
 import { vehicleTitle } from "@/lib/vehicleDisplay";
 
@@ -69,6 +74,9 @@ export function VehicleDetailPage() {
   const [requestOpen, setRequestOpen] = useState(false);
   const [actionsOpen, setActionsOpen] = useState(false);
   const [photoChoiceOpen, setPhotoChoiceOpen] = useState(false);
+  // Sao yêu thích cá nhân: bản nâng cấp nhẹ cho header, bấm là sáng ngay nhờ
+  // optimistic cache của hook (query ["vehicle", id] được vẽ lại tại chỗ).
+  const toggleFavorite = useToggleVehicleFavorite();
   // Khi mở từ tab "Đã bán" trong kho, ưu tiên hiện giao dịch bán ra; người dùng
   // bấm "Xem chi tiết xe" (set true) mới thấy toàn bộ hồ sơ xe.
   const [revealDetail, setRevealDetail] = useState(false);
@@ -320,7 +328,13 @@ export function VehicleDetailPage() {
               </div>
             </div>
 
-            {hasVehicleActions && (
+            <div className="vehicle-head-actions">
+              <VehicleFavoriteButton
+                vehicle={vehicle}
+                size={19}
+                className="vehicle-fav-btn"
+              />
+              {hasVehicleActions && (
               <div className="vehicle-actions-menu-wrap">
                 <button
                   type="button"
@@ -340,6 +354,26 @@ export function VehicleDetailPage() {
                       onClick={() => setActionsOpen(false)}
                     />
                     <div className="vehicle-actions-menu">
+                      <button
+                        type="button"
+                        className="vehicle-actions-menu-item"
+                        aria-pressed={!!vehicle.is_favorite}
+                        onClick={() => {
+                          setActionsOpen(false);
+                          toggleFavorite.mutate(vehicle.id);
+                        }}
+                      >
+                        <span
+                          className={
+                            vehicle.is_favorite
+                              ? "vam-tile vam-tile-fav"
+                              : "vam-tile vam-tile-neutral"
+                          }
+                        >
+                          <Star size={15} fill={vehicle.is_favorite ? "currentColor" : "none"} />
+                        </span>
+                        {vehicle.is_favorite ? "Bỏ yêu thích" : "Yêu thích"}
+                      </button>
                       {canSellVehicle && (
                         <Link
                           className="vehicle-actions-menu-item vehicle-actions-menu-primary"
@@ -408,7 +442,8 @@ export function VehicleDetailPage() {
                   </>
                 )}
               </div>
-            )}
+              )}
+            </div>
           </div>
         </div>
 

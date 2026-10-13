@@ -1,5 +1,19 @@
 # Kết quả kiểm chứng — 02/10/2026
 
+## Xe yêu thích (★) — cổng local toàn phần (13/10/2026, worktree hiện tại)
+
+| Kiểm tra | Kết quả |
+|---|---|
+| npm run lint | 0 lỗi (2 cảnh báo `react-hooks/exhaustive-deps` cũ ở `useNavBadges.ts`, ngoài phạm vi) |
+| npm run typecheck | `tsc -b` 0 lỗi |
+| npm run test | vitest 68 file / 789 test đạt |
+| npm run knowledge:seed + knowledge:check | SYSTEM_REFERENCE sinh lại khớp; seed 249 mục tài liệu (`20261014000300_knowledge_reseed.sql`), check "up to date" |
+| node tests/db/vehicle-favorites.test.mjs --pglite | 7/7 đạt (hợp đồng toggle, cô lập theo người, projection `is_favorite`, bộ lọc `favorite='true'`, chặn `VEHICLE_NOT_FOUND`/vô hiệu/anon, RLS + REVOKE ghi trực tiếp, cascade khi purge xe) |
+| npm run test:db (PostgreSQL native) | Toàn suite xanh, exit 0 — 422 dòng PASS gồm 30 kiểm tra tích hợp và 7 kiểm tra xe yêu thích chạy trong pipeline đầy đủ |
+| npm run build | Vite đạt 7.16s; PWA generateSW precache 74 mục; `dist/sw.js` sinh bình thường |
+
+Chưa chạy: `npm run test:e2e`/`test:pwa` cho luồng sao mới (UI được phủ bởi typecheck + DB contract), và không có thao tác hosted nào — migration `20261014000600_vehicle_favorites.sql` vẫn LOCAL/PENDING, chưa `db push`, chưa deploy.
+
 ## Xoá vĩnh viễn trường xe + danh mục Loại xe — Giai đoạn 6 (cổng local + replay migration) (08/10/2026, worktree hiện tại)
 
 | Kiểm tra | Kết quả |

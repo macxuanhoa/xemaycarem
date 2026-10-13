@@ -146,6 +146,8 @@ export type Vehicle = {
   created_by?: string;
   cost_pending: boolean;
   days_in_inventory: number;
+  /** Dấu sao "Xe yêu thích" của CHÍNH người đang đọc (list_vehicles/get_vehicle gắn theo JWT). */
+  is_favorite?: boolean;
   /** STAFF filed a delete request; hidden from inventory, awaiting OWNER approval. */
   pending_deletion?: boolean;
   /** STAFF/MANAGER filed a below-cost sale request; the bike is still in stock. */

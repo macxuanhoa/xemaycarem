@@ -85,7 +85,8 @@ function Protected({
 }) {
   const { loading, profile, user, error, refresh, signOut } = useAuth();
   const location = useLocation();
-  if (loading) return <Loading />;
+  if (loading)
+    return <Loading variant="fullscreen" label="Cà Rem đang khởi động…" />;
   if (!user)
     return (
       <Navigate
@@ -158,7 +159,7 @@ export default function App() {
       <PwaUpdate />
       <Toaster />
       <ConfirmDialogHost />
-      <Suspense fallback={<Loading />}>
+      <Suspense fallback={<Loading variant="fullscreen" label="Cà Rem đang khởi động…" />}>
         <Routes>
           <Route path="/login" element={<LoginPage />} />
           <Route path="/showroom" element={<ShowroomPage />} />

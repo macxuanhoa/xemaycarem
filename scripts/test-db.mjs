@@ -37,6 +37,7 @@ import { runSmartSalesAutomationTests } from '../tests/db/smart-sales-automation
 import { runSeasonalThemeTetTests } from '../tests/db/seasonal-theme-tet2027.test.mjs'
 import { runSecurityIntegrationTests } from '../tests/db/security-integration.test.mjs'
 import { runMessageDeliveryTrustTests } from '../tests/db/message-delivery-trust.test.mjs'
+import { runVehicleFavoriteTests } from '../tests/db/vehicle-favorites.test.mjs'
 
 const engine = process.argv.includes('--pglite') ? 'pglite' : 'postgres'
 console.log(`Database integration suite: ${engine} (disposable database; no cloud credentials)`)
@@ -75,6 +76,7 @@ await runSmartSalesAutomationTests(null, { engine })
 await runSeasonalThemeTetTests(null, { engine })
 await runSecurityIntegrationTests(null, { engine })
 await runMessageDeliveryTrustTests(null, { engine })
+await runVehicleFavoriteTests(null, { engine })
 const db = await createDatabase({ engine })
 let passed = 0
 const users = Object.fromEntries(['owner', 'manager', 'financialManager', 'staff', 'disabled'].map((role) => [role, randomUUID()]))

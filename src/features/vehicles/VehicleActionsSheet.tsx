@@ -6,6 +6,7 @@ import {
   Eye,
   SendHorizontal,
   ShoppingBag,
+  Star,
   Trash2,
   X,
 } from "lucide-react";
@@ -18,6 +19,7 @@ import {
 } from "@/lib/permissions";
 import { colorWordToHex } from "@/lib/colorWords";
 import { useDialog } from "@/lib/useDialog";
+import { useToggleVehicleFavorite } from "@/lib/useVehicleFavorite";
 import { vehicleAriaLabel } from "@/lib/vehicleDisplay";
 import type { Vehicle } from "@/types";
 
@@ -38,6 +40,8 @@ export function VehicleActionsSheet({
 }) {
   const { profile } = useAuth();
   const panelRef = useDialog(true, onClose);
+  const toggleFavorite = useToggleVehicleFavorite();
+  const favorite = !!vehicle.is_favorite;
   const available = ["IN_STOCK", "RESERVED"].includes(vehicle.status);
   const pending = !!vehicle.pending_deletion;
   // Đơn bán dưới giá thu đang chờ chủ duyệt: vẫn mở form bán để nhân viên
@@ -96,6 +100,24 @@ export function VehicleActionsSheet({
           <VehicleIdentityChips vehicle={vehicle} />
         </div>
         <div className="vas-list">
+          {/* Ưu tiên đầu danh sách: dấu sao cá nhân, mọi role đều dùng được,
+              không liên quan quyền nghiệp vụ nên không bị điều kiện canOperate chặn. */}
+          <button
+            type="button"
+            className={rowClass(favorite ? "primary" : "neutral")}
+            aria-pressed={favorite}
+            onClick={() => {
+              toggleFavorite.mutate(vehicle.id);
+              onClose();
+            }}
+          >
+            <span
+              className={favorite ? "vas-tile vas-tile-fav" : "vas-tile vas-tile-neutral"}
+            >
+              <Star size={15} fill={favorite ? "currentColor" : "none"} />
+            </span>
+            <span className="vas-label">{favorite ? "Bỏ yêu thích" : "Yêu thích"}</span>
+          </button>
           <Link
             className={rowClass("neutral")}
             to={`/vehicles/${vehicle.id}`}

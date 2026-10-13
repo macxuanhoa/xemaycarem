@@ -23,14 +23,12 @@ export type RecognitionFieldStatus =
 /**
  * Identifier fields whose CRM match decides VERIFIED/CONFLICT.
  * Số máy, Hãng, Dòng, Phiên bản và ảnh chụp đồng hồ km đã bị gỡ khỏi hợp đồng.
- * Tên xe đọc từ ảnh được gợi ý trong trường vehicle_type hiện có.
+ * Nhận diện ngoại hình xe (loại xe, màu, năm từ ảnh) cũng đã bị xoá hẳn:
+ * camera chỉ đọc biển số và số khung.
  */
 export const SCANNED_KEYS = [
   "license_plate",
   "frame_number",
-  "vehicle_type",
-  "color",
-  "year",
 ] as const;
 export type ScannedKey = (typeof SCANNED_KEYS)[number];
 
@@ -40,9 +38,6 @@ export type ScannedFields = Record<ScannedKey, string>;
 export const emptyScannedFields = (): ScannedFields => ({
   license_plate: "",
   frame_number: "",
-  vehicle_type: "",
-  color: "",
-  year: "",
 });
 
 /** Short identity summary kept from `list_vehicles` rows — never full records. */
@@ -81,9 +76,6 @@ export type Recognition = {
 const LIMITS: Partial<Record<ScannedKey, number>> = {
   license_plate: 30,
   frame_number: 100,
-  vehicle_type: 160,
-  color: 80,
-  year: 4,
 };
 
 /** Only characters a stamped code can legitimately contain. */
@@ -100,9 +92,9 @@ function textOf(value: unknown, key: ScannedKey): string {
 /**
  * Fold one raw ai-assist `vehicle_scan` draft into normalized strings, using
  * the same CRM rules the manual forms use: plates canonicalize through
- * `@/lib/plate`, stamped codes keep only A–Z0–9, year is range checked exactly
- * like `validateIntakeEntry`. Anything questionable degrades to ""
- * (UNREADABLE) instead of a guessed value.
+ * `@/lib/plate`, stamped codes keep only A–Z0–9. Anything questionable
+ * degrades to "" (UNREADABLE) instead of a guessed value. Appearance fields
+ * (loại xe, màu, năm từ ảnh) are no longer part of the scan contract.
  */
 export function normalizeScan(draft: Record<string, unknown>): ScannedFields {
   const fields = emptyScannedFields();
@@ -113,13 +105,6 @@ export function normalizeScan(draft: Record<string, unknown>): ScannedFields {
     fields.license_plate = (normalizePlate(plateRaw) ?? plateRaw.toUpperCase()).slice(0, 30);
   }
   fields.frame_number = textOf(draft.frame_number, "frame_number").toUpperCase().replace(CODE_SAFE, "").slice(0, LIMITS.frame_number);
-  const vehicleType = textOf(draft.vehicle_type, "vehicle_type").replace(/\s+/g, " ");
-  fields.vehicle_type = /^\d+$/.test(vehicleType) ? "" : vehicleType.slice(0, LIMITS.vehicle_type);
-  const color = textOf(draft.color, "color").replace(/\s+/g, " ");
-  // A pure digit can never be a colour name — treat it as an OCR artifact.
-  fields.color = /^\d+$/.test(color) ? "" : color.slice(0, LIMITS.color);
-  const year = typeof draft.year === "number" ? draft.year : Number(textOf(draft.year, "year")) || null;
-  fields.year = year != null && Number.isInteger(year) && year >= 1900 && year <= 2100 ? String(year) : "";
   return fields;
 }
 
@@ -252,9 +237,6 @@ export function scanTargetKey(match: VehicleMatch, fields: ScannedFields): strin
 const INTAKE_KEY: Record<ScannedKey, IntakeFieldKey> = {
   license_plate: "license_plate",
   frame_number: "frame_number",
-  vehicle_type: "vehicle_type",
-  color: "color",
-  year: "year",
 };
 
 /**
@@ -355,7 +337,6 @@ export function parseRecognition(value: unknown): Recognition | null {
         : "UNREADABLE";
     if ((key === "license_plate" || key === "frame_number") && riskCharacters[key]?.length && statuses[key] === "VERIFIED")
       statuses[key] = "SUGGESTED";
-    if (key === "vehicle_type" || key === "color" || key === "year") statuses[key] = fields[key] ? "SUGGESTED" : "UNREADABLE";
   }
   const photos = Array.isArray(raw.photos)
     ? raw.photos.filter((photo): photo is string => typeof photo === "string" && photo.startsWith("data:image/")).slice(0, 4)

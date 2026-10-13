@@ -54,26 +54,27 @@ describe('AI drafts and read tools preserve authority outside the model', () => 
     expect(() => validateInput({ task: 'vehicle_scan', image: inputImage }, staff)).toThrow('EXPLICIT_PROCESSING_CONSENT_REQUIRED')
     expect(() => validateInput({ task: 'vehicle_scan', consent: true, text: 'xe vision đen' }, staff)).toThrow('INVALID_INPUT')
     expect(validateInput({ task: 'vehicle_scan', consent: true, image: inputImage }, staff)).toMatchObject({ task: 'vehicle_scan' })
-    // One existing motorcycle name field plus bounded OCR risk metadata.
+    // Camera scan chỉ còn biển số · số khung · CCCD plus bounded OCR risk metadata.
     expect(Object.keys(outputSchema('vehicle_scan').properties))
-      .toEqual(['license_plate', 'frame_number', 'vehicle_type', 'color', 'year', 'identity_number', 'uncertain_characters'])
+      .toEqual(['license_plate', 'frame_number', 'identity_number', 'uncertain_characters'])
     // A STAFF scan is allowed (intake is an operational task) but extra keys never pass.
     expect(() => validateOutput('vehicle_scan', { ...draft('vehicle_scan'), purchase_price: 18000000 }, staff)).toThrow('INVALID_INPUT')
-    // Tên trường đã xoá vĩnh viễn (08/10/2026) bị chặn ngay ở bước kiểm khoá,
-    // kể cả khi model còn trả về theo khuôn cũ.
-    for (const purged of [{ odometer: 99999999 }, { brand: 'Honda' }, { model: 'Vision' }, { variant: 'ABS' }, { engine_number: 'KF30E-7412345' }])
+    // Nhận diện ảnh xe đã xoá hẳn (13/10/2026) cùng các tên trường gỡ trước đó (08/10/2026):
+    // bị chặn ngay ở bước kiểm khoá, kể cả khi model còn trả về theo khuôn cũ.
+    for (const purged of [{ vehicle_type: 'Honda' }, { color: 'Đen' }, { year: 2022 }, { odometer: 99999999 }, { brand: 'Honda' }, { model: 'Vision' }, { variant: 'ABS' }, { engine_number: 'KF30E-7412345' }])
       expect(() => validateOutput('vehicle_scan', draft('vehicle_scan', purged), staff), JSON.stringify(purged)).toThrow('INVALID_INPUT')
-    expect(() => validateOutput('vehicle_scan', draft('vehicle_scan', { year: 1850 }), staff)).toThrow('INVALID_AI_RESULT')
     expect(() => validateOutput('vehicle_scan', draft('vehicle_scan', { license_plate: 'X'.repeat(31) }), staff)).toThrow('INVALID_AI_RESULT')
     expect(validateOutput('vehicle_scan', draft('vehicle_scan', {
-      license_plate: '59A1-234.56', frame_number: 'RLH160KD12345', color: 'Đen', year: 2022,
+      license_plate: '59A1-234.56', frame_number: 'RLH160KD12345',
     }), staff))
-      .toMatchObject({ license_plate: '59A1-234.56', frame_number: 'RLH160KD12345', color: 'Đen', year: 2022 })
+      .toMatchObject({ license_plate: '59A1-234.56', frame_number: 'RLH160KD12345' })
   })
   it('accepts only exact camera modes and identifier targets on image scans', () => {
     const scan = { task: 'vehicle_scan', consent: true, image: inputImage }
-    for (const scan_mode of ['identifiers', 'vehicle'])
-      expect(validateInput({ ...scan, scan_mode }, staff)).toMatchObject({ scan_mode })
+    expect(validateInput({ ...scan, scan_mode: 'identifiers' }, staff)).toMatchObject({ scan_mode: 'identifiers' })
+    expect(validateInput({ ...scan, scan_mode: 'identity' }, owner)).toMatchObject({ scan_mode: 'identity' })
+    // Chế độ 'vehicle' (nhận diện ảnh xe) đã gỡ hẳn: bị từ chối như mọi mode lạ.
+    expect(() => validateInput({ ...scan, scan_mode: 'vehicle' }, staff)).toThrow('INVALID_SCAN_MODE')
     expect(validateInput({ ...scan, scan_mode: 'identifiers', scan_target: 'frame' }, staff)).toMatchObject({ scan_target: 'frame' })
     expect(() => validateInput({ ...scan, scan_mode: 'sql' }, staff)).toThrow('INVALID_SCAN_MODE')
     expect(() => validateInput({ ...scan, scan_mode: 'identity', scan_target: 'both' }, staff)).toThrow('INVALID_SCAN_TARGET')
@@ -108,24 +109,20 @@ describe('AI drafts and read tools preserve authority outside the model', () => 
       expect(() => validateOutput('vehicle_scan', draft('vehicle_scan', { identity_number }), staff)).toThrow('INVALID_AI_RESULT')
     const input = validateInput({ task: 'vehicle_scan', consent: true, image: inputImage, scan_mode: 'identity' }, owner)
     const result = validateOutput('vehicle_scan', draft('vehicle_scan', {
-      identity_number: '012345678901', license_plate: '59A1-234.56', vehicle_type: 'Honda Vision', color: 'Đen', year: 2022,
+      identity_number: '012345678901', license_plate: '59A1-234.56',
       uncertain_characters: { license_plate: [4], frame_number: [] },
     }), owner, input)
-    expect(result).toMatchObject({ identity_number: '012345678901', license_plate: null, vehicle_type: null, color: null, year: null,
+    expect(result).toMatchObject({ identity_number: '012345678901', license_plate: null,
       uncertain_characters: { license_plate: [], frame_number: [] } })
-    const photoInput = { ...input, scan_mode: 'vehicle' as const }
-    expect(validateOutput('vehicle_scan', draft('vehicle_scan', { vehicle_type: 'Honda Vision', year: 2022,
-      license_plate: '59A1-234.56', identity_number: '012345678901' }), staff, photoInput))
-      .toMatchObject({ vehicle_type: 'Honda Vision', year: 2022, license_plate: null, identity_number: null })
-    expect(validateOutput('vehicle_scan', draft('vehicle_scan', { license_plate: '59A1-234.56', frame_number: 'RLH160KD12345',
-      vehicle_type: 'Honda Vision' }), staff, { ...input, scan_mode: 'identifiers', scan_target: 'frame' }))
-      .toMatchObject({ license_plate: null, frame_number: 'RLH160KD12345', vehicle_type: null })
+    expect(validateOutput('vehicle_scan', draft('vehicle_scan', { license_plate: '59A1-234.56', frame_number: 'RLH160KD12345'
+    }), staff, { ...input, scan_mode: 'identifiers', scan_target: 'frame' }))
+      .toMatchObject({ license_plate: null, frame_number: 'RLH160KD12345' })
   })
-  it('instructs scans to locate actual plates/stamps, avoid distractors and never guess an exact photo year or identity', () => {
+  it('instructs scans to locate actual plates/stamps, avoid distractors and never guess a customer identity', () => {
     const input = validateInput({ task: 'vehicle_scan', consent: true, image: inputImage }, staff)
     expect(vehicleScanInstructions(input)).toMatch(/actual plate rectangle.*actual chassis stamp/)
     expect(vehicleScanInstructions(input)).toMatch(/engine codes/)
-    expect(vehicleScanInstructions({ ...input, scan_mode: 'vehicle' })).toMatch(/appearance alone cannot determine an exact year/)
+    expect(vehicleScanInstructions(input)).not.toMatch(/VEHICLE PHOTO MODE/)
     expect(vehicleScanInstructions({ ...input, scan_mode: 'identity' })).toMatch(/never guess a customer identity/)
   })
   it('executes only allowlisted read RPCs and uses database facts, preserving known vehicle context', async () => {
@@ -162,15 +159,12 @@ describe('AI drafts and read tools preserve authority outside the model', () => 
     expect(JSON.stringify(h.log.info.mock.calls)).not.toContain(png)
     expect(h.caller.rpc.mock.calls.every(([name]) => ['check_user_access', 'get_vehicle'].includes(name))).toBe(true)
   })
-  it('sends selected photo mode to the provider and explains that the absent year cannot be guessed', async () => {
-    const h = harness({ enabled: true, role: 'STAFF', result: draft('vehicle_scan', { vehicle_type: 'Honda Vision', color: 'Đen' }) })
+  it('rejects the removed vehicle photo mode before any provider request', async () => {
+    const h = harness({ enabled: true, role: 'STAFF' })
     const response = await h.invoke({ task: 'vehicle_scan', consent: true, image: inputImage, scan_mode: 'vehicle' })
-    expect(response.status).toBe(200)
-    const result = await response.json()
-    expect(result.draft).toMatchObject({ vehicle_type: 'Honda Vision', color: 'Đen', year: null, license_plate: null })
-    expect(result.warnings.join(' ')).toMatch(/không đoán năm/)
-    const request = h.provider.mock.calls[0] as unknown as [string, RequestInit]
-    expect(JSON.parse(String(request[1].body)).instructions).toContain('VEHICLE PHOTO MODE')
+    expect(response.status).toBe(400)
+    expect(await response.json()).toMatchObject({ error: 'INVALID_SCAN_MODE' })
+    expect(h.provider).not.toHaveBeenCalled()
   })
   it('denies a model request to see restricted profit and performs no business query', async () => {
     const h = harness({ enabled: true, role: 'STAFF', result: plan('profit') })

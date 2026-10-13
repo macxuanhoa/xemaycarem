@@ -5,9 +5,6 @@ import SmartVehicleScan from "@/features/capture/SmartVehicleScan";
 export type ScannedVehicleFields = {
   license_plate?: string;
   frame_number?: string;
-  vehicle_type?: string;
-  color?: string;
-  year?: number;
 };
 
 type QuickVehicleScannerModalProps = {

@@ -290,14 +290,6 @@ export function NotificationBell() {
                       group.label === "Hôm nay" ||
                       group.label === "Hôm qua" ||
                       group.label === "Vừa xong";
-                    const groupType =
-                      group.label === "Hôm nay"
-                        ? "today"
-                        : group.label === "Hôm qua"
-                          ? "yesterday"
-                          : group.label === "Vừa xong"
-                            ? "recent"
-                            : "date";
 
                     return (
                       <div key={group.label} className="notification-group">
@@ -306,7 +298,7 @@ export function NotificationBell() {
                           data-group={group.label}
                         >
                           {isLed ? (
-                            <span className="notification-led-badge" data-group-type={groupType}>
+                            <span className="notification-led-badge">
                               <span className="notification-led-dot" aria-hidden="true" />
                               <span className="notification-led-text">{group.label}</span>
                             </span>

@@ -14,10 +14,28 @@ import {
 
 export type Gray = { data: Uint8ClampedArray; width: number; height: number };
 
+/** Pure RGBA→luma conversion — shared by the main canvas and the analysis worker. */
+export function grayFromRgba(
+  data: Uint8ClampedArray,
+  width: number,
+  height: number,
+): Gray {
+  const gray = new Uint8ClampedArray(width * height);
+  for (let i = 0; i < gray.length; i++)
+    gray[i] =
+      0.299 * data[i * 4] + 0.587 * data[i * 4 + 1] + 0.114 * data[i * 4 + 2];
+  return { data: gray, width, height };
+}
+
 /** Localize plausible text before OCR and calculate conservative capture guidance. */
-export function analyzeFrame(canvas: HTMLCanvasElement): FrameAnalysis | null {
-  const gray = toGray(canvas);
-  return gray ? analyzeGray(gray) : null;
+export function analyzeFrame(
+  canvas: HTMLCanvasElement,
+  gray?: Gray | null,
+): FrameAnalysis | null {
+  // The live loop already greys the frame for motion checks — reuse it rather
+  // than paying a second getImageData + per-pixel pass on every tick.
+  const image = gray ?? toGray(canvas);
+  return image ? analyzeGray(image) : null;
 }
 
 /** Crop content-based bounds, straighten a mild text tilt and retain safe borders. */
@@ -107,11 +125,7 @@ export function toGray(canvas: HTMLCanvasElement): Gray | null {
   if (!ctx) return null;
   const { width, height } = canvas;
   const { data } = ctx.getImageData(0, 0, width, height);
-  const gray = new Uint8ClampedArray(width * height);
-  for (let i = 0; i < gray.length; i++)
-    gray[i] =
-      0.299 * data[i * 4] + 0.587 * data[i * 4 + 1] + 0.114 * data[i * 4 + 2];
-  return { data: gray, width, height };
+  return grayFromRgba(data, width, height);
 }
 
 /** Linear stretch between the 2nd/98th percentile luma — fades noise to ends. */
@@ -172,7 +186,9 @@ export function preprocessedFull(
   canvas: HTMLCanvasElement,
   targetWidth = 720,
 ): HTMLCanvasElement | null {
-  const scale = Math.min(2, Math.max(1, targetWidth / canvas.width));
+  // Bounded both ways: upscale small photos, shrink wide live frames so the
+  // sparse pass (the dominant WASM cost) stays proportional to its target.
+  const scale = Math.min(2, targetWidth / canvas.width);
   const out = document.createElement("canvas");
   out.width = Math.round(canvas.width * scale);
   out.height = Math.round(canvas.height * scale);
@@ -193,6 +209,9 @@ export function sceneSignature(gray: Gray): Float32Array {
   const sig = new Float32Array(64);
   const cellW = gray.width / 8;
   const cellH = gray.height / 8;
+  // Stride-sampled averages: an 8×8 scene delta needs representatives, not
+  // every pixel — this runs on the main thread each tick of the live loop.
+  const step = Math.max(1, Math.floor(Math.min(cellW, cellH) / 4));
   for (let cy = 0; cy < 8; cy++) {
     for (let cx = 0; cx < 8; cx++) {
       let sum = 0;
@@ -200,12 +219,12 @@ export function sceneSignature(gray: Gray): Float32Array {
       for (
         let y = Math.floor(cy * cellH);
         y < Math.floor((cy + 1) * cellH);
-        y++
+        y += step
       )
         for (
           let x = Math.floor(cx * cellW);
           x < Math.floor((cx + 1) * cellW);
-          x++
+          x += step
         ) {
           sum += gray.data[y * gray.width + x] ?? 0;
           count++;

@@ -246,14 +246,10 @@ function cameraViewportCanvas(
   video: HTMLVideoElement,
   guide: boolean,
 ): HTMLCanvasElement | null {
-  const {
-    videoWidth: width,
-    videoHeight: height,
-    clientWidth,
-    clientHeight,
-  } = video;
+  const { videoWidth: width, videoHeight: height, clientWidth, clientHeight } =
+    video;
   if (!width || !height || !clientWidth || !clientHeight)
-    return sourceCanvas(video, 1280);
+    return sourceCanvas(video, 1600);
   const bounds = cameraViewportBounds(
     width,
     height,
@@ -264,13 +260,50 @@ function cameraViewportCanvas(
   if (!bounds) return null;
   const { x: sx, y: sy, width: sw, height: sh } = bounds;
   const canvas = document.createElement("canvas");
-  const shrink = Math.min(1, 1280 / Math.max(sw, sh));
+  // 1600 px keeps stamped frame numbers legible on 1080p sensors; the pixel
+  // analysis behind it is bounded to 480 px and cached across stable frames.
+  const shrink = Math.min(1, 1600 / Math.max(sw, sh));
   canvas.width = Math.round(sw * shrink);
   canvas.height = Math.round(sh * shrink);
   const context = canvas.getContext("2d", { willReadFrequently: true });
   if (!context) return null;
   context.drawImage(video, sx, sy, sw, sh, 0, 0, canvas.width, canvas.height);
   return canvas;
+}
+
+/**
+ * Wait until the <video> element actually decodes a NEW frame (the modern
+ * requestVideoFrameCallback API) before the loop reads pixels from it.
+ * Without it, consecutive ticks can OCR the same stale or motion-blurred
+ * frame; browsers lacking the API (or a stalled stream) resolve on timeout,
+ * so the loop never waits longer than one frame interval plus the timeout.
+ */
+export function nextVideoFrame(
+  video: HTMLVideoElement,
+  timeoutMs = 200,
+): Promise<void> {
+  return new Promise((resolve) => {
+    const requestFrame = (
+      video as HTMLVideoElement & {
+        requestVideoFrameCallback?: (callback: () => void) => number;
+      }
+    ).requestVideoFrameCallback;
+    if (!requestFrame || document.hidden) return resolve();
+    let settled = false;
+    let timer = 0;
+    const finish = () => {
+      if (settled) return;
+      settled = true;
+      window.clearTimeout(timer);
+      resolve();
+    };
+    timer = window.setTimeout(finish, timeoutMs);
+    try {
+      requestFrame.call(video, finish);
+    } catch {
+      finish();
+    }
+  });
 }
 
 /**
@@ -492,10 +525,10 @@ export function cameraFlipLabel(activeFacing: "environment" | "user"): string {
   return activeFacing === "user" ? "Camera sau" : "Camera trước";
 }
 
-export type CaptureMode = "scan" | "photo" | "qr" | "identity";
+export type CaptureMode = "scan" | "qr" | "identity";
 
 export type CameraSettings = {
-  /** Photo uses a shutter; the other three modes scan automatically. */
+  /** Every remaining mode scans continuously — nhận diện ảnh xe đã bị gỡ. */
   mode: CaptureMode;
   sound: boolean;
   autoOpen: boolean;
@@ -514,7 +547,8 @@ export function loadCameraSettings(): CameraSettings {
       return {
         // Migrate old opt-out flags: reading, sound and opening verified
         // matches are now built-in; AI remains the only optional setting.
-        mode: ["photo", "qr", "identity"].includes(raw.mode)
+        // Chế độ "photo" (nhận diện ảnh xe) đã xoá — tự chuyển về "scan".
+        mode: ["qr", "identity"].includes(raw.mode)
           ? raw.mode
           : "scan",
         sound: true,

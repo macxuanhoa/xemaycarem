@@ -5,12 +5,12 @@ import {
   Calendar,
   ChevronDown,
   Inbox,
-  LoaderCircle,
   TriangleAlert,
 } from "lucide-react";
 import { Button } from "./button";
 import { DatePicker } from "./DatePicker";
 import { ColorSwatchAction } from "./ColorSwatchAction";
+import { CaremRideLoader, type CaremRideLoaderVariant } from "@/components/loader/CaremRideLoader";
 import { GroupedIntegerInput } from "./GroupedIntegerInput";
 import { friendlyError } from "@/lib/errors";
 import { datePreset } from "@/lib/format";
@@ -167,10 +167,25 @@ export function Badge({ status, label, children }: { status: string; label?: Rea
     </span>
   );
 }
-export function Loading() {
+export function Loading({
+  variant = "section",
+  label = "Đang tải dữ liệu…",
+}: {
+  variant?: CaremRideLoaderVariant;
+  label?: string;
+} = {}) {
+  // Fullscreen phủ toàn viewport (lúc mở app / đổi trang);
+  // section/compact nằm gọn trong khu vực nội dung.
+  if (variant === "fullscreen") {
+    return (
+      <div className="loading loading-fullscreen">
+        <CaremRideLoader variant="fullscreen" label={label} />
+      </div>
+    );
+  }
   return (
-    <div className="loading" role="status">
-      <LoaderCircle className="spin" size={22} /> Đang tải dữ liệu…
+    <div className="loading">
+      <CaremRideLoader variant={variant} label={label} />
     </div>
   );
 }

@@ -269,7 +269,7 @@ test("closing and reopening preserves the deadline; expiry hides QR and replacem
   await expect(
     dialog.getByRole("button", { name: /^Tạo mã mới \(/ }),
   ).toBeDisabled();
-  await dialog.getByRole("button", { name: "Đóng", exact: true }).click();
+  await dialog.getByRole("button", { name: "Quay lại", exact: true }).click();
   await page.clock.fastForward(65_000);
   await page
     .getByRole("button", { name: "VietQR", exact: true })
@@ -284,9 +284,7 @@ test("closing and reopening preserves the deadline; expiry hides QR and replacem
   expect(fixture.current.id).toBe(firstId);
   expect(fixture.current.expires_at).toBe(firstExpiry);
   expect(fixture.createCount).toBe(1);
-  await expect(dialog.locator(".vietqr-countdown strong")).toHaveText(
-    /^13:5\d$/,
-  );
+  await expect(dialog.locator(".vietqr-countdown")).toHaveText(/^13:5\d$/);
   await page.clock.fastForward(15 * 60_000);
   await expect(
     dialog.getByText("Mã QR đã hết hạn", { exact: true }),

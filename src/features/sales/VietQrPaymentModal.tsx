@@ -3,14 +3,20 @@ import { Link } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   AlertTriangle,
+  ArrowLeft,
   ArrowRight,
+  Banknote,
   Check,
   CheckCircle2,
   Clock,
   Copy,
+  CreditCard,
   Download,
-  QrCode,
+  FileText,
+  Info,
+  Landmark,
   RefreshCw,
+  User,
   WifiOff,
   X,
 } from "lucide-react";
@@ -48,6 +54,72 @@ const formatCountdown = (seconds: number) =>
   `${Math.floor(seconds / 60)
     .toString()
     .padStart(2, "0")}:${(seconds % 60).toString().padStart(2, "0")}`;
+
+/** Vòng đếm 15 phút theo chuẩn thẻ QR của Cà Rem. */
+const QR_LIFETIME_SECONDS = 15 * 60;
+/** Dưới mốc này vòng chuyển sang cam "sắp hết hạn" để nhắc nhân viên phát lệnh. */
+const QR_URGENT_SECONDS = 60;
+const splitCountdown = (seconds: number) => {
+  const safe = Math.max(0, seconds);
+  return {
+    minutes: Math.floor(safe / 60)
+      .toString()
+      .padStart(2, "0"),
+    seconds: (safe % 60).toString().padStart(2, "0"),
+  };
+};
+
+/* Hình xuyến thời gian: cung đỏ rút dần theo tỉ lệ còn lại, tâm đặt đồng hồ.
+   Chỉ vẽ SVG tĩnh + transition 1s trên nét vẽ, không có vòng lặp animation. */
+const RING_SIZE = 54;
+const RING_STROKE = 5;
+const RING_RADIUS = (RING_SIZE - RING_STROKE) / 2;
+const RING_CIRCUMFERENCE = 2 * Math.PI * RING_RADIUS;
+
+function CountdownRing({
+  ratio,
+  tone,
+}: {
+  ratio: number;
+  tone: "active" | "urgent" | "expired";
+}) {
+  const clamped = Math.min(1, Math.max(0, ratio));
+  const angle = ((-90 + 360 * clamped) * Math.PI) / 180;
+  return (
+    <svg
+      className={`vietqr-clock-arc-svg vietqr-clock-arc-svg--${tone}`}
+      width={RING_SIZE}
+      height={RING_SIZE}
+      viewBox={`0 0 ${RING_SIZE} ${RING_SIZE}`}
+      aria-hidden="true"
+    >
+      <circle
+        className="vietqr-clock-track"
+        cx={RING_SIZE / 2}
+        cy={RING_SIZE / 2}
+        r={RING_RADIUS}
+        strokeWidth={RING_STROKE}
+      />
+      <circle
+        className="vietqr-clock-arc"
+        cx={RING_SIZE / 2}
+        cy={RING_SIZE / 2}
+        r={RING_RADIUS}
+        strokeWidth={RING_STROKE}
+        strokeDasharray={RING_CIRCUMFERENCE}
+        strokeDashoffset={RING_CIRCUMFERENCE * (1 - clamped)}
+      />
+      {clamped > 0 ? (
+        <circle
+          className="vietqr-clock-head"
+          cx={RING_SIZE / 2 + RING_RADIUS * Math.cos(angle)}
+          cy={RING_SIZE / 2 + RING_RADIUS * Math.sin(angle)}
+          r={2.6}
+        />
+      ) : null}
+    </svg>
+  );
+}
 
 function paymentQrPayload(
   request: VietQrPaymentRequest | null,
@@ -617,6 +689,15 @@ export function VietQrPaymentModal({
                 };
   const StatusIcon = status.icon;
 
+  // Ba trạng thái của đồng hồ: đang đếm / sắp hết hạn (< 1 phút) / đã hết hạn.
+  const clockTone: "active" | "urgent" | "expired" =
+    !canShowQr || remainingSeconds === 0
+      ? "expired"
+      : remainingSeconds <= QR_URGENT_SECONDS
+        ? "urgent"
+        : "active";
+  const clockDigits = splitCountdown(remainingSeconds);
+
   return (
     <div
       className="dialog-backdrop vietqr-backdrop"
@@ -633,15 +714,25 @@ export function VietQrPaymentModal({
         aria-labelledby={titleId}
         aria-describedby={descriptionId}
       >
+        <div className="vietqr-ambient" aria-hidden="true">
+          <span className="vietqr-ambient-photo" />
+          <span className="vietqr-ambient-scrim" />
+          <span className="vietqr-ambient-grain" />
+          <span className="vietqr-ambient-sign">
+            <em>Cà Rem</em>
+            <em>Uy Tín Tạo Niềm Tin</em>
+          </span>
+        </div>
+
         <div className="vietqr-modal-heading">
-          <div className="vietqr-heading-content">
-            <div className="vietqr-heading-icon" aria-hidden="true">
-              <QrCode size={18} />
-            </div>
-            <div className="vietqr-heading-text">
-              <h2 id={titleId}>Thanh toán chuyển khoản</h2>
-              <p id={descriptionId}>Cà Rem · Mã QR có hiệu lực 15 phút</p>
-            </div>
+          <span
+            className="vietqr-brand-badge"
+            role="img"
+            aria-label="Logo Cà Rem"
+          />
+          <div className="vietqr-heading-text">
+            <h2 id={titleId}>Thanh toán chuyển khoản</h2>
+            <p id={descriptionId}>Cà Rem · Mã QR có hiệu lực 15 phút</p>
           </div>
           <Button
             variant="ghost"
@@ -682,8 +773,7 @@ export function VietQrPaymentModal({
             (isConfigured &&
               (activeQuery.isPending || createMutation.isPending))) && (
             <div className="vietqr-state">
-              <Loading />
-              <p className="muted">Đang kiểm tra mã thanh toán…</p>
+              <Loading variant="compact" label="Đang kiểm tra mã thanh toán…" />
             </div>
           )}
         {!request && activeQuery.isError && (
@@ -726,25 +816,49 @@ export function VietQrPaymentModal({
 
             {!verifiedReceipt && (
               <div className="vietqr-display-box">
+                {/* Đồng hồ xuyến: cùng một khối cho cả ba trạng thái
+                    đang đếm / sắp hết hạn / đã hết hạn. */}
+                <div className={`vietqr-clock vietqr-clock--${clockTone}`}>
+                  <span className="vietqr-clock-dial">
+                    <CountdownRing
+                      ratio={remainingSeconds / QR_LIFETIME_SECONDS}
+                      tone={clockTone}
+                    />
+                    {clockTone === "expired" ? (
+                      <RefreshCw size={17} aria-hidden="true" />
+                    ) : (
+                      <Clock size={17} aria-hidden="true" />
+                    )}
+                  </span>
+                  <div className="vietqr-clock-body">
+                    <span className="vietqr-clock-label">
+                      {clockTone === "expired"
+                        ? "Mã QR đã mất hiệu lực"
+                        : "Mã QR sẽ hết hạn sau"}
+                    </span>
+                    <span className="vietqr-clock-readout">
+                      <span
+                        className="vietqr-countdown"
+                        role="timer"
+                        aria-label={`Thời gian còn lại ${formatCountdown(remainingSeconds)}`}
+                      >
+                        <strong aria-hidden="true">{clockDigits.minutes}</strong>
+                        <strong className="vietqr-clock-sep" aria-hidden="true">
+                          :
+                        </strong>
+                        <strong aria-hidden="true">{clockDigits.seconds}</strong>
+                      </span>
+                      <span className="vietqr-clock-units" aria-hidden="true">
+                        <b>PHÚT</b>
+                        <b />
+                        <b>GIÂY</b>
+                      </span>
+                    </span>
+                  </div>
+                </div>
+
                 {canShowQr ? (
                   <>
-                    <div className="vietqr-status-bar">
-                      <div className="vietqr-status-bar-left">
-                        <Clock size={15} className="vietqr-status-clock" aria-hidden="true" />
-                        <span className="vietqr-status-label">HIỆU LỰC MÃ QR</span>
-                        <div className="vietqr-countdown">
-                          <strong
-                            aria-label={`Thời gian còn lại ${formatCountdown(remainingSeconds)}`}
-                          >
-                            {formatCountdown(remainingSeconds)}
-                          </strong>
-                        </div>
-                      </div>
-                      <div className="vietqr-status-bar-right">
-                        <span>Tự động làm mới khi hết thời gian</span>
-                      </div>
-                    </div>
-
                     {qrResult.invalid ? (
                       <div className="vietqr-invalid-box">
                         <p className="notice warning">
@@ -794,7 +908,7 @@ export function VietQrPaymentModal({
                         Chưa hiển thị được mã QR. Hãy đóng và mở lại để thử lại.
                       </p>
                     ) : (
-                      <Loading />
+                      <Loading variant="compact" label="Đang tải mã QR…" />
                     )}
 
                     <Button
@@ -815,7 +929,7 @@ export function VietQrPaymentModal({
                   </>
                 ) : (
                   <div className="vietqr-unavailable">
-                    <Clock size={28} aria-hidden="true" />
+                    <Clock size={26} aria-hidden="true" />
                     <strong>
                       {expired
                         ? "Mã này đã hết hạn"
@@ -834,11 +948,17 @@ export function VietQrPaymentModal({
               </p>
             )}
 
+            {/* Thẻ kính mờ: thông tin chuyển khoản theo đúng thứ tự chuẩn ngân hàng */}
             <div className="vietqr-details-card">
-              <div className="vietqr-amount-row">
-                <span className="vietqr-amount-label">Số tiền thanh toán</span>
-                <div className="vietqr-amount-value-group">
-                  <strong className="vietqr-amount-value">{money(request.amount)}</strong>
+              <div className="vietqr-detail-row vietqr-detail-row--amount">
+                <span className="vietqr-detail-icon" aria-hidden="true">
+                  <Banknote size={16} />
+                </span>
+                <span className="vietqr-detail-key">Số tiền thanh toán</span>
+                <span className="vietqr-detail-val">
+                  <strong className="vietqr-amount-value">
+                    {money(request.amount)}
+                  </strong>
                   <Button
                     variant="ghost"
                     className="vietqr-copy-btn"
@@ -852,44 +972,55 @@ export function VietQrPaymentModal({
                       <Copy size={14} />
                     )}
                   </Button>
-                </div>
+                </span>
               </div>
 
-              <div className="vietqr-transfer-content">
-                <div className="vietqr-transfer-head">
-                  <span className="vietqr-field-label">Nội dung chuyển khoản</span>
-                  <span className="vietqr-transfer-badge">Tự động điền khi quét</span>
-                </div>
-                <div className="vietqr-transfer-box">
-                  <strong className="vietqr-transfer-text">{displayTransferContent}</strong>
-                  <Button
-                    variant="ghost"
-                    className="vietqr-copy-btn"
-                    aria-label="Sao chép nội dung chuyển khoản"
-                    onClick={() =>
-                      void handleCopy(
-                        displayTransferContent,
-                        "nội dung chuyển khoản",
-                      )
-                    }
-                    title="Sao chép nội dung"
-                  >
-                    {copiedField === "nội dung chuyển khoản" ? (
-                      <Check size={14} className="vietqr-copied-icon" />
-                    ) : (
-                      <Copy size={14} />
-                    )}
-                  </Button>
-                </div>
+              <div className="vietqr-detail-row">
+                <span className="vietqr-detail-icon" aria-hidden="true">
+                  <FileText size={16} />
+                </span>
+                <span className="vietqr-detail-key">Nội dung chuyển khoản</span>
+                <span className="vietqr-transfer-badge">Tự điền khi quét</span>
+              </div>
+              <div className="vietqr-transfer-box">
+                <strong className="vietqr-transfer-text">{displayTransferContent}</strong>
+                <Button
+                  variant="ghost"
+                  className="vietqr-copy-btn"
+                  aria-label="Sao chép nội dung chuyển khoản"
+                  onClick={() =>
+                    void handleCopy(
+                      displayTransferContent,
+                      "nội dung chuyển khoản",
+                    )
+                  }
+                  title="Sao chép nội dung"
+                >
+                  {copiedField === "nội dung chuyển khoản" ? (
+                    <Check size={14} className="vietqr-copied-icon" />
+                  ) : (
+                    <Copy size={14} />
+                  )}
+                </Button>
               </div>
 
               <dl className="vietqr-detail-list">
                 <div className="vietqr-detail-row">
-                  <dt>Ngân hàng</dt>
+                  <dt>
+                    <span className="vietqr-detail-icon" aria-hidden="true">
+                      <Landmark size={16} />
+                    </span>
+                    Ngân hàng
+                  </dt>
                   <dd>{displayBankName}</dd>
                 </div>
                 <div className="vietqr-detail-row">
-                  <dt>Số tài khoản</dt>
+                  <dt>
+                    <span className="vietqr-detail-icon" aria-hidden="true">
+                      <CreditCard size={16} />
+                    </span>
+                    Số tài khoản
+                  </dt>
                   <dd>
                     <span className="vietqr-acc-no">{displayAccountNo}</span>
                     {displayAccountNo ? (
@@ -912,7 +1043,12 @@ export function VietQrPaymentModal({
                   </dd>
                 </div>
                 <div className="vietqr-detail-row">
-                  <dt>Chủ tài khoản</dt>
+                  <dt>
+                    <span className="vietqr-detail-icon" aria-hidden="true">
+                      <User size={16} />
+                    </span>
+                    Chủ tài khoản
+                  </dt>
                   <dd>{displayAccountName || "Chưa có tên chủ tài khoản"}</dd>
                 </div>
               </dl>
@@ -923,16 +1059,24 @@ export function VietQrPaymentModal({
             )}
 
             <div className="vietqr-actions">
-              <Button variant="secondary" onClick={onClose}>
-                Đóng
+              <Button
+                variant="secondary"
+                className="vietqr-btn-ghost"
+                onClick={onClose}
+              >
+                <ArrowLeft size={15} /> Quay lại
               </Button>
               {verifiedReceipt ? (
-                <Button onClick={acknowledgeReceipt}>
+                <Button
+                  className="vietqr-btn-confirm"
+                  onClick={acknowledgeReceipt}
+                >
                   <CheckCircle2 size={16} /> Xác nhận và đóng
                 </Button>
               ) : (
                 <Button
                   variant="secondary"
+                  className="vietqr-btn-reissue"
                   onClick={handleCreateNewQr}
                   disabled={
                     !network.online ||
@@ -950,12 +1094,18 @@ export function VietQrPaymentModal({
               )}
             </div>
 
-            {!verifiedReceipt && (
-              <p className="vietqr-footnote">
-                Đóng hoặc mở lại không gia hạn mã. Cà Rem chỉ xác nhận khi ngân
-                hàng báo tiền đã vào đúng tài khoản.
-              </p>
-            )}
+            <p className="vietqr-footnote">
+              <span className="vietqr-secure">
+                <Info size={12} aria-hidden="true" /> Giao dịch an toàn · Bảo mật
+                tuyệt đối
+              </span>
+              {!verifiedReceipt && (
+                <small>
+                  Đóng hoặc mở lại không gia hạn mã. Cà Rem chỉ xác nhận khi ngân
+                  hàng báo tiền đã vào đúng tài khoản.
+                </small>
+              )}
+            </p>
           </div>
         )}
       </div>

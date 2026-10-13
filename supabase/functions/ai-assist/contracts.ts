@@ -10,7 +10,7 @@ export type Task = typeof tasks[number];
 // provider-written summary on top of the same retrieved evidence (OWNER only).
 export const copilotModes = ['deterministic', 'llm'] as const;
 export type CopilotMode = typeof copilotModes[number];
-export const scanModes = ['identifiers', 'vehicle', 'identity'] as const;
+export const scanModes = ['identifiers', 'identity'] as const;
 export type ScanMode = typeof scanModes[number];
 export const scanTargets = ['plate', 'frame', 'both'] as const;
 export type ScanTarget = typeof scanTargets[number];
@@ -82,11 +82,9 @@ export function outputSchema(task: Task) {
   // được đọc đúng bốn trường đó (số máy đã bị gỡ vĩnh viễn khỏi database).
   if (task === 'vehicle_document') return schema({ frame_number: nullableText, license_plate: nullableText,
     color: nullableText, year: { type: ['integer', 'null'], minimum: 1900, maximum: 2100 } });
-  // Separate camera modes share one strict nullable schema. The model may
-  // suggest a recognizable name in the existing vehicle_type field; it never
-  // recreates removed brand/model/variant/engine/odometer fields.
+  // Camera scan chỉ còn biển số · số khung (identity cho CCCD). Nhận diện ảnh xe
+  // (tên xe/màu/năm) đã bị gỡ hẳn, nên schema không còn trường ngoại dạng nào.
   if (task === 'vehicle_scan') return schema({ license_plate: nullableText, frame_number: nullableText,
-    vehicle_type: nullableText, color: nullableText, year: { type: ['integer', 'null'], minimum: 1900, maximum: 2100 },
     identity_number: { type: ['string', 'null'], pattern: '^\\d{12}$' },
     uncertain_characters: schema({
       license_plate: { type: 'array', items: { type: 'integer', minimum: 0, maximum: 29 }, maxItems: 30 },
@@ -100,7 +98,7 @@ export function outputSchema(task: Task) {
     purchase_price: nullableMoney, amount: nullableMoney, description: nullableText, expense_type: category, date: nullableDate });
   return schema({ kind: { type: 'string', enum: queryKinds }, month: nullableText, query: nullableText, vehicle_id: nullableText });
 }
-const textLimits: Record<string, number> = { frame_number: 100, license_plate: 30, vehicle_type: 160, color: 80, identity_number: 12,
+const textLimits: Record<string, number> = { frame_number: 100, license_plate: 30, color: 80, identity_number: 12,
   merchant: 200, description: 1000, date: 10, month: 7, query: 100, vehicle_id: 36 };
 export function validateOutput(task: Task, value: unknown, profile: AccessProfile, input?: AssistInput): Record<string, unknown> {
   const result = object(value);
@@ -141,10 +139,9 @@ export function validateOutput(task: Task, value: unknown, profile: AccessProfil
       const target = input.scan_target ?? 'both';
       // Mode isolation is enforced after the provider, even if it ignores the
       // instruction and returns unrelated visible document or vehicle data.
-      const permitted = mode === 'vehicle' ? ['vehicle_type', 'color', 'year']
-        : mode === 'identity' ? ['identity_number']
+      const permitted = mode === 'identity' ? ['identity_number']
         : target === 'plate' ? ['license_plate'] : target === 'frame' ? ['frame_number'] : ['license_plate', 'frame_number'];
-      for (const key of ['license_plate', 'frame_number', 'vehicle_type', 'color', 'year', 'identity_number']) {
+      for (const key of ['license_plate', 'frame_number', 'identity_number']) {
         if (!permitted.includes(key)) result[key] = null;
       }
       const positions = result.uncertain_characters as Record<string, unknown>;
@@ -181,13 +178,6 @@ export function vehicleScanInstructions(input: AssistInput): string {
     + 'IDENTITY MODE: Locate a Vietnamese CCCD/căn cước identity card and copy only its 12-digit identity number. '
     + 'Ignore the dates, phone numbers, cardholder name, address and other numbers. All vehicle fields must be null. '
     + 'If any identity digit is blurry, obscured or ambiguous, identity_number must be null; never guess a customer identity.';
-  if (mode === 'vehicle') return common
-    + 'VEHICLE PHOTO MODE: Identify the foreground motorcycle from visible shape and readable badges. '
-    + 'Return a concise recognizable motorcycle name (for example Honda Vision) in vehicle_type only when the image supports it, '
-    + 'otherwise null. Use only the existing vehicle_type field; do not return brand, model, variant, engine number or odometer. '
-    + 'Return visible body color in Vietnamese. Return year only if the actual manufacture/model year is readable on evidence '
-    + 'for this motorcycle; appearance alone cannot determine an exact year. license_plate, frame_number and identity_number must be null. '
-    + 'Vehicle name, color and year are reviewable suggestions, never confirmed inventory facts.';
   return common
     + `IDENTIFIER MODE: Read ${target === 'plate' ? 'only the motorcycle license plate' : target === 'frame' ? 'only the stamped frame/chassis number' : 'the motorcycle license plate and stamped frame/chassis number'}. `
     + 'Locate the actual plate rectangle or actual chassis stamp before transcribing. A frame number is stamped on the motorcycle '
@@ -195,7 +185,7 @@ export function vehicleScanInstructions(input: AssistInput): string {
     + 'Keep frame characters as visible uppercase letters/digits. Normalize a clear Vietnamese plate like 59A1-234.56 without replacing characters. '
     + 'When only one requested identifier is present, return the other as null. '
     + (target === 'plate' ? 'frame_number must be null. ' : target === 'frame' ? 'license_plate must be null. ' : '')
-    + 'vehicle_type, color, year and identity_number must be null. Do not infer a bike identity from the OCR text.';
+    + 'identity_number must be null. Do not infer a bike identity from the OCR text.';
 }
 
 export async function readBusinessFacts(plan: Record<string, unknown>, caller: Caller, contextVehicleId?: string, today = new Date()) {

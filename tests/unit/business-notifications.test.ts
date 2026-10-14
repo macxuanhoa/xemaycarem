@@ -1,14 +1,21 @@
 import { describe, expect, it } from "vitest";
 import {
+  ACTION_ICON,
+  ACTION_TONE,
+  FRESH_WINDOW_MS,
+  NOTIFICATION_FALLBACK_ICON,
   UNREAD_BADGE_CAP,
   badgeLabel,
+  emptyGroupHint,
   groupLabel,
   groupNotifications,
+  isFreshGroup,
   relativeTime,
   splitVehicleIdentity,
   withTodayGroup,
 } from "@/lib/notifications";
-import type { NotificationItem } from "@/types";
+import { Bell } from "lucide-react";
+import type { NotificationAction, NotificationItem } from "@/types";
 
 // Wall-clock instants expressed as UTC ISO. Vietnam is UTC+7 year-round (no
 // DST), so these map to predictable local dates in Asia/Ho_Chi_Minh.
@@ -68,9 +75,97 @@ describe("notification time buckets", () => {
 describe("notification relative time", () => {
   it("walks from Vừa xong up to days", () => {
     expect(relativeTime(iso(0), NOW)).toBe("Vừa xong");
-    expect(relativeTime(iso(5), NOW)).toBe("5 phút trước");
+    expect(relativeTime(iso(20), NOW)).toBe("20 phút trước");
     expect(relativeTime(iso(125), NOW)).toBe("2 giờ trước");
     expect(relativeTime(new Date("2026-10-02T05:00:00Z").toISOString(), NOW)).toBe("2 ngày trước");
+  });
+
+  /**
+   * Regression (P1): the group heading bucketed at 15 minutes while the row
+   * label bucketed at 1, so a 10-minute-old row sat under "Vừa xong" and then
+   * contradicted its own header by reading "10 phút trước". One constant now
+   * drives both, and this pins that they can never disagree again.
+   */
+  it("never contradicts the group heading that contains it", () => {
+    for (let minutesAgo = 0; minutesAgo < 90; minutesAgo += 1) {
+      const group = groupLabel(iso(minutesAgo), NOW);
+      const row = relativeTime(iso(minutesAgo), NOW);
+      expect(row === "Vừa xong").toBe(group === "Vừa xong");
+    }
+    expect(FRESH_WINDOW_MS).toBe(15 * 60_000);
+    // Boundary: the last fresh minute and the first counted minute.
+    expect(relativeTime(iso(14), NOW)).toBe("Vừa xong");
+    expect(relativeTime(iso(15), NOW)).toBe("15 phút trước");
+  });
+});
+
+describe("isFreshGroup", () => {
+  it("marks the three leading buckets as fresh", () => {
+    expect(isFreshGroup("Vừa xong")).toBe(true);
+    expect(isFreshGroup("Hôm nay")).toBe(true);
+    expect(isFreshGroup("Hôm qua")).toBe(true);
+  });
+  it("leaves dated buckets unstyled", () => {
+    expect(isFreshGroup("02/10")).toBe(false);
+    expect(isFreshGroup("02/10/2025")).toBe(false);
+  });
+  it("agrees with the labels groupLabel actually produces", () => {
+    for (const minutesAgo of [0, 60, 24 * 60, 30 * 24 * 60]) {
+      expect(isFreshGroup(groupLabel(iso(minutesAgo), NOW))).toBe(minutesAgo <= 24 * 60);
+    }
+  });
+});
+
+describe("emptyGroupHint", () => {
+  /**
+   * Regression (P1): the hint was hard-coded to "chưa có thông báo mới", which
+   * inside the "Chưa đọc" filter told staff to wait for news when in fact they
+   * had simply read everything.
+   */
+  it("names the filter that is active", () => {
+    expect(emptyGroupHint(true)).toContain("chưa đọc");
+    expect(emptyGroupHint(false)).toContain("thông báo mới");
+    expect(emptyGroupHint(true)).not.toBe(emptyGroupHint(false));
+  });
+});
+
+describe("shared icon and tone tables", () => {
+  /**
+   * Regression (P2): the bell fell back to `Bell` while the page fell back to
+   * `BellOff`, so one unregistered action type rendered two different icons
+   * depending on where it was read. `BellOff` also reads as "notifications off".
+   */
+  it("uses one fallback icon for both surfaces", () => {
+    expect(NOTIFICATION_FALLBACK_ICON).toBe(Bell);
+  });
+
+  it("defines an icon and a tone for every action the server can emit", () => {
+    for (const action of Object.keys(ACTION_TONE) as NotificationAction[]) {
+      expect(ACTION_ICON[action]).toBeDefined();
+      expect(ACTION_TONE[action]).toBeDefined();
+    }
+  });
+
+  it("treats the three bank states as three distinct signals", () => {
+    const bank: NotificationAction[] = [
+      "BANK_TRANSACTION_MATCHED",
+      "BANK_TRANSACTION_REVIEW",
+      "BANK_TRANSACTION_UNMATCHED",
+    ];
+    const icons = new Set(bank.map((action) => ACTION_ICON[action]));
+    expect(icons.size).toBe(bank.length);
+  });
+
+  /**
+   * Regression (P2): UNMATCHED — money landed, no reference recognised, a human
+   * must reconcile it — was `neutral`, so it hid among routine "vehicle updated"
+   * rows that need nobody.
+   */
+  it("escalates the states that need a human, not the ones that are settled", () => {
+    expect(ACTION_TONE.BANK_TRANSACTION_UNMATCHED).toBe("warning");
+    expect(ACTION_TONE.BANK_TRANSACTION_REVIEW).toBe("warning");
+    expect(ACTION_TONE.BANK_TRANSACTION_MATCHED).toBe("success");
+    expect(ACTION_TONE.UPDATE_VEHICLE).toBe("neutral");
   });
 });
 

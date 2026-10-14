@@ -1,12 +1,14 @@
 import { useCallback, useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import type { QueryClient } from "@tanstack/react-query";
 import type { RealtimeChannel } from "@supabase/supabase-js";
 import { api } from "./api";
 import { supabase } from "./supabase";
 import { toast } from "./toast";
 import { friendlyError } from "./errors";
 import { useAuth } from "@/features/auth/AuthProvider";
-import type { NotificationItem, NotificationList } from "@/types";
+import { patchNotificationsCache } from "./notificationsCache";
+import type { NotificationItem } from "@/types";
 
 /**
  * Business bell data layer. Primary delivery is Supabase Realtime on the
@@ -15,31 +17,31 @@ import type { NotificationItem, NotificationList } from "@/types";
  * the AnnouncementBar pattern. All rows are already money-gated server-side.
  */
 
-const PAGE_SIZE = 25;
-const MAX_ROWS = 100;
+/**
+ * Rows the floating panel renders. The panel is a preview, not the archive: it
+ * deliberately stops short of the server's 100-row page cap and hands the rest
+ * of the history to /thong-bao. There used to be a `pages`/`loadMore` multiplier
+ * here that nothing ever called — the bell's only "load more" affordance
+ * navigates instead — while `hasMore` decided whether that navigation was
+ * reachable at all. Both are gone; the link is unconditional.
+ */
+const BELL_ROWS = 25;
 const FALLBACK_POLL_MS = 60_000;
 
-export function useNotifications() {
-  const { profile } = useAuth();
-  const userId = profile?.id ?? null;
-  const client = useQueryClient();
-  const [pages, setPages] = useState(1);
+/**
+ * Live sync shared by the bell and /thong-bao.
+ *
+ * Both surfaces read the same `notifications` rows and must agree instantly when
+ * one of them marks a row read or when a new row lands while the other is open,
+ * so the socket subscription + "back online" refresh lives here once instead of
+ * being copied into each surface.
+ */
+export function useNotificationsRealtime(
+  userId: string | null,
+  client: QueryClient,
+  channelName: string,
+): boolean {
   const [live, setLive] = useState(false);
-
-  const limit = Math.min(pages * PAGE_SIZE, MAX_ROWS);
-  const list = useQuery({
-    queryKey: ["notifications", userId, limit],
-    queryFn: () => api.listNotifications({ limit }),
-    enabled: !!userId,
-    // Realtime covers inserts while the socket is joined; poll only as fallback.
-    refetchInterval: live || !userId ? false : FALLBACK_POLL_MS,
-  });
-  const data = list.data;
-  const items = data?.items ?? [];
-  const total = data?.total ?? 0;
-  const unreadCount = data?.unread_count ?? 0;
-
-  useEffect(() => setPages(1), [userId]);
 
   useEffect(() => {
     const sb = supabase;
@@ -47,7 +49,7 @@ export function useNotifications() {
     const refresh = () =>
       void client.invalidateQueries({ queryKey: ["notifications"] });
     const channel: RealtimeChannel = sb
-      .channel(`notifications:${userId}`)
+      .channel(`${channelName}:${userId}`)
       .on(
         "postgres_changes",
         {
@@ -66,31 +68,35 @@ export function useNotifications() {
       void sb.removeChannel(channel);
       setLive(false);
     };
-  }, [userId, client]);
+  }, [userId, client, channelName]);
+
+  return live;
+}
+
+export function useNotifications() {
+  const { profile } = useAuth();
+  const userId = profile?.id ?? null;
+  const client = useQueryClient();
+
+  // Realtime covers inserts while the socket is joined; poll only as fallback.
+  const live = useNotificationsRealtime(userId, client, "notifications");
+
+  const list = useQuery({
+    queryKey: ["notifications", userId, BELL_ROWS],
+    queryFn: () => api.listNotifications({ limit: BELL_ROWS }),
+    enabled: !!userId,
+    refetchInterval: live || !userId ? false : FALLBACK_POLL_MS,
+  });
+
+  const data = list.data;
+  const items = data?.items ?? [];
+  const total = data?.total ?? 0;
+  const unreadCount = data?.unread_count ?? 0;
 
   /** Patch the cached envelope optimistically so the badge feels instant. */
   const patchCache = useCallback(
-    (readIds: (item: NotificationItem) => boolean) => {
-      client.setQueriesData<NotificationList>(
-        { queryKey: ["notifications", userId] },
-        (old) => {
-          if (!old) return old;
-          let marked = 0;
-          const next = old.items.map((item) => {
-            if (item.read_at === null && readIds(item)) {
-              marked += 1;
-              return { ...item, read_at: new Date().toISOString() };
-            }
-            return item;
-          });
-          return {
-            ...old,
-            items: next,
-            unread_count: Math.max(0, old.unread_count - marked),
-          };
-        },
-      );
-    },
+    (readIds: (item: NotificationItem) => boolean) =>
+      patchNotificationsCache(client, userId, readIds),
     [client, userId],
   );
 
@@ -125,8 +131,6 @@ export function useNotifications() {
     isLoading: list.isLoading,
     isFetching: list.isFetching,
     live,
-    hasMore: items.length < total && limit < MAX_ROWS,
-    loadMore: () => setPages((p) => p + 1),
     markRead,
     markAll: () => markAll.mutate(),
     markAllPending: markAll.isPending,

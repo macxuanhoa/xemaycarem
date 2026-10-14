@@ -1,18 +1,19 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useNavigate } from "react-router-dom";
 import { Bell, BellOff, X } from "lucide-react";
 import { useNotifications } from "@/lib/useNotifications";
 import {
-  ACTION_ICON,
-  ACTION_TONE,
+  NotificationGroupHeading,
+  NotificationRow,
+} from "@/components/NotificationRow";
+import {
   badgeLabel,
+  emptyGroupHint,
   groupNotifications,
-  relativeTime,
-  splitVehicleIdentity,
-  tidyBody,
   withTodayGroup,
 } from "@/lib/notifications";
+import { useNow } from "@/lib/useNow";
 import type { NotificationItem } from "@/types";
 
 /**
@@ -21,66 +22,16 @@ import type { NotificationItem } from "@/types";
  * recipient — copy and money gating already happened in the database.
  * The panel is portalled to <body> with fixed positioning so the topbar's
  * z-index stacking context can never clip it.
+ *
+ * Rows and time headings come from the shared NotificationRow components so the
+ * panel and /thong-bao cannot drift apart.
  */
-
-function Row({
-  item,
-  now,
-  onOpen,
-}: {
-  item: NotificationItem;
-  now: Date;
-  onOpen: (item: NotificationItem) => void;
-}) {
-  const Icon = ACTION_ICON[item.action] ?? Bell;
-  const unread = item.read_at === null;
-  const timeLabel = relativeTime(item.created_at, now);
-  // Bóc biển số ra khỏi tiêu đề để gắn chip nổi bật — nhìn là biết xe nào.
-  const { before, plate, after } = splitVehicleIdentity(item.title);
-  // Tên loại xe (Honda Wave, Sirius…) từ DB — ưu tiên hiển thị để chủ quán
-  // nhận ra xe ngay, thay vì phải đọc biển số hoặc mã nội bộ.
-  const typeName =
-    item.vehicle_type && item.vehicle_type !== "Chưa phân loại"
-      ? item.vehicle_type
-      : null;
-
-  return (
-    <button
-      type="button"
-      className={`notification-row${unread ? " unread" : ""}`}
-      data-tone={ACTION_TONE[item.action] ?? "neutral"}
-      onClick={() => onOpen(item)}
-    >
-      <span className="notification-row-icon">
-        <Icon size={16} />
-      </span>
-      <span className="notification-row-text">
-        <span className="notification-row-title">
-          {typeName && (
-            <span className="notification-vehicle-type">{typeName}</span>
-          )}
-          {before}
-          {plate && (
-            <span className="notification-plate" aria-label={`Biển số ${plate}`}>
-              {plate}
-            </span>
-          )}
-          {after}
-        </span>
-        {item.body && <span className="notification-row-body">{tidyBody(item.body)}</span>}
-        <span className="notification-row-time">{timeLabel}</span>
-      </span>
-      {unread && <span className="notification-row-dot" aria-hidden="true" />}
-    </button>
-  );
-}
 
 export function NotificationBell() {
   const {
     items,
     unreadCount,
     isLoading,
-    hasMore,
     markRead,
     markAll,
     markAllPending,
@@ -90,38 +41,83 @@ export function NotificationBell() {
   const panelRef = useRef<HTMLDivElement>(null);
   const [open, setOpen] = useState(false);
   const [ringing, setRinging] = useState(false);
-  const [anchor, setAnchor] = useState<{ top: number; right: number } | null>(null);
+  const [announcement, setAnnouncement] = useState("");
+  const [anchor, setAnchor] = useState<{ top: number; right: number } | null>(
+    null,
+  );
   const prevUnread = useRef(unreadCount);
+  const restoreFocusOnClose = useRef(false);
+  // Relative labels are computed against `now`, so an unattended panel would
+  // keep reading "Vừa xong" an hour after a row arrived. The timer runs only
+  // while the panel is actually on screen.
+  const now = useNow(60_000, open);
 
-  // One short ring whenever a genuinely new unread event lands while closed.
+  const place = useCallback(() => {
+    const rect = buttonRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    setAnchor({
+      top: rect.bottom + 8,
+      right: Math.max(12, window.innerWidth - rect.right),
+    });
+  }, []);
+
+  /**
+   * Dismiss the panel. `restoreFocus` is false when a row navigated away: the
+   * destination screen owns focus then, and pulling it back to the bell would
+   * strand a keyboard user on the control they just left.
+   */
+  const dismiss = useCallback((restoreFocus: boolean) => {
+    restoreFocusOnClose.current = restoreFocus;
+    setOpen(false);
+  }, []);
+
+  // Measured before the state flip, so the portal's first paint already has a
+  // position — an `anchor === null` first render would leave the panel
+  // unmounted while the focus effect below runs against it.
+  const openPanel = () => {
+    place();
+    setAnnouncement("");
+    setOpen(true);
+  };
+
+  // One short ring, plus a screen-reader announcement, whenever a genuinely new
+  // unread event lands while the panel is closed.
   useEffect(() => {
-    if (unreadCount > prevUnread.current && !open) {
-      setRinging(true);
-      const t = window.setTimeout(() => setRinging(false), 900);
-      prevUnread.current = unreadCount;
-      return () => window.clearTimeout(t);
-    }
+    const arrived = unreadCount - prevUnread.current;
     prevUnread.current = unreadCount;
+    if (arrived <= 0 || open) return;
+    setRinging(true);
+    setAnnouncement(
+      `${arrived} thông báo mới. Còn ${unreadCount} chưa đọc.`,
+    );
+    const t = window.setTimeout(() => setRinging(false), 900);
+    return () => window.clearTimeout(t);
   }, [unreadCount, open]);
 
   // Keep the panel pinned under the bell across resizes/scrolls while open.
   useEffect(() => {
     if (!open) return;
-    const place = () => {
-      const rect = buttonRef.current?.getBoundingClientRect();
-      if (!rect) return;
-      setAnchor({
-        top: rect.bottom + 8,
-        right: Math.max(12, window.innerWidth - rect.right),
-      });
-    };
-    place();
     window.addEventListener("resize", place);
     window.addEventListener("scroll", place, true);
     return () => {
       window.removeEventListener("resize", place);
       window.removeEventListener("scroll", place, true);
     };
+  }, [open, place]);
+
+  // Non-modal dialog focus management: the panel is labelled, so it takes
+  // focus itself and Tab starts inside it; on dismissal focus returns to the
+  // bell. Without this, Tab after opening resumes at the top of the document
+  // and closing leaves focus on <body>, which reads as "the app lost its place".
+  useEffect(() => {
+    if (open) {
+      panelRef.current?.focus();
+      return;
+    }
+    if (restoreFocusOnClose.current) {
+      restoreFocusOnClose.current = false;
+      buttonRef.current?.focus();
+    }
   }, [open]);
 
   // Dismiss on outside click or Escape (popover semantics — no focus trap and
@@ -131,12 +127,12 @@ export function NotificationBell() {
     const onPointerDown = (event: PointerEvent) => {
       const target = event.target as Node;
       if (panelRef.current?.contains(target) || buttonRef.current?.contains(target)) return;
-      setOpen(false);
+      dismiss(true);
     };
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
         event.stopPropagation();
-        setOpen(false);
+        dismiss(true);
       }
     };
     document.addEventListener("pointerdown", onPointerDown);
@@ -145,14 +141,23 @@ export function NotificationBell() {
       document.removeEventListener("pointerdown", onPointerDown);
       document.removeEventListener("keydown", onKeyDown);
     };
-  }, [open]);
+  }, [open, dismiss]);
 
   const badge = badgeLabel(unreadCount);
 
   const openItem = (item: NotificationItem) => {
     if (item.read_at === null) void markRead(item.id);
-    setOpen(false);
-    if (item.deep_link) navigate(item.deep_link);
+    if (item.deep_link) {
+      dismiss(false);
+      navigate(item.deep_link);
+      return;
+    }
+    dismiss(true);
+  };
+
+  const openArchive = () => {
+    dismiss(false);
+    navigate("/thong-bao");
   };
 
   return (
@@ -166,7 +171,7 @@ export function NotificationBell() {
         }
         aria-expanded={open}
         title="Thông báo"
-        onClick={() => setOpen((v) => !v)}
+        onClick={() => (open ? dismiss(true) : openPanel())}
       >
         <Bell size={18} />
         {badge && (
@@ -175,6 +180,13 @@ export function NotificationBell() {
           </span>
         )}
       </button>
+
+      {/* The badge and the ring are visual only, so this is how a screen reader
+          learns that something arrived. It sits outside the portal on purpose:
+          the panel is closed in exactly the case where nobody is looking. */}
+      <span className="sr-only" role="status" aria-live="polite">
+        {announcement}
+      </span>
 
       {open &&
         anchor &&
@@ -185,22 +197,22 @@ export function NotificationBell() {
               className="notification-overlay"
               aria-label="Đóng thông báo"
               tabIndex={-1}
-              onClick={() => setOpen(false)}
+              onClick={() => dismiss(true)}
             />
             <div
               ref={panelRef}
               className="notification-panel"
               role="dialog"
               aria-label="Thông báo"
+              tabIndex={-1}
               style={{ top: anchor.top, right: anchor.right }}
             >
-              <span className="notification-sheet-handle" aria-hidden="true" />
               <div className="notification-panel-header">
                 <h2>
                   Thông báo
                   {unreadCount > 0 && (
                     <span className="notification-panel-count">
-                      {unreadCount} mới
+                      {unreadCount} chưa đọc
                     </span>
                   )}
                 </h2>
@@ -219,7 +231,7 @@ export function NotificationBell() {
                     type="button"
                     className="notification-panel-close"
                     aria-label="Đóng thông báo"
-                    onClick={() => setOpen(false)}
+                    onClick={() => dismiss(true)}
                   >
                     <X size={18} />
                   </button>
@@ -239,42 +251,39 @@ export function NotificationBell() {
                     </small>
                   </div>
                 ) : (
-                  withTodayGroup(groupNotifications(items)).map((group) => {
-                    const isFresh =
-                      group.label === "Vừa xong" ||
-                      group.label === "Hôm nay" ||
-                      group.label === "Hôm qua";
-
-                    return (
-                      <div key={group.label} className="notification-group">
-                        <div
-                          className={`notification-group-label${isFresh ? " is-fresh" : ""}`}
-                          data-group={group.label}
-                        >
-                          {isFresh && (
-                            <span className="notification-group-dot" aria-hidden="true" />
-                          )}
-                          <span className="notification-group-label-text">{group.label}</span>
-                          <span className="notification-group-rule" aria-hidden="true" />
-                        </div>
-                        {group.items.length === 0 ? (
-                          <p className="notification-group-empty">
-                            Hôm nay chưa có thông báo mới.
-                          </p>
-                        ) : (
-                          group.items.map((item) => (
-                            <Row key={item.id} item={item} now={new Date()} onOpen={openItem} />
-                          ))
-                        )}
-                      </div>
-                    );
-                  })
+                  withTodayGroup(groupNotifications(items, now)).map((group) => (
+                    <div key={group.label} className="notification-group">
+                      <NotificationGroupHeading
+                        label={group.label}
+                        surface="sheet"
+                      />
+                      {group.items.length === 0 ? (
+                        <p className="notification-group-empty">
+                          {emptyGroupHint(false)}
+                        </p>
+                      ) : (
+                        group.items.map((item) => (
+                          <NotificationRow
+                            key={item.id}
+                            item={item}
+                            now={now}
+                            surface="sheet"
+                            onOpen={openItem}
+                          />
+                        ))
+                      )}
+                    </div>
+                  ))
                 )}
-                {hasMore && (
+                {/* Unconditional. This link used to depend on `hasMore`, which
+                    was false whenever the store had no more rows than the panel
+                    already showed — so the /thong-bao archive (filters, unread
+                    tab, mark-all) simply had no way in for a small store. */}
+                {!isLoading && (
                   <button
                     type="button"
                     className="notification-load-more"
-                    onClick={() => { setOpen(false); navigate("/thong-bao"); }}
+                    onClick={openArchive}
                   >
                     Xem tất cả thông báo
                   </button>

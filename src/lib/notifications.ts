@@ -4,10 +4,13 @@ import {
   ArrowUpRight,
   Ban,
   Banknote,
+  Bell,
   Bike,
   Check,
   Inbox,
   Landmark,
+  ScanSearch,
+  Scale,
   Send,
   Undo2,
 } from "lucide-react";
@@ -24,6 +27,17 @@ const TZ = "Asia/Ho_Chi_Minh";
 const MINUTE = 60_000;
 const HOUR = 60 * MINUTE;
 const DAY = 24 * HOUR;
+
+/**
+ * Ngưỡng "Vừa xong" — MỘT hằng số duy nhất cho cả tiêu đề nhóm và nhãn thời
+ * gian trên từng dòng. Trước đây tiêu đề dùng 15 phút còn dòng dùng 1 phút,
+ * nên một dòng 10 tuổi nằm dưới "Vừa xong" lại tự đọc là "10 phút trước":
+ * hai cách nói cùng chỉ một sự việc, nhân viên không biết tin vào đâu.
+ */
+export const FRESH_WINDOW_MS = 15 * MINUTE;
+/** Nhãn nhóm được coi là "mới": gắn chấm màu + gạch nối mềm ở đầu nhóm. */
+const FRESH_GROUP_LABELS = new Set(["Vừa xong", "Hôm nay", "Hôm qua"]);
+export const isFreshGroup = (label: string) => FRESH_GROUP_LABELS.has(label);
 
 /** Badge text for an unread count; null hides the badge entirely. */
 export const UNREAD_BADGE_CAP = 99;
@@ -59,7 +73,7 @@ const shortDate = (date: Date) => {
  *  row-level `relativeTime()` wording for the freshest items. */
 export function groupLabel(iso: string, now = new Date()): string {
   const then = new Date(iso);
-  if (now.getTime() - then.getTime() < 15 * MINUTE) return "Vừa xong";
+  if (now.getTime() - then.getTime() < FRESH_WINDOW_MS) return "Vừa xong";
   const key = dayKey(then);
   if (key === dayKey(now)) return "Hôm nay";
   if (key === dayKey(new Date(now.getTime() - DAY))) return "Hôm qua";
@@ -67,11 +81,16 @@ export function groupLabel(iso: string, now = new Date()): string {
   return year === dayKey(now).slice(0, 4) ? shortDate(then) : `${shortDate(then)}/${year}`;
 }
 
-/** Short timestamp under each row: Vừa xong / X phút trước / X giờ trước / date. */
+/**
+ * Short timestamp under each row: Vừa xong / X phút trước / X giờ trước / date.
+ * Ngưỡng "Vừa xong" dùng đúng FRESH_WINDOW_MS như `groupLabel()` để dòng lúc
+ * nào cũng khớp với tiêu đề nhóm đang chứa nó. Từ phút 15 trở đi mới đổi sang
+ * "X phút trước" — lúc ấy đồng hồ trong ngày đã đủ dài để con số có nghĩa.
+ */
 export function relativeTime(iso: string, now = new Date()): string {
   const then = new Date(iso);
   const diff = Math.max(0, now.getTime() - then.getTime());
-  if (diff < MINUTE) return "Vừa xong";
+  if (diff < FRESH_WINDOW_MS) return "Vừa xong";
   if (diff < HOUR) return `${Math.floor(diff / MINUTE)} phút trước`;
   if (diff < DAY) return `${Math.floor(diff / HOUR)} giờ trước`;
   const key = dayKey(then);
@@ -146,7 +165,12 @@ export function splitVehicleIdentity(title: string): {
  * Icon cho từng loại hành động thông báo — dùng chung giữa chuông nổi
  * (NotificationBell) và trang đầy đủ (/thong-bao). Thêm hành động mới ở đây
  * để cả hai nơi cùng cập nhật, không bị lệch.
+ *
+ * `NOTIFICATION_FALLBACK_ICON` cũng dùng chung: trước đây chuông rơi về `Bell`
+ * còn trang rơi về `BellOff` (icon dễ đọc thành "đã tắt thông báo"), nên một
+ * hành động mới chưa khai báo hiện ra hai hình khác nhau tùy nơi đọc.
  */
+export const NOTIFICATION_FALLBACK_ICON = Bell;
 export const ACTION_ICON: Record<NotificationAction, LucideIcon> = {
   CREATE_ACQUISITION: ArrowDownLeft,
   CANCEL_ACQUISITION: Ban,
@@ -161,9 +185,12 @@ export const ACTION_ICON: Record<NotificationAction, LucideIcon> = {
   APPROVE_SALE_BELOW_COST: Check,
   REJECT_SALE_BELOW_COST: Ban,
   CANCEL_SALE_BELOW_COST: Undo2,
+  // Ba trạng thái đối soát ngân hàng phải nhìn khác nhau ngay trên một danh
+  // sách dài: khớp rồi (Landmark) / phải xem lại từng khoản (Scale) / chưa
+  // khớp với mã nào (ScanSearch) — khoản chưa khớp cần người xử lý.
   BANK_TRANSACTION_MATCHED: Landmark,
-  BANK_TRANSACTION_REVIEW: Landmark,
-  BANK_TRANSACTION_UNMATCHED: Landmark,
+  BANK_TRANSACTION_REVIEW: Scale,
+  BANK_TRANSACTION_UNMATCHED: ScanSearch,
 };
 
 /** Nhóm màu ngữ cảnh: thu vào/thanh toán = được, hủy = cảnh báo, còn lại trung tính. */
@@ -183,8 +210,22 @@ export const ACTION_TONE: Record<NotificationAction, "success" | "warning" | "ne
   CANCEL_SALE_BELOW_COST: "neutral",
   BANK_TRANSACTION_MATCHED: "success",
   BANK_TRANSACTION_REVIEW: "warning",
-  BANK_TRANSACTION_UNMATCHED: "neutral",
+  // Tiền đã vào tài khoản mà không khớp mã nào: đây là ngoại lệ phải đối
+  // soát, không phải tin tham khảo. Để trung tính thì nó chìm nghỉm giữa
+  // những dòng "đã cập nhật xe".
+  BANK_TRANSACTION_UNMATCHED: "warning",
 };
+
+/**
+ * Dòng gợi ý khi một nhóm thời gian trống. Phải nói đúng chế độ lọc đang bật:
+ * bản cũ cứng "Hôm nay chưa có thông báo mới." nên ngay trong tab "Chưa đọc"
+ * vẫn bảo người dùng chờ thêm tin mới, dù thật ra là đã đọc hết.
+ */
+export function emptyGroupHint(unreadOnly: boolean): string {
+  return unreadOnly
+    ? "Không còn thông báo chưa đọc trong khoảng thời gian này."
+    : "Chưa có thông báo mới trong khoảng thời gian này.";
+}
 
 /**
  * Glue trailing currency unit to the number so it doesn't get orphaned on

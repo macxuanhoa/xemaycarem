@@ -198,6 +198,74 @@ export async function runNotificationsTests(externalDb, { engine = 'postgres' } 
     assert.equal(await count('SELECT count(*) AS count FROM public.notifications WHERE action=$1', ['UPDATE_VEHICLE']), beforeBosses + fresh.length)
     pass('null-actor audits notify bosses and the entity owner with a Hệ thống attribution')
 
+    // 12. Phân trang thật bằng offset trên một hộp thư lớn hơn trần 100 dòng.
+    //     `list_notifications` cắt `least(100, …)`, còn bản cũ của trang
+    //     '/thong-bao' lại tăng `limit` (50 → 100 → 150…) rồi so với mốc 500.
+    //     Hai kiểm tra dưới đây chốt tại sao chiến lược đó chết ngay ở dòng 100
+    //     và vì sao `offset` là con đường duy nhất tới lịch sử cũ hơn.
+    const paged = randomUUID()
+    await db.query(
+      'INSERT INTO auth.users(id,email,raw_user_meta_data) VALUES($1,$2,$3::jsonb)',
+      [paged, 'notif-paged@example.test', JSON.stringify({ full_name: 'paged' })],
+    )
+    await db.query(
+      'UPDATE public.profiles SET role=$1::public.user_role,active=true WHERE id=$2',
+      ['STAFF', paged],
+    )
+    const PAGED_ROWS = 130
+    const PAGE_SIZE = 25 // đúng hằng số trang mà NotificationsPage đang dùng
+    await db.query(
+      `INSERT INTO public.notifications(user_id,action,title,created_at)
+       SELECT $1::uuid,'TEST_PAGING','Tin phân trang '||i,
+              now() - make_interval(mins => i)
+       FROM generate_series(1, $2::int) AS i`,
+      [paged, PAGED_ROWS],
+    )
+    const pagedCall = (filters) => asUser(db, paged, (client) => rpc(client, 'list_notifications', '$1::jsonb', [JSON.stringify(filters)]))
+
+    const clamped = await pagedCall({ limit: 500 })
+    assert.equal(clamped.items.length, 100)
+    assert.equal(clamped.total, PAGED_ROWS)
+    assert.equal(clamped.unread_count, PAGED_ROWS)
+    // Trần 100 là tuyệt đối: xin thêm dòng không lấy được thêm dòng nào, nên
+    // mỗi lần bấm "Tải thêm" của bản cũ là một request y hệt request trước.
+    assert.deepEqual((await pagedCall({ limit: 100 })).items.map((n) => n.id), clamped.items.map((n) => n.id))
+    pass('list_notifications clamps limit to 100, so growing the limit cannot reach older rows')
+
+    const windows = []
+    for (let offset = 0, guard = 0; guard <= PAGED_ROWS; offset += PAGE_SIZE, guard += 1) {
+      const page = await pagedCall({ limit: PAGE_SIZE, offset })
+      assert.equal(page.total, PAGED_ROWS, `offset=${offset} total`)
+      assert.equal(page.unread_count, PAGED_ROWS, `offset=${offset} unread_count`)
+      windows.push(...page.items.map((n) => n.id))
+      if (page.items.length < PAGE_SIZE) break
+    }
+    assert.equal(windows.length, PAGED_ROWS)
+    assert.equal(new Set(windows).size, PAGED_ROWS)
+    // Không trùng, không sót, và đúng thứ tự `created_at DESC, id DESC`.
+    const full = await pagedCall({ limit: 100, offset: 0 })
+    const tail = await pagedCall({ limit: 100, offset: 100 })
+    assert.deepEqual(windows, [...full.items.map((n) => n.id), ...tail.items.map((n) => n.id)])
+    assert.deepEqual(
+      (await db.query(
+        'SELECT id FROM public.notifications WHERE user_id=$1 ORDER BY created_at DESC, id DESC', [paged],
+      )).rows.map((r) => r.id),
+      windows,
+    )
+    pass('offset paging walks every row exactly once, in the servers ordered sequence')
+
+    // Vượt quá danh sách: trang rỗng nhưng vẫn mang counts đúng, để client dừng
+    // đúng lúc thay vì lặp lại request vô hạn.
+    const past = await pagedCall({ limit: PAGE_SIZE, offset: PAGED_ROWS })
+    assert.deepEqual(past.items, [])
+    assert.equal(past.total, PAGED_ROWS)
+    // `greatest(0, …)`: offset âm không được ném lỗi cũng không được dịch cửa sổ.
+    assert.deepEqual(
+      (await pagedCall({ limit: PAGE_SIZE, offset: -50 })).items.map((n) => n.id),
+      full.items.slice(0, PAGE_SIZE).map((n) => n.id),
+    )
+    pass('offset beyond the list returns an empty page with truthful counts and clamps negative offsets')
+
     console.log(`\n${passed} notification checks passed.`)
   } finally {
     if (ownDb) await db.close()

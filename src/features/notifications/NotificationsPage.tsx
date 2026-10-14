@@ -1,120 +1,55 @@
-import { useEffect, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
+import type { KeyboardEvent as ReactKeyboardEvent } from "react";
 import { useNavigate } from "react-router-dom";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import type { RealtimeChannel } from "@supabase/supabase-js";
-import { BellOff, Check, ChevronRight } from "lucide-react";
+import {
+  useInfiniteQuery,
+  useMutation,
+  useQueryClient,
+} from "@tanstack/react-query";
+import { BellOff, Check } from "lucide-react";
 import { api } from "@/lib/api";
-import { supabase } from "@/lib/supabase";
 import { toast } from "@/lib/toast";
 import { friendlyError } from "@/lib/errors";
 import { useAuth } from "@/features/auth/AuthProvider";
 import {
-  ACTION_ICON,
-  ACTION_TONE,
+  emptyGroupHint,
   groupNotifications,
-  relativeTime,
-  splitVehicleIdentity,
-  tidyBody,
   withTodayGroup,
 } from "@/lib/notifications";
-import type { NotificationItem, NotificationList } from "@/types";
+import { patchNotificationsCache } from "@/lib/notificationsCache";
+import { useNotificationsRealtime } from "@/lib/useNotifications";
+import { useNow } from "@/lib/useNow";
+import {
+  NotificationGroupHeading,
+  NotificationRow,
+} from "@/components/NotificationRow";
+import type { NotificationItem } from "@/types";
 
 /**
  * Trang thông báo đầy đủ (/thong-bao).
  *
- * Mở ra từ nút "Xem tất cả" trên chuông. Hiển thị toàn bộ lịch sử thông báo
- * của người dùng, có bộ lọc "Tất cả / Chưa đọc", đánh dấu từng dòng hoặc tất cả,
- * và điều hướng sâu khi bấm vào dòng.
+ * Mở ra từ nút "Xem tất cả thông báo" trên chuông — và chỉ ở đó thôi, nên nút
+ * ấy phải luôn hiện. Trang hiển thị toàn bộ lịch sử thông báo của người dùng,
+ * có bộ lọc "Tất cả / Chưa đọc", đánh dấu từng dòng hoặc tất cả, và điều hướng
+ * sâu khi bấm vào dòng.
  *
  * Dữ liệu: cùng queryKey "notifications" với NotificationBell — invalidate
  * queries từ một bên sẽ tự refresh bên kia qua TanStack Query.
  */
 
-const PAGE_SIZE = 50;
+const PAGE_SIZE = 25;
 const FALLBACK_POLL_MS = 60_000;
+/**
+ * Trần mềm cho số dòng giữ trên màn hình. Server đã cắt mỗi trang ở 100 dòng,
+ * còn giới hạn này là để bảo vệ trình duyệt: một cửa hàng chạy nhiều năm có thể
+ * có hàng chục nghìn dòng, và không có lý do gì chất hết lên DOM chỉ vì người
+ * dùng bấm "Tải thêm" vài lần.
+ */
+const MAX_LOADED_ROWS = 2_000;
 
-// ─── Page row ─────────────────────────────────────────────────────────────────
-
-function PageRow({
-  item,
-  now,
-  onOpen,
-}: {
-  item: NotificationItem;
-  now: Date;
-  onOpen: (item: NotificationItem) => void;
-}) {
-  const Icon = ACTION_ICON[item.action] ?? BellOff;
-  const tone = ACTION_TONE[item.action] ?? "neutral";
-  const unread = item.read_at === null;
-  const { before, plate, after } = splitVehicleIdentity(item.title);
-  const typeName =
-    item.vehicle_type && item.vehicle_type !== "Chưa phân loại"
-      ? item.vehicle_type
-      : null;
-
-  return (
-    <button
-      type="button"
-      className={`notification-page-row${unread ? " is-unread" : ""}`}
-      data-tone={tone}
-      onClick={() => onOpen(item)}
-    >
-      <span className={`notification-page-icon notification-page-icon--${tone}`}>
-        <Icon size={16} />
-      </span>
-
-      <span className="notification-page-text">
-        <span className="notification-page-title">
-          {typeName && (
-            <span className="notification-vehicle-type">{typeName}</span>
-          )}
-          {before}
-          {plate && (
-            <span
-              className="notification-plate"
-              aria-label={`Biển số ${plate}`}
-            >
-              {plate}
-            </span>
-          )}
-          {after}
-        </span>
-        {item.body && (
-          <span className="notification-page-body">{tidyBody(item.body)}</span>
-        )}
-        <span className="notification-page-time">
-          {relativeTime(item.created_at, now)}
-        </span>
-      </span>
-
-      {unread && <span className="notification-page-dot" aria-hidden="true" />}
-      <ChevronRight
-        size={16}
-        className="notification-page-chevron"
-        aria-hidden="true"
-      />
-    </button>
-  );
-}
-
-// ─── Group time label ─────────────────────────────────────────────────────────
-
-function GroupLabel({ label }: { label: string }) {
-  const isFresh =
-    label === "Vừa xong" || label === "Hôm nay" || label === "Hôm qua";
-  return (
-    <div
-      className={`notification-page-group-label${isFresh ? " is-fresh" : ""}`}
-    >
-      {isFresh && (
-        <span className="notification-page-group-dot" aria-hidden="true" />
-      )}
-      <span className="notification-page-group-text">{label}</span>
-      <span className="notification-page-group-rule" aria-hidden="true" />
-    </div>
-  );
-}
+const TAB_ALL_ID = "notifications-tab-all";
+const TAB_UNREAD_ID = "notifications-tab-unread";
+const PANEL_ID = "notifications-tabpanel";
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
@@ -124,68 +59,76 @@ export function NotificationsPage() {
   const client = useQueryClient();
   const navigate = useNavigate();
 
-  const [fetchLimit, setFetchLimit] = useState(PAGE_SIZE);
   const [unreadOnly, setUnreadOnly] = useState(false);
-  const [live, setLive] = useState(false);
+  const allTabRef = useRef<HTMLButtonElement>(null);
+  const unreadTabRef = useRef<HTMLButtonElement>(null);
 
-  const list = useQuery({
-    queryKey: ["notifications", userId, fetchLimit, unreadOnly],
-    queryFn: () =>
+  const live = useNotificationsRealtime(userId, client, "notifications-page");
+  // Dòng thời gian phải tự già đi khi trang mở sẵn, nếu không "Vừa xong" sẽ
+  // còn nguyên đó cả tiếng sau khi tin đã cũ.
+  const now = useNow(60_000);
+
+  /**
+   * Phân trang thật, tiến từng trang một.
+   *
+   * Bản cũ tăng `limit` (50 → 100 → 150…) rồi so với mốc 500, trong khi
+   * `list_notifications` cắt `least(100, …)`: từ trang 100 trở đi mỗi lần bấm
+   * "Tải thêm" là một request y hệt request trước và lịch sử cũ hơn hoàn toàn
+   * không tới được. Giờ mỗi trang là `offset` + `limit` cố định, đúng hợp đồng
+   * mà server đã hỗ trợ từ bản đang chạy ngoài production.
+   */
+  const list = useInfiniteQuery({
+    queryKey: ["notifications", userId, "page", unreadOnly],
+    queryFn: ({ pageParam }) =>
       api.listNotifications({
-        limit: fetchLimit,
+        limit: PAGE_SIZE,
+        offset: pageParam,
         unread_only: unreadOnly || undefined,
       }),
+    initialPageParam: 0,
+    getNextPageParam: (lastPage, allPages) => {
+      // Trang ngắn hơn PAGE_SIZE nghĩa là đã hết. Thử này đáng tin hơn phép so
+      // với `total`, vì `total` đếm MỌI dòng (đã đọc lẫn chưa), nên trong bộ lọc
+      // "Chưa đọc" nó là một trần thừa, không phải số dòng bộ lọc còn lại.
+      if (lastPage.items.length < PAGE_SIZE) return undefined;
+      const fetched = allPages.reduce((sum, page) => sum + page.items.length, 0);
+      if (fetched >= MAX_LOADED_ROWS) return undefined;
+      if (!unreadOnly && fetched >= lastPage.total) return undefined;
+      return fetched;
+    },
     enabled: !!userId,
     refetchInterval: live || !userId ? false : FALLBACK_POLL_MS,
   });
 
-  const items = list.data?.items ?? [];
-  const serverTotal = list.data?.total ?? 0;
-  const unreadCount = list.data?.unread_count ?? 0;
-  // In unreadOnly mode serverTotal still reports the all-time total;
-  // compare fetched items to that to know if there are more rows to pull.
-  const hasMore = items.length >= fetchLimit && fetchLimit < 500;
+  const pages = list.data?.pages;
+  const firstPage = pages?.[0];
+  // Offset pagination trên bảng đang có realtime insert có thể trả lại một dòng
+  // đã hiển thị: tin mới chen vào đầu danh sách giữa hai lần bấm "Tải thêm" đẩy
+  // cả danh sách xuống một vị trí. Dedupe theo id để không hiện trùng.
+  const items = useMemo(() => {
+    if (!pages) return [];
+    const seen = new Set<string>();
+    const out: NotificationItem[] = [];
+    for (const page of pages) {
+      for (const item of page.items) {
+        if (seen.has(item.id)) continue;
+        seen.add(item.id);
+        out.push(item);
+      }
+    }
+    return out;
+  }, [pages]);
 
-  // Realtime — subscribe so both this page and the bell stay in sync.
-  useEffect(() => {
-    const sb = supabase;
-    if (!userId || !sb) return;
-    const refresh = () =>
-      void client.invalidateQueries({ queryKey: ["notifications"] });
-    const channel: RealtimeChannel = sb
-      .channel(`notifications-page:${userId}`)
-      .on(
-        "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: "notifications",
-          filter: `user_id=eq.${userId}`,
-        },
-        refresh,
-      )
-      .subscribe((status) => setLive(status === "SUBSCRIBED"));
-    const onOnline = () => refresh();
-    window.addEventListener("online", onOnline);
-    return () => {
-      window.removeEventListener("online", onOnline);
-      void sb.removeChannel(channel);
-      setLive(false);
-    };
-  }, [userId, client]);
-
-  const markRead = (id: string) => {
-    void api.markNotificationsRead([id]).catch((error: unknown) => {
-      toast.error("Không thể đánh dấu đã đọc", {
-        description: friendlyError(error),
-      });
-    });
-  };
+  const serverTotal = firstPage?.total ?? 0;
+  const unreadCount = firstPage?.unread_count ?? 0;
+  const hasMore = list.hasNextPage;
 
   const markAll = useMutation({
     mutationFn: () => api.markAllNotificationsRead(),
-    onSuccess: () =>
-      void client.invalidateQueries({ queryKey: ["notifications"] }),
+    onSuccess: () => {
+      patchNotificationsCache(client, userId, () => true);
+      void client.invalidateQueries({ queryKey: ["notifications"] });
+    },
     onError: (error) =>
       toast.error("Không thể đánh dấu đã đọc", {
         description: friendlyError(error),
@@ -195,31 +138,42 @@ export function NotificationsPage() {
   const openItem = (item: NotificationItem) => {
     if (item.read_at === null) {
       // Patch every cached notification query (bell + page variants) optimistically.
-      client.setQueriesData<NotificationList>(
-        { queryKey: ["notifications", userId] },
-        (old) => {
-          if (!old) return old;
-          const alreadyMarked = old.items.some(
-            (i) => i.id === item.id && i.read_at !== null,
-          );
-          if (alreadyMarked) return old;
-          return {
-            ...old,
-            items: old.items.map((i) =>
-              i.id === item.id && i.read_at === null
-                ? { ...i, read_at: new Date().toISOString() }
-                : i,
-            ),
-            unread_count: Math.max(0, old.unread_count - 1),
-          };
-        },
-      );
-      markRead(item.id);
+      patchNotificationsCache(client, userId, (row) => row.id === item.id);
+      void api.markNotificationsRead([item.id]).catch((error: unknown) => {
+        toast.error("Không thể đánh dấu đã đọc", {
+          description: friendlyError(error),
+        });
+      });
     }
     if (item.deep_link) navigate(item.deep_link);
   };
 
-  const now = new Date();
+  /** Roving tabindex: một tab trong thứ tự Tab, mũi tên trái/phải đổi bộ lọc. */
+  const onTabKeyDown = useCallback((event: ReactKeyboardEvent) => {
+    const switchTo = (nextUnreadOnly: boolean) => {
+      event.preventDefault();
+      setUnreadOnly(nextUnreadOnly);
+      (nextUnreadOnly ? unreadTabRef : allTabRef).current?.focus();
+    };
+    switch (event.key) {
+      case "ArrowLeft":
+      case "ArrowUp":
+        switchTo(false);
+        break;
+      case "ArrowRight":
+      case "ArrowDown":
+        switchTo(true);
+        break;
+      case "Home":
+        switchTo(false);
+        break;
+      case "End":
+        switchTo(true);
+        break;
+    }
+  }, []);
+
+  const groups = withTodayGroup(groupNotifications(items, now));
 
   return (
     <div className="notifications-page">
@@ -253,9 +207,14 @@ export function NotificationsPage() {
         aria-label="Lọc thông báo"
       >
         <button
+          ref={allTabRef}
           type="button"
           role="tab"
+          id={TAB_ALL_ID}
+          aria-controls={PANEL_ID}
           aria-selected={!unreadOnly}
+          tabIndex={unreadOnly ? -1 : 0}
+          onKeyDown={onTabKeyDown}
           className={`notifications-page-tab${!unreadOnly ? " is-active" : ""}`}
           onClick={() => setUnreadOnly(false)}
         >
@@ -263,23 +222,32 @@ export function NotificationsPage() {
           <span className="notifications-page-tab-count">{serverTotal}</span>
         </button>
         <button
+          ref={unreadTabRef}
           type="button"
           role="tab"
+          id={TAB_UNREAD_ID}
+          aria-controls={PANEL_ID}
           aria-selected={unreadOnly}
+          tabIndex={unreadOnly ? 0 : -1}
+          onKeyDown={onTabKeyDown}
           className={`notifications-page-tab${unreadOnly ? " is-active" : ""}`}
           onClick={() => setUnreadOnly(true)}
         >
           Chưa đọc
           {unreadCount > 0 && (
-            <span className="notifications-page-tab-count">
-              {unreadCount}
-            </span>
+            <span className="notifications-page-tab-count">{unreadCount}</span>
           )}
         </button>
       </div>
 
       {/* ── Body ── */}
-      <div className="notifications-page-body">
+      <div
+        className="notifications-page-body"
+        role="tabpanel"
+        id={PANEL_ID}
+        aria-labelledby={unreadOnly ? TAB_UNREAD_ID : TAB_ALL_ID}
+        tabIndex={0}
+      >
         {list.isLoading ? (
           <p className="notifications-page-loading">Đang tải…</p>
         ) : items.length === 0 ? (
@@ -299,19 +267,20 @@ export function NotificationsPage() {
           </div>
         ) : (
           <>
-            {withTodayGroup(groupNotifications(items, now)).map((group) => (
+            {groups.map((group) => (
               <div key={group.label} className="notification-page-group">
-                <GroupLabel label={group.label} />
+                <NotificationGroupHeading label={group.label} surface="page" />
                 {group.items.length === 0 ? (
                   <p className="notifications-page-group-empty">
-                    Hôm nay chưa có thông báo mới.
+                    {emptyGroupHint(unreadOnly)}
                   </p>
                 ) : (
                   group.items.map((item) => (
-                    <PageRow
+                    <NotificationRow
                       key={item.id}
                       item={item}
                       now={now}
+                      surface="page"
                       onOpen={openItem}
                     />
                   ))
@@ -322,9 +291,10 @@ export function NotificationsPage() {
               <button
                 type="button"
                 className="notifications-page-load-more"
-                onClick={() => setFetchLimit((l) => l + PAGE_SIZE)}
+                disabled={list.isFetchingNextPage}
+                onClick={() => void list.fetchNextPage()}
               >
-                Tải thêm
+                {list.isFetchingNextPage ? "Đang tải…" : "Tải thêm"}
               </button>
             )}
           </>

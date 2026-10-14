@@ -40,10 +40,13 @@ begin
       'supplier_name','Nhà cung cấp mẫu','notes','[DEVELOPMENT-SEED] Dữ liệu giả lập để kiểm thử; không phải giao dịch thực tế.'));
     perform public.save_expense('vehicle',jsonb_build_object('vehicle_id',v_vehicle,'expense_type','CLEANING','description','Vệ sinh và kiểm tra xe mẫu','amount',150000,'expense_date',v_today-v_row.age+1));
     if v_row.state like 'SOLD%' then
+      -- Hợp đồng VietQR (20261014000400) bắt buộc khoản thu BANK_TRANSFER phải có mã QR
+      -- đã nhận tiền thật từ ngân hàng. Dữ liệu giả lập không được bịa bằng chứng chuyển
+      -- khoản, nên hai giao dịch mẫu ghi nhận thu tiền mặt.
       v_sale:=public.sell_vehicle(jsonb_build_object('request_id',gen_random_uuid(),'vehicle_id',v_vehicle,
         'customer_name','Khách hàng minh họa','customer_phone','',
         'sale_price',v_row.sale_price,'sale_date',case when v_row.state='SOLD_TODAY' then v_today else v_today-2 end,
-        'initial_payment',case when v_row.state='SOLD_TODAY' then 15000000 else v_row.sale_price end,'payment_method','BANK_TRANSFER','notes','Giao dịch mẫu'));
+        'initial_payment',case when v_row.state='SOLD_TODAY' then 15000000 else v_row.sale_price end,'payment_method','CASH','notes','Giao dịch mẫu'));
     end if;
   end loop;
   perform public.save_expense('business',jsonb_build_object('category','RENT','description','Thuê mặt bằng — dữ liệu mẫu','amount',8000000,'expense_date',date_trunc('month',v_today)::date));

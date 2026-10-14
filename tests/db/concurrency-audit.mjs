@@ -171,14 +171,6 @@ try {
     const rows = await db.query("SELECT status FROM public.payments WHERE sale_id=$1 AND status='ACTIVE'", [id])
     assert.equal(rows.rows.length, 0)
   })
-  await check('background workers claim a queued message only once', async () => {
-    const id = await call(db, 'a', 'sell_vehicle', sale(await create()))
-    const row = (await db.query("UPDATE public.message_outbox SET status='QUEUED', next_attempt_at=now() WHERE sale_id=$1 RETURNING id", [id])).rows[0]
-    assert.ok(row)
-    const result = await both(['a', 'b'].map(actor => c => asUser(c, users[actor], client => rpc(client, 'claim_message', '$1::uuid,$2::text', [row.id, 'MOCK']))))
-    assert.ok(result.every(r => r.status === 'fulfilled'))
-    assert.equal(result.filter(r => r.value.id === row.id).length, 1)
-  })
   await check('concurrent debt due-date edits surface a conflict', async () => {
     const id = await call(db, 'a', 'sell_vehicle', sale(await create()))
     const revision = (await db.query('SELECT updated_at::text AS revision FROM public.sales WHERE id=$1', [id])).rows[0].revision

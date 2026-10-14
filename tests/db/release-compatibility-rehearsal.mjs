@@ -46,10 +46,6 @@ try {
   const sale = await call('sell_vehicle', { request_id: randomUUID(), vehicle_id: vehicle, sale_price: 1000, initial_payment: 100, payment_method: 'CASH', sale_date: day, customer_name: 'Synthetic rollout' });
   const expense = await asUser(db, owner, client => rpc(client, 'save_expense', '$1::text,$2::jsonb', ['business', JSON.stringify({ amount: 20, category: 'OTHER', description: 'Synthetic release expense', expense_date: day })]));
   const historicalPayment = await verifiedPayment(db, owner, owner, { request_id: randomUUID(), sale_id: sale, amount: 50, payment_method: 'CASH', payment_date: day });
-  // An actual pre-lease PROCESSING row has an unknown outcome, not a proven unsent message.
-  const outbox = (await db.query('SELECT id FROM public.message_outbox WHERE sale_id=$1', [sale])).rows[0]?.id;
-  assert.ok(outbox, 'Synthetic sale must create an outbox row');
-  await db.query("UPDATE public.message_outbox SET status='PROCESSING',attempt_count=1 WHERE id=$1", [outbox]);
   const privatePending = await call('save_vehicle', { request_id: randomUUID(), vehicle_type: 'Synthetic private rollout', frame_number: 'RLHJC923456781234', purchase_price: 77_770_000, purchase_date: day });
   await call('request_sale_below_cost', { request_id: randomUUID(), vehicle_id: privatePending, customer_name: 'Synthetic privacy rollout', sale_price: 40_000_000, sale_date: day, initial_payment: 0 }, staff);
   const legacyNotice = (await call('list_notifications', {}, staff)).items.find(n => n.vehicle_id === privatePending && n.action === 'REQUEST_SALE_BELOW_COST');
@@ -89,13 +85,19 @@ try {
     assert.doesNotMatch(projected.body, /37\.770\.000|thiếu/);
     assert.deepEqual(await financialSnapshot(), baseline);
   });
-  await check('legacyPROCESSING quarantined for manual evidence, not resent or silently markedSENT', async () => {
-    assert.deepEqual(await asUser(db, owner, c => rpc(c, 'claim_message', '$1::uuid,$2::text', [outbox, 'MOCK'])), {});
-    const job = (await db.query('SELECT status,delivery_review_required,last_error_code,total_attempt_count FROM public.message_outbox WHERE id=$1', [outbox])).rows[0];
-    assert.deepEqual(job, { status: 'FAILED', delivery_review_required: true, last_error_code: 'DELIVERY_OUTCOME_UNKNOWN', total_attempt_count: 0 });
-    assert.equal((await db.query("SELECT status FROM public.customer_communications WHERE sale_id=$1 AND message_type='THANK_YOU'", [sale])).rows[0].status, 'FAILED');
+  await check('retired thank-you/messaging objects are gone after the upgrade while business history survives', async () => {
+    // 20261014000500 DROP toàn bộ subsystem cảm ơn; 20261014001000 dọn tham chiếu sót.
+    // Nâng cấp từ schema cũ không được để lại bảng/RPC nào của subsystem đó,
+    // và tuyệt đối không được động vào dữ liệu tiền đã ghi.
+    const leftTables = (await db.query(`SELECT table_name FROM information_schema.tables
+      WHERE table_schema='public' AND table_name IN ('message_outbox','customer_communications','customer_contacts','message_templates')
+      ORDER BY table_name`)).rows.map(r => r.table_name);
+    assert.deepEqual(leftTables, [], 'Retired messaging tables must be dropped by the upgrade');
+    const leftFunctions = (await db.query(`SELECT p.proname FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace
+      WHERE n.nspname='public' AND p.proname IN ('claim_message','finish_mock_message','get_sale_communication','list_customer_communications','retry_sale_thank_you')`)).rows.map(r => r.proname);
+    assert.deepEqual(leftFunctions, [], 'Retired messaging RPCs must be dropped by the upgrade');
+    assert.deepEqual(await financialSnapshot(), baseline);
   });
-  // Quarantine intentionally adds a review audit, while all financial records stay intact.
   baseline = await financialSnapshot();
   await check('newschema retains committed operation receipt for safe replay and lookup', async () => {
     assert.equal(await call('acquire_vehicle', keyedIntake), vehicle);
@@ -124,9 +126,9 @@ try {
     assert.equal(Number((await db.query("SELECT count(*) AS n FROM public.audit_logs WHERE entity_id=$1 AND action='CREATE_VEHICLE'", [created])).rows[0].n), 1);
   });
   await check('newnamed RPC signatures resolve without overlapping optionalarguments and anonymouscannotwrite', async () => {
-    const signatures = (await db.query("SELECT proname,proargnames,pronargs,pronargdefaults FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace WHERE n.nspname='public' AND proname IN ('update_sale_due_date','claim_message','prepare_payment_receipt') ORDER BY proname,pronargs")).rows;
+    const signatures = (await db.query("SELECT proname,proargnames,pronargs,pronargdefaults FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace WHERE n.nspname='public' AND proname IN ('update_sale_due_date','list_notifications','prepare_payment_receipt') ORDER BY proname,pronargs")).rows;
     assert.ok(signatures.some(row => row.proname === 'update_sale_due_date' && row.proargnames.includes('p_expected_updated_at') && row.pronargdefaults === 0));
-    assert.ok(signatures.some(row => row.proname === 'claim_message' && row.proargnames.includes('p_provider_mode') && row.pronargdefaults === 0));
+    assert.ok(signatures.some(row => row.proname === 'list_notifications' && row.proargnames.includes('p_filters') && row.pronargdefaults === 1));
     await assert.rejects(() => asUser(db, null, client => rpc(client, 'prepare_payment_receipt', '$1::jsonb', ['{}']), 'anon'), /permission denied/);
     await assert.rejects(() => asUser(db, staff, client => client.query('UPDATE public.payment_receipts SET amount=1')), /permission denied/);
   });

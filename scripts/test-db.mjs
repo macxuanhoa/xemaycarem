@@ -18,7 +18,6 @@ import { runOperationReceiptTests } from '../tests/db/operation-receipts.test.mj
 import { runExpenseConflictTests } from '../tests/db/expense-conflict.test.mjs'
 import { runMandatoryWriteProtocolTests } from '../tests/db/mandatory-write-protocol.test.mjs'
 import { runPaymentReceiptTests } from '../tests/db/payment-receipts.test.mjs'
-import { runMessageLeaseTests } from '../tests/db/message-leases.test.mjs'
 import { runInventoryCreationReceiptTests } from '../tests/db/inventory-creation-receipts.test.mjs'
 import { runVehicleTypeCatalogTests } from '../tests/db/vehicle-type-catalog.test.mjs'
 import { runFieldPurgeIntegrityTests } from '../tests/db/field-purge-integrity.test.mjs'
@@ -36,7 +35,6 @@ import { runVietQrLifecycleTests } from '../tests/db/vietqr-lifecycle.test.mjs'
 import { runSmartSalesAutomationTests } from '../tests/db/smart-sales-automation.test.mjs'
 import { runSeasonalThemeTetTests } from '../tests/db/seasonal-theme-tet2027.test.mjs'
 import { runSecurityIntegrationTests } from '../tests/db/security-integration.test.mjs'
-import { runMessageDeliveryTrustTests } from '../tests/db/message-delivery-trust.test.mjs'
 import { runVehicleFavoriteTests } from '../tests/db/vehicle-favorites.test.mjs'
 
 const engine = process.argv.includes('--pglite') ? 'pglite' : 'postgres'
@@ -59,7 +57,6 @@ await runExpenseConflictTests(null, { engine })
 await runMandatoryWriteProtocolTests(null, { engine })
 await runPaymentReceiptTests()
 await runPaymentReceiptSecurityTests(null, { engine })
-await runMessageLeaseTests(null, { engine })
 await runInventoryCreationReceiptTests(null, { engine })
 await runVehicleTypeCatalogTests(null, { engine })
 await runFieldPurgeIntegrityTests(null, { engine })
@@ -75,7 +72,6 @@ await runVietQrLifecycleTests(null, { engine })
 await runSmartSalesAutomationTests(null, { engine })
 await runSeasonalThemeTetTests(null, { engine })
 await runSecurityIntegrationTests(null, { engine })
-await runMessageDeliveryTrustTests(null, { engine })
 await runVehicleFavoriteTests(null, { engine })
 const db = await createDatabase({ engine })
 let passed = 0

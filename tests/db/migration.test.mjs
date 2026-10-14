@@ -34,8 +34,6 @@ export async function runMigrationTests({ engine = 'postgres' } = {}) {
       'audit_logs',
       'vehicle_activity',
       'system_settings',
-      'message_outbox',
-      'customer_communications',
       'knowledge_base',
     ]
 
@@ -131,17 +129,28 @@ export async function runMigrationTests({ engine = 'postgres' } = {}) {
     }
     console.log(`✓ Unique constraints and all ${expectedIndexes.length} performance indexes exist`)
 
-    // 4b. Purge guard: the six retired vehicle fields must stay gone for good, and the
-    // transactional history tables start empty (migration 20261008000300).
+    // 4b. Purge guard: the six retired vehicle fields, the retired messaging/config
+    // fields and the whole thank-you/messaging subsystem must stay gone for good, and
+    // the transactional history tables start empty (migrations 20261008000300, 20261014000500).
     const purgedColumns = await db.query(`
       SELECT table_schema || '.' || table_name || '.' || column_name AS col
       FROM information_schema.columns
       WHERE (table_schema, table_name, column_name) IN (
         ('public','vehicles','brand'),('public','vehicles','model'),('public','vehicles','variant'),
         ('public','vehicles','engine_number'),('public','vehicles','odometer'),('public','vehicles','asking_price'),
-        ('public','system_settings','quickpick_brands'),('public','system_settings','quickpick_models'))
+        ('public','system_settings','quickpick_brands'),('public','system_settings','quickpick_models'),
+        ('public','system_settings','thankyou_manual_enabled'),('public','system_settings','customer_messaging_enabled'),
+        ('public','system_settings','sale_thank_you_enabled'),('public','system_settings','primary_message_channel'),
+        ('public','system_settings','fallback_channel'))
     `)
-    assert.deepEqual(purgedColumns.rows, [], 'Retired vehicle columns must not exist any more')
+    assert.deepEqual(purgedColumns.rows, [], 'Retired vehicle and messaging columns must not exist any more')
+    const purgedTables = await db.query(`
+      SELECT table_name FROM information_schema.tables
+      WHERE table_schema = 'public' AND table_name IN
+        ('message_outbox','customer_communications','customer_contacts','message_templates')
+      ORDER BY table_name
+    `)
+    assert.deepEqual(purgedTables.rows, [], 'Retired messaging tables must stay dropped')
     const fkCount = await db.query(`
       SELECT count(*)::int AS n FROM information_schema.table_constraints
       WHERE constraint_type='FOREIGN KEY' AND table_schema='public' AND table_name='vehicles'
@@ -150,11 +159,10 @@ export async function runMigrationTests({ engine = 'postgres' } = {}) {
     assert.equal(fkCount.rows[0].n, 1, 'vehicles.vehicle_type_id must reference vehicle_types')
     const historyCounts = await db.query(`
       SELECT (SELECT count(*) FROM public.audit_logs) + (SELECT count(*) FROM public.vehicle_activity)
-        + (SELECT count(*) FROM public.notifications) + (SELECT count(*) FROM public.customer_communications)
-        + (SELECT count(*) FROM public.message_outbox) AS leftover
+        + (SELECT count(*) FROM public.notifications) AS leftover
     `)
     assert.equal(Number(historyCounts.rows[0].leftover), 0, 'Purged history tables must be empty after the migration chain')
-    console.log('✓ Retired columns are gone and every purged history table is empty')
+    console.log('✓ Retired columns/tables are gone and every purged history table is empty')
 
     // 5. Expected public RPC functions exist and have fixed search_path
     const expectedPublicFunctions = [
@@ -178,16 +186,12 @@ export async function runMigrationTests({ engine = 'postgres' } = {}) {
       'dashboard',
       'register_vehicle_image',
       'remove_vehicle_image',
-      'get_sale_communication',
-      'list_customer_communications',
-      'retry_sale_thank_you',
       'search_knowledge',
       'list_knowledge',
       'get_knowledge_article',
-      'claim_message',
-      'finish_mock_message',
-      'fail_message',
-      'skip_message',
+      'list_notifications',
+      'mark_notifications_read',
+      'mark_all_notifications_read',
       'list_vehicle_types',
       'save_vehicle_type',
       'delete_vehicle_type',
@@ -211,6 +215,91 @@ export async function runMigrationTests({ engine = 'postgres' } = {}) {
       )
     }
     console.log(`✓ All ${expectedPublicFunctions.length} public RPCs exist with SECURITY DEFINER and fixed search_path`)
+
+    // 5b. The retired thank-you/messaging RPCs (migration 20261014000500) must stay gone,
+    // so a later CREATE OR REPLACE cannot silently resurrect the cleaned-up subsystem.
+    const retiredPublicFunctions = [
+      'get_sale_communication',
+      'list_customer_communications',
+      'retry_sale_thank_you',
+      'claim_message',
+      'finish_mock_message',
+      'fail_message',
+      'skip_message',
+      'renew_message_lease',
+      'finish_message',
+      'mark_message_delivered',
+      'resolve_message_delivery',
+      'list_message_templates',
+      'preview_message_template',
+      'save_message_template',
+      'list_sale_contacts',
+      'list_automation_contacts',
+      'save_sale_contact',
+      'verify_sale_contact',
+      'delete_sale_contact',
+      'mark_thank_you_copied',
+      'mark_personal_thank_you_sent',
+      'list_sale_thank_you_queue',
+    ]
+    const resurrected = retiredPublicFunctions.filter((fn) => procs.has(fn))
+    assert.deepEqual(resurrected, [], `Retired messaging RPCs must not exist any more: ${resurrected.join(', ')}`)
+    console.log(`✓ All ${retiredPublicFunctions.length} retired messaging RPCs stay dropped`)
+
+    // 5c. plpgsql không kiểm tra tên bảng lúc tạo hàm, nên một EXISTS sót trỏ tới bảng đã
+    // DROP (migration 20261014000500) chỉ nổ khi gọi — đúng lỗi đã làm check_user_can_hard_delete
+    // và sell_vehicle_impl hỏng. Quét nguồn mọi hàm đang sống để bắt sớm ngay tại gate.
+    const retiredReferencePattern = [
+      'message_outbox',
+      'customer_communications',
+      'customer_contacts',
+      'message_templates',
+      'customer_messaging_enabled',
+      'sale_thank_you_enabled',
+      'primary_message_channel',
+      'fallback_channel',
+      'thankyou_manual_enabled',
+      'claim_message',
+      'finish_mock_message',
+      'fail_message',
+      'skip_message',
+      'renew_message_lease',
+      'finish_message',
+      'mark_message_delivered',
+      'resolve_message_delivery',
+      'list_message_templates',
+      'preview_message_template',
+      'save_message_template',
+      'get_sale_communication',
+      'list_customer_communications',
+      'retry_sale_thank_you',
+      'list_sale_contacts',
+      'list_automation_contacts',
+      'save_sale_contact',
+      'verify_sale_contact',
+      'delete_sale_contact',
+      'mark_thank_you_copied',
+      'mark_personal_thank_you_sent',
+      'list_sale_thank_you_queue',
+      'lock_message_lease',
+      'lock_trusted_message_lease',
+      'VERIFY_SALE_CONTACT',
+      'SALE_THANK_YOU',
+      'AUTO_MESSAGE',
+    ].join('|')
+    const danglingReferences = await db.query(
+      `SELECT n.nspname || '.' || p.proname AS fn
+         FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
+         WHERE n.nspname IN ('public', 'private') AND p.prosrc ~ $1
+         ORDER BY 1`,
+      [retiredReferencePattern],
+    )
+    assert.deepEqual(
+      danglingReferences.rows.map((r) => r.fn),
+      [],
+      `Live functions must not reference retired messaging objects: ${danglingReferences.rows.map((r) => r.fn).join(', ')}`,
+    )
+    console.log('✓ No surviving function body references the retired messaging subsystem')
 
     // 6. Expected private helper functions exist
     const expectedPrivateFunctions = [

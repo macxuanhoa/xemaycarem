@@ -21,12 +21,13 @@ import { pathToFileURL } from 'node:url'
 import { createDatabase, asUser, rpc } from '../../scripts/db-harness.mjs'
 
 const PURGED_COLUMNS = ['brand', 'model', 'variant', 'engine_number', 'odometer', 'asking_price']
+// customer_communications/message_outbox đã bị DROP cùng subsystem chăm sóc
+// khách hàng (migration 20261014000500) — không còn để đếm nữa, xem
+// migration.test.mjs (purge guard) cho phần xác nhận bảng đã biến mất.
 const HISTORY_TABLES = [
   'audit_logs',
   'vehicle_activity',
   'notifications',
-  'customer_communications',
-  'message_outbox',
 ]
 
 export async function runFieldPurgeIntegrityTests(externalDb, { engine = 'postgres' } = {}) {

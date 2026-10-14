@@ -13,10 +13,10 @@
  * 10. link_bank_transaction accepts a human reference (CAREM GDxxxxx).
  * 11. ignore_bank_transaction requires a reason.
  * 12. get_bank_webhook_state is OWNER-only and leaks no secret.
- * 13. customer_contacts carry no price fields; verify is OWNER/MANAGER-only.
- * 14. message_templates reject price placeholders; save is OWNER-only.
- * 15. Personal thank-you enqueues on VERIFY_SALE_CONTACT (contacts cannot pre-exist the sale).
- * 16. Bank reconciliation notices never reach a non-financial, non-participant STAFF.
+ * 13. Bank reconciliation notices never reach a non-financial, non-participant STAFF.
+ *
+ * (Số 13-15 cũ về customer_contacts/message_templates/thank-you queue đã bị gỡ
+ *  cùng subsystem chăm sóc khách hàng — migration 20261014000500.)
  */
 
 import assert from 'node:assert/strict'
@@ -218,40 +218,7 @@ export async function runSmartSalesAutomationTests(externalDb, { engine = 'pglit
     await deny(() => callNoArg('manager', 'get_bank_webhook_state'))
     pass('get_bank_webhook_state is OWNER-only and returns no secret material')
 
-    // 13. customer_contacts: no price fields; STAFF cannot verify.
-    const contact = await call('staff', 'save_sale_contact', { sale_id: saleA.saleId, channel: 'ZALO_PERSONAL', handle: 'kah-tu-dong', display_name: 'Khách Tự Động', phone: '0905550001' })
-    assert.ok(contact.id)
-    assert.equal(Object.hasOwn(contact, 'sale_price'), false)
-    assert.equal(Object.hasOwn(contact, 'purchase_price'), false)
-    const contacts = await callUuid('staff', 'list_sale_contacts', saleA.saleId)
-    assert.ok(contacts.some((c) => c.id === contact.id && c.channel === 'ZALO_PERSONAL' && c.verified === false))
-    await deny(() => call('staff', 'verify_sale_contact', { id: contact.id, verified: true }))
-    pass('customer_contacts hold no price fields and STAFF cannot verify a contact')
-
-    // 15. Personal thank-you enqueues ONLY on VERIFY_SALE_CONTACT of a personal channel.
-    await call('owner', 'save_settings', { thankyou_manual_enabled: true })
-    await call('owner', 'verify_sale_contact', { id: contact.id, verified: true })
-    const queue = await callUuid('owner', 'list_sale_thank_you_queue', saleA.saleId)
-    assert.ok(queue.some((q) => q.channel === 'ZALO_PERSONAL'), 'Expected a personal thank-you queue item after VERIFY_SALE_CONTACT')
-    const outboxRow = await row("SELECT status, last_error_code FROM public.message_outbox WHERE sale_id=$1 AND event_type='SALE_THANK_YOU_PERSONAL' AND channel='ZALO_PERSONAL'", [saleA.saleId])
-    assert.equal(outboxRow.status, 'QUEUED')
-    assert.equal(outboxRow.last_error_code, 'MANUAL_CHANNEL')
-    pass('Verifying a personal contact enqueues the manual thank-you (no auto-send, no unofficial API)')
-
-    const oaContact = await call('owner', 'save_sale_contact', { sale_id: saleA.saleId, channel: 'ZALO_OA', handle: 'carem-oa', display_name: 'Khách OA' })
-    await call('owner', 'verify_sale_contact', { id: oaContact.id, verified: true })
-    assert.equal(await count("SELECT count(*) FROM public.message_outbox WHERE sale_id=$1 AND event_type='SALE_THANK_YOU_PERSONAL' AND channel='ZALO_OA'", [saleA.saleId]), 0)
-    pass('Official channels never fall into the personal thank-you enqueue')
-
-    // 14. message_templates reject price placeholders; save OWNER-only.
-    await assert.rejects(() => call('owner', 'save_message_template', { code: 'evil_template_v1', body: 'Cam on {customer_name}, gia ban {sale_price}d' }), /TEMPLATE_VARIABLE_NOT_ALLOWED/i)
-    await deny(() => call('manager', 'save_message_template', { code: 'ok_template_v1', body: 'Cam on {customer_name} da mua tai {store_name}' }))
-    await call('owner', 'save_message_template', { code: 'ok_template_v1', body: 'Cam on {customer_name} da mua tai {store_name}' })
-    const preview = await call('owner', 'preview_message_template', { code: 'ok_template_v1', sale_id: saleA.saleId })
-    assert.ok(typeof preview.rendered === 'string' && !/\{sale_price\}/.test(preview.rendered) && !/100000000|100.000.000/.test(preview.rendered))
-    pass('message_templates reject price placeholders, save is OWNER-only, preview renders no price')
-
-    // 16. A non-participant STAFF never receives bank reconciliation notices.
+    // 13. A non-participant STAFF never receives bank reconciliation notices.
     const staffBankNotices = await count("SELECT count(*) FROM public.notifications WHERE user_id=$1 AND action LIKE 'BANK_TRANSACTION%'", [users.staff])
     assert.equal(staffBankNotices, 0)
     pass('Bank reconciliation notices do not reach a non-financial, non-participant STAFF')

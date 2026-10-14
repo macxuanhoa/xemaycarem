@@ -245,33 +245,6 @@ try {
       await lock.close(); await waiting.close()
     }
   })
-  await check('crashed PROCESSING communication job has a reclaim path', async () => {
-    const id = await call(db, 'a', 'sell_vehicle', sale(await create()))
-    const job = (await db.query("UPDATE public.message_outbox SET status='QUEUED',next_attempt_at=now() WHERE sale_id=$1 RETURNING id", [id])).rows[0]
-    const first = await asUser(db, users.a, c => rpc(c, 'claim_message', '$1::uuid,$2::text', [job.id, 'MOCK']))
-    await db.query("UPDATE public.message_outbox SET lease_expires_at=clock_timestamp()-interval '1 second' WHERE id=$1", [job.id])
-    const recovered = await asUser(db, users.b, c => rpc(c, 'claim_message', '$1::uuid,$2::text', [job.id, 'MOCK']))
-    assert.equal(recovered.id, job.id, 'aged PROCESSING job is stuck indefinitely after worker crash')
-    assert.notEqual(recovered.lease_token, first.lease_token)
-    await assert.rejects(() => asUser(db, users.a, c => rpc(c, 'finish_mock_message', '$1::uuid,$2::text,$3::uuid', [job.id, `mock_${job.id}`, first.lease_token])), /MESSAGE_LEASE_CONFLICT/)
-    await asUser(db, users.b, c => rpc(c, 'finish_mock_message', '$1::uuid,$2::text,$3::uuid', [job.id, `mock_${job.id}`, recovered.lease_token]))
-    assert.equal(Number((await db.query("SELECT count(*) AS n FROM public.audit_logs WHERE entity_id=$1 AND action='MESSAGE_SENT'", [job.id])).rows[0].n), 1)
-  })
-  await check('cancelled sale cannot deliver queued sale thank-you job', async () => {
-    const id = await call(db, 'a', 'sell_vehicle', sale(await create()))
-    const job = (await db.query("UPDATE public.message_outbox SET status='QUEUED',next_attempt_at=now() WHERE sale_id=$1 RETURNING id", [id])).rows[0]
-    await asUser(db, users.owner, c => rpc(c, 'cancel_sale', '$1::uuid,$2::text', [id, reason]))
-    const claimed = await asUser(db, users.a, c => rpc(c, 'claim_message', '$1::uuid,$2::text', [job.id, 'MOCK']))
-    assert.ok(!claimed.id, 'job is still claimable after the sale is cancelled')
-  })
-  await check('outbox insert failure preserves sale and records diagnostic incident', async () => {
-    await db.exec("CREATE FUNCTION private.extended_reject_outbox() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION USING errcode='P0001',message='SYNTHETIC_OUTBOX_FAILURE'; END $$; CREATE TRIGGER extended_reject_outbox BEFORE INSERT ON public.message_outbox FOR EACH ROW EXECUTE FUNCTION private.extended_reject_outbox();")
-    let id
-    try { id = await call(db, 'a', 'sell_vehicle', sale(await create())) }
-    finally { await db.exec('DROP TRIGGER extended_reject_outbox ON public.message_outbox; DROP FUNCTION private.extended_reject_outbox();') }
-    assert.equal((await db.query('SELECT status FROM public.sales WHERE id=$1', [id])).rows[0].status, 'COMPLETED')
-    assert.ok(Number((await db.query("SELECT count(*) AS n FROM public.audit_logs WHERE action IN ('MESSAGE_FAILED','AUTO_MESSAGE_QUEUE_FAILED') AND entity_id=$1", [id])).rows[0].n) > 0, 'secondary task failed with no incident trace')
-  })
   await check('acquisition deletion/cancellation and vehicle deletion avoid lock inversion', async () => {
     const id = await call(db, 'owner', 'acquire_vehicle', { ...vehicle(), acquisition_date: day })
     const acquisition = (await db.query('SELECT id FROM public.acquisitions WHERE vehicle_id=$1', [id])).rows[0].id

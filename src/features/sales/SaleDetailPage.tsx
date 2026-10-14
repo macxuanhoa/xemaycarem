@@ -5,6 +5,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { ArrowLeft, Ban, Check, Circle, CreditCard, MoreHorizontal, Printer, QrCode, X } from "lucide-react";
 import { VietQrPaymentModal } from "./VietQrPaymentModal";
+import { useVietQrPaymentWatcher } from "./useVietQrPaymentWatcher";
 import { api } from "@/lib/api";
 import { confirmPayment, pendingPayment, retainPayment } from "@/lib/paymentRecovery";
 import { AppError } from "@/lib/errors";
@@ -77,6 +78,22 @@ export function SaleDetailPage() {
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [menuOpen, showCancel]);
+
+  // P1-c: vòng xác minh tiền vào đặt ở CẤP TRANG. Trước đây nó nằm trong modal,
+  // mà modal bị unmount ngay khi tắt cửa sổ — nhân viên đóng QR để mở app ngân
+  // hàng của khách là mất luôn theo dõi, tiền về thật không ai thấy. Hook dùng
+  // chung mã cache ["vietqr-active", ...] với modal nên không nhân đôi gọi server,
+  // và chỉ báo nhận tiền khi server đã gắn bằng chứng giao dịch.
+  const saleRecord = query.data;
+  useVietQrPaymentWatcher({
+    vehicleId: saleRecord?.vehicle_id,
+    saleId: saleRecord ? id : null,
+    enabled: Boolean(
+      saleRecord?.vehicle_id &&
+        !saleRecord.sale_price_hidden &&
+        saleRecord.remaining_amount > 0,
+    ),
+  });
 
   if (query.isPending) return <Loading />;
   if (query.isError && !query.data)

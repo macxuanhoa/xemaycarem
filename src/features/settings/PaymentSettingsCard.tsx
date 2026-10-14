@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Check,
@@ -17,7 +17,21 @@ import { Button, Card, ErrorState, Field } from "@/components/ui";
 import { api } from "@/lib/api";
 import { toast } from "@/lib/toast";
 import { VIETNAM_BANKS, getBankByBin, searchBanks, type BankInfo } from "@/lib/vietqr/banks";
-import { buildVietQrQuickLink, removeVietnameseTones } from "@/lib/vietqr/emvco";
+import { removeVietnameseTones, renderQrToDataUrl } from "@/lib/vietqr/emvco";
+import {
+  hasBankSettingsErrors,
+  validateBankSettings,
+} from "@/lib/vietqr/settingsValidation";
+
+/**
+ * Mã xem trước ở Cài đặt KHÔNG được quét để trả tiền. Bản cũ gọi
+ * img.vietqr.io với đúng số tài khoản + tên chủ tài khoản thật, nên ai quét
+ * được màn hình là chuyển tiền vào cửa hàng với nội dung "CAREM TEST" —
+ * giao dịch lạc vào UNMATCHED, và mỗi lần xem trước còn đẩy thông tin tài
+ * khoản riêng của OWNER sang một bên thứ ba. Mã minh hoạ giờ vẽ tại máy trên
+ * một chuỗi tĩnh, không phải payload EMVCo/Napas.
+ */
+const DEMO_QR_TEXT = "Cà Rem · Mã minh họa giao diện — không dùng để thanh toán";
 
 type BankSettings = {
   bank_bin?: string;
@@ -46,15 +60,20 @@ function fold(text: string): string {
 function BankPicker({
   value,
   onSelect,
+  invalid,
 }: {
   value: string;
   onSelect: (bin: string) => void;
+  invalid?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [active, setActive] = useState(-1);
   const boxRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const listboxId = useId();
+  const optionId = (index: number) => `${listboxId}-option-${index}`;
 
   const selected = getBankByBin(value);
 
@@ -68,20 +87,30 @@ function BankPicker({
         );
   }, [query]);
 
+  // Đóng là trả lại tiêu điểm cho nút trigger — nếu không, bàn phím mất con trỏ
+  // đúng chỗ người dùng vừa rời khỏi (WCAG 2.4.3).
+  const closePicker = useCallback((restoreFocus: boolean) => {
+    setOpen(false);
+    setQuery("");
+    setActive(-1);
+    if (restoreFocus) triggerRef.current?.focus();
+  }, []);
+
   useEffect(() => {
     if (!open) return;
     const onDown = (e: PointerEvent) => {
-      if (boxRef.current && !boxRef.current.contains(e.target as Node)) setOpen(false);
+      if (boxRef.current && !boxRef.current.contains(e.target as Node)) closePicker(true);
     };
     document.addEventListener("pointerdown", onDown);
     return () => document.removeEventListener("pointerdown", onDown);
-  }, [open]);
+  }, [open, closePicker]);
 
   const commit = (bin: string) => {
     onSelect(bin);
     setOpen(false);
     setQuery("");
     setActive(-1);
+    triggerRef.current?.focus();
   };
 
   const handleKey = (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -92,15 +121,24 @@ function BankPicker({
     } else if (e.key === "ArrowUp") {
       e.preventDefault();
       setActive((p) => Math.max(p - 1, 0));
+    } else if (e.key === "Home" && open) {
+      e.preventDefault();
+      setActive(results.length ? 0 : -1);
+    } else if (e.key === "End" && open) {
+      e.preventDefault();
+      setActive(results.length ? results.length - 1 : -1);
     } else if (e.key === "Enter") {
       if (open && active >= 0 && results[active]) {
         e.preventDefault();
         commit(results[active].bin);
       }
     } else if (e.key === "Escape") {
-      setOpen(false);
+      e.preventDefault();
+      closePicker(true);
     }
   };
+
+  const activeBank = active >= 0 ? results[active] : undefined;
 
   return (
     <div className="bank-picker" ref={boxRef}>
@@ -116,8 +154,9 @@ function BankPicker({
             autoFocus
             role="combobox"
             aria-expanded
-            aria-controls="bank-picker-listbox"
+            aria-controls={listboxId}
             aria-autocomplete="list"
+            aria-activedescendant={activeBank ? optionId(active) : undefined}
             onChange={(e) => {
               setQuery(e.target.value);
               setActive(-1);
@@ -127,16 +166,21 @@ function BankPicker({
           <button
             type="button"
             className="bank-picker-cancel"
-            onClick={() => setOpen(false)}
+            onClick={() => closePicker(true)}
           >
             Hủy
           </button>
         </div>
       ) : (
         <button
+          ref={triggerRef}
           type="button"
           className="bank-picker-trigger"
           aria-haspopup="listbox"
+          aria-expanded={false}
+          aria-label={
+            selected ? `Ngân hàng nhận tiền: ${selected.shortName}` : "Chọn ngân hàng nhận tiền"
+          }
           onClick={() => {
             setOpen(true);
             requestAnimationFrame(() => inputRef.current?.focus());
@@ -155,15 +199,18 @@ function BankPicker({
       )}
 
       {open && (
-        <ul id="bank-picker-listbox" className="bank-picker-list" role="listbox">
+        <ul id={listboxId} className="bank-picker-list" role="listbox" aria-label="Ngân hàng">
           {results.length === 0 && (
-            <li className="bank-picker-empty" role="option" aria-disabled>
+            // Không phải một lựa chọn: gán role="option" biến thông báo "không có
+            // kết quả" thành mục mà trình đọc màn hình báo là chọn được.
+            <li className="bank-picker-empty" role="presentation" aria-disabled="true">
               Không tìm thấy ngân hàng phù hợp.
             </li>
           )}
           {results.map((b, idx) => (
             <li
               key={b.bin}
+              id={optionId(idx)}
               role="option"
               aria-selected={b.bin === value}
               className={
@@ -189,6 +236,17 @@ function BankPicker({
           ))}
         </ul>
       )}
+
+      {/* Bộ đếm kết quả + mục đang gợi ý: người dùng bàn phím không nhìn thấy
+          danh sách nên phải được đọc lên mỗi lần gõ. */}
+      <span className="sr-only" role="status" aria-live="polite">
+        {open
+          ? results.length === 0
+            ? "Không tìm thấy ngân hàng phù hợp."
+            : `${results.length} ngân hàng. ${activeBank ? `Đang gợi ý ${activeBank.shortName}.` : "Dùng phím mũi tên để chọn."}`
+          : ""}
+      </span>
+      {invalid && !selected ? <span className="sr-only">Chưa chọn ngân hàng nhận tiền.</span> : null}
     </div>
   );
 }
@@ -225,12 +283,14 @@ export function PaymentSettingsCard({
   const [accountNo, setAccountNo] = useState("");
   const [accountName, setAccountName] = useState("");
   const [dirty, setDirty] = useState(false);
+  // Chỉ báo lỗi sau khi người dùng thực sự bấm Lưu — gạch đỏ trước khi họ kịp
+  // gõ xong khiến biểu mẫu như đang mắng người điền.
+  const [showErrors, setShowErrors] = useState(false);
 
-  // Trạng thái ảnh QR xem trước: chỉ nạp khi thông tin hợp lệ, có debounce và
-  // có phản hồi loading/lỗi — tránh "thẻ bị lỗi" khi ảnh từ img.vietqr.io chậm
-  // hoặc trả về hỏng.
+  // Mã xem trước: vẽ tại máy (không phải mã thanh toán), chỉ hiện khi đã đủ
+  // thông tin, có debounce và có trạng thái loading/lỗi rõ ràng.
   const [qrState, setQrState] = useState<"idle" | "loading" | "ready" | "error">("idle");
-  const [previewQrUrl, setPreviewQrUrl] = useState<string | null>(null);
+  const [demoQrUrl, setDemoQrUrl] = useState<string | null>(null);
 
   const q = useQuery({
     queryKey: ["settings"],
@@ -245,31 +305,46 @@ export function PaymentSettingsCard({
     setAccountName(q.data.bank_account_name || "");
   }, [q.data, dirty]);
 
-  // Nạp ảnh QR sau 450ms ngừng gõ — giảm số request và hết cảnh nhấp nháy.
+  // Vẽ mã minh hoạ sau 450ms ngừng gõ — giảm số lần vẽ lại, hết cảnh nhấp nháy.
+  // Chuỗi vẽ là DEMO_QR_TEXT tĩnh: số tài khoản thật không rời khỏi máy, và
+  // không có thiết bị nào quét màn hình này mà chuyển được tiền.
   useEffect(() => {
     const bin = bankBin.trim();
     const no = accountNo.trim();
     if (!bin || !no) {
-      setPreviewQrUrl(null);
+      setDemoQrUrl(null);
       setQrState("idle");
       return;
     }
     setQrState("loading");
+    let alive = true;
     const t = window.setTimeout(() => {
-      try {
-        setPreviewQrUrl(
-          buildVietQrQuickLink(
-            { bankBin: bin, accountNo: no, description: "CAREM TEST", accountName },
-            "qr_only",
-          ),
-        );
-      } catch {
-        setPreviewQrUrl(null);
-        setQrState("error");
-      }
+      void renderQrToDataUrl(DEMO_QR_TEXT, 240)
+        .then((url) => {
+          if (!alive) return;
+          setDemoQrUrl(url);
+          // Data URL đã giải mã xong: không phụ thuộc onLoad (sự kiện có thể đã
+          // chạy trước khi React kịp gắn trình nghe — ảnh/cache bị kẹt spinner).
+          setQrState("ready");
+        })
+        .catch(() => {
+          if (!alive) return;
+          setDemoQrUrl(null);
+          setQrState("error");
+        });
     }, 450);
-    return () => window.clearTimeout(t);
-  }, [bankBin, accountNo, accountName]);
+    return () => {
+      alive = false;
+      window.clearTimeout(t);
+    };
+  }, [bankBin, accountNo]);
+
+  const fieldErrors = validateBankSettings({
+    bankBin,
+    accountNo,
+    accountName: removeVietnameseTones(accountName).toUpperCase(),
+  });
+  const invalid = hasBankSettingsErrors(fieldErrors);
 
   const saveMutation = useMutation({
     mutationFn: () => {
@@ -277,7 +352,7 @@ export function PaymentSettingsCard({
       const cleanNo = accountNo.trim();
       const cleanName = removeVietnameseTones(accountName).toUpperCase().trim();
 
-      if (!cleanBin) throw new Error("Vui lòng chọn ngân hàng.");
+      if (!cleanBin) throw new Error("Vui lòng chọn ngân hàng nhận tiền.");
       if (!cleanNo) throw new Error("Vui lòng nhập số tài khoản.");
       if (!cleanName) throw new Error("Vui lòng nhập tên chủ tài khoản.");
 
@@ -294,6 +369,7 @@ export function PaymentSettingsCard({
     onSuccess: () => {
       void client.invalidateQueries({ queryKey: ["settings"] });
       setDirty(false);
+      setShowErrors(false);
       toast.success("Đã lưu tài khoản nhận tiền.");
       onSaved?.("Đã lưu tài khoản nhận tiền.");
     },
@@ -319,6 +395,15 @@ export function PaymentSettingsCard({
     setAccountNo(q.data.bank_account_no || "");
     setAccountName(q.data.bank_account_name || "");
     setDirty(false);
+    setShowErrors(false);
+  };
+
+  const handleSave = () => {
+    setShowErrors(true);
+    // Không gửi lên server một cấu hình còn thiếu: server sẽ báo
+    // VIETQR_CONFIG_REQUIRED chung chung, còn nhân viên cần biết đúng trường nào.
+    if (invalid) return;
+    saveMutation.mutate();
   };
 
   return (
@@ -347,11 +432,18 @@ export function PaymentSettingsCard({
 
       <div className="payment-settings-grid">
         <div className="payment-settings-form">
-          <Field label="Ngân hàng">
-            <BankPicker value={bankBin} onSelect={handleSelectBank} />
+          <Field label="Ngân hàng" error={showErrors ? fieldErrors.bankBin : undefined}>
+            <BankPicker
+              value={bankBin}
+              onSelect={handleSelectBank}
+              invalid={showErrors && Boolean(fieldErrors.bankBin)}
+            />
           </Field>
 
-          <Field label="Số tài khoản">
+          <Field
+            label="Số tài khoản"
+            error={showErrors ? fieldErrors.accountNo : undefined}
+          >
             <div className="pay-input-wrap">
               <input
                 type="text"
@@ -368,7 +460,10 @@ export function PaymentSettingsCard({
             </div>
           </Field>
 
-          <Field label="Chủ tài khoản">
+          <Field
+            label="Chủ tài khoản"
+            error={showErrors ? fieldErrors.accountName : undefined}
+          >
             <input
               type="text"
               maxLength={120}
@@ -395,16 +490,31 @@ export function PaymentSettingsCard({
                 </Button>
               )}
               <Button
-                disabled={saveMutation.isPending || (!dirty && isConfigured)}
-                onClick={() => saveMutation.mutate()}
+                disabled={q.isPending || saveMutation.isPending || !dirty}
+                onClick={handleSave}
+                title={
+                  q.isPending
+                    ? "Đang tải cấu hình hiện tại"
+                    : !dirty
+                      ? "Chưa có thay đổi nào để lưu"
+                      : undefined
+                }
               >
-                {saveMutation.isPending ? "Đang lưu…" : "Lưu thay đổi"}
+                {saveMutation.isPending
+                  ? "Đang lưu…"
+                  : q.isPending && !q.data
+                    ? "Đang tải…"
+                    : "Lưu thay đổi"}
               </Button>
             </div>
           </div>
         </div>
 
-        <div className="bank-card-visual" aria-label="Xem trước thẻ tài khoản nhận tiền">
+        <div
+          className="bank-card-visual"
+          role="group"
+          aria-label="Xem trước thẻ tài khoản nhận tiền"
+        >
           <div className="bank-card-sheen" aria-hidden />
           <div className="bank-card-header">
             <div className="bank-card-brand">
@@ -436,35 +546,43 @@ export function PaymentSettingsCard({
             </div>
 
             <div className="bank-card-qr">
-              {previewQrUrl && qrState !== "error" ? (
-                <>
-                  {qrState === "loading" && (
-                    <span className="bank-card-qr-spinner" aria-hidden>
-                      <Loader2 size={18} />
-                    </span>
-                  )}
-                  <img
-                    src={previewQrUrl}
-                    alt="Mã QR thanh toán xem trước"
-                    className={"bank-card-qr-img" + (qrState === "ready" ? " is-ready" : "")}
-                    loading="lazy"
-                    onLoad={() => setQrState("ready")}
-                    onError={() => setQrState("error")}
-                  />
-                </>
-              ) : qrState === "error" ? (
-                <span
-                  className="bank-card-qr-placeholder is-error"
-                  title="Không tải được mã QR xem trước — kiểm tra kết nối mạng"
-                  role="img"
-                >
-                  <TriangleAlert size={20} />
-                </span>
-              ) : (
-                <span className="bank-card-qr-placeholder" title="Mã QR hiển thị khi đủ thông tin">
-                  <QrCode size={24} />
-                </span>
-              )}
+              <div className="bank-card-qr-tile">
+                {demoQrUrl && qrState !== "error" ? (
+                  <>
+                    {qrState === "loading" && (
+                      <span className="bank-card-qr-spinner" aria-hidden>
+                        <Loader2 size={18} />
+                      </span>
+                    )}
+                    <img
+                      src={demoQrUrl}
+                      alt="Mã QR minh họa giao diện, không dùng để thanh toán"
+                      className={"bank-card-qr-img" + (qrState === "ready" ? " is-ready" : "")}
+                      onError={() => setQrState("error")}
+                    />
+                  </>
+                ) : qrState === "error" ? (
+                  <span
+                    className="bank-card-qr-placeholder is-error"
+                    title="Chưa vẽ được mã minh họa — hãy thử lại"
+                    role="img"
+                    aria-label="Chưa vẽ được mã minh họa"
+                  >
+                    <TriangleAlert size={20} />
+                  </span>
+                ) : (
+                  <span
+                    className="bank-card-qr-placeholder"
+                    title="Mã minh họa hiển thị khi đã đủ thông tin"
+                    aria-hidden
+                  >
+                    <QrCode size={24} />
+                  </span>
+                )}
+              </div>
+              {/* Nhãn tại chỗ: chỉ nhìn thoáng qua cũng biết đây không phải mã
+                  thật — tránh ai đó mở Cài đặt rồi quay chụp đem đi chuyển tiền. */}
+              <span className="bank-card-qr-demo">Minh họa · không thanh toán</span>
             </div>
           </div>
         </div>

@@ -44,10 +44,27 @@ function emvFormat(id: string, value: string): string {
  */
 export const TRANSFER_CONTENT_LIMIT = 130;
 
+/**
+ * Trần byte UTF-8 của memo khi nhúng vào payload EMVCo. Thẻ TLV chỉ có 2 chữ số
+ * độ dài, mà tag 62 còn phải chứa cả `08<len>` của sub-tag: memo > 95 byte là
+ * sinh ra chuỗi TLV sai quy cách (độ dài 3 chữ số) khiến app ngân hàng đọc lệch
+ * toàn bộ phần sau. Thà từ chối còn hơn phát hành một mã không quét được.
+ */
+export const EMVCO_MEMO_BYTE_LIMIT = 95;
+
 function transferDescription(description: string): string {
   const clean = (description || "").trim();
   if (clean.length > TRANSFER_CONTENT_LIMIT) {
     throw new Error("Nội dung chuyển khoản quá dài. Hãy tạo lại mã với nội dung chuẩn; không cắt mã đối soát ngân hàng.");
+  }
+  return clean;
+}
+
+/** Kiểm tra riêng cho đường EMVCo: memo phải nằm trong cả trần ký tự lẫn trần byte. */
+function emvTransferDescription(description: string): string {
+  const clean = transferDescription(description);
+  if (new TextEncoder().encode(clean).length > EMVCO_MEMO_BYTE_LIMIT) {
+    throw new Error("Nội dung chuyển khoản vượt giới hạn byte của thẻ EMVCo; hãy dùng mã đối soát ngắn.");
   }
   return clean;
 }
@@ -84,7 +101,7 @@ export function buildVietQrEmvCoPayload(options: VietQrPayloadOptions): string {
   if (!cleanBin || !cleanAccount) {
     throw new Error("Thiếu mã ngân hàng hoặc số tài khoản thụ hưởng.");
   }
-  const cleanDesc = transferDescription(description || "");
+  const cleanDesc = emvTransferDescription(description || "");
 
   // Tag 00: Format Indicator (01)
   const tag00 = emvFormat("00", "01");

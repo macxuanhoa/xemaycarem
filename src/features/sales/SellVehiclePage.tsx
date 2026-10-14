@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useRef, useState } from "react";
+import { Fragment, useCallback, useEffect, useRef, useState } from "react";
 import { useDebouncedValue } from "@/lib/useDebouncedValue";
 import { useFormDraft } from "@/lib/useFormDraft";
 import { MoneyInput } from "@/components/ui/MoneyInput";
@@ -9,6 +9,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { AlertTriangle, ArrowLeft, ArrowRight, Bike, CheckCircle2, ChevronDown, ChevronUp, Clock, QrCode, Search, Send, ShoppingBag } from "lucide-react";
 import { VietQrPaymentModal } from "./VietQrPaymentModal";
+import { useVietQrPaymentWatcher } from "./useVietQrPaymentWatcher";
 import { api } from "@/lib/api";
 import { AppError } from "@/lib/errors";
 import { celebrateSale } from "@/lib/celebrate";
@@ -256,6 +257,31 @@ function SaleEditor({ vehicle }: { vehicle: Vehicle }) {
   // Nhân viên chỉ "nói" số tiền khách trả trước khi tự sửa ô trả trước. Cho tới
   // lúc đó, bán xe mặc định là KHÁCH ĐÃ TRẢ ĐỦ — xem effect đồng bộ bên dưới.
   const [paymentEdited, setPaymentEdited] = useState(false);
+  // P1-c: một lối ghi nhận duy nhất cho tiền đã được ngân hàng xác minh, bất kể
+  // nhân viên bấm xác nhận trong modal hay hệ thống phát hiện lúc đã tắt cửa sổ.
+  // Hai đường khác nhau sẽ cho ra hai trạng thái biểu mẫu khác nhau — đúng chỗ
+  // dễ sinh trùng doanh thu nhất.
+  const applyVerifiedPayment = useCallback(
+    (request: VietQrPaymentRequest) => {
+      setReceivedQr(request);
+      setPaymentEdited(true);
+      form.setValue("payment_method", "BANK_TRANSFER", { shouldDirty: true });
+      form.setValue("initial_payment", request.amount, {
+        shouldDirty: true,
+        shouldValidate: true,
+      });
+    },
+    [form],
+  );
+  // Theo dõi tiền vào sống ĐỘC LẬP với cửa sổ QR: trước đây toàn bộ vòng kiểm tra
+  // 5 giây nằm trong modal, nên tắt cửa sổ giữa chừng (mở app ngân hàng cho khách,
+  // chuyển tab) là tiền về cũng không ai hay, đơn vẫn báo chưa thu. Giai đoạn bán
+  // xe này chưa có đơn hàng nên chỉ tra theo xe.
+  useVietQrPaymentWatcher({
+    vehicleId: vehicle.id,
+    enabled: !receivedQr,
+    onVerified: applyVerifiedPayment,
+  });
   const targetAmount = Number.isFinite(paid) && paid > 0 ? paid : (Number.isFinite(price) ? price : 0);
   const handleOpenVietQr = () => {
     if (!targetAmount || targetAmount <= 0) {
@@ -958,11 +984,8 @@ function SaleEditor({ vehicle }: { vehicle: Vehicle }) {
           payerName={form.watch("customer_name").trim()}
           onClose={() => setShowVietQrModal(false)}
           onPaymentConfirmed={(confirmedRequest) => {
-            setReceivedQr(confirmedRequest);
+            applyVerifiedPayment(confirmedRequest);
             setShowVietQrModal(false);
-            setPaymentEdited(true);
-            form.setValue("payment_method", "BANK_TRANSFER", { shouldDirty: true });
-            form.setValue("initial_payment", confirmedRequest.amount, { shouldDirty: true, shouldValidate: true });
           }}
         />
       )}

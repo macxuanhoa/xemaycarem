@@ -231,10 +231,42 @@ for (const surface of [
     await expect(
       dialog.getByRole("button", { name: /Xác nhận đã nhận tiền/ }),
     ).toHaveCount(0);
-    // Nội dung hiển thị = đúng chuỗi ngân hàng tự điền (server transfer_content)
-    await expect(
-      dialog.getByText(fixture.current.transfer_content, { exact: true }),
-    ).toBeVisible();
+    // P0-4 · MỘT chuỗi duy nhất cho màn hình, nút copy và chính mã QR.
+    // Memo mà server đang chạy (migration 20261014000700) sinh ra cho một phiếu
+    // bán thật dài 106 ký tự = 121 byte UTF-8. Thẻ EMVCo tag 62 chỉ mang nổi 95
+    // byte memo (chính nó phải nằm trong 2 chữ số độ dài, trừ 4 byte header), nên
+    // trước bản sửa app hiển thị nguyên văn 121 byte rồi nhúng đúng chuỗi đó vào
+    // QR — sinh ra TLV có độ dài 3 chữ số mà app ngân hàng đọc lệch toàn bộ phần
+    // sau. Giờ app chốt một bản rút gọn MÃ ĐỐI SOÁT đứng ĐẦU dùng chung ba kênh.
+    // Bất biến cần giữ: những gì nhân viên đọc/copy = những gì máy quét nhận,
+    // vẫn mang mã đối soát, và vừa khít trần byte của thẻ.
+    const serverMemo = fixture.current.transfer_content;
+    const reference = fixture.current.qr_reference;
+    const byteLength = (value) => new TextEncoder().encode(value).length;
+    const shown = (
+      await dialog.locator(".vietqr-transfer-text").textContent()
+    )?.trim();
+    expect(shown).not.toBe("");
+    expect(byteLength(shown)).toBeLessThanOrEqual(95);
+    expect(shown).toContain(reference);
+    expect(shown).toContain("thanh toán tiền xe");
+    // Memo vừa trần thì giữ NGUYÊN VĂN bản của server; chỉ khi vượt trần mới rút
+    // gọn, và rút gọn thì mã đối soát phải đứng đầu (sống sót qua lần cắt memo).
+    expect(byteLength(serverMemo) <= 95
+      ? shown === serverMemo
+      : shown.startsWith(reference)).toBe(true);
+    // Nút copy phải đưa đúng chuỗi đang hiển thị, không phải một bản khác.
+    await page.evaluate(() => {
+      window.__copied = null;
+      navigator.clipboard.writeText = (text) => {
+        window.__copied = text;
+        return Promise.resolve();
+      };
+    });
+    await dialog
+      .getByRole("button", { name: "Sao chép nội dung chuyển khoản" })
+      .click();
+    expect(await page.evaluate(() => window.__copied)).toBe(shown);
     const qrBox = await qr.boundingBox();
     const download = await dialog
       .getByRole("button", { name: "Tải mã QR", exact: true })

@@ -1,6 +1,6 @@
-import { useEffect, useId, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import {
   AlertTriangle,
   ArrowLeft,
@@ -27,11 +27,17 @@ import { useNetworkStatus } from "@/lib/networkStatus";
 import { toast } from "@/lib/toast";
 import { useDialog } from "@/lib/useDialog";
 import { getBankByBin } from "@/lib/vietqr/banks";
+import { isVerifiedReceipt, vietqrActiveQueryKey } from "./vietqrVerification";
 import {
   buildVietQrEmvCoPayload,
   buildVietQrQuickLink,
   renderQrToDataUrl,
 } from "@/lib/vietqr/emvco";
+import {
+  selectQrTransferContent,
+  transferContentFromPayload,
+  type TransferContentFallback,
+} from "@/lib/vietqr/transferContent";
 import type { VietQrPaymentRequest } from "@/types";
 
 type ShopSettings = {
@@ -128,75 +134,89 @@ const errorText = (error: unknown) =>
 
 function paymentQrPayload(
   request: VietQrPaymentRequest | null,
-  fallbackSettings?: ShopSettings | null,
-) {
-  if (!request) return { payload: null, imageUrl: null, invalid: false };
+  fallbackSettings: ShopSettings | null | undefined,
+  memo: TransferContentFallback,
+): {
+  payload: string | null;
+  imageUrl: string | null;
+  description: string;
+  invalid: boolean;
+} {
+  if (!request) {
+    return { payload: null, imageUrl: null, description: "", invalid: false };
+  }
 
+  // MỘT chuỗi duy nhất cho cả ảnh VietQR, payload EMVCo, màn hình lẫn nút Copy:
+  // xem selectQrTransferContent(). Server được phép ghi memo 130 ký tự trong khi
+  // thẻ EMVCo chỉ chứa nổi 95 byte — nếu mỗi kênh tự cắt theo trần riêng thì ảnh
+  // QR và mã nội bộ của cùng một đơn hàng mang hai nội dung khác nhau, đúng cái
+  // lỗi P0-4 cần diệt. Ở đây không có đường nào để lệch.
+  const reference = (request.qr_reference || "").trim();
+  const description = selectQrTransferContent(request, memo);
   // Lấy thông tin tài khoản: ưu tiên request, dự phòng sang settings cửa hàng
   const bankBin = (request.bank_bin || fallbackSettings?.bank_bin || "").trim();
   const accountNo = (request.bank_account_no || fallbackSettings?.bank_account_no || "").trim();
   const accountName = (request.bank_account_name || fallbackSettings?.bank_account_name || "").trim();
-  // Bản ghi đã có sẵn qr_payload hợp lệ theo chuẩn VietQR (EMVCo/Napas 247)
-  const embedded =
-    request.qr_payload && request.qr_payload.startsWith("000201")
-      ? request.qr_payload
-      : null;
+  // Bản ghi đã có sẵn qr_payload hợp lệ theo chuẩn VietQR (EMVCo/Napas 247).
+  // Chỉ dùng payload của server khi đọc lại được memo nằm trong nó — nếu không
+  // suy ra được memo thì tự dựng payload từ đúng chuỗi hiển thị, để mã và chữ
+  // không bao giờ lệch nhau.
+  const embedded = transferContentFromPayload(request.qr_payload)
+    ? request.qr_payload
+    : null;
 
+  // Ảnh VietQR chính thống (img.vietqr.io) + payload EMVCo đều nhúng ĐÚNG chuỗi
+  // đang hiển thị. Cắt hoặc bỏ dấu là lệch đối soát.
+  const quickLink = (content: string) => {
+    try {
+      return buildVietQrQuickLink(
+        { bankBin, accountNo, amount: request.amount, description: content, accountName },
+        "default2",
+      );
+    } catch {
+      return null;
+    }
+  };
+  const emvco = (content: string) => {
+    try {
+      return buildVietQrEmvCoPayload({
+        bankBin,
+        accountNo,
+        amount: request.amount,
+        description: content,
+        accountName,
+      });
+    } catch {
+      return null;
+    }
+  };
+
+  // Thiếu thông tin tài khoản: không vẽ được mã nào, nhưng nhân viên vẫn cần
+  // đúng nội dung chuyển khoản để chuyển tay — giữ nguyên chuỗi đã chốt.
   if (!bankBin || !accountNo) {
     return embedded
-      ? { payload: embedded, imageUrl: null, invalid: false }
-      : { payload: null, imageUrl: null, invalid: true };
+      ? { payload: embedded, imageUrl: null, description, invalid: false }
+      : { payload: null, imageUrl: null, description, invalid: true };
   }
 
-  // Nội dung chuyển khoản = transfer_content do server sinh — giữ NGUYÊN VĂN
-  // (có dấu, không cắt): đúng từng ký tự những gì app ngân hàng tự điền khi
-  // quét mã và những gì màn hình hiển thị. Cắt hoặc bỏ dấu là lệch đối soát.
-  const description =
-    request.transfer_content?.trim() ||
-    request.qr_reference?.trim() ||
-    "Thanh toan tien xe";
-
-  // Ảnh VietQR chính thống (img.vietqr.io) theo chuẩn ngân hàng:
-  // logo ngân hàng, số tài khoản, chủ tài khoản, số tiền và nội dung chuyển khoản.
-  let imageUrl: string | null = null;
-  try {
-    imageUrl = buildVietQrQuickLink(
-      { bankBin, accountNo, amount: request.amount, description, accountName },
-      "default2",
-    );
-  } catch {
-    imageUrl = null;
+  if (embedded) {
+    return { payload: embedded, imageUrl: quickLink(description), description, invalid: false };
   }
 
-  if (embedded) return { payload: embedded, imageUrl, invalid: false };
+  const payload = emvco(description);
+  if (payload) {
+    return { payload, imageUrl: quickLink(description), description, invalid: false };
+  }
 
-  try {
-    const payload = buildVietQrEmvCoPayload({
-      bankBin,
-      accountNo,
-      amount: request.amount,
-      description,
-      accountName,
-    });
-    return { payload, imageUrl, invalid: false };
-  } catch {
-    // Dự phòng lần 2: dùng riêng qr_reference ngắn gọn nếu trước đó thất bại
-    if (request.qr_reference) {
-      try {
-        const payload = buildVietQrEmvCoPayload({
-          bankBin,
-          accountNo,
-          amount: request.amount,
-          description: request.qr_reference.trim(),
-          accountName,
-        });
-        return { payload, imageUrl, invalid: false };
-      } catch {
-        // Dự phòng thất bại
-      }
+  // Hiếm gặp: memo không nhúng vừa payload. Rút về đúng mã đối soát cho CẢ HAI
+  // chiều (mã và chữ) rồi mới báo lỗi — thà hiển thị ngắn còn hơn sai lệch.
+  if (reference && reference !== description) {
+    const shortPayload = emvco(reference);
+    if (shortPayload) {
+      return { payload: shortPayload, imageUrl: quickLink(reference), description: reference, invalid: false };
     }
-    return { payload: null, imageUrl, invalid: true };
   }
+  return { payload: null, imageUrl: null, description, invalid: true };
 }
 
 export function VietQrPaymentModal({
@@ -216,13 +236,11 @@ export function VietQrPaymentModal({
   onClose: () => void;
   onPaymentConfirmed?: (request: VietQrPaymentRequest) => void;
 }) {
-  const client = useQueryClient();
   const network = useNetworkStatus();
   const titleId = useId();
   const descriptionId = useId();
   const panelRef = useDialog(true, onClose);
   const initialized = useRef(false);
-  const announcedReceipt = useRef<string | null>(null);
   const [selectedRequest, setSelectedRequest] =
     useState<VietQrPaymentRequest | null>(null);
   const [qrImage, setQrImage] = useState<{
@@ -231,6 +249,15 @@ export function VietQrPaymentModal({
   } | null>(null);
   const [qrError, setQrError] = useState(false);
   const [imageFailed, setImageFailed] = useState(false);
+  // P1-e: ảnh QR đã nằm sẵn trong cache có thể hoàn tất TRƯỚC khi React kịp gắn
+  // onError/onLoad. Khi đó khung mã hiển thị ảnh vỡ mà `imageFailed` vẫn false,
+  // nên nhánh dự phòng vẽ QR tại máy không bao giờ chạy — nhân viên đứng nhìn ô
+  // trắng trước mặt khách. Callback ref đọc thẳng `complete`/`naturalWidth` của
+  // phần tử ngay lúc nó được gắn vào cây.
+  const attachRemoteQr = useCallback((node: HTMLImageElement | null) => {
+    if (!node) return;
+    if (node.complete && node.naturalWidth === 0) setImageFailed(true);
+  }, []);
   const [copiedField, setCopiedField] = useState<string | null>(null);
 
   // Đếm ngược 15 phút (900 giây) liên tục từng giây ngay từ khi mở modal
@@ -268,9 +295,24 @@ export function VietQrPaymentModal({
     settings?.bank_account_no
   );
 
+  // Dữ liệu màn hình dùng cho memo dự phòng — cùng thứ tự server chọn tên xe
+  // (loại xe → biển số → mã nội bộ). Xem transferContent.ts.
+  const memoContext = useMemo(
+    () => ({
+      payerName,
+      vehicleName:
+        vehicle.vehicle_type?.trim() ||
+        vehicle.license_plate?.trim() ||
+        vehicle.internal_code?.trim() ||
+        "",
+      internalCode: vehicle.internal_code?.trim() || "",
+    }),
+    [payerName, vehicle.vehicle_type, vehicle.license_plate, vehicle.internal_code],
+  );
+
   // Load the existing request before creating one.
   const activeQuery = useQuery({
-    queryKey: ["vietqr-active", vehicle.id, saleId ?? null],
+    queryKey: vietqrActiveQueryKey(vehicle.id, saleId),
     queryFn: () => api.getActiveVietQrRequest(vehicle.id, saleId),
     enabled: isConfigured,
     staleTime: 0,
@@ -381,7 +423,7 @@ export function VietQrPaymentModal({
       const detailsMatch =
         activeQuery.data.amount === amount &&
         (!payerName || activeQuery.data.payer_name === payerName.trim());
-      const isQrValid = !paymentQrPayload(activeQuery.data, settings).invalid;
+      const isQrValid = !paymentQrPayload(activeQuery.data, settings, memoContext).invalid;
       const isReceived =
         activeQuery.data.status === "RECEIVED" ||
         activeQuery.data.status === "CONFIRMED";
@@ -406,6 +448,7 @@ export function VietQrPaymentModal({
     amount,
     payerName,
     settings,
+    memoContext,
     createMutation,
     replaceMutation,
   ]);
@@ -434,9 +477,7 @@ export function VietQrPaymentModal({
     }
   }, [requestQuery.data]);
 
-  const verifiedReceipt =
-    !!request?.bank_transaction_id &&
-    (request.status === "RECEIVED" || request.status === "CONFIRMED");
+  const verifiedReceipt = isVerifiedReceipt(request);
   const matchQuery = useQuery({
     queryKey: ["vietqr-match", request?.id],
     queryFn: () => api.getVietQrMatchingStatus(request!.id),
@@ -449,24 +490,11 @@ export function VietQrPaymentModal({
     refetchIntervalInBackground: false,
     retry: false,
   });
-  useEffect(() => {
-    if (!request || !verifiedReceipt || announcedReceipt.current === request.id)
-      return;
-    announcedReceipt.current = request.id;
-    toast.success("Đã nhận tiền vào tài khoản", {
-      description:
-        "Ngân hàng đã xác minh đúng tài khoản, số tiền và nội dung chuyển khoản.",
-    });
-    for (const queryKey of [
-      ["sale"],
-      ["sales"],
-      ["receivables"],
-      ["dashboard"],
-      ["payments"],
-    ]) {
-      void client.invalidateQueries({ queryKey });
-    }
-  }, [request, verifiedReceipt, client]);
+  // P1-c: thông báo "đã nhận tiền" KHÔNG còn nằm trong modal nữa. Modal bị mount
+  // theo cờ showVietQr của trang, nên bất cứ lần tắt cửa sổ nào cũng cắt luôn cả
+  // vòng xác minh. Việc báo nhận tiền dời lên useVietQrPaymentWatcher ở cấp trang
+  // (dùng chung một mã cache với activeQuery nên không nhân đôi gọi server), modal
+  // chỉ việc hiển thị trạng thái do server trả về.
 
   // Đếm ngược 15 phút thực tế, giảm từng giây một cách mượt mà và chính xác
   const remainingSeconds = Math.max(
@@ -537,7 +565,7 @@ export function VietQrPaymentModal({
     replaceMutation.mutate();
   };
 
-  const qrResult = paymentQrPayload(request, settings);
+  const qrResult = paymentQrPayload(request, settings, memoContext);
   const qrPayload = qrResult.payload;
   const qrImageUrl = qrResult.imageUrl;
 
@@ -549,27 +577,9 @@ export function VietQrPaymentModal({
     request?.bank_account_no || settings?.bank_account_no || "";
   const displayAccountName =
     request?.bank_account_name || settings?.bank_account_name || "";
-  const displayTransferContent = (() => {
-    // Điều ngân hàng tự điền khi quét mã = điều màn hình hiển thị — MỘT chuỗi
-    // duy nhất do server sinh, không tự bịa lại để lệch đối soát.
-    const serverContent = request?.transfer_content?.trim();
-    if (serverContent) return serverContent;
-    const agreement = request?.agreement_text?.trim();
-    if (agreement) return agreement;
-    // Dự phòng cuối cho mã cũ chưa có transfer_content: dựng đúng thứ tự mới —
-    // MÃ ĐỐI SOÁT đứng ĐẦU (sống sót khi ngân hàng/SePay cắt memo), theo sau là
-    // (tên khách) thanh toán tiền xe (tên xe) - (mã xe); mã xe chỉ một lần.
-    const payer =
-      request?.payer_name?.trim() || payerName?.trim() || "Khách mua xe";
-    const vehicleName =
-      vehicle.vehicle_type?.trim() ||
-      vehicle.vehicle_subtitle?.trim().split(" · ")[0]?.trim() ||
-      vehicle.vehicle_title?.trim() ||
-      "xe";
-    const code = vehicle.internal_code?.trim();
-    const ref = request?.qr_reference || saleCode || "CAREM GD…";
-    return `${ref} ${payer} thanh toán tiền xe ${vehicleName}${code ? ` - ${code}` : ""}`;
-  })();
+  // Điều ngân hàng tự điền khi quét mã = điều màn hình hiển thị = điều nút sao
+  // chép trả ra: đúng chuỗi đã nhúng vào payload/addInfo, không dựng lại.
+  const displayTransferContent = qrResult.description;
 
   // Mã mới → ưu tiên ảnh VietQR chính thống; chỉ vẽ QR nội bộ khi ảnh lỗi
   useEffect(() => {
@@ -895,6 +905,7 @@ export function VietQrPaymentModal({
                         <span className="vietqr-qr-corner vietqr-qr-corner--bl" aria-hidden="true" />
                         <span className="vietqr-qr-corner vietqr-qr-corner--br" aria-hidden="true" />
                         <img
+                          ref={attachRemoteQr}
                           src={qrImageUrl}
                           width={220}
                           alt="Mã QR chuyển khoản"

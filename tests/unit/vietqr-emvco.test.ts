@@ -103,7 +103,7 @@ describe("VietQR EMVCo & Banks", () => {
 
   it("keeps Vietnamese diacritics in the bank pre-fill exactly as displayed", () => {
     const description =
-      "Nguyễn Văn An thanh toán tiền xe Honda Vision - XE-0101 với giá: 35.000.000; Mã giao dịch là: CAREM GD01001";
+      "Nguyễn Văn An thanh toán tiền xe Honda Vision - XE-0101 CAREM GD01001";
     const payload = buildVietQrEmvCoPayload({
       bankBin: "970422", accountNo: "0987654321", amount: 35000000, description,
     });
@@ -117,6 +117,19 @@ describe("VietQR EMVCo & Banks", () => {
     });
     // addInfo giải mã ra đúng từng ký tự nội dung hiển thị trên màn hình.
     expect(new URL(link).searchParams.get("addInfo")).toBe(description);
+  });
+
+  it("từ chối memo vượt trần byte của thẻ EMVCo thay vì phát hành TLV sai quy cách", () => {
+    // 107 ký tự nhưng 120 byte UTF-8: độ dài tag sẽ thành 3 chữ số, app ngân
+    // hàng đọc lệch mọi thẻ phía sau. Trần ký tự của Napas (130) KHÔNG đủ.
+    const description =
+      "Nguyễn Văn An thanh toán tiền xe Honda Vision - XE-0101 với giá: 35.000.000; Mã giao dịch là: CAREM GD01001";
+    const input = { bankBin: "970422", accountNo: "0987654321", amount: 35000000, description };
+
+    expect(description.length).toBeLessThanOrEqual(130);
+    expect(() => buildVietQrEmvCoPayload(input)).toThrow("giới hạn byte");
+    // Ảnh VietQR vẫn nhận chuỗi dài theo trần Napas — hai đường có trần khác nhau.
+    expect(new URL(buildVietQrQuickLink(input)).searchParams.get("addInfo")).toBe(description);
   });
 
   it("searches banks catalog by code, BIN or name", () => {

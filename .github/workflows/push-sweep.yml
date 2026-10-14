@@ -1,0 +1,32 @@
+# Lược Web Push định kỳ — bảo đảm hàng đợi push_deliveries được tiêu ngay cả
+# khi không có trình nào mở app (tùy chọn: client tự rút khi online đã đủ cho
+# nhu cầu thực tế). Cần repo secrets: PUSH_SWEEP_TOKEN + VAPID đã cấu hình trên
+# Edge; nếu thiếu secrets, job thoát không hành động (không fail dây chuyền).
+name: push-sweep
+on:
+  schedule:
+    - cron: '*/15 * * * *'
+  workflow_dispatch: {}
+permissions: {}
+concurrency:
+  group: push-sweep
+  cancel-in-progress: false
+jobs:
+  sweep:
+    if: ${{ vars.ENABLE_PUSH_SWEEP == 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Drain push queue
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          PUSH_SWEEP_TOKEN: ${{ secrets.PUSH_SWEEP_TOKEN }}
+        run: |
+          if [ -z "$SUPABASE_URL" ] || [ -z "$PUSH_SWEEP_TOKEN" ]; then
+            echo "Push sweep secrets not configured — skipping (client-side drain remains active)."
+            exit 0
+          fi
+          curl -sS -X POST "$SUPABASE_URL/functions/v1/push-dispatch" \
+            -H "Authorization: Bearer $PUSH_SWEEP_TOKEN" \
+            -H "Content-Type: application/json" \
+            --data '{}' --max-time 25 -w '\nHTTP %{http_code}\n'

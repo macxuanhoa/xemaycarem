@@ -25,7 +25,7 @@ const configuration = join(temporary, 'deno.json');
 await writeFile(configuration, JSON.stringify({ compilerOptions: { strict: true }, nodeModulesDir: 'none', lock: false }));
 // Retain operating-system runtime settings, explicitly omit application credentials.
 const environment = Object.fromEntries(Object.entries(process.env).filter(([name]) => /^(PATH|SystemRoot|WINDIR|TEMP|TMP|USERPROFILE|LOCALAPPDATA|APPDATA|DENO_DIR)$/i.test(name)));
-const functions = ['manage-users', 'process-message', 'ai-assist', 'reset-owner', 'bank-webhook', 'post-ai'];
+const functions = ['manage-users', 'process-message', 'ai-assist', 'reset-owner', 'bank-webhook', 'post-ai', 'push-dispatch'];
 const entries = functions.map(name => resolve(`supabase/functions/${name}/index.ts`));
 
 async function checkedRun(argumentsList) {
@@ -116,7 +116,7 @@ try {
     await smoke(name, false);
     if (name !== 'reset-owner') await smoke(name, true);
   }
-  console.log('PASS native Deno typecheck for all6 Edge entrypoints and11 isolated HTTP smoke configurations. Hosted JWT/GoTrue/PostgREST/provider behavior NOT VERIFIED.');
+  console.log('PASS native Deno typecheck for all7 Edge entrypoints and12 isolated HTTP smoke configurations. Hosted JWT/GoTrue/PostgREST/provider behavior NOT VERIFIED.');
 } finally {
   // mkdtemp creates only this isolated verification configuration directory.
   assert.equal(dirname(await realpath(temporary)), temporaryRoot);

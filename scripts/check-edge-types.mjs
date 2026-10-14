@@ -30,7 +30,7 @@ host.getSourceFile = (file, languageVersion, onError, shouldCreateNewSourceFile)
   ? ts.createSourceFile(file, shim, languageVersion)
   : originalGetSourceFile(file, languageVersion, onError, shouldCreateNewSourceFile)
 const sourceFiles = ['manage-users/index.ts', 'reset-owner/index.ts', 'ai-assist/index.ts', 'ai-assist/contracts.ts', 'ai-assist/copilot.ts', 'process-message/index.ts']
-  .concat(['bank-webhook/index.ts', 'post-ai/index.ts'])
+  .concat(['bank-webhook/index.ts', 'post-ai/index.ts', 'push-dispatch/index.ts', '_shared/webpush.ts', '_shared/push-payload.ts'])
   .map(file => resolve('supabase/functions', file))
 const program = ts.createProgram([shimPath, ...sourceFiles], options, host)
 const diagnostics = ts.getPreEmitDiagnostics(program)

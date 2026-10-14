@@ -77,3 +77,9 @@ verify_jwt = true
 # The handler performs that check before its service-role-only ingest RPC.
 [functions.bank-webhook]
 verify_jwt = false
+
+# push-dispatch verifies the caller itself (service key, PUSH_SWEEP_TOKEN, or a
+# user JWT through GoTrue getUser for self-drain). Platform JWT verification
+# would reject the sweep token, so it stays off — same pattern as bank-webhook.
+[functions.push-dispatch]
+verify_jwt = false

@@ -183,9 +183,6 @@ async function installMock(
       calls.resolve.push(body());
       return reply({ approval_id: approvalId, action: "APPROVE", sale_id: saleId });
     }
-    if (name === "get_sale_communication") return reply(null);
-    if (name === "list_sale_contacts" || name === "list_sale_thank_you_queue")
-      return reply([]);
     if (name === "get_sale")
       return reply({
         id: saleId,

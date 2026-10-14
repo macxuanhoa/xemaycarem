@@ -20734,49 +20734,6 @@ html[data-theme="dark"] .header-theme-toggle {
   white-space: nowrap;
 }
 
-.customer-comm-list {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.customer-comm-row {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 10px 14px;
-  border: 1px solid var(--line, #e3e4ea);
-  border-radius: 12px;
-  background: #fff;
-  font-size: 13px;
-}
-
-.customer-comm-date {
-  flex: 0 0 92px;
-  color: var(--muted, #64748b);
-  font-size: 12px;
-  font-variant-numeric: tabular-nums;
-}
-
-.customer-comm-body {
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 1px;
-}
-
-.customer-comm-body strong {
-  font-size: 12.5px;
-}
-
-.customer-comm-body small {
-  display: block;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
 @media (max-width: 640px) {
   .customer-history-head h2 {
     font-size: 19px;
@@ -20801,10 +20758,6 @@ html[data-theme="dark"] .header-theme-toggle {
   .customer-purchase-row {
     padding: 12px 14px;
   }
-
-  .customer-comm-date {
-    flex-basis: 78px;
-  }
 }
 
 [data-theme="dark"] .customer-summary-strip {
@@ -20824,10 +20777,6 @@ html[data-theme="dark"] .header-theme-toggle {
   background: rgba(255, 255, 255, 0.04);
 }
 
-[data-theme="dark"] .customer-comm-row {
-  background: rgba(255, 255, 255, 0.02);
-}
-
 [data-theme="dark"] .customer-debt-value,
 [data-theme="dark"] .customer-debt-tag {
   color: #f87171;
@@ -20838,3 +20787,96 @@ html[data-theme="dark"] .header-theme-toggle {
   color: #4ade80;
 }
 
+/* ---- Thanh toán & Đối soát (PaymentAutomationCard) ---- */
+.pa-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 12px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 650;
+  line-height: 1.2;
+  border: 1px solid transparent;
+  align-self: flex-start;
+  white-space: nowrap;
+}
+.pa-status.tone-neutral { background: #f1f5f9; color: #475569; border-color: #e2e8f0; }
+.pa-status.tone-info { background: #eff6ff; color: #1d4ed8; border-color: #dbeafe; }
+.pa-status.tone-success { background: #ecfdf5; color: #047857; border-color: #d1fae5; }
+.pa-status.tone-warning { background: #fffbeb; color: #b45309; border-color: #fef3c7; }
+.pa-status.tone-danger { background: #fef2f2; color: #b91c1c; border-color: #fee2e2; }
+
+.pa-account {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 16px;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  background: #f8fafc;
+  flex-wrap: wrap;
+}
+.pa-account-icon {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 10px;
+  background: #eaf3ec;
+  color: #047857;
+  flex-shrink: 0;
+}
+.pa-account-body { display: flex; flex-direction: column; gap: 2px; flex: 1; min-width: 160px; }
+.pa-account-bank { font-size: 0.95rem; font-weight: 700; color: #0f172a; }
+.pa-account-meta { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.pa-account-no { font-size: 0.95rem; font-weight: 650; letter-spacing: 0.5px; font-variant-numeric: tabular-nums; color: #1e293b; }
+
+.pa-conn-hint { margin: 0; font-size: 0.85rem; color: #475569; }
+
+.pa-checklist {
+  list-style: none;
+  margin: 4px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.pa-check-item { display: flex; align-items: flex-start; gap: 10px; }
+.pa-check-dot { flex-shrink: 0; margin-top: 1px; }
+.pa-check-dot.s-done { color: #047857; }
+.pa-check-dot.s-pending { color: #b45309; }
+.pa-check-dot.s-fail { color: #b91c1c; }
+.pa-check-dot.s-unknown { color: #94a3b8; }
+.pa-check-text { display: flex; flex-direction: column; gap: 1px; }
+.pa-check-label { font-size: 0.875rem; font-weight: 600; color: #0f172a; }
+.pa-check-note { font-size: 0.78rem; color: #64748b; }
+
+.pa-metric {
+  padding: 14px 16px;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  background: #ffffff;
+}
+
+.pa-advanced { border: 1px dashed #cbd5e1; }
+
+@media (max-width: 640px) {
+  .pa-account { gap: 10px; }
+  .pa-account .button { width: 100%; justify-content: center; }
+}
+
+[data-theme="dark"] .pa-status.tone-neutral { background: #171821; color: #a5b4fc; border-color: #232531; }
+[data-theme="dark"] .pa-status.tone-info { background: #171d2e; color: #93c5fd; border-color: #232c44; }
+[data-theme="dark"] .pa-status.tone-success { background: #0c1f1a; color: #34d399; border-color: #14352c; }
+[data-theme="dark"] .pa-status.tone-warning { background: #211a0c; color: #fbbf24; border-color: #3a2f14; }
+[data-theme="dark"] .pa-status.tone-danger { background: #210f0f; color: #f87171; border-color: #3a1616; }
+[data-theme="dark"] .pa-account { background: #101117; border-color: #232531; }
+[data-theme="dark"] .pa-account-icon { background: #10231d; color: #34d399; }
+[data-theme="dark"] .pa-account-bank,
+[data-theme="dark"] .pa-account-no,
+[data-theme="dark"] .pa-check-label { color: #e6e9f2; }
+[data-theme="dark"] .pa-conn-hint,
+[data-theme="dark"] .pa-check-note { color: #8f96a8; }
+[data-theme="dark"] .pa-metric { background: #101117; border-color: #232531; }
+[data-theme="dark"] .pa-advanced { border-color: #2c2f3c; }

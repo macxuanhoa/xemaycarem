@@ -17,7 +17,7 @@ import { SharedScheduleCard } from "@/features/users/components/SharedScheduleCa
 import { AnnouncementManager } from "./AnnouncementManager";
 import { PaymentSettingsCard } from "./PaymentSettingsCard";
 import { ShorthandDictionaryCard } from "./ShorthandDictionaryCard";
-import { SmartSalesAutomationCard } from "./SmartSalesAutomationCard";
+import { PaymentAutomationCard } from "./PaymentAutomationCard";
 import { SeasonalThemeCard } from "./SeasonalThemeCard";
 export default function SettingsPage() {
   const { profile, user, refresh } = useAuth();
@@ -127,7 +127,7 @@ export default function SettingsPage() {
             className={`settings-nav-item ${activeTab === "MESSAGES" ? "active" : ""}`}
             onClick={() => setActiveTab("MESSAGES")}
           >
-            <span>Tin nhắn &amp; Bảng tin</span>
+            <span>Bảng tin nội bộ</span>
           </button>
         )}
         {isOwner(profile) && (
@@ -137,7 +137,7 @@ export default function SettingsPage() {
             className={`settings-nav-item ${activeTab === "AUTOMATION" ? "active" : ""}`}
             onClick={() => setActiveTab("AUTOMATION")}
           >
-            <span>Tự động bán hàng</span>
+            <span>Thanh toán &amp; Đối soát</span>
           </button>
         )}
         {isOwner(profile) && (
@@ -240,7 +240,7 @@ export default function SettingsPage() {
 
       {showMessages && <AnnouncementManager />}
 
-      {showAutomation && <SmartSalesAutomationCard />}
+      {showAutomation && <PaymentAutomationCard onOpenPayment={() => setActiveTab("PAYMENT")} />}
 
       {showTheme && <SeasonalThemeCard />}
 

@@ -1,6 +1,6 @@
 import { test, expect } from "@playwright/test";
 
-// Announcement console (Cài đặt → Tin nhắn & Bảng tin) contract: the OWNER sees
+// Announcement console (Cài đặt → Bảng tin nội bộ) contract: the OWNER sees
 // real derived status per announcement (đang hiển thị / hẹn giờ / hết hạn / tạm
 // ngừng), the stat cards and filters agree with each other, the composer fills
 // from a ready template and previews on both device frames, and nothing
@@ -117,7 +117,7 @@ async function installMock(page, { items = [] } = {}) {
 async function openConsole(page) {
   await page.goto("/settings");
   await page
-    .getByRole("button", { name: /Tin nhắn & Bảng tin/ })
+    .getByRole("button", { name: /Bảng tin nội bộ/ })
     .click();
   await expect(page.locator(".announcement-console")).toBeVisible();
 }

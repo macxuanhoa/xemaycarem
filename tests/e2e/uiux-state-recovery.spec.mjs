@@ -56,13 +56,11 @@ for (const name of ['list_knowledge', 'search_knowledge']) {
   });
 }
 
-test('mobile customer history opens with the keyboard and communications failure is retryable', async ({ page }) => {
-  const calls = await installUiuxMock(page, { failRpc: 'list_customer_communications' });
-  let recover = false;
+test('mobile customer history opens with the keyboard and closes back to the opener', async ({ page }) => {
+  const calls = await installUiuxMock(page);
   await page.setViewportSize({ width: 390, height: 844 });
   await page.route(rpcUrl('list_customers'), route => reply(route, { items: [customer], total: 1 }));
   await page.route(rpcUrl('get_customer_history'), route => reply(route, customer));
-  await page.route(rpcUrl('list_customer_communications'), route => recover ? reply(route, []) : route.fallback());
   await page.goto('/customers');
   const opener = page.getByRole('button', { name: `Xem lịch sử mua xe của ${customer.customer_name}` });
   await expect(opener).toBeVisible();
@@ -72,12 +70,6 @@ test('mobile customer history opens with the keyboard and communications failure
   await page.keyboard.press('Enter');
   const dialog = page.getByRole('dialog');
   await expect(dialog).toBeVisible();
-  const alert = dialog.getByRole('alert').filter({ hasText: 'Fixture unavailable' });
-  await expect(alert).toBeVisible();
-  await expect(dialog.getByText('Chưa có lịch sử liên hệ.', { exact: true })).toHaveCount(0);
-  recover = true;
-  await alert.getByRole('button', { name: 'Thử lại' }).click();
-  await expect(dialog.getByText('Chưa có lịch sử liên hệ.', { exact: true })).toBeVisible();
   await page.keyboard.press('Escape');
   await expect(dialog).toHaveCount(0);
   await expect(opener).toBeFocused();

@@ -102,11 +102,6 @@ export function CustomersPage() {
     onSuccess: () =>
       client.invalidateQueries({ queryKey: ["showroom-leads"] }),
   });
-  const communicationQuery = useQuery({
-    queryKey: ["customer-communications", selectedPhone],
-    queryFn: () => api.call<Array<{ id: string; channel: string; message_type: string; status: string; created_at: string; message_preview: string }>>("list_customer_communications", { p_phone: selectedPhone! }),
-    enabled: !!selectedPhone,
-  });
 
   const handleSelectCustomer = (phone: string) => {
     const trimmed = phone.trim();
@@ -584,37 +579,6 @@ export function CustomersPage() {
                       </div>
                     ))}
                   </div>
-                  <h3 className="customer-history-subtitle">Lịch sử liên hệ</h3>
-                  {communicationQuery.isPending ? (
-                    <Loading />
-                  ) : communicationQuery.isError ? (
-                    <ErrorState
-                      error={communicationQuery.error}
-                      retry={() => void communicationQuery.refetch()}
-                    />
-                  ) : communicationQuery.data?.length ? (
-                    <div className="customer-comm-list">
-                      {communicationQuery.data.map((item) => (
-                        <div key={item.id} className="customer-comm-row">
-                          <span className="customer-comm-date">
-                            {dateLabel(item.created_at)}
-                          </span>
-                          <span className="customer-comm-body">
-                            <strong>
-                              {item.channel === "ZALO_ZNS" ? "Zalo" : item.channel} ·{" "}
-                              {item.message_type === "THANK_YOU"
-                                ? "Cảm ơn sau mua xe"
-                                : item.message_type}
-                            </strong>
-                            <small className="muted">{item.message_preview}</small>
-                          </span>
-                          <Badge status={item.status} />
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <p className="muted">Chưa có lịch sử liên hệ.</p>
-                  )}
                 </div>
               ) : null}
             </div>

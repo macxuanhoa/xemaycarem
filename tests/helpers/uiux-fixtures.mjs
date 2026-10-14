@@ -344,7 +344,7 @@ export async function installUiuxMock(
       });
     if (name === "validate_import_vehicles")
       return reply({ duplicates: [], errors: [] });
-    if (name === "search_knowledge" || name === "list_customer_communications")
+    if (name === "search_knowledge")
       return reply([]);
     if (name.startsWith("list_"))
       return reply({

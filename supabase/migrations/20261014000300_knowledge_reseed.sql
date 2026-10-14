@@ -366,7 +366,9 @@ Toàn bộ hàm `public` mà ứng dụng gọi được, lấy từ định ngh
 | check_user_can_hard_delete | p_user_id UUID | OWNER |
 | check_vehicle_duplicates | p_data jsonb | OWNER, MANAGER, STAFF |
 | claim_message | p_message_id uuid,p_provider_mode text | OWNER, MANAGER, STAFF |
+| claim_push_deliveries | p_worker text, p_limit integer DEFAULT 20, p_user uuid DEFAULT NULL | kiểm tra quyền riêng trong hàm |
 | complete_password_change | không tham số | kiểm tra quyền riêng trong hàm |
+| complete_push_delivery | p_id uuid, p_outcome text, p_error text DEFAULT NULL | kiểm tra quyền riêng trong hàm |
 | confirm_bank_transaction | p_data jsonb | kiểm tra quyền riêng trong hàm |
 | confirm_vietqr_payment | p_data jsonb | kiểm tra quyền riêng trong hàm |
 | create_showroom_lead | p_data jsonb | kiểm tra quyền riêng trong hàm |
@@ -383,6 +385,7 @@ Toàn bộ hàm `public` mà ứng dụng gọi được, lấy từ định ngh
 | find_matching_vehicles | p_query text, p_limit integer DEFAULT 8 | OWNER, MANAGER, STAFF |
 | finish_message | p_message_id uuid,p_provider_message_id text,p_lease_token uuid | kiểm tra quyền riêng trong hàm |
 | finish_mock_message | p_message_id uuid,p_provider_message_id text | OWNER, MANAGER, STAFF |
+| forget_push_subscription | p_endpoint text | kiểm tra quyền riêng trong hàm |
 | get_acquisition_for_vehicle | p_vehicle_id uuid | OWNER, MANAGER |
 | get_active_vietqr_request | p_vehicle_id uuid,p_sale_id uuid DEFAULT NULL | kiểm tra quyền riêng trong hàm |
 | get_bank_webhook_state | không tham số | OWNER |
@@ -393,6 +396,7 @@ Toàn bộ hàm `public` mà ứng dụng gọi được, lấy từ định ngh
 | get_payment_receipt_request | p_request_id uuid | OWNER, MANAGER, STAFF |
 | get_post_ai_usage | p_days integer DEFAULT 7 | OWNER |
 | get_post_studio_context | p_vehicle_id uuid | OWNER, MANAGER, STAFF |
+| get_push_enabled | không tham số | OWNER, MANAGER, STAFF |
 | get_sale | p_id uuid | OWNER, MANAGER, STAFF |
 | get_sale_communication | p_sale_id uuid | OWNER, MANAGER, STAFF |
 | get_seasonal_theme | không tham số | OWNER, MANAGER, STAFF |
@@ -419,6 +423,7 @@ Toàn bộ hàm `public` mà ứng dụng gọi được, lấy từ định ngh
 | list_expenses | p_filters jsonb DEFAULT ''{}''::jsonb | OWNER, MANAGER |
 | list_knowledge | không tham số | OWNER, MANAGER, STAFF |
 | list_message_templates | không tham số | OWNER, MANAGER, STAFF |
+| list_my_push_devices | không tham số | OWNER, MANAGER, STAFF |
 | list_notifications | p_filters jsonb DEFAULT ''{}''::jsonb | OWNER, MANAGER, STAFF |
 | list_payment_receipts | p_sale_id uuid | OWNER, MANAGER, STAFF |
 | list_pending_approvals | p_filters jsonb DEFAULT ''{}''::jsonb | OWNER |
@@ -446,6 +451,7 @@ Toàn bộ hàm `public` mà ứng dụng gọi được, lấy từ định ngh
 | prepare_payment_receipt | p_data jsonb | OWNER, MANAGER, STAFF |
 | preview_message_template | p_data jsonb | OWNER, MANAGER, STAFF |
 | register_identity_document_image | p_subject_type text, p_subject_id uuid, p_side text, p_storage_path text | OWNER, MANAGER |
+| register_push_subscription | p_endpoint text, p_p256dh text, p_auth text, p_label text DEFAULT NULL | OWNER, MANAGER, STAFF |
 | register_vehicle_image | p_vehicle_id uuid,p_storage_path text,p_display_order integer default 0 | OWNER, MANAGER, STAFF |
 | reject_payment_receipt | p_id uuid,p_reason text | OWNER, MANAGER |
 | remove_identity_document_image | p_subject_type text, p_subject_id uuid, p_side text | OWNER, MANAGER |
@@ -455,6 +461,7 @@ Toàn bộ hàm `public` mà ứng dụng gọi được, lấy từ định ngh
 | report | p_kind text, p_filters jsonb DEFAULT ''{}'' | OWNER, MANAGER |
 | report_client_issue | p_data jsonb | OWNER, MANAGER, STAFF |
 | request_delete_vehicle | p_id uuid, p_reason text | OWNER, MANAGER, STAFF |
+| request_push_test | không tham số | OWNER, MANAGER, STAFF |
 | request_sale_below_cost | p_data jsonb | OWNER, MANAGER, STAFF |
 | request_vehicle_duplicate_review | p_data jsonb | OWNER, MANAGER, STAFF |
 | require_password_change | p_user_id uuid, p_reset_pending boolean DEFAULT false | OWNER |
@@ -479,9 +486,12 @@ Toàn bộ hàm `public` mà ứng dụng gọi được, lấy từ định ngh
 | sell_vehicle | p_data jsonb | OWNER, MANAGER, STAFF |
 | set_announcement_active | p_id uuid, p_active boolean | OWNER |
 | set_post_draft_status | p_id uuid, p_status text, p_add_to_library boolean DEFAULT false | OWNER, MANAGER, STAFF |
+| set_push_enabled | p_enabled boolean | OWNER, MANAGER, STAFF |
 | skip_message | p_message_id uuid,p_error_code text,p_safe_message text | OWNER, MANAGER, STAFF |
 | toggle_vehicle_favorite | p_vehicle_id uuid | OWNER, MANAGER, STAFF |
+| touch_push_subscriptions | p_ids uuid[] | kiểm tra quyền riêng trong hàm |
 | transfer_ownership | p_target_user uuid | OWNER |
+| unregister_push_subscription | p_id uuid | OWNER, MANAGER, STAFF |
 | update_profile | p_id uuid, p_data jsonb | OWNER, MANAGER, STAFF |
 | update_sale_due_date | p_sale_id uuid,p_due_date date | OWNER, MANAGER, STAFF |
 | update_showroom_lead_status | p_id uuid, p_status text | OWNER, MANAGER, STAFF |
@@ -530,11 +540,13 @@ Trích từ cây route trong `src/App.tsx` (thành phần `Protected` kế thừ
 
 | Function | Vai trò |
 | --- | --- |
+| _shared | (không có index.ts) |
 | ai-assist | No service-role/database credential exists in this function. Model output is either a draft for human review or a validated plan for explicit read RPCs. |
 | bank-webhook | Inbound transfers are authenticated before database access. The response is identical for matched/unmatched/replayed outcomes and contains no financial data. |
 | manage-users | Secure administrative user management for Xe CRM. OWNER performs all account administration; MANAGER may only re-assign the |
 | post-ai | Cà Rem AI Sales Assistant (post-ai). GEMINI_API_KEY chỉ tồn tại trong Edge Function Secrets; hàm KHÔNG có service-role key: mọi dữ liệu xe, bộ nhớ thương |
 | process-message | Provider-agnostic outbox worker. V1 supports MOCK/DISABLED; V2 registers the official adapters (ZALO_OA, FB_MESSENGER, SMS) which fail closed WITHOUT credentials. |
+| push-dispatch | push-dispatch — Edge Function gửi Web Push của Cà Rem (Phase 2.3). Bất kỳ ai gọi cũng chỉ có thể "rút hết việc của CHÍNH HỌ" (Bearer = JWT user) |
 | reset-owner | Retired recovery endpoint. Recovery uses Supabase Auth or owner-authorized manage-users operations; this endpoint can no longer alter any account. |', 'STAFF', 'docs/SYSTEM_REFERENCE.md'),
   ('system-reference-4', 'Tham chiếu hệ thống (sinh tự động)', 'Bucket ảnh riêng tư', '## Bucket ảnh riêng tư
 

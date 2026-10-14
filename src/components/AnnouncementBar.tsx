@@ -3,7 +3,6 @@ import { useQuery } from "@tanstack/react-query";
 import {
   CheckCircle2,
   Info,
-  Megaphone,
   OctagonAlert,
   TriangleAlert,
   X,
@@ -23,17 +22,28 @@ const TYPE_ICON: Record<AnnouncementType, typeof Info> = {
 
 function Message({ a }: { a: Announcement }) {
   const text = a.title ? `${a.title}: ${a.message}` : a.message;
+  // Tiêu đề đậm, nội dung thường: mắt nắm được ý chính ngay cả khi dòng
+  // chữ đang chạy ngang hoặc chỉ lướt qua trong tích tắc.
+  const body = a.title ? (
+    <>
+      <strong className="announcement-title">{a.title}</strong>
+      {": "}
+      {a.message}
+    </>
+  ) : (
+    a.message
+  );
   if (a.display_mode === "SCROLLING") {
     return (
       <span className="announcement-track" aria-label={text}>
-        <span className="announcement-segment">{text}</span>
+        <span className="announcement-segment">{body}</span>
         <span className="announcement-segment" aria-hidden="true">
-          {text}
+          {body}
         </span>
       </span>
     );
   }
-  return <span className="announcement-static-text">{text}</span>;
+  return <span className="announcement-static-text">{body}</span>;
 }
 
 export function AnnouncementBar() {
@@ -73,9 +83,6 @@ export function AnnouncementBar() {
         className={`announcement-bar announcement-${primary.type}`}
         role={primary.type === "CRITICAL" ? "alert" : "status"}
       >
-        <span className="announcement-badge" aria-hidden="true">
-          <Megaphone size={15} />
-        </span>
         <span className={`announcement-icon announcement-icon-${primary.type}`}>
           <Icon size={16} />
         </span>

@@ -3,8 +3,7 @@ import { test, expect } from "@playwright/test";
 // Announcement console (Cài đặt → Bảng tin nội bộ) contract: the OWNER sees
 // real derived status per announcement (đang hiển thị / hẹn giờ / hết hạn / tạm
 // ngừng), the stat cards and filters agree with each other, the composer fills
-// from a ready template and previews on both device frames, and nothing
-// overflows the 390px viewport.
+// from a ready template, and nothing overflows the 390px viewport.
 const ownerId = "00000000-0000-4000-8000-000000000009";
 const hour = 3_600_000;
 
@@ -185,7 +184,7 @@ test("Owner console renders derived status, matching stats and filters", async (
   ).toBeDisabled();
 });
 
-test("Composer opens with templates, pill choices and dual-device preview", async ({
+test("Composer opens with templates and pill choices", async ({
   page,
 }) => {
   await installMock(page, { items: [announcement()] });
@@ -193,25 +192,22 @@ test("Composer opens with templates, pill choices and dual-device preview", asyn
 
   await page.getByRole("button", { name: /Tạo thông báo/ }).first().click();
   await expect(page.locator(".ac-form")).toBeVisible();
-  await expect(page.locator(".ac-device-desktop")).toBeVisible();
-  await expect(page.locator(".ac-device-phone")).toBeVisible();
-  await expect(
-    page.locator(".ac-device-phone .announcement-static-text"),
-  ).toHaveText("Nhập nội dung để xem trước.");
+  // Khung "Xem trước chân thực" đã gỡ hẳn: form chỉ còn nội dung, cách
+  // thể hiện và lịch — không có thiết bị giả lập trong popup soạn.
+  await expect(page.locator(".ac-preview")).toHaveCount(0);
 
-  // Sample content lands in the fields and in the live preview.
+  // Sample content lands in the fields.
   await page.getByRole("button", { name: "Lịch nghỉ lễ" }).click();
   await expect(page.locator(".ac-form textarea")).toContainText("Hotline");
-  await expect(
-    page.locator(".ac-device-desktop .announcement-static-text"),
-  ).toContainText("Lịch nghỉ lễ:");
+  await expect(page.locator(".ac-form input").first()).toHaveValue(
+    "Lịch nghỉ lễ",
+  );
 
   // Pill selectors are real toggles, not native selects.
   await page.getByRole("button", { name: "Khẩn cấp" }).click();
   await expect(
     page.locator('.ac-pill-option.ac-po-CRITICAL[aria-pressed="true"]'),
   ).toHaveCount(1);
-  await expect(page.locator(".ac-device .announcement-CRITICAL")).toHaveCount(2);
 
   // Quick schedule writes concrete Vietnam-time bounds into the datetime fields.
   await page.getByRole("button", { name: "7 ngày tới" }).click();

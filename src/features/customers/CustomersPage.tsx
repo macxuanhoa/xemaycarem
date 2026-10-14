@@ -526,8 +526,18 @@ export function CustomersPage() {
                             to={`/sales/${s.id}`}
                             className="text-link customer-purchase-name"
                           >
-                            <strong>{vehicleTitle(s)}</strong>
-                            {s.internal_code ? ` (${s.internal_code})` : ""}
+                            {/* Ưu tiên tên loại xe (Honda Wave, Sirius…) — chủ quán đọc là biết xe nào;
+                                biển số · khung chuyển xuống dòng phụ để không che mất tên. */}
+                            <strong>
+                              {s.vehicle_type && s.vehicle_type !== "Chưa phân loại"
+                                ? s.vehicle_type
+                                : vehicleTitle(s)}
+                            </strong>
+                            {s.vehicle_type && s.vehicle_type !== "Chưa phân loại" && (
+                              <small className="customer-purchase-plate">
+                                {vehicleTitle(s)}
+                              </small>
+                            )}
                           </Link>
                           <span className="customer-purchase-status">
                             {s.status !== "COMPLETED" && (

@@ -5,15 +5,12 @@ import {
   CalendarClock,
   CheckCircle2,
   Clock3,
-  Eye,
   FileText,
   Info,
   LayoutTemplate,
   Megaphone,
-  Monitor,
   OctagonAlert,
   Pencil,
-  Phone,
   Plus,
   Radio,
   RefreshCw,
@@ -971,35 +968,6 @@ function AnnouncementForm({
         </p>
       </section>
 
-      <section className="ac-preview">
-        <div className="ac-preview-head">
-          <span className="ac-section-label">
-            <Eye size={12} /> Xem trước chân thực
-          </span>
-          <span className="muted small">
-            Đúng màu, đúng icon và kiểu chạy mà nhân viên sẽ thấy
-          </span>
-        </div>
-        <div className="ac-preview-devices">
-          <div className="ac-device ac-device-desktop">
-            <span className="ac-device-label">
-              <Monitor size={12} /> Máy tính
-            </span>
-            <div className="ac-device-screen">
-              <PreviewBar draft={draft} />
-            </div>
-          </div>
-          <div className="ac-device ac-device-phone">
-            <span className="ac-device-label">
-              <Phone size={12} /> Điện thoại
-            </span>
-            <div className="ac-device-screen">
-              <PreviewBar draft={draft} phone />
-            </div>
-          </div>
-        </div>
-      </section>
-
       {error ? <ErrorState error={error} /> : null}
       </div>
 
@@ -1012,33 +980,5 @@ function AnnouncementForm({
         </Button>
       </div>
     </form>
-  );
-}
-
-function PreviewBar({ draft, phone = false }: { draft: Draft; phone?: boolean }) {
-  const Icon = TYPE_ICON[draft.type];
-  const composed = draft.title.trim()
-    ? `${draft.title.trim()}: ${draft.message.trim()}`
-    : draft.message.trim();
-  const preview = composed || "Nhập nội dung để xem trước.";
-  return (
-    <div
-      className={`announcement-bar announcement-${draft.type}`}
-      aria-hidden
-      role="presentation"
-    >
-      <span className={`announcement-icon announcement-icon-${draft.type}`}>
-        <Icon size={phone ? 14 : 16} />
-      </span>
-      <div className="announcement-content" data-mode={draft.display_mode}>
-        {draft.display_mode === "SCROLLING" ? (
-          <span className="announcement-track">
-            <span className="announcement-segment">{preview}</span>
-          </span>
-        ) : (
-          <span className="announcement-static-text">{preview}</span>
-        )}
-      </div>
-    </div>
   );
 }

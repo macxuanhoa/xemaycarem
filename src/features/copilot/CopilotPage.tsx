@@ -574,26 +574,18 @@ export default function CopilotPage() {
       {/* 3. Composer Dock: Khung nhập câu hỏi cố định dưới cùng chuẩn ChatGPT */}
       <div className="copilot-composer-dock">
         <div className="copilot-composer-inner">
-          {/* Hàng gợi ý câu hỏi nhanh */}
-          <div className="copilot-prompt-pill-bar">
+          {/* Câu hỏi nhanh — MỘT hàng mảnh cuộn ngang, không bao giờ dồn hàng
+              nên không choáng chỗ khung chat. Màn hình chào đã có 4 thẻ câu hỏi
+              chính nên hàng chip chỉ hiện khi đang trò chuyện (khỏi trùng lặp). */}
+          {turns.length > 0 && (
             <div
-              className="copilot-chips"
+              className="copilot-prompt-pill-bar"
               role="group"
-              aria-label="Câu hỏi gợi ý"
+              aria-label="Câu hỏi nhanh"
             >
-              {suggested.slice(0, 3).map(questionChip)}
+              {suggested.map(questionChip)}
             </div>
-            <details className="copilot-more-questions">
-              <summary>Câu hỏi khác</summary>
-              <div
-                className="copilot-chips"
-                role="group"
-                aria-label="Thêm câu hỏi gợi ý"
-              >
-                {suggested.slice(3).map(questionChip)}
-              </div>
-            </details>
-          </div>
+          )}
 
           {/* Form nhập câu hỏi chính */}
           <Card className="copilot-composer compact-card">
@@ -667,9 +659,6 @@ export default function CopilotPage() {
                     theo quyền của mình.
                   </p>
                 )}
-                <span className="copilot-disclaimer-note">
-                  Trợ lý Cà Rem đọc dữ liệu trực tiếp theo quyền hạn của bạn.
-                </span>
               </div>
 
               {ask.error != null && <ErrorState error={ask.error} />}

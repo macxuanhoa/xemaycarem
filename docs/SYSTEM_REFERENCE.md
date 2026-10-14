@@ -166,6 +166,7 @@ Trích từ cây route trong `src/App.tsx` (thành phần `Protected` kế thừ
 | `/docs/:slug` | đăng nhập |
 | `/receivables` | đăng nhập |
 | `/customers` | đăng nhập |
+| `/thong-bao` | đăng nhập |
 | `/settings` | đăng nhập |
 | `/acquisitions/new` | STAFF trở lên (trong lịch làm việc) |
 | `/intake` | STAFF trở lên (trong lịch làm việc) |

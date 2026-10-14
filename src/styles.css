@@ -9812,26 +9812,46 @@ mark.search-hit {
   border-top-color: #263345;
 }
 
-/* System announcement bar */
+/* ==========================================================================
+   Thanh thông báo hệ thống — hai kiểu thể hiện:
+   STATIC: dòng chữ đứng yên, tiêu đề đậm nắm ý chính trong một nhịp nhìn.
+   SCROLLING: chạy ngang vô hạn, mờ dần ở hai biên để chữ "tan" thay vì cấn.
+   Nhận diện mức độ bằng dải accent trái + icon trong chip màu mềm.
+   ========================================================================== */
 .announcement-bar {
+  --ann-accent: #64748b;
+  --ann-chip: rgba(100, 116, 139, 0.12);
+  position: relative;
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 9px 18px;
+  padding: 9px 16px 9px 20px;
   font-size: 13.5px;
-  line-height: 1.5;
+  line-height: 1.55;
+  letter-spacing: 0.05px;
   border-bottom: 1px solid var(--line, #e3e4ea);
-  background: #f1f5f9;
+  background: #f8fafc;
   color: #334155;
 }
-.announcement-badge {
-  display: inline-flex;
-  flex-shrink: 0;
-  opacity: 0.75;
+/* Dải accent trái: tinh gọn nhưng đủ để phân biệt INFO/CẢNH BÁO/KHẨN CẤP
+   từ xa mà không cần đọc chữ. */
+.announcement-bar::before {
+  content: "";
+  position: absolute;
+  inset: -1px auto -1px 0;
+  width: 4px;
+  background: var(--ann-accent);
 }
 .announcement-icon {
   display: inline-flex;
+  align-items: center;
+  justify-content: center;
   flex-shrink: 0;
+  width: 30px;
+  height: 30px;
+  border-radius: 10px;
+  color: var(--ann-accent);
+  background: var(--ann-chip);
 }
 .announcement-content {
   flex: 1;
@@ -9841,28 +9861,75 @@ mark.search-hit {
 .announcement-static-text {
   display: block;
   overflow-wrap: anywhere;
+  text-wrap: pretty;
+}
+.announcement-title {
+  font-weight: 700;
+}
+/* --- SCROLLING: hai đoạn lặp chạy liền mạch, hai biên hòa mờ --- */
+.announcement-content[data-mode="SCROLLING"] {
+  -webkit-mask-image: linear-gradient(
+    90deg,
+    transparent,
+    #000 32px,
+    #000 calc(100% - 32px),
+    transparent
+  );
+  mask-image: linear-gradient(
+    90deg,
+    transparent,
+    #000 32px,
+    #000 calc(100% - 32px),
+    transparent
+  );
 }
 .announcement-track {
   display: inline-flex;
-  gap: 48px;
   white-space: nowrap;
   will-change: transform;
-  animation: announcementScroll 28s linear infinite;
+  animation: announcementScroll 32s linear infinite;
 }
-.announcement-content[data-mode="SCROLLING"]:hover .announcement-track {
+/* Mỗi đoạn mang luôn khoảng tách + chấm ngăn cách của nó, nên dịch đúng
+   -50% là khớp vòng lặp không thấy điểm nối. */
+.announcement-segment {
+  position: relative;
+  padding-right: 48px;
+}
+.announcement-segment::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  right: 22px;
+  width: 4px;
+  height: 4px;
+  margin-top: -2px;
+  border-radius: 50%;
+  background: currentColor;
+  opacity: 0.35;
+}
+/* Đọc dở không bị chữ chạy mất: dừng khi trỏ chuột hoặc bàn phím đang ở
+   trong vùng nội dung (touch tự nhiên đã đứng yên vì không hover). */
+.announcement-content[data-mode="SCROLLING"]:hover .announcement-track,
+.announcement-content[data-mode="SCROLLING"]:focus-within .announcement-track {
   animation-play-state: paused;
 }
 .announcement-more {
   flex-shrink: 0;
-  background: none;
-  border: 0;
-  padding: 2px 6px;
-  font-size: 12.5px;
+  display: inline-flex;
+  align-items: center;
+  background: rgba(255, 255, 255, 0.65);
+  border: 1px solid rgba(100, 116, 139, 0.3);
+  border-radius: 999px;
+  padding: 3px 11px;
+  font-size: 12px;
   font-weight: 650;
   color: inherit;
-  text-decoration: underline;
   cursor: pointer;
-  opacity: 0.85;
+  transition: background-color 160ms ease, border-color 160ms ease;
+}
+.announcement-more:hover {
+  background: #fff;
+  border-color: rgba(100, 116, 139, 0.5);
 }
 .announcement-close {
   flex-shrink: 0;
@@ -9872,50 +9939,58 @@ mark.search-hit {
   width: 28px;
   height: 28px;
   border: 0;
-  border-radius: 8px;
+  border-radius: 999px;
   background: transparent;
   color: inherit;
-  opacity: 0.65;
+  opacity: 0.55;
   cursor: pointer;
+  transition: background-color 160ms ease, opacity 160ms ease;
 }
 .announcement-close:hover {
   background: rgba(15, 23, 42, 0.08);
   opacity: 1;
 }
-.announcement-INFO {
-  background: #f1f5f9;
-  color: #334155;
+.announcement-more:focus-visible,
+.announcement-close:focus-visible {
+  outline: 2px solid var(--primary, #4f46e5);
+  outline-offset: 2px;
 }
-.announcement-INFO .announcement-icon {
-  color: var(--primary, #4f46e5);
+/* --- Màu theo mức độ: nền sáng dần từ sắc accent sang trung tính, chỉ đủ
+   "nhiệt" để báo mức độ, không loe loẹt --- */
+.announcement-INFO {
+  --ann-accent: #4f46e5;
+  --ann-chip: rgba(79, 70, 229, 0.1);
+  background: linear-gradient(90deg, #eef1ff, #f8fafc 55%);
+  color: #33415f;
+  border-bottom-color: #e3e8fb;
 }
 .announcement-SUCCESS {
-  background: #eef3e6;
-  color: #4f683e;
-}
-.announcement-SUCCESS .announcement-icon {
-  color: #16a34a;
+  --ann-accent: #16a34a;
+  --ann-chip: rgba(22, 163, 74, 0.11);
+  background: linear-gradient(90deg, #ecf6ec, #f8fbf8 55%);
+  color: #445c3c;
+  border-bottom-color: #dfeeda;
 }
 .announcement-WARNING {
-  background: #fff0d9;
-  color: #956422;
-}
-.announcement-WARNING .announcement-icon {
-  color: #d97706;
+  --ann-accent: #d97706;
+  --ann-chip: rgba(217, 119, 6, 0.12);
+  background: linear-gradient(90deg, #fdf1dd, #fdf9f1 55%);
+  color: #82591f;
+  border-bottom-color: #f4e3c4;
 }
 .announcement-CRITICAL {
-  background: #fff4ef;
-  color: #b42318;
-}
-.announcement-CRITICAL .announcement-icon {
-  color: #dc2626;
+  --ann-accent: #dc2626;
+  --ann-chip: rgba(220, 38, 38, 0.1);
+  background: linear-gradient(90deg, #fdeae6, #fdf5f3 55%);
+  color: #a02c1d;
+  border-bottom-color: #f6dcd4;
 }
 @keyframes announcementScroll {
   from {
     transform: translateX(0);
   }
   to {
-    transform: translateX(calc(-50% - 24px));
+    transform: translateX(-50%);
   }
 }
 
@@ -9966,14 +10041,6 @@ mark.search-hit {
   border: 1px solid var(--line, #e3e4ea);
   border-radius: var(--radius-lg, 16px);
   background: #fbfbfd;
-}
-.announcement-preview {
-  display: grid;
-  gap: 6px;
-}
-.announcement-preview .announcement-bar {
-  border: 1px solid var(--line, #e3e4ea);
-  border-radius: var(--radius, 12px);
 }
 .announcement-admin-list {
   display: grid;
@@ -10067,12 +10134,18 @@ mark.search-hit {
   }
   .announcement-bar {
     flex-wrap: wrap;
-    padding: 8px 12px;
-    gap: 8px;
+    padding: 8px 12px 8px 16px;
+    gap: 8px 10px;
   }
   .announcement-content {
     order: 3;
     flex-basis: 100%;
+  }
+  /* Chip icon co lại trên bề rộng hẹp để hàng đầu tiên thật gọn. */
+  .announcement-icon {
+    width: 26px;
+    height: 26px;
+    border-radius: 9px;
   }
   .confirm-dialog-actions {
     flex-direction: column-reverse;
@@ -10095,7 +10168,13 @@ mark.search-hit {
   .announcement-track {
     animation: none;
     white-space: normal;
-    gap: 0;
+  }
+  /* Khi đứng yên, chữ cuộn về xuống dòng bình thường: bỏ nhịp lặp và chấm ngăn. */
+  .announcement-segment {
+    padding-right: 0;
+  }
+  .announcement-segment::after {
+    display: none;
   }
   .announcement-track .announcement-segment:last-child {
     display: none;
@@ -11419,6 +11498,9 @@ mark.search-hit {
   font-size: 13px;
   text-decoration: none;
   cursor: pointer;
+  /* Giữ nguyên trên MỘT hàng trong dải cuộn ngang của composer. */
+  flex-shrink: 0;
+  white-space: nowrap;
   transition:
     background 150ms ease,
     border-color 150ms ease,
@@ -12311,14 +12393,25 @@ mark.search-hit {
   margin: 0 auto;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 6px;
 }
 
+/* Hàng câu hỏi nhanh: MỘT hàng mảnh cuộn ngang — không dồn hàng, không mở
+   overlay "Câu hỏi khác" choàng lên chat như bản cũ. */
 .copilot-prompt-pill-bar {
   display: flex;
   align-items: center;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   gap: 8px;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-x: contain;
+  scrollbar-width: none;
+  padding: 2px 0 2px;
+}
+
+.copilot-prompt-pill-bar::-webkit-scrollbar {
+  display: none;
 }
 
 .copilot-composer {
@@ -12414,7 +12507,6 @@ mark.search-hit {
   color: #475569;
 }
 
-.copilot-disclaimer-note,
 .copilot-staff-notice {
   font-size: 11.5px;
   color: var(--muted);
@@ -12431,7 +12523,7 @@ mark.search-hit {
     height: calc(100dvh - 178px - env(safe-area-inset-bottom));
   }
   .copilot-composer-dock {
-    padding: 10px 10px 12px;
+    padding: 8px 10px 10px;
   }
   /* Một cột cho thẻ mở đầu để chữ không bị dồn chật trên màn hẹp. */
   .copilot-starters-grid {
@@ -13406,22 +13498,47 @@ html[data-theme="dark"] .header-theme-toggle {
 }
 
 /* --- Thanh thông báo & quản trị thông báo --- */
-[data-theme="dark"] .announcement-bar,
-[data-theme="dark"] .announcement-INFO {
+[data-theme="dark"] .announcement-bar {
+  --ann-accent: #94a3b8;
+  --ann-chip: rgba(148, 163, 184, 0.14);
   background: #171821;
+  color: #dcdfe9;
+  border-bottom-color: #262833;
+}
+[data-theme="dark"] .announcement-INFO {
+  --ann-accent: #a5b4fc;
+  --ann-chip: rgba(99, 102, 241, 0.18);
+  background: rgba(99, 102, 241, 0.08);
   color: #dcdfe9;
 }
 [data-theme="dark"] .announcement-CRITICAL {
+  --ann-accent: #f87171;
+  --ann-chip: rgba(239, 68, 68, 0.16);
   background: rgba(239, 68, 68, 0.12);
   color: #fca5a5;
 }
 [data-theme="dark"] .announcement-WARNING {
+  --ann-accent: #fbbf24;
+  --ann-chip: rgba(245, 158, 11, 0.16);
   background: rgba(245, 158, 11, 0.12);
   color: #fcd34d;
 }
 [data-theme="dark"] .announcement-SUCCESS {
-  background: rgba(34, 197, 94, 0.12);
+  --ann-accent: #4ade80;
+  --ann-chip: rgba(34, 197, 94, 0.15);
+  background: rgba(34, 197, 94, 0.1);
   color: #4ade80;
+}
+[data-theme="dark"] .announcement-more {
+  background: rgba(255, 255, 255, 0.05);
+  border-color: rgba(255, 255, 255, 0.14);
+}
+[data-theme="dark"] .announcement-more:hover {
+  background: rgba(255, 255, 255, 0.09);
+  border-color: rgba(255, 255, 255, 0.22);
+}
+[data-theme="dark"] .announcement-close:hover {
+  background: rgba(255, 255, 255, 0.08);
 }
 [data-theme="dark"] .announcement-form {
   background: #101117;
@@ -14423,6 +14540,9 @@ html[data-theme="dark"] .header-theme-toggle {
   font-weight: 550;
   letter-spacing: -0.006em;
   color: #334155;
+  /* Đảm bảo tên loại xe + biển số không bị cắt cứng khi panel hẹp (mobile). */
+  overflow-wrap: break-word;
+  word-break: normal;
 }
 .notification-row.unread .notification-row-title {
   font-weight: 700;
@@ -14442,6 +14562,22 @@ html[data-theme="dark"] .header-theme-toggle {
   letter-spacing: 0.01em;
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
+  vertical-align: baseline;
+}
+/* Chip tên loại xe (Honda Wave, Sirius…) — hiển thị TRƯỚC chip biển số
+   để chủ quán nhận ra xe ngay, không phải đoán từ biển hay mã nội bộ.
+   Dùng font-weight 600 + màu ấm để nổi hơn chữ thường nhưng nhẹ hơn chip biển. */
+.notification-vehicle-type {
+  display: inline-block;
+  margin-right: 4px;
+  padding: 1px 6px;
+  border-radius: 5px;
+  background: #fff8ed;
+  box-shadow: inset 0 0 0 1px rgba(180, 83, 9, 0.15);
+  color: #92400e;
+  font-weight: 600;
+  font-size: 12px;
+  letter-spacing: 0.005em;
   vertical-align: baseline;
 }
 .notification-row-body {
@@ -14684,6 +14820,12 @@ html[data-theme="dark"] .header-theme-toggle {
   box-shadow: inset 0 0 0 1px rgba(165, 180, 252, 0.24);
   color: #c7d2fe;
 }
+/* Chip tên loại xe trên nền tối. */
+[data-theme="dark"] .notification-vehicle-type {
+  background: rgba(217, 119, 6, 0.13);
+  box-shadow: inset 0 0 0 1px rgba(217, 119, 6, 0.22);
+  color: #fbbf24;
+}
 /* Nền nhãn nhóm thời gian khớp với panel tối. */
 [data-theme="dark"] .notification-group-label {
   background: #14161e;
@@ -14731,10 +14873,505 @@ html[data-theme="dark"] .header-theme-toggle {
 }
 
 /* ==========================================================================
+   TRANG THÔNG BÁO ĐẦY ĐỦ (/thong-bao)
+   Mở ra từ nút "Xem tất cả" trên chuông. Layout: header → filter tabs →
+   danh sách nhóm theo thời gian → load more. Dùng lại các class chip biển số,
+   chip loại xe, và notification-vehicle-type từ panel chuông.
+   ========================================================================== */
+
+/* ── Page container ── */
+.notifications-page {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  max-width: 680px;
+  margin: 0 auto;
+  padding-bottom: 32px;
+}
+
+/* ── Header ── */
+.notifications-page-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 20px 0 14px;
+  border-bottom: 1px solid var(--line-subtle, #f0f0f5);
+}
+.notifications-page-heading {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+.notifications-page-heading h1 {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: #0f172a;
+}
+.notifications-page-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 9px;
+  border-radius: 99px;
+  background: var(--primary, #4f46e5);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 650;
+  white-space: nowrap;
+}
+.notifications-mark-all-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 14px;
+  border: 1px solid var(--line, #e3e4ea);
+  border-radius: 10px;
+  background: #fff;
+  color: #475569;
+  font-size: 13px;
+  font-weight: 550;
+  cursor: pointer;
+  white-space: nowrap;
+  transition:
+    background-color 0.15s ease,
+    border-color 0.15s ease;
+}
+.notifications-mark-all-btn:hover:not(:disabled) {
+  background: #f7f8fb;
+  border-color: #c9cdd6;
+}
+.notifications-mark-all-btn:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+/* ── Filter tabs ── */
+.notifications-page-tabs {
+  display: flex;
+  gap: 0;
+  border-bottom: 1px solid var(--line-subtle, #f0f0f5);
+  padding: 0;
+  margin-bottom: 4px;
+}
+.notifications-page-tab {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 11px 16px;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  background: transparent;
+  color: #64748b;
+  font-size: 13.5px;
+  font-weight: 550;
+  cursor: pointer;
+  transition:
+    color 0.15s ease,
+    border-color 0.15s ease;
+}
+.notifications-page-tab:hover {
+  color: #334155;
+}
+.notifications-page-tab.is-active {
+  color: var(--primary, #4f46e5);
+  border-bottom-color: var(--primary, #4f46e5);
+}
+.notifications-page-tab-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+  padding: 1px 6px;
+  border-radius: 99px;
+  background: #f1f5f9;
+  color: #64748b;
+  font-size: 11.5px;
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+}
+.notifications-page-tab.is-active .notifications-page-tab-count {
+  background: rgba(79, 70, 229, 0.1);
+  color: var(--primary, #4f46e5);
+}
+
+/* ── Body ── */
+.notifications-page-body {
+  display: flex;
+  flex-direction: column;
+}
+.notifications-page-loading {
+  padding: 40px 0;
+  text-align: center;
+  color: var(--muted, #64748b);
+  font-size: 14px;
+}
+.notifications-page-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 60px 20px;
+  text-align: center;
+  color: #64748b;
+}
+.notifications-page-empty svg {
+  color: #cbd5e1;
+}
+.notifications-page-empty p {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 550;
+  color: #334155;
+}
+.notifications-page-empty small {
+  font-size: 13px;
+  color: #94a3b8;
+  max-width: 260px;
+}
+
+/* ── Time group ── */
+.notification-page-group {
+  display: flex;
+  flex-direction: column;
+}
+.notification-page-group:not(:first-child) {
+  border-top: 1px solid var(--line-subtle, #f0f0f5);
+}
+.notifications-page-group-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 14px 0 8px;
+  margin: 0 0 0 0;
+  font-size: 11px;
+  font-weight: 650;
+  letter-spacing: 0.02em;
+  color: #94a1b6;
+}
+.notification-page-group-label.is-fresh .notifications-page-group-text {
+  color: #64748b;
+}
+.notifications-page-group-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  background: var(--primary, #4f46e5);
+  box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.14);
+}
+.notifications-page-group-text {
+  flex-shrink: 0;
+}
+.notifications-page-group-rule {
+  height: 1px;
+  flex: 1;
+  margin-left: 2px;
+  background: linear-gradient(90deg, var(--line-subtle, #f0f0f5), rgba(240, 240, 245, 0));
+}
+.notifications-page-group-empty {
+  margin: 0;
+  padding: 4px 0 10px;
+  font-size: 13px;
+  color: var(--muted, #64748b);
+}
+
+/* ── Notification row ── */
+.notification-page-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  width: 100%;
+  padding: 13px 0;
+  border: 0;
+  border-bottom: 1px solid var(--line-subtle, #f0f0f5);
+  background: transparent;
+  text-align: left;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+  position: relative;
+  transition: background-color 0.14s ease;
+}
+.notification-page-row:last-child {
+  border-bottom: 0;
+}
+.notification-page-row:hover {
+  background: #f7f8fb;
+  /* Extend hover to fill the full width */
+  margin: 0 -16px;
+  padding-left: 16px;
+  padding-right: 16px;
+}
+.notification-page-row.is-unread {
+  background: rgba(79, 70, 229, 0.035);
+}
+.notification-page-row.is-unread:hover {
+  background: rgba(79, 70, 229, 0.06);
+}
+.notification-page-row.is-unread::before {
+  content: "";
+  position: absolute;
+  left: -12px;
+  top: 10px;
+  bottom: 10px;
+  width: 3px;
+  border-radius: 0 3px 3px 0;
+  background: var(--primary, #4f46e5);
+}
+.notification-page-row.is-unread:hover::before {
+  left: -28px;
+}
+
+/* Row icon */
+.notification-page-icon {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  flex-shrink: 0;
+  margin-top: 1px;
+  background: #eef1f6;
+  color: #5b6678;
+}
+.notification-page-icon--success {
+  background: #e9f5ee;
+  color: #2f855a;
+}
+.notification-page-icon--warning {
+  background: #fdeee2;
+  color: #c2612d;
+}
+
+/* Text column */
+.notification-page-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  flex: 1;
+  padding-top: 1px;
+}
+.notification-page-title {
+  font-size: 14px;
+  line-height: 1.42;
+  font-weight: 550;
+  letter-spacing: -0.006em;
+  color: #334155;
+  overflow-wrap: break-word;
+  word-break: normal;
+}
+.notification-page-row.is-unread .notification-page-title {
+  font-weight: 700;
+  color: #0f172a;
+}
+.notification-page-body {
+  font-size: 13px;
+  line-height: 1.5;
+  color: #5b6678;
+  margin-top: 1px;
+  overflow-wrap: break-word;
+}
+.notification-page-time {
+  font-size: 11.5px;
+  font-weight: 500;
+  color: #94a1b6;
+  margin-top: 3px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Unread dot */
+.notification-page-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--primary, #4f46e5);
+  flex-shrink: 0;
+  margin-top: 7px;
+}
+
+/* Chevron */
+.notification-page-chevron {
+  flex-shrink: 0;
+  color: #cbd5e1;
+  margin-top: 9px;
+  margin-left: -4px;
+}
+.notification-page-row:hover .notification-page-chevron {
+  color: #94a3b8;
+}
+.notification-page-row.is-unread .notification-page-chevron {
+  color: #a5b4fc;
+}
+
+/* Load more */
+.notifications-page-load-more {
+  display: block;
+  width: 100%;
+  margin-top: 12px;
+  padding: 12px;
+  border: 1px solid var(--line, #e3e4ea);
+  border-radius: 12px;
+  background: #fbfbfd;
+  color: #475569;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition:
+    background-color 0.15s ease,
+    border-color 0.15s ease;
+}
+.notifications-page-load-more:hover {
+  background: #f4f6f9;
+  border-color: #c9cdd6;
+}
+
+/* ── Dark theme ── */
+[data-theme="dark"] .notifications-page-heading h1 {
+  color: #f1f5f9;
+}
+[data-theme="dark"] .notifications-page-badge {
+  background: var(--primary, #4f46e5);
+}
+[data-theme="dark"] .notifications-mark-all-btn {
+  background: rgba(255, 255, 255, 0.04);
+  border-color: #2e3345;
+  color: #94a3b8;
+}
+[data-theme="dark"] .notifications-mark-all-btn:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.07);
+  border-color: #3a3f4d;
+}
+[data-theme="dark"] .notifications-page-tab {
+  color: #64748b;
+}
+[data-theme="dark"] .notifications-page-tab:hover {
+  color: #94a3b8;
+}
+[data-theme="dark"] .notifications-page-tab.is-active {
+  color: #a5b4fc;
+  border-bottom-color: #a5b4fc;
+}
+[data-theme="dark"] .notifications-page-tab-count {
+  background: rgba(255, 255, 255, 0.07);
+  color: #64748b;
+}
+[data-theme="dark"] .notifications-page-tab.is-active .notifications-page-tab-count {
+  background: rgba(165, 180, 252, 0.14);
+  color: #a5b4fc;
+}
+[data-theme="dark"] .notifications-page-group-label {
+  color: #4b5563;
+}
+[data-theme="dark"] .notification-page-group-label.is-fresh .notifications-page-group-text {
+  color: #6b7280;
+}
+[data-theme="dark"] .notifications-page-group-rule {
+  background: linear-gradient(90deg, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0));
+}
+[data-theme="dark"] .notifications-page-group-empty {
+  color: #4b5563;
+}
+[data-theme="dark"] .notification-page-row {
+  border-bottom-color: rgba(255, 255, 255, 0.05);
+}
+[data-theme="dark"] .notification-page-row:hover {
+  background: rgba(255, 255, 255, 0.03);
+}
+[data-theme="dark"] .notification-page-row.is-unread {
+  background: rgba(79, 70, 229, 0.09);
+}
+[data-theme="dark"] .notification-page-row.is-unread:hover {
+  background: rgba(79, 70, 229, 0.12);
+}
+[data-theme="dark"] .notification-page-icon {
+  background: rgba(255, 255, 255, 0.07);
+  color: #64748b;
+}
+[data-theme="dark"] .notification-page-icon--success {
+  background: rgba(47, 133, 90, 0.18);
+  color: #4ade80;
+}
+[data-theme="dark"] .notification-page-icon--warning {
+  background: rgba(194, 97, 45, 0.18);
+  color: #fb923c;
+}
+[data-theme="dark"] .notification-page-title {
+  color: #94a3b8;
+}
+[data-theme="dark"] .notification-page-row.is-unread .notification-page-title {
+  color: #f1f5f9;
+}
+[data-theme="dark"] .notification-page-body {
+  color: #4b5563;
+}
+[data-theme="dark"] .notification-page-time {
+  color: #4b5563;
+}
+[data-theme="dark"] .notification-page-chevron {
+  color: #2e3345;
+}
+[data-theme="dark"] .notification-page-row:hover .notification-page-chevron {
+  color: #4b5563;
+}
+[data-theme="dark"] .notifications-page-load-more {
+  background: rgba(255, 255, 255, 0.03);
+  border-color: #2e3345;
+  color: #64748b;
+}
+[data-theme="dark"] .notifications-page-load-more:hover {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: #3a3f4d;
+}
+[data-theme="dark"] .notifications-page-empty svg {
+  color: #2e3345;
+}
+[data-theme="dark"] .notifications-page-empty p {
+  color: #94a3b8;
+}
+
+/* ── Mobile (≤640px): full-bleed, no max-width gutter ── */
+@media (max-width: 640px) {
+  .notifications-page {
+    max-width: none;
+    padding: 0 0 32px;
+  }
+  .notifications-page-header {
+    padding: 16px 16px 12px;
+  }
+  .notifications-page-heading h1 {
+    font-size: 18px;
+  }
+  .notifications-page-tabs {
+    padding: 0 16px;
+  }
+  .notifications-page-body {
+    padding: 0 16px;
+  }
+  .notification-page-row {
+    padding: 13px 0;
+  }
+  .notification-page-row:hover {
+    margin: 0 -16px;
+    padding-left: 16px;
+    padding-right: 16px;
+  }
+  .notification-page-row.is-unread::before {
+    left: -16px;
+  }
+  .notification-page-row.is-unread:hover::before {
+    left: -16px;
+  }
+}
+
+/* ==========================================================================
    TRUNG TÂM THÔNG BÁO HỆ THỐNG (Cài đặt → Thông báo hệ thống)
    Bảng điều khiển cho OWNER: hero + thẻ số liệu, thẻ thông báo có trạng thái
-   thật (đang hiển thị / hẹn giờ / hết hạn / tạm ngừng), form soạn theo nhóm
-   pill + switch và khung xem trước chân thực trên 2 thiết bị.
+   thật (đang hiển thị / hẹn giờ / hết hạn / tạm ngừng), form soạn popup
+   theo nhóm pill + switch.
    ========================================================================== */
 .announcement-console {
   display: grid;
@@ -15452,80 +16089,7 @@ html[data-theme="dark"] .header-theme-toggle {
 .ac-schedule-note {
   margin: 0;
 }
-/* --- Khung xem trước 2 thiết bị --- */
-.ac-preview {
-  display: grid;
-  gap: 12px;
-  padding-top: 14px;
-  border-top: 1px solid var(--line-subtle, #eceef3);
-}
-.ac-preview-head {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 10px;
-  flex-wrap: wrap;
-}
-.ac-preview-devices {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 190px;
-  gap: 12px;
-  align-items: stretch;
-}
-.ac-device {
-  display: grid;
-  gap: 6px;
-  min-width: 0;
-}
-.ac-device-label {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  font-size: 11.5px;
-  font-weight: 600;
-  color: var(--muted, #64748b);
-}
-.ac-device-screen {
-  display: grid;
-  align-content: start;
-  gap: 8px;
-  min-height: 86px;
-  padding: 12px;
-  border: 1px solid var(--line, #e3e4ea);
-  border-radius: 14px;
-  background: #fff;
-  box-shadow: 0 8px 22px -16px rgba(15, 23, 42, 0.4);
-}
-.ac-device-phone .ac-device-screen {
-  border-radius: 22px;
-  padding: 10px 8px;
-  background: linear-gradient(180deg, #f8fafc, #fff);
-}
-.ac-device-phone .announcement-bar {
-  flex-wrap: wrap;
-  gap: 8px;
-  padding: 8px 10px;
-  font-size: 12px;
-  border: 0;
-  border-radius: 10px;
-}
-.ac-device-phone .announcement-content {
-  order: 3;
-  flex-basis: 100%;
-}
-.ac-device .announcement-bar {
-  border-bottom: 0;
-  border-radius: 10px;
-}
 /* --- Responsive --- */
-@media (max-width: 900px) {
-  .ac-preview-devices {
-    grid-template-columns: minmax(0, 1fr);
-  }
-  .ac-device-phone .ac-device-screen {
-    max-width: 240px;
-  }
-}
 @media (max-width: 640px) {
   .announcement-console {
     gap: 14px;
@@ -15618,7 +16182,6 @@ html[data-theme="dark"] .header-theme-toggle {
 [data-theme="dark"] .ac-card,
 [data-theme="dark"] .ac-pill,
 [data-theme="dark"] .ac-switch,
-[data-theme="dark"] .ac-device-screen,
 [data-theme="dark"] .ac-template,
 [data-theme="dark"] .ac-pill-option {
   background: #14161e;
@@ -15774,7 +16337,6 @@ html[data-theme="dark"] .header-theme-toggle {
   border-bottom-color: #232531;
 }
 [data-theme="dark"] .ac-section,
-[data-theme="dark"] .ac-preview,
 [data-theme="dark"] .ac-card-foot {
   border-color: #232531;
 }
@@ -15825,9 +16387,6 @@ html[data-theme="dark"] .header-theme-toggle {
 }
 [data-theme="dark"] .ac-btn-danger {
   color: #fca5a5;
-}
-[data-theme="dark"] .ac-device-phone .ac-device-screen {
-  background: #171821;
 }
 
 /* Controlled UI audit refinements: existing surfaces, shared compact rhythm. */
@@ -16808,11 +17367,9 @@ html[data-theme="dark"] .header-theme-toggle {
 .copilot-composer > form {
   gap: var(--space-md);
 }
-.copilot-more-questions,
 .copilot-evidence {
   min-width: 0;
 }
-.copilot-more-questions > summary,
 .copilot-evidence > summary {
   min-height: var(--touch-target);
   display: list-item;
@@ -16821,7 +17378,6 @@ html[data-theme="dark"] .header-theme-toggle {
   font-weight: 600;
   color: var(--primary);
 }
-.copilot-more-questions[open] > summary,
 .copilot-evidence[open] > summary {
   margin-bottom: var(--space-sm);
 }
@@ -17373,10 +17929,20 @@ html[data-theme="dark"] .header-theme-toggle {
 .vietqr-unavailable span {
   font-size: 11.5px;
 }
-.vietqr-changed {
+/* Hint nhỏ, tinh tế khi mã tự cập nhật theo biểu mẫu — không còn hộp cảnh báo to. */
+.vietqr-autoupdate-hint {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   margin: 0;
   font-size: 11.5px;
-  padding: 7px 10px;
+  line-height: 1.4;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.72);
+}
+.vietqr-autoupdate-hint svg {
+  flex-shrink: 0;
+  opacity: 0.8;
 }
 /* ─── Thẻ kính mờ: thông tin chuyển khoản ───
    Glassmorphism nhẹ trên nền đêm: để nổi khối QR, thẻ này không tranh sáng. */
@@ -19954,188 +20520,571 @@ html[data-theme="dark"] .header-theme-toggle {
 /* ==========================================================================
    Tài khoản nhận tiền (Payment Settings Card)
    ========================================================================== */
-.payment-settings-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 28px;
-  align-items: start;
+/* ---- Đầu mục "Tài khoản nhận tiền" ---- */
+.paycard-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.paycard-title {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin: 0;
+}
+.paycard-title-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 9px;
+  background: rgba(79, 70, 229, 0.1);
+  color: var(--primary, #4f46e5);
+}
+.paycard-sub {
+  margin: 6px 0 0;
+  max-width: 46ch;
+}
+.paycard-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  flex-shrink: 0;
+  padding: 5px 11px;
+  border-radius: 999px;
+  font-size: 12.5px;
+  font-weight: 650;
+  line-height: 1;
+  white-space: nowrap;
+}
+.paycard-status.is-ok {
+  background: rgba(16, 185, 129, 0.14);
+  color: #047857;
+}
+.paycard-status.is-warn {
+  background: rgba(245, 158, 11, 0.16);
+  color: #b45309;
+}
+[data-theme="dark"] .paycard-status.is-ok {
+  color: #6ee7b7;
+}
+[data-theme="dark"] .paycard-status.is-warn {
+  color: #fcd34d;
 }
 
-@media (max-width: 860px) {
-  .payment-settings-grid {
-    grid-template-columns: 1fr;
-    gap: 20px;
-  }
+/* Lưới 2 cột desktop → 1 cột mobile. Xem trước nằm cạnh form. */
+.payment-settings-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr);
+  gap: 26px;
+  align-items: stretch;
 }
 
 .payment-settings-form {
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 15px;
+  min-width: 0;
 }
 
+/* ---- Ô nhập: số tài khoản + nút copy nội tuyến ---- */
+.pay-input-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.pay-input-wrap > input {
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.4px;
+}
+.pay-copy-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+  height: 30px;
+  padding: 0 10px;
+  border-radius: 8px;
+  border: 1px solid var(--line, #e2e8f0);
+  background: #fff;
+  color: #475569;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+.pay-copy-chip:hover {
+  background: #eef2ff;
+  color: var(--primary, #4f46e5);
+  border-color: #c7d2fe;
+}
+[data-theme="dark"] .pay-copy-chip {
+  background: #14161e;
+  color: #a9b1c6;
+  border-color: #262833;
+}
+[data-theme="dark"] .pay-copy-chip:hover {
+  background: #1c1f2b;
+  color: #c7d2fe;
+}
+.pay-hint {
+  display: block;
+  margin-top: 5px;
+  font-size: 11.5px;
+  color: #94a3b8;
+}
+
+/* ---- Hàng thao tác: trạng thái chưa lưu + nút ---- */
+.paycard-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-top: 2px;
+  padding-top: 14px;
+  border-top: 1px solid var(--line, #eef1f5);
+}
+.paycard-actions-btns {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.pay-unsaved {
+  font-size: 12px;
+  font-weight: 600;
+  color: #94a3b8;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.pay-unsaved::before {
+  content: "";
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #cbd5e1;
+}
+.pay-unsaved.is-dirty {
+  color: #b45309;
+}
+.pay-unsaved.is-dirty::before {
+  background: #f59e0b;
+}
+[data-theme="dark"] .pay-unsaved.is-dirty {
+  color: #fcd34d;
+}
+
+/* ---- Bộ chọn ngân hàng dạng combobox có tìm kiếm ---- */
+.bank-picker {
+  position: relative;
+}
+.bank-picker-trigger {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 44px;
+  padding: 8px 12px;
+  border: 1px solid var(--line, #e2e8f0);
+  border-radius: 8px;
+  background: #fff;
+  color: #0f172a;
+  cursor: pointer;
+  text-align: left;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+.bank-picker-trigger:hover {
+  border-color: #cbd5e1;
+}
+.bank-picker-trigger:focus-visible {
+  outline: none;
+  border-color: var(--primary, #4f46e5);
+  box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.14);
+}
+.bank-picker-chevron {
+  margin-left: auto;
+  color: #94a3b8;
+  flex-shrink: 0;
+}
+.bank-picker-placeholder {
+  color: #94a3b8;
+}
+.bank-picker-name {
+  font-weight: 650;
+  font-size: 14px;
+}
+.bank-picker-mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  flex-shrink: 0;
+  border-radius: 7px;
+  background: linear-gradient(135deg, #eef2ff, #e0e7ff);
+  color: #4338ca;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.3px;
+}
+[data-theme="dark"] .bank-picker-trigger {
+  background: #14161e;
+  border-color: #262833;
+  color: #e2e5ee;
+}
+[data-theme="dark"] .bank-picker-mark {
+  background: linear-gradient(135deg, #1e2130, #262a3d);
+  color: #a5b4fc;
+}
+.bank-picker-search {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 4px 6px 4px 12px;
+  border: 1px solid var(--primary, #4f46e5);
+  border-radius: 8px;
+  background: #fff;
+  box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.14);
+}
+[data-theme="dark"] .bank-picker-search {
+  background: #14161e;
+}
+.bank-picker-search-icon {
+  color: #94a3b8;
+  flex-shrink: 0;
+}
+.bank-picker-input {
+  flex: 1;
+  min-width: 0;
+  border: none !important;
+  box-shadow: none !important;
+  padding: 0 !important;
+  min-height: 34px;
+  background: transparent;
+}
+.bank-picker-input:focus {
+  outline: none;
+  box-shadow: none !important;
+}
+.bank-picker-cancel {
+  flex-shrink: 0;
+  border: none;
+  background: transparent;
+  color: var(--primary, #4f46e5);
+  font-size: 13px;
+  font-weight: 650;
+  padding: 8px 10px;
+  min-height: auto;
+  border-radius: 7px;
+  cursor: pointer;
+}
+.bank-picker-cancel:hover {
+  background: #eef2ff;
+}
+.bank-picker-list {
+  position: absolute;
+  z-index: 40;
+  top: calc(100% + 6px);
+  left: 0;
+  right: 0;
+  max-height: 264px;
+  overflow-y: auto;
+  margin: 0;
+  padding: 5px;
+  list-style: none;
+  background: #fff;
+  border: 1px solid var(--line, #e2e8f0);
+  border-radius: 12px;
+  box-shadow: 0 18px 40px -18px rgba(15, 23, 42, 0.34);
+  overscroll-behavior: contain;
+}
+[data-theme="dark"] .bank-picker-list {
+  background: #14161e;
+  border-color: #262833;
+  box-shadow: 0 18px 40px -18px rgba(0, 0, 0, 0.7);
+}
+.bank-picker-option {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 9px;
+  border-radius: 9px;
+  cursor: pointer;
+}
+.bank-picker-option.is-active {
+  background: #eef2ff;
+}
+[data-theme="dark"] .bank-picker-option.is-active {
+  background: #1c1f2b;
+}
+.bank-picker-option.is-selected .bank-picker-option-name {
+  color: var(--primary, #4f46e5);
+}
+.bank-picker-option-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  gap: 1px;
+}
+.bank-picker-option-name {
+  font-size: 13.5px;
+  font-weight: 650;
+  color: #1f2937;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.bank-picker-option-full {
+  font-size: 11px;
+  color: #94a3b8;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.bank-picker-option-bin {
+  margin-left: auto;
+  flex-shrink: 0;
+  font-family: var(--font-mono, monospace);
+  font-size: 11px;
+  color: #94a3b8;
+  font-variant-numeric: tabular-nums;
+}
+.bank-picker-empty {
+  padding: 12px 10px;
+  font-size: 13px;
+  color: #94a3b8;
+  text-align: center;
+}
+[data-theme="dark"] .bank-picker-option-name {
+  color: #e2e5ee;
+}
+
+/* ---- Thẻ xem trước (mực graphite, tinh tế, ổn định cả 2 theme) ---- */
 .bank-card-visual {
-  background: linear-gradient(135deg, #064e3b 0%, #065f46 55%, #047857 100%);
-  border-radius: 18px;
-  padding: 24px;
-  color: #ffffff;
-  box-shadow: 0 12px 30px -6px rgba(6, 78, 59, 0.35), 0 4px 12px rgba(0, 0, 0, 0.08);
   position: relative;
   overflow: hidden;
-  border: 1px solid rgba(255, 255, 255, 0.15);
   display: flex;
   flex-direction: column;
   justify-content: space-between;
-  min-height: 220px;
+  gap: 16px;
+  min-height: 232px;
+  padding: 22px 24px;
+  border-radius: 20px;
+  color: #ffffff;
+  background:
+    radial-gradient(120% 120% at 100% 0%, rgba(99, 102, 241, 0.35) 0%, rgba(99, 102, 241, 0) 45%),
+    linear-gradient(135deg, #1e293b 0%, #0f172a 55%, #111827 100%);
+  border: 1px solid rgba(148, 163, 184, 0.22);
+  box-shadow:
+    0 18px 38px -14px rgba(15, 23, 42, 0.55),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08);
 }
-
-.bank-card-visual::before {
-  content: "";
+.bank-card-sheen {
   position: absolute;
-  top: -50px;
-  right: -50px;
-  width: 180px;
-  height: 180px;
-  border-radius: 50%;
-  background: radial-gradient(circle, rgba(255, 255, 255, 0.18) 0%, rgba(255, 255, 255, 0) 70%);
+  inset: 0;
+  background: linear-gradient(115deg, transparent 30%, rgba(255, 255, 255, 0.07) 45%, transparent 60%);
   pointer-events: none;
 }
-
-.bank-card-visual::after {
-  content: "";
-  position: absolute;
-  bottom: -60px;
-  left: 20%;
-  width: 140px;
-  height: 140px;
-  border-radius: 50%;
-  background: radial-gradient(circle, rgba(16, 185, 129, 0.25) 0%, rgba(16, 185, 129, 0) 70%);
-  pointer-events: none;
-}
-
 [data-theme="dark"] .bank-card-visual {
-  background: linear-gradient(135deg, #022c22 0%, #064e3b 55%, #065f46 100%);
-  border-color: rgba(255, 255, 255, 0.1);
-  box-shadow: 0 12px 30px -6px rgba(0, 0, 0, 0.5);
+  background:
+    radial-gradient(120% 120% at 100% 0%, rgba(99, 102, 241, 0.3) 0%, rgba(99, 102, 241, 0) 45%),
+    linear-gradient(135deg, #0b1220 0%, #060a14 55%, #0b1020 100%);
+  border-color: rgba(148, 163, 184, 0.18);
 }
 
 .bank-card-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 12px;
   position: relative;
   z-index: 1;
 }
-
 .bank-card-brand {
   display: flex;
   align-items: center;
   gap: 10px;
+  min-width: 0;
 }
-
 .bank-card-brand-icon {
   width: 34px;
   height: 34px;
-  border-radius: 8px;
-  background: rgba(255, 255, 255, 0.18);
+  border-radius: 9px;
+  background: rgba(255, 255, 255, 0.16);
   display: flex;
   align-items: center;
   justify-content: center;
   color: #ffffff;
   backdrop-filter: blur(4px);
+  flex-shrink: 0;
 }
-
 .bank-card-brand-name {
-  font-size: 16px;
+  font-size: 15px;
   font-weight: 700;
   letter-spacing: 0.3px;
   color: #ffffff;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.bank-card-vietqr {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  flex-shrink: 0;
+  padding: 4px 9px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.12);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  font-size: 11px;
+  font-weight: 650;
+  letter-spacing: 0.4px;
 }
 
 .bank-card-body {
-  margin: 18px 0;
   position: relative;
   z-index: 1;
 }
-
 .bank-card-number-label {
-  font-size: 11px;
+  font-size: 10.5px;
   font-weight: 600;
   text-transform: uppercase;
-  letter-spacing: 0.8px;
-  color: rgba(255, 255, 255, 0.65);
-  margin-bottom: 4px;
+  letter-spacing: 1px;
+  color: rgba(255, 255, 255, 0.6);
+  margin-bottom: 5px;
 }
-
 .bank-card-number {
   font-family: var(--font-mono, monospace);
-  font-size: 21px;
+  font-size: clamp(18px, 4.5vw, 22px);
   font-weight: 700;
-  letter-spacing: 2px;
+  letter-spacing: 1.5px;
   color: #ffffff;
   font-variant-numeric: tabular-nums;
-  word-break: break-all;
+  overflow-wrap: anywhere;
 }
 
 .bank-card-footer {
   display: flex;
   align-items: flex-end;
   justify-content: space-between;
-  gap: 16px;
+  gap: 14px;
   position: relative;
   z-index: 1;
 }
-
+.bank-card-holder {
+  min-width: 0;
+}
 .bank-card-holder-label {
-  font-size: 10.5px;
+  font-size: 10px;
   font-weight: 600;
   text-transform: uppercase;
-  letter-spacing: 0.8px;
-  color: rgba(255, 255, 255, 0.65);
-  margin-bottom: 2px;
+  letter-spacing: 1px;
+  color: rgba(255, 255, 255, 0.6);
+  margin-bottom: 3px;
 }
-
 .bank-card-holder-name {
   font-size: 14px;
   font-weight: 700;
-  letter-spacing: 0.6px;
+  letter-spacing: 0.5px;
   color: #ffffff;
   text-transform: uppercase;
-  max-width: 200px;
+  max-width: 15ch;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.bank-card-qr-box {
-  background: #ffffff;
-  padding: 6px;
-  border-radius: 10px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-  display: flex;
-  flex-direction: column;
-  align-items: center;
+/* Ô QR xem trước có trạng thái nạp/liên kết/lỗi — không còn "thẻ bị lỗi". */
+.bank-card-qr {
+  position: relative;
+  width: 78px;
+  height: 78px;
   flex-shrink: 0;
-}
-
-.bank-card-qr-img {
-  width: 76px;
-  height: 76px;
-  border-radius: 6px;
-  display: block;
-}
-
-.bank-card-qr-placeholder {
-  width: 76px;
-  height: 76px;
-  border-radius: 6px;
-  background: rgba(255, 255, 255, 0.15);
-  border: 1px dashed rgba(255, 255, 255, 0.35);
+  border-radius: 11px;
+  background: #ffffff;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.18);
   display: flex;
   align-items: center;
   justify-content: center;
-  color: rgba(255, 255, 255, 0.6);
-  flex-shrink: 0;
+  overflow: hidden;
+}
+.bank-card-qr-img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  display: block;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+.bank-card-qr-img.is-ready {
+  opacity: 1;
+}
+.bank-card-qr-spinner {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--primary, #4f46e5);
+  background: #fff;
+}
+.bank-card-qr-spinner svg {
+  animation: carem-spin 0.9s linear infinite;
+}
+@keyframes carem-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+.bank-card-qr-placeholder {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #cbd5e1;
+  background: repeating-linear-gradient(135deg, #f8fafc, #f8fafc 6px, #f1f5f9 6px, #f1f5f9 12px);
+}
+.bank-card-qr-placeholder.is-error {
+  color: #f59e0b;
+}
+
+/* Mobile: xếp chồng, thẻ xem trước co gọn và nằm dưới form. */
+@media (max-width: 860px) {
+  .payment-settings-grid {
+    grid-template-columns: 1fr;
+    gap: 20px;
+  }
+  .bank-card-visual {
+    min-height: 200px;
+    padding: 20px;
+  }
+  .bank-card-holder-name {
+    max-width: 12ch;
+  }
+}
+@media (max-width: 420px) {
+  .bank-card-footer {
+    align-items: center;
+  }
+  .bank-card-qr {
+    width: 68px;
+    height: 68px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .bank-card-qr-spinner svg {
+    animation: none;
+  }
+  .bank-card-qr-img {
+    transition: none;
+  }
 }
 
 /* Navigation notification counters */
@@ -20670,6 +21619,17 @@ html[data-theme="dark"] .header-theme-toggle {
   font-size: 15px;
   min-width: 0;
 }
+/* Dòng phụ biển số · khung — hiển thị dưới tên loại xe khi có vehicle_type.
+   Block để xuống dòng, chữ nhỏ muted, không lấy đi sự chú ý của tên chính. */
+.customer-purchase-plate {
+  display: block;
+  margin-top: 2px;
+  font-size: 12px;
+  font-weight: 400;
+  color: #64748b;
+  letter-spacing: 0.01em;
+  font-variant-numeric: tabular-nums;
+}
 
 .customer-purchase-status {
   display: inline-flex;
@@ -20771,6 +21731,10 @@ html[data-theme="dark"] .header-theme-toggle {
 
 [data-theme="dark"] .customer-purchase-row:hover {
   border-color: #3a3f4d;
+}
+
+[data-theme="dark"] .customer-purchase-plate {
+  color: #94a3b8;
 }
 
 [data-theme="dark"] .customer-payment-line:nth-child(odd) {
@@ -20880,3 +21844,82 @@ html[data-theme="dark"] .header-theme-toggle {
 [data-theme="dark"] .pa-check-note { color: #8f96a8; }
 [data-theme="dark"] .pa-metric { background: #101117; border-color: #232531; }
 [data-theme="dark"] .pa-advanced { border-color: #2c2f3c; }
+
+/* ==========================================================================
+   DARK THEME — phần 5: vá các mặt nạ sáng hardcode còn lọt ở đợt rà 20/10.
+   Chỉ thêm selector `[data-theme="dark"]`; giao diện sáng giữ nguyên 100%.
+   ========================================================================== */
+/* Pill ngày lọc đang chọn: nền trắng chữ đen → nền than chữ indigo sáng.
+   (Riêng thẻ digest luôn nền tối: giữ pill trắng theo design đã duyệt.) */
+[data-theme="dark"] .date-seg-btn.active {
+  background: #262833;
+  color: #a5b4fc;
+  box-shadow: none;
+}
+[data-theme="dark"] .date-seg-btn.active .date-seg-icon {
+  color: #a5b4fc;
+}
+[data-theme="dark"] .carem-digest-filter .date-seg-btn.active {
+  background: #f8fafc;
+  color: #0f172a;
+}
+[data-theme="dark"] .carem-digest-filter .date-seg-btn.active .date-seg-icon {
+  color: #0f172a;
+}
+/* Ô chọn khoảng ngày (kho xe, khách hàng…): ô trắng hardcoded → surface đêm chuẩn */
+[data-theme="dark"] .date-range-trigger {
+  background: #14161e;
+  border-color: #262833;
+  color: #dcdfe9;
+}
+[data-theme="dark"] .date-range-trigger:hover {
+  border-color: #4f46e5;
+}
+/* Bảng chọn chế độ Smart Camera: var(--card,#fff) chưa có bản đêm → khối trắng
+   nổi loang trên sân khấu tối, chữ gần như bị phủ mất. */
+[data-theme="dark"] .smartcam-mode-btn {
+  background: #14161e;
+  border-color: #262833;
+  color: #e2e5ee;
+}
+[data-theme="dark"] .smartcam-mode-btn:hover:not(:disabled) {
+  border-color: #34384a;
+}
+[data-theme="dark"] .smartcam-mode-btn.active {
+  border-color: rgba(34, 197, 94, 0.5);
+  background: rgba(34, 197, 94, 0.12);
+}
+[data-theme="dark"] .smartcam-mode-btn.active strong {
+  color: #4ade80;
+}
+/* Giá sách Tài liệu: cùng fallback var(--card,#fff) — sơn lại bề mặt đêm */
+[data-theme="dark"] .docs-category,
+[data-theme="dark"] .docs-group {
+  background: #14161e;
+}
+/* Hộp ảnh (chọn máy quay / tệp): nền var(--surface,#ffffff) bản cứng trắng */
+[data-theme="dark"] .photo-choice-panel {
+  background: #171821;
+}
+/* Nhãn bật/tắt AI viết tóm tắt: chữ slate-600 chìm nghỉm trên nền đêm */
+[data-theme="dark"] .copilot-mode-toggle {
+  color: #b1b8ca;
+}
+
+/* Pillo 'Con xe' bi sot ban dem (cac badge trang thai khac deu da co) */
+[data-theme="dark"] .badge-in_stock {
+  color: #4ade80;
+  background: rgba(34, 197, 94, 0.13);
+  border-color: rgba(34, 197, 94, 0.3);
+}
+/* Lien ket chu xanh thuong hieu & link quay lai: chim nghim tren nen dem */
+[data-theme="dark"] .text-link {
+  color: #7fbf96;
+}
+[data-theme="dark"] .back-link {
+  color: #9aa3b5;
+}
+/* Link indigo tren panel login lun toi: gi nguyen ho indigo dem, khong bi xanh la */
+[data-theme="dark"] .login-options .text-link {
+  color: #a5b4fc;
+}

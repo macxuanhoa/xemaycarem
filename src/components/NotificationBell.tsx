@@ -1,23 +1,19 @@
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useNavigate } from "react-router-dom";
-import {
-  ArrowDownLeft,
-  ArrowUpRight,
-  Banknote,
-  Bell,
-  BellOff,
-  Bike,
-  Check,
-  CircleSlash,
-  Inbox,
-  Send,
-  Undo2,
-  X,
-} from "lucide-react";
+import { Bell, BellOff, X } from "lucide-react";
 import { useNotifications } from "@/lib/useNotifications";
-import { badgeLabel, groupNotifications, relativeTime, splitVehicleIdentity, withTodayGroup } from "@/lib/notifications";
-import type { NotificationAction, NotificationItem } from "@/types";
+import {
+  ACTION_ICON,
+  ACTION_TONE,
+  badgeLabel,
+  groupNotifications,
+  relativeTime,
+  splitVehicleIdentity,
+  tidyBody,
+  withTodayGroup,
+} from "@/lib/notifications";
+import type { NotificationItem } from "@/types";
 
 /**
  * Business activity bell. Fans out from the audit trail (server-side), so this
@@ -26,59 +22,6 @@ import type { NotificationAction, NotificationItem } from "@/types";
  * The panel is portalled to <body> with fixed positioning so the topbar's
  * z-index stacking context can never clip it.
  */
-
-const ACTION_ICON: Record<NotificationAction, typeof Bell> = {
-  CREATE_ACQUISITION: ArrowDownLeft,
-  CANCEL_ACQUISITION: CircleSlash,
-  CREATE_SALE: ArrowUpRight,
-  CANCEL_SALE: CircleSlash,
-  CREATE_PAYMENT: Banknote,
-  VOID_PAYMENT: Undo2,
-  CREATE_VEHICLE: Bike,
-  UPDATE_VEHICLE: Bike,
-  REQUEST_DELETE_VEHICLE: Inbox,
-  REQUEST_SALE_BELOW_COST: Send,
-  APPROVE_SALE_BELOW_COST: Check,
-  REJECT_SALE_BELOW_COST: CircleSlash,
-  CANCEL_SALE_BELOW_COST: Undo2,
-};
-
-// Facebook-style buckets: acquisitions and payments read as gains, cancels as
-// warnings, everything else neutral.
-const ACTION_TONE: Record<NotificationAction, "success" | "warning" | "neutral"> = {
-  CREATE_ACQUISITION: "success",
-  CREATE_SALE: "success",
-  CREATE_PAYMENT: "success",
-  CANCEL_ACQUISITION: "warning",
-  CANCEL_SALE: "warning",
-  VOID_PAYMENT: "warning",
-  CREATE_VEHICLE: "neutral",
-  UPDATE_VEHICLE: "neutral",
-  REQUEST_DELETE_VEHICLE: "warning",
-  REQUEST_SALE_BELOW_COST: "warning",
-  APPROVE_SALE_BELOW_COST: "success",
-  REJECT_SALE_BELOW_COST: "warning",
-  CANCEL_SALE_BELOW_COST: "neutral",
-};
-
-// Keep a trailing currency unit from being orphaned on its own line when the
-// body wraps on narrow phones — glue "…000 đ" together with a non-breaking
-// space so the amount and its unit always travel as one token.
-function tidyBody(text: string) {
-  let cleaned = text;
-  // Nhất quán khi chủ cửa hàng/hệ thống nhập xe, nhập giá, thu tiền -> "Cà Rem nhập"
-  cleaned = cleaned.replace(
-    /^(Hệ thống|Chủ cửa hàng)\s+(đã thu vào xe|đã thêm xe|đã cập nhật|đã ghi nhận thu|đã ghi nhận một khoản thu|đã bán xe)/i,
-    "Cà Rem nhập $2"
-  );
-  // Thay thế mọi dấu vết tạm ẩn / đã ẩn bằng "Cà Rem nhập"
-  cleaned = cleaned.replace(/tạm ẩn|đã ẩn|Đã ẩn|Tạm ẩn/gi, "Cà Rem nhập");
-  return cleaned.replace(/(\d)\s+([\u20AB\u0111])/g, "$1\u00A0$2");
-}
-
-function tidyTitle(text: string) {
-  return text.replace(/tạm ẩn|đã ẩn|Đã ẩn|Tạm ẩn/gi, "Cà Rem nhập");
-}
 
 function Row({
   item,
@@ -93,7 +36,13 @@ function Row({
   const unread = item.read_at === null;
   const timeLabel = relativeTime(item.created_at, now);
   // Bóc biển số ra khỏi tiêu đề để gắn chip nổi bật — nhìn là biết xe nào.
-  const { before, plate, after } = splitVehicleIdentity(tidyTitle(item.title));
+  const { before, plate, after } = splitVehicleIdentity(item.title);
+  // Tên loại xe (Honda Wave, Sirius…) từ DB — ưu tiên hiển thị để chủ quán
+  // nhận ra xe ngay, thay vì phải đọc biển số hoặc mã nội bộ.
+  const typeName =
+    item.vehicle_type && item.vehicle_type !== "Chưa phân loại"
+      ? item.vehicle_type
+      : null;
 
   return (
     <button
@@ -107,6 +56,9 @@ function Row({
       </span>
       <span className="notification-row-text">
         <span className="notification-row-title">
+          {typeName && (
+            <span className="notification-vehicle-type">{typeName}</span>
+          )}
           {before}
           {plate && (
             <span className="notification-plate" aria-label={`Biển số ${plate}`}>
@@ -129,7 +81,6 @@ export function NotificationBell() {
     unreadCount,
     isLoading,
     hasMore,
-    loadMore,
     markRead,
     markAll,
     markAllPending,
@@ -320,8 +271,12 @@ export function NotificationBell() {
                   })
                 )}
                 {hasMore && (
-                  <button type="button" className="notification-load-more" onClick={loadMore}>
-                    Xem thêm thông báo cũ
+                  <button
+                    type="button"
+                    className="notification-load-more"
+                    onClick={() => { setOpen(false); navigate("/thong-bao"); }}
+                  >
+                    Xem tất cả thông báo
                   </button>
                 )}
               </div>

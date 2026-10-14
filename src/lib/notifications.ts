@@ -1,4 +1,17 @@
-import type { NotificationGroup, NotificationItem } from "@/types";
+import type { LucideIcon } from "lucide-react";
+import {
+  ArrowDownLeft,
+  ArrowUpRight,
+  Ban,
+  Banknote,
+  Bike,
+  Check,
+  Inbox,
+  Landmark,
+  Send,
+  Undo2,
+} from "lucide-react";
+import type { NotificationAction, NotificationGroup, NotificationItem } from "@/types";
 
 /**
  * Pure display helpers for the business bell. Copy is rendered server-side;
@@ -128,3 +141,56 @@ export function splitVehicleIdentity(title: string): {
     after: title.slice(m.index + m[0].length),
   };
 }
+
+/**
+ * Icon cho từng loại hành động thông báo — dùng chung giữa chuông nổi
+ * (NotificationBell) và trang đầy đủ (/thong-bao). Thêm hành động mới ở đây
+ * để cả hai nơi cùng cập nhật, không bị lệch.
+ */
+export const ACTION_ICON: Record<NotificationAction, LucideIcon> = {
+  CREATE_ACQUISITION: ArrowDownLeft,
+  CANCEL_ACQUISITION: Ban,
+  CREATE_SALE: ArrowUpRight,
+  CANCEL_SALE: Ban,
+  CREATE_PAYMENT: Banknote,
+  VOID_PAYMENT: Undo2,
+  CREATE_VEHICLE: Bike,
+  UPDATE_VEHICLE: Bike,
+  REQUEST_DELETE_VEHICLE: Inbox,
+  REQUEST_SALE_BELOW_COST: Send,
+  APPROVE_SALE_BELOW_COST: Check,
+  REJECT_SALE_BELOW_COST: Ban,
+  CANCEL_SALE_BELOW_COST: Undo2,
+  BANK_TRANSACTION_MATCHED: Landmark,
+  BANK_TRANSACTION_REVIEW: Landmark,
+  BANK_TRANSACTION_UNMATCHED: Landmark,
+};
+
+/** Nhóm màu ngữ cảnh: thu vào/thanh toán = được, hủy = cảnh báo, còn lại trung tính. */
+export const ACTION_TONE: Record<NotificationAction, "success" | "warning" | "neutral"> = {
+  CREATE_ACQUISITION: "success",
+  CREATE_SALE: "success",
+  CREATE_PAYMENT: "success",
+  CANCEL_ACQUISITION: "warning",
+  CANCEL_SALE: "warning",
+  VOID_PAYMENT: "warning",
+  CREATE_VEHICLE: "neutral",
+  UPDATE_VEHICLE: "neutral",
+  REQUEST_DELETE_VEHICLE: "warning",
+  REQUEST_SALE_BELOW_COST: "warning",
+  APPROVE_SALE_BELOW_COST: "success",
+  REJECT_SALE_BELOW_COST: "warning",
+  CANCEL_SALE_BELOW_COST: "neutral",
+  BANK_TRANSACTION_MATCHED: "success",
+  BANK_TRANSACTION_REVIEW: "warning",
+  BANK_TRANSACTION_UNMATCHED: "neutral",
+};
+
+/**
+ * Glue trailing currency unit to the number so it doesn't get orphaned on
+ * narrow screens. Only non-breaking-space fix — no more text substitution.
+ */
+export function tidyBody(text: string): string {
+  return text.replace(/(\d)\s+([\u20AB\u0111])/g, "$1\u00A0$2");
+}
+

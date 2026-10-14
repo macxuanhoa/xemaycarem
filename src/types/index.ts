@@ -495,7 +495,10 @@ export type NotificationAction =
   | "REQUEST_SALE_BELOW_COST"
   | "APPROVE_SALE_BELOW_COST"
   | "REJECT_SALE_BELOW_COST"
-  | "CANCEL_SALE_BELOW_COST";
+  | "CANCEL_SALE_BELOW_COST"
+  | "BANK_TRANSACTION_MATCHED"
+  | "BANK_TRANSACTION_REVIEW"
+  | "BANK_TRANSACTION_UNMATCHED";
 
 /**
  * Generic approval queue row (migration 20261008000200). `kind` discriminates
@@ -578,6 +581,8 @@ export type NotificationItem = {
   created_at: string;
   actor_id: string | null;
   actor_name: string | null;
+  /** Tên loại xe (Honda Wave, Sirius…) — JOIN từ vehicles + vehicle_types, null khi xe đã bị xóa. */
+  vehicle_type?: string | null;
 };
 
 export type NotificationList = {

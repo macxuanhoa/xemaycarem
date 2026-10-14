@@ -69,6 +69,11 @@ const CustomersPage = lazy(() =>
     default: m.CustomersPage,
   })),
 );
+const NotificationsPage = lazy(() =>
+  import("@/features/notifications/NotificationsPage").then((m) => ({
+    default: m.NotificationsPage,
+  })),
+);
 const CapturePage = lazy(() => import("@/features/capture/CapturePage"));
 const AssistPage = lazy(() => import("@/features/assistant/AssistPage"));
 const CopilotPage = lazy(() => import("@/features/copilot/CopilotPage"));
@@ -187,6 +192,7 @@ export default function App() {
               <Route path="docs/:slug" element={<DocsPage />} />
               <Route path="receivables" element={<Navigate to="/vehicles?status=SOLD" replace />} />
               <Route path="customers" element={<CustomersPage />} />
+              <Route path="thong-bao" element={<NotificationsPage />} />
               <Route path="settings" element={<SettingsPage />} />
               <Route element={<Protected access="operate" />}>
                 <Route

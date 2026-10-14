@@ -12,6 +12,11 @@ import { useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
 import { AppError } from "@/lib/errors";
 import { getNetworkStatus, subscribeNetworkStatus } from "@/lib/networkStatus";
+import {
+  cleanupPushBeforeSignOut,
+  startPushResubscribeListener,
+  syncPushOnLogin,
+} from "@/lib/push";
 import type { Profile } from "@/types";
 
 // Only a transport interruption may keep an already verified screen open.
@@ -53,6 +58,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const refreshVersion = useRef(0);
   const signedOutLocally = useRef(false);
   const signingOut = useRef(false);
+  // Web push chỉ đồng bộ một lần cho mỗi phiên đã xác thực — không ghi DB lại
+  // mỗi 60 giây theo nhịp refresh.
+  const pushSyncedFor = useRef<string | null>(null);
   const refresh = useCallback(async () => {
     if (signedOutLocally.current) return;
     // Do not let getSession attempt to refresh an expired token during a known
@@ -199,6 +207,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       identity.current = nextIdentity;
       setProfile(row as Profile);
       setError(null);
+      if (pushSyncedFor.current !== row.id) {
+        pushSyncedFor.current = row.id;
+        // Im lặng tái đăng ký keys + rút hàng đợi dồn (chỉ khi user ĐÃ bật
+        // push từ trước — không bao giờ tự bật, không bao giờ tự hỏi quyền).
+        void syncPushOnLogin();
+      }
     } catch (e) {
       if (version !== refreshVersion.current) return;
       if (
@@ -257,11 +271,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       wasOnline = online;
       if (recovered) void refresh();
     });
+    const stopPushListener = startPushResubscribeListener();
     return () => {
       data?.subscription.unsubscribe();
       clearInterval(id);
       window.removeEventListener("focus", focus);
       stopNetworkSubscription();
+      stopPushListener();
     };
   }, [refresh, client]);
   async function signOut() {
@@ -279,6 +295,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setLoading(false);
     setError(null);
     try {
+      // Thu hồi subscription máy này khi phiên còn hiệu lực (RPC cần JWT),
+      // TRƯỚC khi đóng phiên. Lỗi mạng chỉ bỏ qua — endpoint chết sẽ bị
+      // push-dispatch quên qua 404/410.
+      await cleanupPushBeforeSignOut();
+      pushSyncedFor.current = null;
       const result = await supabase?.auth.signOut({ scope: "local" });
       if (result?.error)
         setError(

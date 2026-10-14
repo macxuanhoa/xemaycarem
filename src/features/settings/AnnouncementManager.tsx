@@ -31,6 +31,7 @@ import { api } from "@/lib/api";
 import { friendlyError } from "@/lib/errors";
 import { toast } from "@/lib/toast";
 import { confirmAction } from "@/components/ui/ConfirmDialog";
+import { useDialog } from "@/lib/useDialog";
 import type {
   Announcement,
   AnnouncementAudience,
@@ -343,12 +344,13 @@ export function AnnouncementManager() {
     if (ok) remove.mutate(a.id);
   };
 
+  /** Trả về true nếu form thực sự đóng (không có nội dung hoặc người dùng xác nhận). */
   const askCancelDraft = async () => {
-    if (!draft) return;
+    if (!draft) return true;
     const hasContent = draft.title.trim() !== "" || draft.message.trim() !== "";
     if (!hasContent) {
       setDraft(null);
-      return;
+      return true;
     }
     const ok = await confirmAction({
       title: "Đóng form soạn thông báo?",
@@ -358,7 +360,16 @@ export function AnnouncementManager() {
       tone: "danger",
     });
     if (ok) setDraft(null);
+    return ok;
   };
+
+  // Form soạn thảo mở dạng popup: Esc/chạm nền mờ đóng qua askCancelDraft,
+  // khóa cuộn nền và bẫy focus theo chuẩn dialog dùng chung toàn ứng dụng.
+  const formPanelRef = useDialog(
+    !!draft,
+    () => void askCancelDraft(),
+    save.isPending,
+  );
 
   const rawItems = list.data?.items;
   const items = useMemo(() => rawItems ?? [], [rawItems]);
@@ -450,8 +461,11 @@ export function AnnouncementManager() {
           </Button>
           <Button
             onClick={() => {
-              if (draft) void askCancelDraft();
-              setDraft({ ...EMPTY });
+              void (async () => {
+                // Đang soạn dở: hỏi đã đóng xong mới mở bản mới, tránh mất nội dung.
+                if (draft && !(await askCancelDraft())) return;
+                setDraft({ ...EMPTY });
+              })();
             }}
           >
             <Plus size={16} /> {draft ? "Soạn mới" : "Tạo thông báo"}
@@ -478,14 +492,29 @@ export function AnnouncementManager() {
       </div>
 
       {draft && (
-        <AnnouncementForm
-          draft={draft}
-          onChange={setDraft}
-          onCancel={() => void askCancelDraft()}
-          onSubmit={() => save.mutate(draft)}
-          saving={save.isPending}
-          error={save.error}
-        />
+        <div
+          className="dialog-backdrop"
+          onClick={() => void askCancelDraft()}
+          role="presentation"
+        >
+          <div
+            className="dialog-panel announcement-form-dialog"
+            ref={formPanelRef}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="announcement-form-title"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <AnnouncementForm
+              draft={draft}
+              onChange={setDraft}
+              onCancel={() => void askCancelDraft()}
+              onSubmit={() => save.mutate(draft)}
+              saving={save.isPending}
+              error={save.error}
+            />
+          </div>
+        </div>
       )}
 
       {list.isPending ? (
@@ -748,7 +777,9 @@ function AnnouncementForm({
     >
       <div className="ac-form-head">
         <div>
-          <h3>{draft.id ? "Cập nhật thông báo" : "Soạn thông báo mới"}</h3>
+          <h3 id="announcement-form-title">
+            {draft.id ? "Cập nhật thông báo" : "Soạn thông báo mới"}
+          </h3>
           <p className="muted small">
             Nội dung hiển thị trên thanh thông báo của toàn cửa hàng, đúng theo
             đối tượng và lịch bạn chọn.
@@ -759,6 +790,8 @@ function AnnouncementForm({
         </Button>
       </div>
 
+      {/* Thân form cuộn độc lập trong popup; đầu form và nút hành động luôn neo visible. */}
+      <div className="ac-form-body">
       <section className="ac-section">
         <span className="ac-section-label">
           <AlignLeft size={12} /> Nội dung
@@ -968,6 +1001,8 @@ function AnnouncementForm({
       </section>
 
       {error ? <ErrorState error={error} /> : null}
+      </div>
+
       <div className="form-actions">
         <Button type="button" variant="ghost" onClick={onCancel}>
           Hủy

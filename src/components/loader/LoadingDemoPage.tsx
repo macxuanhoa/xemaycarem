@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { CaremRideLoader } from "@/components/loader/CaremRideLoader";
+import { CaremSignatureLoader } from "@/components/loader/CaremSignatureLoader";
 
 /**
  * Trang duyệt prototype CaremRideLoader (tạm thời, chỉ phục vụ review).
@@ -67,6 +68,24 @@ export default function LoadingDemoPage() {
           <div style={{ display: "flex", gap: 14, flexWrap: "wrap", alignItems: "center" }}>
             <CaremRideLoader variant="compact" label="Đang lưu…" />
             <CaremRideLoader variant="compact" label="Đang tải ảnh…" />
+          </div>
+        </section>
+
+        <section>
+          <h2 style={{ fontSize: 15, marginBottom: 10 }}>
+            4 · Chữ kí &quot;carem&quot; tự viết + xe chạy dọc nét (màn chờ trong trang)
+          </h2>
+          <div style={{ borderRadius: 16, border: "1px solid #dbe3f0", background: "#fff", padding: "12px 0" }}>
+            <CaremSignatureLoader variant="section" label="Đang tải danh sách xe…" />
+          </div>
+          <div style={{ marginTop: 10, background: "#0b0c10", borderRadius: 16, padding: "12px 0" }}>
+            <div data-theme="dark">
+              <CaremSignatureLoader variant="section" label="Bản tối…" />
+            </div>
+          </div>
+          <div style={{ display: "flex", gap: 14, flexWrap: "wrap", alignItems: "center", marginTop: 14 }}>
+            <CaremSignatureLoader variant="compact" label="Đang lưu…" />
+            <CaremSignatureLoader variant="compact" label="Đang tải ảnh…" />
           </div>
         </section>
       </div>

@@ -14310,11 +14310,10 @@ html[data-theme="dark"] .header-theme-toggle {
 }
 /* Nhãn nhóm thời gian: divider tinh tế — chữ xám nhạt nhỏ, một chấm nhấn cho
    nhóm đang "sống" (Vừa xong / Hôm nay / Hôm qua) và một hairline mảnh chạy hết
-   chiều rộng. Đã bỏ hẳn pill LED rực tím của bản cũ. */
+   chiều rộng. Đã bỏ hẳn pill LED rực tím của bản cũ.
+   Nhãn cuộn theo bình thường (không sticky) vì neo dính gây lộn thứ tự
+   "Hôm nay / Hôm qua" khi lướt danh sách. */
 .notification-group-label {
-  position: sticky;
-  top: 0;
-  z-index: 1;
   padding: 12px 16px 6px;
   display: flex;
   align-items: center;
@@ -14685,7 +14684,7 @@ html[data-theme="dark"] .header-theme-toggle {
   box-shadow: inset 0 0 0 1px rgba(165, 180, 252, 0.24);
   color: #c7d2fe;
 }
-/* Nhãn nhóm thời gian dính (sticky) cần nền khớp với panel tối. */
+/* Nền nhãn nhóm thời gian khớp với panel tối. */
 [data-theme="dark"] .notification-group-label {
   background: #14161e;
 }
@@ -15720,6 +15719,60 @@ html[data-theme="dark"] .header-theme-toggle {
   background: #101117;
   border-color: #232531;
 }
+/* --- Popup soạn thông báo (Tạo thông báo / Sửa) ---
+   Form không còn-inline đẩy danh sách xuống dưới nữa mà mở giữa màn hình:
+   panel tự lo mặt nền, đầu form neo trên, thân cuộn độc lập, nút hành động
+   ghim đáy để luôn với tới được trên điện thoại (theo chuẩn dialog chung). */
+.dialog-panel.announcement-form-dialog {
+  width: min(760px, 100%);
+  max-height: min(92dvh, 900px);
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.announcement-form-dialog .announcement-form {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  gap: 0;
+}
+.announcement-form-dialog .ac-form-head {
+  flex-shrink: 0;
+  padding: 18px 18px 10px;
+  border-bottom: 1px solid var(--line, #e3e4ea);
+}
+.announcement-form-dialog .ac-form-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  padding: 14px 18px 16px;
+}
+.announcement-form-dialog .form-actions {
+  flex-shrink: 0;
+  margin: 0;
+  padding: 12px 18px 16px;
+  border-top: 1px solid var(--line, #e3e4ea);
+}
+[data-theme="dark"] .announcement-console .announcement-form-dialog .announcement-form,
+[data-theme="dark"] .announcement-form-dialog .announcement-form {
+  background: transparent;
+  border-color: transparent;
+}
+[data-theme="dark"] .announcement-form-dialog .ac-form-head,
+[data-theme="dark"] .announcement-form-dialog .form-actions {
+  border-top-color: #232531;
+  border-bottom-color: #232531;
+}
 [data-theme="dark"] .ac-section,
 [data-theme="dark"] .ac-preview,
 [data-theme="dark"] .ac-card-foot {
@@ -15790,65 +15843,45 @@ html[data-theme="dark"] .header-theme-toggle {
 .money-input-error {
   margin: var(--space-xs) 0 0;
 }
-/* Màn “Giao dịch bán ra trước” khi mở xe đã bán từ tab Đã bán trong kho */
-.sold-sale-first {
-  max-width: 640px;
-  margin: 0 auto;
-  width: 100%;
-}
-.sold-sale-first-head {
+/* Xe đã bán — hero đầu trang chi tiết: một thẻ gọn tóm tắt giao dịch bán ra,
+   đúng một CTA "Xem giao dịch"; tiền nịnh chỉ lặp lại ở trang giao dịch. */
+.vehicle-sold-hero {
   display: flex;
-  align-items: flex-start;
+  flex-direction: column;
+  gap: var(--space-sm);
+  border-left: 3px solid var(--color-primary-dark, #2b6127);
+}
+.vehicle-sold-hero-head {
+  display: flex;
+  align-items: center;
   justify-content: space-between;
   gap: var(--space-sm);
-  padding-bottom: var(--space-md);
-  margin-bottom: var(--space-md);
-  border-bottom: 1px solid var(--line);
 }
-.sold-sale-first-title {
-  min-width: 0;
-}
-.sold-sale-first-title h1 {
-  margin: 2px 0 0;
-  font-size: 1.35rem;
-  line-height: 1.2;
-  word-break: break-word;
-}
-.sold-sale-first-title p {
-  margin: 4px 0 0;
-}
-.sold-sale-first-body .section-title {
+.vehicle-sold-hero-head .section-title {
   display: flex;
   align-items: center;
   gap: 8px;
-  margin-bottom: var(--space-sm);
+  margin: 0;
 }
-.sold-sale-buyer {
+.vehicle-sold-hero-buyer {
   display: flex;
   align-items: center;
   flex-wrap: wrap;
   gap: var(--space-sm);
-  margin-bottom: var(--space-sm);
 }
-.sold-sale-buyer strong {
+.vehicle-sold-hero-buyer strong {
   font-size: 1.05rem;
 }
-.sold-sale-first-actions {
-  display: flex;
-  gap: var(--space-sm);
-  margin-top: var(--space-md);
+.vehicle-sold-hero-meta {
+  margin: 0;
+  overflow-wrap: anywhere;
 }
-.sold-sale-first-actions .button {
-  flex: 1;
-  justify-content: center;
+.vehicle-sold-hero .summary-list {
+  margin: 0;
 }
-@media (max-width: 480px) {
-  .sold-sale-first-actions {
-    flex-direction: column;
-  }
-}
-[data-theme="dark"] .sold-sale-first-head {
-  border-bottom-color: var(--line);
+.vehicle-sold-hero > .button {
+  align-self: flex-start;
+  margin-top: 2px;
 }
 .vehicle-identity {
   display: grid;
@@ -19657,12 +19690,6 @@ html[data-theme="dark"] .header-theme-toggle {
   overflow-wrap: anywhere;
 }
 
-.sale-vehicle-arrow {
-  margin-left: auto;
-  flex: 0 0 auto;
-  color: var(--readable-muted, #64748b);
-}
-
 .sale-party-list {
   margin-top: 12px;
 }
@@ -19705,37 +19732,93 @@ html[data-theme="dark"] .header-theme-toggle {
   color: var(--readable-muted, #64748b);
 }
 
-/* Vehicle detail sidebar: active sale + cancelled history share one
-   "Giao dịch" card; cancelled rows are a quiet sub-list, not a second card. */
-.vehicle-sale-head {
+/* Vehicle detail sidebar "Lịch sử giao dịch": một hàng gọn cho giao dịch hiện
+   hành (không lặp bảng số tiền — tiền chỉ ở hero và trang giao dịch), giao dịch
+   hủy nằm trong <details> thu gọn mặc định. */
+.vehicle-sale-row {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 8px;
-}
-
-.vehicle-sale-buyer {
-  margin: 2px 0 8px;
+  padding: 7px 0;
   font-size: 13px;
+  color: inherit;
+  text-decoration: none;
+  min-width: 0;
 }
 
-.vehicle-cancelled-sales.separated {
-  margin-top: 14px;
-  padding-top: 12px;
+.vehicle-sale-row > span:first-child {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.vehicle-sale-row small {
+  font-weight: 400;
+}
+
+.vehicle-sale-debt-chip {
+  flex: 0 0 auto;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--readable-muted, #64748b);
+  background: #eef3ea;
+}
+
+.vehicle-sale-debt-chip.is-due {
+  color: var(--color-danger, #c2410c);
+  background: #fdece2;
+}
+
+[data-theme="dark"] .vehicle-sale-debt-chip {
+  color: #9aa3b2;
+  background: #23262f;
+}
+
+[data-theme="dark"] .vehicle-sale-debt-chip.is-due {
+  color: #fca5a5;
+  background: #33231f;
+}
+
+.vehicle-cancelled-history {
+  margin-top: 10px;
+  padding-top: 10px;
   border-top: 1px dashed #d7e3cf;
 }
 
-[data-theme="dark"] .vehicle-cancelled-sales.separated {
+[data-theme="dark"] .vehicle-cancelled-history {
   border-top-color: #2f3a2c;
 }
 
-.vehicle-cancelled-label {
-  margin: 0 0 4px;
+.vehicle-cancelled-history summary {
+  cursor: pointer;
   font-size: 11.5px;
   font-weight: 700;
   letter-spacing: 0.8px;
   text-transform: uppercase;
   color: var(--readable-muted, #64748b);
+  list-style: none;
+}
+
+.vehicle-cancelled-history summary::-webkit-details-marker {
+  display: none;
+}
+
+.vehicle-cancelled-history summary::before {
+  content: "▸ ";
+}
+
+.vehicle-cancelled-history[open] summary::before {
+  content: "▾ ";
+}
+
+.vehicle-cancelled-history[open] summary {
+  margin-bottom: 2px;
 }
 
 .vehicle-cancelled-row {
@@ -19765,12 +19848,6 @@ html[data-theme="dark"] .header-theme-toggle {
 
 [data-theme="dark"] .vehicle-cancelled-row {
   border-bottom-color: #262933;
-}
-
-/* Sold-vehicle gate: the one-line meta under the buyer (mã · ngày · người bán). */
-.sold-sale-meta {
-  margin: 0 0 8px;
-  overflow-wrap: anywhere;
 }
 
 /* ==========================================================================
@@ -20456,9 +20533,14 @@ html[data-theme="dark"] .header-theme-toggle {
 }
 
 /* ============================================================
-   Modal "Lịch sử mua hàng" của khách hàng — bản gọn (CustomersPage)
-   Đầu modal cố định, nội dung cuộn trong khung; tóm tắt chỉ một dòng,
-   mỗi lượt mua hiển thị 1–2 dòng, chi tiết trả tiền gập trong <details>.
+   Modal "Lịch sử mua hàng" của khách hàng (CustomersPage)
+   Tái thiết kế 14-10: tách khối rõ ràng thay vì dồn dày "dính nhau".
+   - Nhịp dọc thống nhất: section phân tách bằng kẻnng mảnh + khoảng thở.
+   - Mỗi lượt mua là một thẻ độc lập có nền, viền mảnh, bóng rất nhẹ.
+   - Lịch sử trả tiền tách khỏi dòng meta bằng kẻnng, mở ra trong khối
+     nền mềm có phân cách giữa các lần trả.
+   - Hàng liên hệ tăng padding, tách ngày / nội dung / trạng thái.
+   Đầu modal vẫn cố định, nội dung cuộn trong khung.
    ============================================================ */
 .customer-history-modal {
   display: flex;
@@ -20472,7 +20554,7 @@ html[data-theme="dark"] .header-theme-toggle {
   justify-content: space-between;
   gap: 12px;
   flex-shrink: 0;
-  padding-bottom: 12px;
+  padding-bottom: 14px;
   border-bottom: 1px solid var(--line, #e3e4ea);
 }
 
@@ -20487,7 +20569,7 @@ html[data-theme="dark"] .header-theme-toggle {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  margin-top: 3px;
+  margin-top: 4px;
   font-size: 16px;
   font-weight: 600;
   color: inherit;
@@ -20503,20 +20585,25 @@ html[data-theme="dark"] .header-theme-toggle {
 .customer-history-body {
   display: flex;
   flex-direction: column;
-  gap: 12px;
-  padding-top: 12px;
+  gap: 14px;
+  padding: 14px 0 18px;
 }
 
 .customer-summary-strip {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 6px 16px;
-  padding: 10px 14px;
+  gap: 8px 18px;
+  padding: 12px 16px;
   border: 1px solid var(--line, #e3e4ea);
-  border-radius: 12px;
+  border-radius: 14px;
   background: var(--line-subtle, #f0f0f5);
   font-size: 13.5px;
+}
+
+.customer-summary-strip > span + span {
+  border-left: 1px solid var(--line, #e3e4ea);
+  padding-left: 18px;
 }
 
 .customer-summary-strip strong {
@@ -20533,23 +20620,38 @@ html[data-theme="dark"] .header-theme-toggle {
   color: #16a34a;
 }
 
+/* Tiêu đề section hoạt động như kẻnng phân cách: "Các xe đã mua" không
+   còn dính vào khối phía trên. */
 .customer-history-subtitle {
-  margin: 4px 0 0;
-  font-size: 13px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin: 8px 0 0;
+  font-size: 12.5px;
   font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
   color: var(--muted, #64748b);
+}
+
+.customer-history-subtitle::after {
+  content: "";
+  flex: 1;
+  border-top: 1px solid var(--line, #e3e4ea);
 }
 
 .customer-purchase-list {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 12px;
 }
 
 .customer-purchase-row {
-  padding: 10px 12px;
+  padding: 14px 16px;
   border: 1px solid var(--line, #e3e4ea);
-  border-radius: 12px;
+  border-radius: 14px;
+  background: #fff;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
   transition: border-color 0.15s ease;
 }
 
@@ -20582,7 +20684,8 @@ html[data-theme="dark"] .header-theme-toggle {
   align-items: center;
   justify-content: space-between;
   gap: 4px 10px;
-  margin-top: 2px;
+  margin-top: 6px;
+  font-size: 12.5px;
 }
 
 .customer-debt-tag,
@@ -20592,23 +20695,38 @@ html[data-theme="dark"] .header-theme-toggle {
   white-space: nowrap;
 }
 
+/* Lịch sử trả tiền: tách khỏi dòng meta bằng kẻnng mảnh; khi mở, các
+   lần trả nằm trong khối nền mềm với phân cách giữa từng dòng. */
 .customer-payments {
-  margin-top: 6px;
+  margin-top: 10px;
+  padding-top: 9px;
+  border-top: 1px dashed var(--line, #e3e4ea);
 }
 
 .customer-payments summary {
   cursor: pointer;
   font-size: 12px;
+  font-weight: 600;
   color: var(--muted, #64748b);
   user-select: none;
+}
+
+.customer-payments[open] summary {
+  margin-bottom: 6px;
 }
 
 .customer-payment-line {
   display: flex;
   justify-content: space-between;
+  align-items: baseline;
   gap: 10px;
-  padding: 2px 0;
-  font-size: 12px;
+  padding: 7px 10px;
+  font-size: 12.5px;
+  border-radius: 8px;
+}
+
+.customer-payment-line:nth-child(odd) {
+  background: var(--line-subtle, #f0f0f5);
 }
 
 .customer-payment-line strong {
@@ -20619,33 +20737,33 @@ html[data-theme="dark"] .header-theme-toggle {
 .customer-comm-list {
   display: flex;
   flex-direction: column;
-  border: 1px solid var(--line, #e3e4ea);
-  border-radius: 12px;
-  overflow: hidden;
+  gap: 8px;
 }
 
 .customer-comm-row {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 8px 12px;
-  border-bottom: 1px solid var(--line-subtle, #f0f0f5);
+  gap: 12px;
+  padding: 10px 14px;
+  border: 1px solid var(--line, #e3e4ea);
+  border-radius: 12px;
+  background: #fff;
   font-size: 13px;
-}
-
-.customer-comm-row:last-child {
-  border-bottom: 0;
 }
 
 .customer-comm-date {
   flex: 0 0 92px;
   color: var(--muted, #64748b);
   font-size: 12px;
+  font-variant-numeric: tabular-nums;
 }
 
 .customer-comm-body {
   flex: 1;
   min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
 }
 
 .customer-comm-body strong {
@@ -20664,9 +20782,24 @@ html[data-theme="dark"] .header-theme-toggle {
     font-size: 19px;
   }
 
+  .customer-history-body {
+    gap: 12px;
+    padding: 12px 0 16px;
+  }
+
   .customer-summary-strip {
-    gap: 4px 12px;
+    gap: 6px 12px;
+    padding: 10px 14px;
     font-size: 13px;
+  }
+
+  .customer-summary-strip > span + span {
+    border-left: 0;
+    padding-left: 0;
+  }
+
+  .customer-purchase-row {
+    padding: 12px 14px;
   }
 
   .customer-comm-date {
@@ -20678,8 +20811,21 @@ html[data-theme="dark"] .header-theme-toggle {
   background: rgba(255, 255, 255, 0.04);
 }
 
+[data-theme="dark"] .customer-purchase-row {
+  background: rgba(255, 255, 255, 0.02);
+  box-shadow: none;
+}
+
 [data-theme="dark"] .customer-purchase-row:hover {
   border-color: #3a3f4d;
+}
+
+[data-theme="dark"] .customer-payment-line:nth-child(odd) {
+  background: rgba(255, 255, 255, 0.04);
+}
+
+[data-theme="dark"] .customer-comm-row {
+  background: rgba(255, 255, 255, 0.02);
 }
 
 [data-theme="dark"] .customer-debt-value,

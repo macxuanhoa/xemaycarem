@@ -3,7 +3,7 @@ import { Link, useParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { ArrowLeft, ArrowRight, Ban, Check, Circle, CreditCard, MoreHorizontal, Printer, QrCode, X } from "lucide-react";
+import { ArrowLeft, Ban, Check, Circle, CreditCard, MoreHorizontal, Printer, QrCode, X } from "lucide-react";
 import { VietQrPaymentModal } from "./VietQrPaymentModal";
 import { api } from "@/lib/api";
 import { confirmPayment, pendingPayment, retainPayment } from "@/lib/paymentRecovery";
@@ -31,7 +31,7 @@ import { paymentLabels } from "@/features/vehicles/vehicleSchema";
 import { paymentSchema, type PaymentFormValues } from "./saleSchema";
 import { PaymentReceiptReview, type PaymentReceipt } from "./PaymentReceiptReview";
 import { displayFrame } from "@/lib/frameNumber";
-import { vehicleSubtitle, vehicleTitle } from "@/lib/vehicleDisplay";
+import { vehicleTitle } from "@/lib/vehicleDisplay";
 
 type SaleRecord = Sale & {
   vehicle_code?: string;
@@ -283,13 +283,12 @@ export function SaleDetailPage() {
                 <strong>{sale.license_plate || sale.vehicle?.license_plate || "Chưa có"}</strong>
               </span>
               <span className="sale-vehicle-text">
-                <strong>{sale.vehicle_type || vehicleSubtitle(sale) || "Xem chi tiết xe"}</strong>
+                <strong>{sale.vehicle_type || vehicleTitle(sale) || "Xe đã bán"}</strong>
                 <small>
                   Khung {displayFrame(sale.vehicle?.frame_number) || "chưa có"} · Mã kho{" "}
                   {sale.vehicle_code || sale.vehicle?.internal_code || "—"}
                 </small>
               </span>
-              <ArrowRight size={16} className="sale-vehicle-arrow" aria-hidden="true" />
             </Link>
             <dl className="sale-spec-list sale-party-list">
               <div>

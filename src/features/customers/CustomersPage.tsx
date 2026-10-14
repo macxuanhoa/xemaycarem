@@ -434,8 +434,9 @@ export function CustomersPage() {
         </Card>
       )}
 
-      {/* Customer Purchase History Modal — bản gọn: đầu modal cố định, tóm tắt
-          một dòng thay 3 thẻ KPI, mỗi xe 2 dòng, lịch sử trả tiền gập lại. */}
+      {/* Customer Purchase History Modal — bản tái thiết kế 14/10: đầu modal
+          cố định, tóm tắt một dòng có phân cách, mỗi xe một thẻ riêng có nền,
+          lịch sử trả tiền gập sau kẻnng đứt, liên hệ tách thành từng hàng. */}
       {selectedPhone && (
         <div
           className="modal-backdrop"

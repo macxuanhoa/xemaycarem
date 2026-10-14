@@ -11,6 +11,7 @@ import { Button } from "./button";
 import { DatePicker } from "./DatePicker";
 import { ColorSwatchAction } from "./ColorSwatchAction";
 import { CaremRideLoader, type CaremRideLoaderVariant } from "@/components/loader/CaremRideLoader";
+import { CaremSignatureLoader } from "@/components/loader/CaremSignatureLoader";
 import { GroupedIntegerInput } from "./GroupedIntegerInput";
 import { friendlyError } from "@/lib/errors";
 import { datePreset } from "@/lib/format";
@@ -174,8 +175,9 @@ export function Loading({
   variant?: CaremRideLoaderVariant;
   label?: string;
 } = {}) {
-  // Fullscreen phủ toàn viewport (lúc mở app / đổi trang);
-  // section/compact nằm gọn trong khu vực nội dung.
+  // Fullscreen phủ toàn viewport (lúc mở app / đổi trang): xe chạy ngang trọn nhịp.
+  // Bên trong trang (section/compact): chữ kí "carem" tự viết + xe mini chạy dọc
+  // nét chữ — không còn hộp nền đen giữa trang.
   if (variant === "fullscreen") {
     return (
       <div className="loading loading-fullscreen">
@@ -185,7 +187,7 @@ export function Loading({
   }
   return (
     <div className="loading">
-      <CaremRideLoader variant={variant} label={label} />
+      <CaremSignatureLoader variant={variant} label={label} />
     </div>
   );
 }

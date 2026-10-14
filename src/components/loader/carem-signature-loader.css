@@ -1,0 +1,197 @@
+/* =====================================================================
+   CaremSignatureLoader — màn chờ trong ứng dụng: chữ kí "carem" tự viết
+   nét kéo dài, một chiếc xe mini lăn ngang ngay phía trên nét chữ (nét
+   viết tới đâu xe lăn tới đó). Không nền đen: mực + nền trong suốt, tô
+   theo theme. Chỉ animate stroke-dashoffset / transform / opacity — không
+   vòng lặp JS, không ảnh hưởng tốc độ tải dữ liệu.
+   ===================================================================== */
+
+.csl {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  width: 100%;
+  user-select: none;
+  /* Mực chữ kí: chàm đậm trên nền sáng (khớp màu loader lúc mở app). */
+  --csl-ink: #4f56d0;
+  --csl-rail: rgba(79, 86, 208, 0.14);
+  --csl-label: #7c86a8;
+}
+[data-theme="dark"] .csl {
+  /* Nền tối: mực ngả trắng xanh để đọc rõ, không cần hộp đen. */
+  --csl-ink: rgba(226, 232, 250, 0.92);
+  --csl-rail: rgba(226, 232, 250, 0.1);
+  --csl-label: #9aa6c8;
+}
+
+.csl-scene {
+  position: relative;
+  width: min(340px, 82%);
+}
+.csl-svg {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+/* ---------------- Nét mực và đường ray ---------------- */
+
+.csl-rail {
+  fill: none;
+  stroke: var(--csl-rail);
+  stroke-width: 2;
+  stroke-linecap: round;
+}
+.csl-ink {
+  fill: none;
+  stroke: var(--csl-ink);
+  stroke-width: 3;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-dasharray: 100;
+  stroke-dashoffset: 100;
+  /* pathLength=100 → dash tính theo %, không phụ thuộc độ dài nét thật */
+  animation: cslWrite var(--csl-cycle, 4.25s) linear infinite;
+}
+@keyframes cslWrite {
+  0% {
+    stroke-dashoffset: 100;
+    opacity: 1;
+  }
+  56% {
+    /* nét viết xong */
+    stroke-dashoffset: 0;
+    opacity: 1;
+  }
+  78% {
+    /* nghỉ — chữ kí nằm lại như chữ kí thật */
+    stroke-dashoffset: 0;
+    opacity: 1;
+  }
+  92% {
+    stroke-dashoffset: 0;
+    opacity: 0;
+  }
+  100% {
+    stroke-dashoffset: 100;
+    opacity: 0;
+  }
+}
+
+/* ---------------- Xe mini lăn ngang trên nét chữ ----------------
+   Trục X quét từ mép trái nét (≈8%) tới mép phải (≈92%) đúng trong 56%
+   đầu của chu kì — cùng nhịp với nét mực đang viết. --csl-bike-lead bù
+   trừ kích thước ảnh để bánh xe nằm trên đường ray. */
+
+.csl-bike {
+  position: absolute;
+  top: 8%;
+  left: 0;
+  width: 12%;
+  will-change: transform, opacity;
+  animation:
+    cslRide var(--csl-cycle, 4.25s) linear infinite,
+    cslBikeFade var(--csl-cycle, 4.25s) linear infinite;
+}
+.csl-bike-img {
+  display: block;
+  width: 100%;
+  height: auto;
+  pointer-events: none;
+  filter: drop-shadow(0 4px 5px rgba(15, 23, 42, 0.35));
+  /* Nhịp xóc nhè nhẹ cho "sống" — chạy độc lập với quỹ đạo */
+  animation: cslHop 0.5s ease-in-out infinite alternate;
+}
+/* Trục X đưa bánh xe từ đầu tới cuối nét chữ (quãng ≈88% bề rộng scene,
+   quy đổi theo bề rộng riêng của xe = 12% → ~733%). */
+@keyframes cslRide {
+  0% {
+    transform: translateX(17%);
+  }
+  56% {
+    transform: translateX(700%);
+  }
+  100% {
+    transform: translateX(700%);
+  }
+}
+@keyframes cslHop {
+  from {
+    transform: translateY(-8%) rotate(-1deg);
+  }
+  to {
+    transform: translateY(0%) rotate(0.8deg);
+  }
+}
+/* Xe tan cùng nhịp với nét mực ở cuối vòng, rồi chờ vòng mới. */
+@keyframes cslBikeFade {
+  0%,
+  78% {
+    opacity: 1;
+  }
+  92%,
+  100% {
+    opacity: 0;
+  }
+}
+
+/* ---------------- Nhãn ---------------- */
+
+.csl-label {
+  font-size: 12.5px;
+  letter-spacing: 0.2px;
+  color: var(--csl-label);
+}
+
+/* ---------------- Biến thể COMPACT (pill nhỏ inline) ---------------- */
+
+.csl-compact {
+  flex-direction: row;
+  width: auto;
+  gap: 10px;
+  padding: 5px 14px 5px 8px;
+  border-radius: 999px;
+  /* Nền nhẹ theo theme thay cho hộp đen */
+  background: color-mix(in srgb, var(--csl-ink, #4f56d0) 7%, transparent);
+  border: 1px solid color-mix(in srgb, var(--csl-ink, #4f56d0) 22%, transparent);
+}
+.csl-compact .csl-scene {
+  flex: none;
+  width: 72px;
+}
+.csl-compact .csl-ink {
+  stroke-width: 5;
+}
+.csl-compact .csl-rail {
+  display: none;
+}
+.csl-compact .csl-label {
+  font-size: 12px;
+  white-space: nowrap;
+  color: inherit;
+}
+
+/* Modal VietQR là nền noir cố định (cả Light lẫn Dark) → nét kí phải sáng. */
+.vietqr-modal-panel .csl {
+  --csl-ink: rgba(226, 232, 250, 0.92);
+  --csl-rail: rgba(226, 232, 250, 0.1);
+  --csl-label: #9aa6c8;
+}
+
+/* ---------------- Reduced motion: chữ kí tĩnh, không chạy ---------------- */
+
+@media (prefers-reduced-motion: reduce) {
+  .csl-ink,
+  .csl-bike,
+  .csl-bike-img {
+    animation: none !important;
+  }
+  .csl-ink {
+    stroke-dashoffset: 0;
+  }
+  .csl-bike {
+    transform: translateX(788%) translateY(-4%);
+  }
+}

@@ -4,7 +4,6 @@ import { useQuery } from "@tanstack/react-query";
 import {
   ArrowLeft,
   ArrowRight,
-  Bike,
   Camera,
   CirclePlus,
   Copy,
@@ -35,7 +34,6 @@ import { useAuth } from "@/features/auth/AuthProvider";
 import { toast } from "@/lib/toast";
 import {
   Badge,
-  Button,
   Card,
   EmptyState,
   ErrorState,
@@ -77,12 +75,6 @@ export function VehicleDetailPage() {
   // Sao yêu thích cá nhân: bản nâng cấp nhẹ cho header, bấm là sáng ngay nhờ
   // optimistic cache của hook (query ["vehicle", id] được vẽ lại tại chỗ).
   const toggleFavorite = useToggleVehicleFavorite();
-  // Khi mở từ tab "Đã bán" trong kho, ưu tiên hiện giao dịch bán ra; người dùng
-  // bấm "Xem chi tiết xe" (set true) mới thấy toàn bộ hồ sơ xe.
-  const [revealDetail, setRevealDetail] = useState(false);
-  useEffect(() => {
-    setRevealDetail(false);
-  }, [id]);
 
   const query = useQuery({
     queryKey: ["vehicle", id],
@@ -141,117 +133,6 @@ export function VehicleDetailPage() {
   const activeSale = vehicle.sales?.find((sale) => sale.status === "COMPLETED");
   const cancelledSales =
     vehicle.sales?.filter((sale) => sale.status === "CANCELLED") ?? [];
-  // Màn “giao dịch bán ra trước”: chỉ chặn khi vào từ tab Đã bán, xe đang SOLD
-  // và thật sự có giao dịch hoàn tất; mọi trường hợp khác hiện chi tiết bình thường.
-  const saleFirstGate =
-    !!(location.state as { saleFirst?: boolean } | null)?.saleFirst &&
-    vehicle.status === "SOLD" &&
-    !!activeSale &&
-    !revealDetail;
-  if (saleFirstGate && activeSale) {
-    return (
-      <div className="stack vehicle-detail-page">
-        <Link
-          className="back-link"
-          to={location.state?.fromInventory || "/vehicles"}
-          state={{ restoreInventory: true }}
-        >
-          <ArrowLeft size={16} /> Tồn kho
-        </Link>
-        <Card className="sold-sale-first">
-          <div className="sold-sale-first-head">
-            <div className="sold-sale-first-title">
-              <span className="muted small">
-                Đã bán{vehicle.vehicle_type && vehicle.vehicle_type !== "Chưa phân loại" ? ` · ${vehicle.vehicle_type}` : ""}
-              </span>
-              <h1>
-                {vehicle.license_plate ||
-                  vehicle.internal_code ||
-                  vehicleTitle(vehicle)}
-              </h1>
-              <p className="muted small">
-                Số khung: {displayFrame(vehicle.frame_number)}
-              </p>
-            </div>
-            <Badge status="SOLD" />
-          </div>
-
-          <div className="sold-sale-first-body">
-            <h2 className="section-title">
-              <ShoppingBag size={18} aria-hidden="true" /> Giao dịch bán ra
-            </h2>
-            <div className="sold-sale-buyer">
-              <strong>{activeSale.customer_name}</strong>
-              {activeSale.customer_phone ? (
-                <a
-                  className="muted small"
-                  href={`tel:${activeSale.customer_phone}`}
-                  style={{ textDecoration: "none" }}
-                >
-                  {activeSale.customer_phone}
-                </a>
-              ) : (
-                <span className="muted small">Chưa có SĐT</span>
-              )}
-              <Badge status={resolveDebtStatus(activeSale)} />
-            </div>
-            {/* Mã · ngày · người bán dồn thành một dòng phụ gọn; thẻ chỉ còn
-                các con số thật sự cần khi xem nhanh một xe đã bán. */}
-            <p className="sold-sale-meta muted small">
-              {activeSale.sale_code} · {dateLabel(activeSale.sale_date)}
-              {activeSale.employee_name ? ` · ${activeSale.employee_name}` : ""}
-            </p>
-            <dl className="summary-list">
-              <div>
-                <dt>Giá bán</dt>
-                <dd>
-                  {activeSale.sale_price_hidden
-                    ? "Cà Rem nhập"
-                    : money(activeSale.sale_price ?? 0)}
-                </dd>
-              </div>
-              <div>
-                <dt>Đã thu</dt>
-                <dd>
-                  {activeSale.sale_price_hidden
-                    ? "Cà Rem nhập"
-                    : money(activeSale.paid_amount)}
-                </dd>
-              </div>
-              <div className="summary-total">
-                <dt>Còn phải thu</dt>
-                <dd>
-                  {activeSale.sale_price_hidden
-                    ? "Cà Rem nhập"
-                    : money(activeSale.remaining_amount)}
-                </dd>
-              </div>
-              {canFinance(profile) && activeSale.gross_profit != null && (
-                <div>
-                  <dt>Lợi nhuận gộp</dt>
-                  <dd>{money(activeSale.gross_profit)}</dd>
-                </div>
-              )}
-            </dl>
-            <div className="sold-sale-first-actions">
-              <Link
-                className="button primary"
-                to={`/sales/${activeSale.id}`}
-              >
-                Xem giao dịch <ArrowRight size={16} />
-              </Link>
-              <Button
-                variant="secondary"
-                onClick={() => setRevealDetail(true)}
-              >
-                <Bike size={16} aria-hidden="true" /> Xem chi tiết xe
-              </Button>
-            </div>
-          </div>
-        </Card>
-      </div>
-    );
-  }
   const available = ["IN_STOCK", "RESERVED"].includes(vehicle.status);
   const financial = canFinance(profile);
   const hasSales = !!vehicle.sales?.length;
@@ -523,6 +404,71 @@ export function VehicleDetailPage() {
           </div>
         </div>
       </div>
+      {/* Xe đã bán: hero tóm tắt giao dịch ngay đầu hồ sơ, đúng một đề xuất
+          điều hướng sang trang giao dịch — tiền bạc chỉ nói đủ ở đó. */}
+      {vehicle.status === "SOLD" && activeSale && (
+        <Card className="vehicle-sold-hero">
+          <div className="vehicle-sold-hero-head">
+            <h2 className="section-title">
+              <ShoppingBag size={18} aria-hidden="true" /> Đã bán
+            </h2>
+            <Badge status={resolveDebtStatus(activeSale)} />
+          </div>
+          <div className="vehicle-sold-hero-buyer">
+            <strong>{activeSale.customer_name}</strong>
+            {activeSale.customer_phone ? (
+              <a
+                className="muted small"
+                href={`tel:${activeSale.customer_phone}`}
+                style={{ textDecoration: "none" }}
+              >
+                {activeSale.customer_phone}
+              </a>
+            ) : (
+              <span className="muted small">Chưa có SĐT</span>
+            )}
+          </div>
+          <p className="vehicle-sold-hero-meta muted small">
+            {activeSale.sale_code} · {dateLabel(activeSale.sale_date)}
+            {activeSale.employee_name ? ` · ${activeSale.employee_name}` : ""}
+          </p>
+          <dl className="summary-list">
+            <div>
+              <dt>Giá bán</dt>
+              <dd>
+                {activeSale.sale_price_hidden
+                  ? "Cà Rem nhập"
+                  : money(activeSale.sale_price ?? 0)}
+              </dd>
+            </div>
+            <div>
+              <dt>Đã thu</dt>
+              <dd>
+                {activeSale.sale_price_hidden
+                  ? "Cà Rem nhập"
+                  : money(activeSale.paid_amount)}
+              </dd>
+            </div>
+            <div className="summary-total">
+              <dt>Còn phải thu</dt>
+              <dd>
+                {activeSale.sale_price_hidden
+                  ? "Cà Rem nhập"
+                  : money(activeSale.remaining_amount)}
+              </dd>
+            </div>
+            {financial && activeSale.gross_profit != null && (
+              <div>
+                <dt>Lợi nhuận gộp</dt>
+                <dd>{money(activeSale.gross_profit)}</dd>
+              </div>
+            )}
+          </dl>
+          <Link className="button primary" to={`/sales/${activeSale.id}`}>
+            Xem giao dịch <ArrowRight size={16} />
+          </Link>
+        </Card>
+      )}
       {pending && (
         <div className="notice warning" role="status">
           <TriangleAlert size={16} aria-hidden="true" />{" "}
@@ -789,61 +735,22 @@ export function VehicleDetailPage() {
           </section>
           {(activeSale || cancelledSales.length > 0) && (
             <Card>
-              <h2 className="section-title">Giao dịch</h2>
+              <h2 className="section-title">Lịch sử giao dịch</h2>
               {activeSale && (
-                <>
-                  <div className="vehicle-sale-head">
-                    <Link className="text-link" to={`/sales/${activeSale.id}`}>
-                      <strong>{activeSale.sale_code}</strong>
-                    </Link>
+                <Link className="vehicle-sale-row" to={`/sales/${activeSale.id}`}>
+                  <span>
+                    <strong>{activeSale.sale_code}</strong>
+                    <small className="muted">{" "}· {dateLabel(activeSale.sale_date)}</small>{" "}
                     <Badge status={activeSale.status} />
-                  </div>
-                  <p className="vehicle-sale-buyer">
-                    <strong>{activeSale.customer_name}</strong>
-                    <span className="muted small">
-                      {" "}· {dateLabel(activeSale.sale_date)}
-                    </span>
-                  </p>
-                  <dl className="summary-list">
-                    <div>
-                      <dt>Giá bán</dt>
-                      <dd style={{ fontWeight: 700 }}>{money(activeSale.sale_price)}</dd>
-                    </div>
-                    <div>
-                      <dt>Đã thu</dt>
-                      <dd>{money(activeSale.paid_amount)}</dd>
-                    </div>
-                    <div className="summary-total">
-                      <dt>Còn phải thu</dt>
-                      <dd style={{ color: activeSale.remaining_amount > 0 ? "var(--color-danger, #c2410c)" : "var(--color-primary-dark, #2b6127)" }}>
-                        {money(activeSale.remaining_amount)}
-                      </dd>
-                    </div>
-                    {financial && (
-                      <div>
-                        <dt>Lợi nhuận gộp</dt>
-                        <dd style={{ color: (activeSale.gross_profit ?? 0) >= 0 ? "var(--color-primary-dark, #2b6127)" : "var(--color-danger, #dc2626)", fontWeight: 700 }}>
-                          {money(activeSale.gross_profit)}
-                        </dd>
-                      </div>
-                    )}
-                  </dl>
-                  <Link
-                    className="button secondary full-width"
-                    style={{ marginTop: 14 }}
-                    to={`/sales/${activeSale.id}`}
-                  >
-                    Xem chi tiết giao dịch <ArrowRight size={16} />
-                  </Link>
-                </>
+                  </span>
+                  <span className={`vehicle-sale-debt-chip${activeSale.remaining_amount > 0 ? " is-due" : ""}`}>
+                    {activeSale.remaining_amount > 0 ? "Còn nợ" : "Đã thu đủ"}
+                  </span>
+                </Link>
               )}
               {cancelledSales.length > 0 && (
-                <div
-                  className={`vehicle-cancelled-sales${activeSale ? " separated" : ""}`}
-                >
-                  <h3 className="vehicle-cancelled-label">
-                    Giao dịch đã hủy
-                  </h3>
+                <details className="vehicle-cancelled-history">
+                  <summary>Giao dịch đã hủy ({cancelledSales.length})</summary>
                   {cancelledSales.map((sale) => (
                     <Link
                       className="vehicle-cancelled-row"
@@ -859,7 +766,7 @@ export function VehicleDetailPage() {
                       <Badge status="CANCELLED" />
                     </Link>
                   ))}
-                </div>
+                </details>
               )}
             </Card>
           )}

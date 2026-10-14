@@ -10,6 +10,15 @@ export default defineConfig({
     tailwindcss(),
     VitePWA({
       registerType: "autoUpdate",
+      // Chế độ injectManifest: src/sw.ts là Service Worker thật, tự tái lập
+      // 1:1 hành vi generateSW cũ (skipWaiting/clientsClaim/autoUpdate, precache
+      // shell, navigation fallback, 3 route CacheFirst OCR + ảnh Tết, không bao
+      // giờ cache /rest|/auth|/functions) rồi mới cộng lớp push. Gate
+      // check-pwa / check-pwa-upgrade / check-pwa-release-skew kiểm HÀNH VI
+      // trên dist nên hợp đồng an toàn giữ nguyên khi đổi chiến lược.
+      strategies: "injectManifest",
+      srcDir: "src",
+      filename: "sw.ts",
       includeAssets: ["logo.jpg", "avtcarem.jpg", "icon-192.png", "icon-512.png", "icon-maskable.png"],
       manifest: {
         name: "Cà Rem - Quản Lý Cửa Hàng Xe",
@@ -37,9 +46,10 @@ export default defineConfig({
           },
         ],
       },
-      workbox: {
-        skipWaiting: true,
-        clientsClaim: true,
+      // Cấu hình sinh precache cho sw.ts (tương đương 100% khối workbox của
+      // generateSW cũ). Runtime caching KHÔNG khai báo ở đây — sw.ts đăng ký
+      // đúng 3 route bằng code, có kiểm soát (pushContracts + check-pwa).
+      injectManifest: {
         globPatterns: ["**/*.{js,css,html,svg,png,woff2}"],
         // The Tesseract WASM runtime (~13 MB) must never be precached with the
         // app shell; the OCR worker fetches it on demand and CacheFirst keeps
@@ -49,38 +59,6 @@ export default defineConfig({
         // cinematic, then the same runtime pattern keeps that device's opener
         // playable offline. DEFAULT sessions never fetch any of it.
         globIgnores: ["**/tesseract/**", "**/tet-de-lai.png"],
-        navigateFallback: "/index.html",
-        cleanupOutdatedCaches: true,
-        runtimeCaching: [
-          {
-            urlPattern: ({ url, sameOrigin }) =>
-              sameOrigin && url.pathname === "/tet-de-lai.png",
-            handler: "CacheFirst",
-            options: {
-              cacheName: "tet-cinematic-art",
-              expiration: { maxEntries: 2, maxAgeSeconds: 60 * 60 * 24 * 120 },
-            },
-          },
-          {
-            urlPattern: ({ url, sameOrigin }) => sameOrigin && url.pathname.startsWith("/tesseract/"),
-            handler: "CacheFirst",
-            options: {
-              cacheName: "smartcam-ocr-runtime",
-              expiration: { maxEntries: 12, maxAgeSeconds: 60 * 60 * 24 * 60 },
-            },
-          },
-          {
-            // Tesseract language model (first OCR run only, then offline).
-            urlPattern: ({ url }) =>
-              (url.hostname === "cdn.jsdelivr.net" || url.hostname === "unpkg.com") &&
-              url.pathname.includes("traineddata"),
-            handler: "CacheFirst",
-            options: {
-              cacheName: "smartcam-ocr-language",
-              expiration: { maxEntries: 4, maxAgeSeconds: 60 * 60 * 24 * 180 },
-            },
-          },
-        ],
       },
       devOptions: { enabled: false },
     }),

@@ -21955,3 +21955,48 @@ html[data-theme="dark"] .header-theme-toggle {
 [data-theme="dark"] .login-options .text-link {
   color: #a5b4fc;
 }
+
+/* InstallHint — banner gợi ý cài PWA (không làm phiền: 1 lần/phiên, tự ẩn khi
+   đã standalone hoặc người dùng bấm "Để sau"). */
+.install-banner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding: 10px 20px;
+  font-size: 13px;
+  line-height: 1.55;
+  background: rgba(99, 102, 241, 0.08);
+  border-bottom: 1px solid rgba(99, 102, 241, 0.18);
+  animation: networkBannerSlideIn 180ms ease-out;
+}
+.install-banner-text {
+  flex: 1 1 240px;
+}
+.install-banner-action,
+.install-banner-dismiss {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: 8px;
+  font-size: 12.5px;
+  cursor: pointer;
+}
+.install-banner-action {
+  border: none;
+  background: #4f46e5;
+  color: #fff;
+}
+.install-banner-action:hover {
+  background: #4338ca;
+}
+.install-banner-dismiss {
+  border: 1px solid rgba(99, 102, 241, 0.3);
+  background: transparent;
+  color: inherit;
+}
+[data-theme="dark"] .install-banner {
+  background: rgba(99, 102, 241, 0.14);
+  border-bottom-color: rgba(99, 102, 241, 0.28);
+}

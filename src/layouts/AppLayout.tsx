@@ -38,6 +38,7 @@ import { useAuth } from "@/features/auth/AuthProvider";
 import { canFinance, canManage, canOperate, isOwner, roleLabels } from "@/lib/permissions";
 import { Loading } from "@/components/ui";
 import { NetworkGuard } from "@/components/NetworkGuard";
+import { InstallHint } from "@/components/InstallHint";
 import { useMobileDrawer } from "@/lib/useMobileDrawer";
 import { GlobalSearchPalette } from "@/components/search/GlobalSearchPalette";
 import { AnnouncementBar } from "@/components/AnnouncementBar";
@@ -484,6 +485,7 @@ export function AppLayout() {
           </div>
         )}
         <NetworkGuard />
+        <InstallHint />
         <main className="main-content" id="main-content" tabIndex={-1}>
           <Suspense fallback={<RouteLoadingFallback />}>
             <Outlet />

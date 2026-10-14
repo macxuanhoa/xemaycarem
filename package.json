@@ -83,6 +83,11 @@
     "typescript-eslint": "^8.44.1",
     "vite": "^7.1.7",
     "vite-plugin-pwa": "^1.0.3",
-    "vitest": "^4.1.11"
+    "vitest": "^4.1.11",
+    "workbox-core": "^7.4.1",
+    "workbox-expiration": "^7.4.1",
+    "workbox-precaching": "^7.4.1",
+    "workbox-routing": "^7.4.1",
+    "workbox-strategies": "^7.4.1"
   }
 }

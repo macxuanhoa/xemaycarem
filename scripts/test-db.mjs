@@ -13,6 +13,7 @@ import { runHardDeleteTests } from '../tests/db/hard-delete.test.mjs'
 import { runStaffDeleteApprovalTests } from '../tests/db/staff-parity-delete-approval.test.mjs'
 import { runBelowCostSaleApprovalTests } from '../tests/db/below-cost-sale-approval.test.mjs'
 import { runNotificationsTests } from '../tests/db/notifications.test.mjs'
+import { runPushNotificationsTests } from '../tests/db/push-notifications.test.mjs'
 import { runSaleDueDateConflictTests } from '../tests/db/sale-due-date-conflict.test.mjs'
 import { runOperationReceiptTests } from '../tests/db/operation-receipts.test.mjs'
 import { runExpenseConflictTests } from '../tests/db/expense-conflict.test.mjs'
@@ -36,6 +37,7 @@ import { runSmartSalesAutomationTests } from '../tests/db/smart-sales-automation
 import { runSeasonalThemeTetTests } from '../tests/db/seasonal-theme-tet2027.test.mjs'
 import { runSecurityIntegrationTests } from '../tests/db/security-integration.test.mjs'
 import { runVehicleFavoriteTests } from '../tests/db/vehicle-favorites.test.mjs'
+import { runInventoryPrimaryImageTests } from '../tests/db/inventory-list-primary-image.test.mjs'
 
 const engine = process.argv.includes('--pglite') ? 'pglite' : 'postgres'
 console.log(`Database integration suite: ${engine} (disposable database; no cloud credentials)`)
@@ -51,6 +53,7 @@ await runHardDeleteTests(null, { engine })
 await runStaffDeleteApprovalTests(null, { engine })
 await runBelowCostSaleApprovalTests(null, { engine })
 await runNotificationsTests(null, { engine })
+await runPushNotificationsTests(null, { engine })
 await runSaleDueDateConflictTests(null, { engine })
 await runOperationReceiptTests(null, { engine })
 await runExpenseConflictTests(null, { engine })
@@ -73,6 +76,7 @@ await runSmartSalesAutomationTests(null, { engine })
 await runSeasonalThemeTetTests(null, { engine })
 await runSecurityIntegrationTests(null, { engine })
 await runVehicleFavoriteTests(null, { engine })
+await runInventoryPrimaryImageTests(null, { engine })
 const db = await createDatabase({ engine })
 let passed = 0
 const users = Object.fromEntries(['owner', 'manager', 'financialManager', 'staff', 'disabled'].map((role) => [role, randomUUID()]))

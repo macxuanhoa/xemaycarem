@@ -21,9 +21,8 @@ const TYPE_ICON: Record<AnnouncementType, typeof Info> = {
 };
 
 function Message({ a }: { a: Announcement }) {
-  const text = a.title ? `${a.title}: ${a.message}` : a.message;
   // Tiêu đề đậm, nội dung thường: mắt nắm được ý chính ngay cả khi dòng
-  // chữ đang chạy ngang hoặc chỉ lướt qua trong tích tắc.
+  // chữ chỉ dài vừa vặn một hàng.
   const body = a.title ? (
     <>
       <strong className="announcement-title">{a.title}</strong>
@@ -34,12 +33,21 @@ function Message({ a }: { a: Announcement }) {
     a.message
   );
   if (a.display_mode === "SCROLLING") {
+    // Một hàng dài, người đọc tự kéo — không có dải chữ tự chạy mãi.
+    // Bản cũ dùng keyframes lặp vô hạn: vi phạm chuẩn giao diện Cà Rem (không
+    // animation chạy nền), hao pin tablet showroom, và về mặt accessibility là
+    // một nội dung chuyển động mà người dùng không dừng được (WCAG 2.2.2) —
+    // phải kèm nút pause hoặc đóng băng theo prefers-reduced-motion. Đứng yên
+    // thì cả hai vấn đề biến mất: hover/focus không còn là chỗ chữ chạy đi.
+    // Bốc mờ hai biên của .announcement-content báo rằng còn chữ phía ngoài.
     return (
-      <span className="announcement-track" aria-label={text}>
-        <span className="announcement-segment">{body}</span>
-        <span className="announcement-segment" aria-hidden="true">
-          {body}
-        </span>
+      <span
+        className="announcement-scroll"
+        role="region"
+        aria-label="Nội dung thông báo — kéo ngang để đọc hết"
+        tabIndex={0}
+      >
+        {body}
       </span>
     );
   }

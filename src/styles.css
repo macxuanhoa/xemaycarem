@@ -4604,7 +4604,7 @@ pre {
     color: #435b4e;
   }
   /* Reserve the corner so the status badge never hides under the •••. */
-  .inventory-record > .vehicle-record-link > .row:first-child {
+  .inventory-record .record-body > .row:first-child {
     padding-right: 40px;
   }
   [data-theme="dark"] .record-more-btn {
@@ -5300,10 +5300,37 @@ mark.search-hit {
   font-weight: 600;
 }
 .vehicle-record-link {
-  display: grid;
+  /* Layout ngang: ảnh đại diện vuông bên trái, thân thẻ (chip + tên + meta) bên
+     phải trải hết chỗ còn lại. record-body giữ nhịp cột dọc như link cũ. */
+  display: flex;
+  align-items: flex-start;
   gap: 12px;
   color: inherit;
   text-decoration: none;
+}
+.record-body {
+  flex: 1;
+  min-width: 0;
+  display: grid;
+  gap: 12px;
+}
+.record-thumb {
+  flex-shrink: 0;
+  width: 68px;
+  height: 68px;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  border-radius: 12px;
+  background: #f0f3e9;
+  border: 1px solid #dfe7d3;
+  color: #8da075;
+}
+.record-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
 }
 .vehicle-label {
   display: grid;
@@ -7732,7 +7759,7 @@ mark.search-hit {
 }
 
 /* Hai nút chia sẻ góc phải nên dòng đầu thẻ phải chừa chỗ rộng hơn. */
-.inventory-record > .vehicle-record-link > .row:first-child {
+.inventory-record .record-body > .row:first-child {
   padding-right: 76px;
 }
 
@@ -9815,7 +9842,8 @@ mark.search-hit {
 /* ==========================================================================
    Thanh thông báo hệ thống — hai kiểu thể hiện:
    STATIC: dòng chữ đứng yên, tiêu đề đậm nắm ý chính trong một nhịp nhìn.
-   SCROLLING: chạy ngang vô hạn, mờ dần ở hai biên để chữ "tan" thay vì cấn.
+   SCROLLING: một hàng dài, người đọc tự kéo ngang; hai biên hòa mờ báo còn
+   chữ ở ngoài. Không có dải chữ tự chạy — xem .announcement-scroll.
    Nhận diện mức độ bằng dải accent trái + icon trong chip màu mềm.
    ========================================================================== */
 .announcement-bar {
@@ -9866,7 +9894,7 @@ mark.search-hit {
 .announcement-title {
   font-weight: 700;
 }
-/* --- SCROLLING: hai đoạn lặp chạy liền mạch, hai biên hòa mờ --- */
+/* --- SCROLLING: một hàng dài, người đọc tự kéo; hai biên hòa mờ --- */
 .announcement-content[data-mode="SCROLLING"] {
   -webkit-mask-image: linear-gradient(
     90deg,
@@ -9883,35 +9911,22 @@ mark.search-hit {
     transparent
   );
 }
-.announcement-track {
-  display: inline-flex;
+/* Bản cũ là keyframes chạy vô hạn trên một dải chữ lặp hai lần. Một nội dung
+   tự chuyển động mà người dùng không dừng được thì vi phạm WCAG 2.2.2, hao pin
+   tablet showroom, và khiến nhân viên đang đọc dở bị chữ trôi mất. Đứng yên +
+   tự kéo thì người đọc kiểm soát được, còn bốc mờ hai biên (mask ở
+   .announcement-content) vẫn nói "còn chữ phía ngoài". */
+.announcement-scroll {
+  display: block;
   white-space: nowrap;
-  will-change: transform;
-  animation: announcementScroll 32s linear infinite;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: thin;
 }
-/* Mỗi đoạn mang luôn khoảng tách + chấm ngăn cách của nó, nên dịch đúng
-   -50% là khớp vòng lặp không thấy điểm nối. */
-.announcement-segment {
-  position: relative;
-  padding-right: 48px;
-}
-.announcement-segment::after {
-  content: "";
-  position: absolute;
-  top: 50%;
-  right: 22px;
-  width: 4px;
-  height: 4px;
-  margin-top: -2px;
-  border-radius: 50%;
-  background: currentColor;
-  opacity: 0.35;
-}
-/* Đọc dở không bị chữ chạy mất: dừng khi trỏ chuột hoặc bàn phím đang ở
-   trong vùng nội dung (touch tự nhiên đã đứng yên vì không hover). */
-.announcement-content[data-mode="SCROLLING"]:hover .announcement-track,
-.announcement-content[data-mode="SCROLLING"]:focus-within .announcement-track {
-  animation-play-state: paused;
+.announcement-scroll:focus-visible {
+  outline: 2px solid var(--primary, #4f46e5);
+  outline-offset: 2px;
+  border-radius: 4px;
 }
 .announcement-more {
   flex-shrink: 0;
@@ -9984,14 +9999,6 @@ mark.search-hit {
   background: linear-gradient(90deg, #fdeae6, #fdf5f3 55%);
   color: #a02c1d;
   border-bottom-color: #f6dcd4;
-}
-@keyframes announcementScroll {
-  from {
-    transform: translateX(0);
-  }
-  to {
-    transform: translateX(-50%);
-  }
 }
 
 /* Announcement "view more" list */
@@ -10163,22 +10170,9 @@ mark.search-hit {
   }
 }
 
-/* Respect reduced motion: freeze the ticker, disable entrance animations */
+/* Respect reduced motion: disable entrance animations. The announcement bar no
+   longer needs a reduced-motion escape hatch — nothing on it moves on its own. */
 @media (prefers-reduced-motion: reduce) {
-  .announcement-track {
-    animation: none;
-    white-space: normal;
-  }
-  /* Khi đứng yên, chữ cuộn về xuống dòng bình thường: bỏ nhịp lặp và chấm ngăn. */
-  .announcement-segment {
-    padding-right: 0;
-  }
-  .announcement-segment::after {
-    display: none;
-  }
-  .announcement-track .announcement-segment:last-child {
-    display: none;
-  }
   .toast,
   .dialog-backdrop,
   .dialog-panel {
@@ -14292,9 +14286,10 @@ html[data-theme="dark"] .header-theme-toggle {
     transform: translateY(0) scale(1);
   }
 }
-/* Mobile sheet handle — pure visual affordance, hidden on desktop. */
-.notification-sheet-handle {
-  display: none;
+/* Panel tự nhận focus khi mở (nội dung của nó được đọc ngay), nên không cần
+   viền bao quanh cả khối — các nút bên trong đã có vòng focus riêng. */
+.notification-panel:focus-visible {
+  outline: none;
 }
 .notification-panel-header {
   display: flex;
@@ -14507,6 +14502,16 @@ html[data-theme="dark"] .header-theme-toggle {
   border-radius: 0 3px 3px 0;
   background: var(--primary);
 }
+/* Dòng đã đọc và không dẫn đi đâu là khối tĩnh. Con trỏ hình bàn tay cùng nền
+   đổi màu khi rê chuột là hai lời hứa "bấm được" mà nó không giữ — người dùng
+   bấm, chẳng gì xảy ra. */
+.notification-row.is-static {
+  cursor: default;
+}
+.notification-row.is-static:hover,
+.notification-row.is-static:active {
+  background: transparent;
+}
 .notification-row-icon {
   display: grid;
   place-items: center;
@@ -14627,8 +14632,7 @@ html[data-theme="dark"] .header-theme-toggle {
 }
 @media (prefers-reduced-motion: reduce) {
   .header-notification-toggle.ringing svg,
-  .notification-panel,
-  .notification-sheet-handle {
+  .notification-panel {
     animation: none;
   }
   .notification-row,
@@ -14661,10 +14665,6 @@ html[data-theme="dark"] .header-theme-toggle {
       0 26px 56px -26px rgba(15, 23, 42, 0.3),
       0 8px 20px -12px rgba(15, 23, 42, 0.14);
     padding-bottom: 0;
-  }
-  /* No grabber on a top-anchored card — it would read as a bottom-sheet cue. */
-  .notification-sheet-handle {
-    display: none;
   }
   .notification-panel-header {
     padding: 14px 18px 12px;
@@ -14762,9 +14762,6 @@ html[data-theme="dark"] .header-theme-toggle {
 }
 [data-theme="dark"] .notification-panel-close:active {
   background: #26293a;
-}
-[data-theme="dark"] .notification-sheet-handle {
-  background: rgba(220, 235, 226, 0.24);
 }
 [data-theme="dark"] .notification-row:hover {
   background: #171821;
@@ -15051,7 +15048,7 @@ html[data-theme="dark"] .header-theme-toggle {
   letter-spacing: 0.02em;
   color: #94a1b6;
 }
-.notification-page-group-label.is-fresh .notifications-page-group-text {
+.notifications-page-group-label.is-fresh .notifications-page-group-text {
   color: #64748b;
 }
 .notifications-page-group-dot {
@@ -15206,6 +15203,16 @@ html[data-theme="dark"] .header-theme-toggle {
 .notification-page-row.is-unread .notification-page-chevron {
   color: #a5b4fc;
 }
+/* Như trong chuông: dòng đã đọc, không có đích đến thì không giả làm nút. */
+.notification-page-row.is-static {
+  cursor: default;
+}
+.notification-page-row.is-static:hover {
+  background: transparent;
+  margin: 0;
+  padding-left: 0;
+  padding-right: 0;
+}
 
 /* Load more */
 .notifications-page-load-more {
@@ -15266,7 +15273,7 @@ html[data-theme="dark"] .header-theme-toggle {
 [data-theme="dark"] .notifications-page-group-label {
   color: #4b5563;
 }
-[data-theme="dark"] .notification-page-group-label.is-fresh .notifications-page-group-text {
+[data-theme="dark"] .notifications-page-group-label.is-fresh .notifications-page-group-text {
   color: #6b7280;
 }
 [data-theme="dark"] .notifications-page-group-rule {
@@ -15280,6 +15287,10 @@ html[data-theme="dark"] .header-theme-toggle {
 }
 [data-theme="dark"] .notification-page-row:hover {
   background: rgba(255, 255, 255, 0.03);
+}
+[data-theme="dark"] .notification-page-row.is-static:hover,
+[data-theme="dark"] .notification-row.is-static:hover {
+  background: transparent;
 }
 [data-theme="dark"] .notification-page-row.is-unread {
   background: rgba(79, 70, 229, 0.09);
@@ -21003,9 +21014,18 @@ html[data-theme="dark"] .header-theme-toggle {
 /* Ô QR xem trước có trạng thái nạp/liên kết/lỗi — không còn "thẻ bị lỗi". */
 .bank-card-qr {
   position: relative;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+/* Ô vuông trắng đựng mã minh hoạ. Nhãn "không thanh toán" để ngoài ô để ảnh
+   chụp màn hình vẫn còn nguyên cả mã lẫn dòng cảnh giác. */
+.bank-card-qr-tile {
+  position: relative;
   width: 78px;
   height: 78px;
-  flex-shrink: 0;
   border-radius: 11px;
   background: #ffffff;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.18);
@@ -21013,6 +21033,15 @@ html[data-theme="dark"] .header-theme-toggle {
   align-items: center;
   justify-content: center;
   overflow: hidden;
+}
+.bank-card-qr-demo {
+  font-size: 10px;
+  font-weight: 650;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+  text-align: center;
+  line-height: 1.3;
+  color: rgba(255, 255, 255, 0.72);
 }
 .bank-card-qr-img {
   width: 100%;
@@ -21073,9 +21102,12 @@ html[data-theme="dark"] .header-theme-toggle {
   .bank-card-footer {
     align-items: center;
   }
-  .bank-card-qr {
+  .bank-card-qr-tile {
     width: 68px;
     height: 68px;
+  }
+  .bank-card-qr-demo {
+    max-width: 68px;
   }
 }
 @media (prefers-reduced-motion: reduce) {

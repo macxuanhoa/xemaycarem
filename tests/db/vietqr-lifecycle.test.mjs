@@ -99,7 +99,7 @@ export async function runVietQrLifecycleTests(
     });
 
     await check(
-      "server creates fixed fifteen minute window and full-wording bank memo with full agreement",
+      "server creates fixed fifteen minute window and reference-first bank memo with full agreement",
       async () => {
         const q = await qr();
         assert.equal(
@@ -110,9 +110,11 @@ export async function runVietQrLifecycleTests(
           Date.parse(q.replace_available_at) - Date.parse(q.created_at),
           60_000,
         );
+        // Mã đối soát đứng ĐẦU để sống sót khi ngân hàng/SePay cắt memo, nhờ đó
+        // webhook luôn trích được "CAREM GD<digits>" và UI tự hoàn tất.
         assert.match(
           q.transfer_content,
-          /^Nguyễn Văn An thanh toán tiền xe Honda Vision - \S+ với giá: 100; Mã giao dịch là: CAREM GD\d+$/,
+          /^CAREM GD\d+ Nguyễn Văn An thanh toán tiền xe Honda Vision - \S+$/,
         );
         assert.equal(
           q.transfer_content.split(q.qr_reference).length - 1,

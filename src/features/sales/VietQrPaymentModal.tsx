@@ -54,12 +54,6 @@ const formatCountdown = (seconds: number) =>
     .toString()
     .padStart(2, "0")}:${(seconds % 60).toString().padStart(2, "0")}`;
 
-/** Số tiền trong nội dung CK: phân tách dấu chấm như server, không ký hiệu đ. */
-const moneyContent = (value: number) =>
-  Math.round(value)
-    .toString()
-    .replace(/\B(?=(\d{3})+(?!\d))/g, ".");
-
 /** Vòng đếm 15 phút theo chuẩn thẻ QR của Cà Rem. */
 const QR_LIFETIME_SECONDS = 15 * 60;
 /** Dưới mốc này vòng chuyển sang cam "sắp hết hạn" để nhắc nhân viên phát lệnh. */
@@ -341,9 +335,9 @@ export function VietQrPaymentModal({
     },
     onSuccess: (data) => {
       selectRequest(data);
-      toast.info("Đã tạo mã QR mới", {
-        description: "Mã có hiệu lực trong 15 phút.",
-      });
+      // Chỉ báo nhẹ, ngắn: vòng đếm 15 phút đã hiển thị ngay trong modal nên
+      // không lặp lại "có hiệu lực 15 phút" gây rườm rà.
+      toast.success("Đã cập nhật mã QR", { duration: 2200 });
     },
     onError: async (error) => {
       // Server đang có mã mới hơn màn hình này: theo đúng mã thật hiện hành.
@@ -354,6 +348,12 @@ export function VietQrPaymentModal({
       ) {
         const latest = await activeQuery.refetch();
         if (latest.data) selectRequest(latest.data);
+        return;
+      }
+      // Đang chờ hết thời gian chống spam hoặc giới hạn tần suất: KHÔNG bật hộp
+      // lỗi to. Vòng tự động cập nhật sẽ phát lại ngay khi hết chờ, chỉ giữ hint
+      // nhỏ inline.
+      if (/VIETQR_REPLACEMENT_COOLDOWN|VIETQR_RATE_LIMITED/i.test(errorText(error))) {
         return;
       }
       // Tự làm mới khi mở modal thất bại: vẫn hiển thị mã hiện có kèm lý do,
@@ -493,6 +493,27 @@ export function VietQrPaymentModal({
     : 0;
   const cooldownSeconds = Math.max(serverCooldownSeconds, spamCooldownSeconds);
 
+  // Tự động cập nhật mã khi biểu mẫu thay đổi (số tiền / tên người trả), thay vì
+  // giữ mã cũ rồi buộc bấm "Tạo mã mới". Tôn trọng thời gian chờ chống spam: chỉ
+  // phát lại khi đã hết chờ; trong lúc đợi hiển thị hint nhỏ inline. Debounce nhẹ
+  // để không phát giữa chừng khi người dùng còn đang gõ số tiền.
+  const reissue = replaceMutation.mutate;
+  const reissuePending = replaceMutation.isPending;
+  useEffect(() => {
+    if (!changedDetails || verifiedReceipt || expired) return;
+    if (!network.online || reissuePending || cooldownSeconds > 0) return;
+    const timer = window.setTimeout(() => reissue(), 600);
+    return () => window.clearTimeout(timer);
+  }, [
+    changedDetails,
+    verifiedReceipt,
+    expired,
+    network.online,
+    reissuePending,
+    cooldownSeconds,
+    reissue,
+  ]);
+
   const handleCreateNewQr = () => {
     if (!network.online || replaceMutation.isPending || cooldownSeconds > 0)
       return;
@@ -535,20 +556,19 @@ export function VietQrPaymentModal({
     if (serverContent) return serverContent;
     const agreement = request?.agreement_text?.trim();
     if (agreement) return agreement;
-    // Dự phòng cuối cho mã cũ chưa có transfer_content: dựng đúng thứ tự chuẩn
-    // (tên khách) thanh toán tiền xe (tên xe) - (mã xe) với giá: X; Mã GD: Y —
-    // mã xe chỉ xuất hiện một lần.
+    // Dự phòng cuối cho mã cũ chưa có transfer_content: dựng đúng thứ tự mới —
+    // MÃ ĐỐI SOÁT đứng ĐẦU (sống sót khi ngân hàng/SePay cắt memo), theo sau là
+    // (tên khách) thanh toán tiền xe (tên xe) - (mã xe); mã xe chỉ một lần.
     const payer =
-      request?.payer_name?.trim() || payerName?.trim() || "Người thanh toán";
+      request?.payer_name?.trim() || payerName?.trim() || "Khách mua xe";
     const vehicleName =
       vehicle.vehicle_type?.trim() ||
       vehicle.vehicle_subtitle?.trim().split(" · ")[0]?.trim() ||
       vehicle.vehicle_title?.trim() ||
       "xe";
     const code = vehicle.internal_code?.trim();
-    const price = request?.amount ?? amount;
     const ref = request?.qr_reference || saleCode || "CAREM GD…";
-    return `${payer} thanh toán tiền xe ${vehicleName}${code ? ` - ${code}` : ""} với giá: ${moneyContent(price)}; Mã giao dịch là: ${ref}`;
+    return `${ref} ${payer} thanh toán tiền xe ${vehicleName}${code ? ` - ${code}` : ""}`;
   })();
 
   // Mã mới → ưu tiên ảnh VietQR chính thống; chỉ vẽ QR nội bộ khi ảnh lỗi
@@ -932,11 +952,20 @@ export function VietQrPaymentModal({
               </div>
             )}
 
-            {changedDetails && !verifiedReceipt && (
-              <p className="notice warning vietqr-changed">
+            {changedDetails && !verifiedReceipt && !expired && (
+              <p
+                className="vietqr-autoupdate-hint"
+                role="status"
+                aria-live="polite"
+              >
+                <RefreshCw
+                  size={13}
+                  aria-hidden="true"
+                  className={cooldownSeconds > 0 ? "" : "spin"}
+                />
                 {cooldownSeconds > 0
-                  ? `Thông tin trên biểu mẫu đã thay đổi. Chờ hết ${cooldownSeconds} giây rồi bấm "Tạo mã mới" để cập nhật đúng tên người thanh toán và số tiền ${money(amount)}.`
-                  : `Thông tin trên biểu mẫu đã thay đổi. Hãy tạo mã mới để cập nhật đúng tên người thanh toán và số tiền ${money(amount)}.`}
+                  ? `Đã thay đổi thông tin — mã sẽ tự cập nhật sau ${cooldownSeconds} giây.`
+                  : "Đang cập nhật mã theo thông tin mới…"}
               </p>
             )}
 
@@ -1046,9 +1075,10 @@ export function VietQrPaymentModal({
               </dl>
             </div>
 
-            {replaceMutation.isError && (
-              <ErrorState error={replaceMutation.error} />
-            )}
+            {replaceMutation.isError &&
+              !/VIETQR_REPLACEMENT_COOLDOWN|VIETQR_RATE_LIMITED/i.test(
+                errorText(replaceMutation.error),
+              ) && <ErrorState error={replaceMutation.error} />}
 
             <div className="vietqr-actions">
               <Button

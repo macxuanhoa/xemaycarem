@@ -30,6 +30,7 @@ import {
   ClipboardList,
   Settings,
   ShieldCheck,
+  Sparkles,
   Store,
   Sun,
   Users,
@@ -86,7 +87,10 @@ export function AppLayout() {
   // The AI section stays collapsed until opened, but is revealed on its pages.
   // Seeded from the router location so server-render tests never touch window.
   const [aiSectionOpen, setAiSectionOpen] = useState(
-    () => pathname.startsWith("/copilot") || pathname.startsWith("/docs"),
+    () =>
+      pathname.startsWith("/assistant") ||
+      pathname.startsWith("/copilot") ||
+      pathname.startsWith("/docs"),
   );
   const navigationType = useNavigationType();
   const saleRoute =
@@ -109,7 +113,11 @@ export function AppLayout() {
             : pathname === to || pathname.startsWith(`${to}/`);
 
   useEffect(() => {
-    if (pathname.startsWith("/copilot") || pathname.startsWith("/docs"))
+    if (
+      pathname.startsWith("/assistant") ||
+      pathname.startsWith("/copilot") ||
+      pathname.startsWith("/docs")
+    )
       setAiSectionOpen(true);
   }, [pathname]);
 
@@ -154,7 +162,8 @@ export function AppLayout() {
     if (pathname.startsWith("/users")) return "Nhân sự";
     if (pathname.startsWith("/capture")) return "Camera thông minh";
     if (pathname.startsWith("/intake")) return "Thu xe tốc ký";
-    if (pathname.startsWith("/copilot")) return "Trợ lý AI";
+    if (pathname.startsWith("/assistant")) return "Trợ lý Cà Rem";
+    if (pathname.startsWith("/copilot")) return "Tra cứu AI Cà Rem";
     if (pathname.startsWith("/brand-memory")) return "Bộ nhớ thương hiệu";
     if (pathname.startsWith("/docs")) return "Tài liệu cửa hàng";
     if (pathname.startsWith("/sell")) return "Bán xe";
@@ -243,13 +252,22 @@ export function AppLayout() {
             {aiSectionOpen && (
               <nav id="ai-nav-links" aria-label="Trợ lý AI">
                 <NavLink
+                  to="/assistant"
+                  onClick={drawer.close}
+                  onMouseEnter={() => preloadRoute("/assistant")}
+                  onFocus={() => preloadRoute("/assistant")}
+                >
+                  <Bot size={20} />
+                  <span>Trợ lý Cà Rem</span>
+                </NavLink>
+                <NavLink
                   to="/copilot"
                   onClick={drawer.close}
                   onMouseEnter={() => preloadRoute("/copilot")}
                   onFocus={() => preloadRoute("/copilot")}
                 >
-                  <Bot size={20} />
-                  <span>Hỏi AI Cà Rem</span>
+                  <Sparkles size={20} />
+                  <span>Tra cứu AI Cà Rem</span>
                 </NavLink>
                 <NavLink
                   to="/docs"

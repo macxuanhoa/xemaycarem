@@ -24,6 +24,7 @@ const routeLoaders: Record<string, () => Promise<unknown>> = {
   "/settings": () => import("@/features/settings/SettingsPage"),
   "/capture": () => import("@/features/capture/CapturePage"),
   "/assist": () => import("@/features/assistant/AssistPage"),
+  "/assistant": () => import("@/features/assistant/CaremAssistantPage"),
   "/copilot": () => import("@/features/copilot/CopilotPage"),
   "/posts": () => import("@/features/poststudio/PostStudioPage"),
   "/brand-memory": () => import("@/features/poststudio/BrandMemoryPage"),

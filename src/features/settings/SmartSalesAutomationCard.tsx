@@ -96,12 +96,12 @@ export function SmartSalesAutomationCard() {
         <div className="row between wrap gap-sm">
           <div>
             <h2 className="section-title" style={{ display: "flex", alignItems: "center", gap: 8 }}>
-              <Plug size={18} /> Tự động bán hàng &amp; đối soát ngân hàng
+              <Plug size={18} /> Tự động bán hàng &amp; kết nối ngân hàng
             </h2>
             <p className="muted small">
-              Kết nối webhook ngân hàng để tự phát hiện tiền khách chuyển, đối chiếu
-              với đơn bán và nhắc nhân viên xác nhận. Chỉ bật khi đã cấu hình tài
-              khoản nhận tiền ở thẻ <strong>Tài khoản nhận tiền</strong>.
+              Kết nối webhook ngân hàng để hệ thống tự nghe tiền khách chuyển và ghi
+              thẳng vào đơn bán. Chỉ bật khi đã cấu hình tài khoản nhận tiền ở thẻ{" "}
+              <strong>Tài khoản nhận tiền</strong>.
             </p>
           </div>
           {st && (
@@ -173,9 +173,11 @@ export function SmartSalesAutomationCard() {
 
               <label className="settings-switch-card">
                 <div className="settings-switch-content">
-                  <span className="settings-switch-title">Tự động khớp mã tham chiếu</span>
+                  <span className="settings-switch-title">Tự ghi tiền khi khách chuyển đúng</span>
                   <span className="settings-switch-desc">
-                    Khi tắt, mọi giao dịch về đều chuyển vào hàng đợi rà soát thủ công.
+                    Bật: tiền về khớp đúng số trên mã do chính chủ cửa hàng tạo sẽ tự
+                    vào đơn, không ai phải bấm gì. Tắt: tiền về vẫn hiện trên đơn hàng
+                    và chờ chủ cửa hàng bấm ghi nhận.
                   </span>
                 </div>
                 <input

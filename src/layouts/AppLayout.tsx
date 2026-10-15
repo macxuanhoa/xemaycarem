@@ -10,7 +10,6 @@ import {
 } from "react-router-dom";
 import {
   ArrowDownLeft,
-  Banknote,
   BookMarked,
   BookOpen,
   Bot,
@@ -30,6 +29,7 @@ import {
   ClipboardList,
   Settings,
   ShieldCheck,
+  Sparkles,
   Store,
   Sun,
   Users,
@@ -38,7 +38,7 @@ import {
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { useAuth } from "@/features/auth/AuthProvider";
-import { canFinance, canManage, canOperate, isOwner, roleLabels } from "@/lib/permissions";
+import { canManage, canOperate, isOwner, roleLabels } from "@/lib/permissions";
 import { Loading } from "@/components/ui";
 import { useMobileDrawer } from "@/lib/useMobileDrawer";
 import { GlobalSearchPalette } from "@/components/search/GlobalSearchPalette";
@@ -86,7 +86,10 @@ export function AppLayout() {
   // The AI section stays collapsed until opened, but is revealed on its pages.
   // Seeded from the router location so server-render tests never touch window.
   const [aiSectionOpen, setAiSectionOpen] = useState(
-    () => pathname.startsWith("/copilot") || pathname.startsWith("/docs"),
+    () =>
+      pathname.startsWith("/assistant") ||
+      pathname.startsWith("/copilot") ||
+      pathname.startsWith("/docs"),
   );
   const navigationType = useNavigationType();
   const saleRoute =
@@ -109,7 +112,11 @@ export function AppLayout() {
             : pathname === to || pathname.startsWith(`${to}/`);
 
   useEffect(() => {
-    if (pathname.startsWith("/copilot") || pathname.startsWith("/docs"))
+    if (
+      pathname.startsWith("/assistant") ||
+      pathname.startsWith("/copilot") ||
+      pathname.startsWith("/docs")
+    )
       setAiSectionOpen(true);
   }, [pathname]);
 
@@ -143,8 +150,6 @@ export function AppLayout() {
     const item = mainNav.find((n) => pathname.startsWith(n.to) && n.to !== "/");
     if (item) return item.label;
     if (pathname.startsWith("/receivables")) return "Bán hàng & Thu nợ";
-    if (pathname.startsWith("/bank-reconciliation"))
-      return "Đối soát chuyển khoản";
     if (pathname.startsWith("/expenses")) return "Chi phí";
     if (pathname.startsWith("/settings")) return "Cài đặt";
     if (pathname.startsWith("/audit")) return "Lịch sử thao tác";
@@ -154,7 +159,8 @@ export function AppLayout() {
     if (pathname.startsWith("/users")) return "Nhân sự";
     if (pathname.startsWith("/capture")) return "Camera thông minh";
     if (pathname.startsWith("/intake")) return "Thu xe tốc ký";
-    if (pathname.startsWith("/copilot")) return "Trợ lý AI";
+    if (pathname.startsWith("/assistant")) return "Trợ lý Cà Rem";
+    if (pathname.startsWith("/copilot")) return "Tra cứu AI Cà Rem";
     if (pathname.startsWith("/brand-memory")) return "Bộ nhớ thương hiệu";
     if (pathname.startsWith("/docs")) return "Tài liệu cửa hàng";
     if (pathname.startsWith("/sell")) return "Bán xe";
@@ -243,13 +249,22 @@ export function AppLayout() {
             {aiSectionOpen && (
               <nav id="ai-nav-links" aria-label="Trợ lý AI">
                 <NavLink
+                  to="/assistant"
+                  onClick={drawer.close}
+                  onMouseEnter={() => preloadRoute("/assistant")}
+                  onFocus={() => preloadRoute("/assistant")}
+                >
+                  <Bot size={20} />
+                  <span>Trợ lý Cà Rem</span>
+                </NavLink>
+                <NavLink
                   to="/copilot"
                   onClick={drawer.close}
                   onMouseEnter={() => preloadRoute("/copilot")}
                   onFocus={() => preloadRoute("/copilot")}
                 >
-                  <Bot size={20} />
-                  <span>Hỏi AI Cà Rem</span>
+                  <Sparkles size={20} />
+                  <span>Tra cứu AI Cà Rem</span>
                 </NavLink>
                 <NavLink
                   to="/docs"
@@ -309,17 +324,6 @@ export function AppLayout() {
                   <Inbox size={20} />
                   Chờ duyệt
                 </NavLink>
-                {canFinance(profile) && (
-                  <NavLink
-                    to="/bank-reconciliation"
-                    onClick={drawer.close}
-                    onMouseEnter={() => preloadRoute("/bank-reconciliation")}
-                    onFocus={() => preloadRoute("/bank-reconciliation")}
-                  >
-                    <Banknote size={20} />
-                    Đối soát chuyển khoản
-                  </NavLink>
-                )}
                 {isOwner(profile) && (
                   <NavLink
                     to="/audit"

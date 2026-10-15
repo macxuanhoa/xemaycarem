@@ -546,9 +546,7 @@ export const api = {
       p_vehicle_id: vehicleId,
       p_sale_id: saleId ?? null,
     }),
-  /**
-   * Trạng thái đối soát của một yêu cầu VietQR (tiền ngân hàng đã về chưa).
-   */
+  /** Tiền đã về chưa, tính trên một mã QR. */
   getVietQrMatchingStatus: async (qrRequestId: string) =>
     call<import("@/types").VietQrMatchingStatus | null>("get_vietqr_matching_status", {
       p_qr_request_id: qrRequestId,

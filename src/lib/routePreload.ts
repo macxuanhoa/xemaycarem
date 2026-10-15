@@ -12,8 +12,6 @@ const routeLoaders: Record<string, () => Promise<unknown>> = {
   "/sales": () => import("@/features/sales/SalesPage"),
   "/sell": () => import("@/features/sales/SellVehiclePage"),
   "/receivables": () => import("@/features/sales/ReceivablesPage"),
-  "/bank-reconciliation": () =>
-    import("@/features/reconciliation/BankReconciliationPage"),
   "/customers": () => import("@/features/customers/CustomersPage"),
   "/expenses": () => import("@/features/expenses/ExpensePages"),
   "/users": () => import("@/features/users/UsersPage"),
@@ -24,6 +22,7 @@ const routeLoaders: Record<string, () => Promise<unknown>> = {
   "/settings": () => import("@/features/settings/SettingsPage"),
   "/capture": () => import("@/features/capture/CapturePage"),
   "/assist": () => import("@/features/assistant/AssistPage"),
+  "/assistant": () => import("@/features/assistant/CaremAssistantPage"),
   "/copilot": () => import("@/features/copilot/CopilotPage"),
   "/posts": () => import("@/features/poststudio/PostStudioPage"),
   "/brand-memory": () => import("@/features/poststudio/BrandMemoryPage"),

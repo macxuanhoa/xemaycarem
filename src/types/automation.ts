@@ -1,4 +1,4 @@
-/** Smart Sales Automation V1 + V2 — đối soát ngân hàng, liên hệ khách, kênh gửi. */
+/** Smart Sales Automation V1 + V2 — tiền ngân hàng về, liên hệ khách, kênh gửi. */
 
 export type BankTxnProvider = "SEPAY" | "CASSO";
 
@@ -12,6 +12,8 @@ export type BankTxnStatus =
 export type BankTxnMatchReason =
   | ""
   | "REFERENCE_AMOUNT_MATCH"
+  | "AUTO_RECORDED"
+  | "PENDING_OWNER_APPROVAL"
   | "AMOUNT_MISMATCH"
   | "REQUEST_NOT_PENDING"
   | "REFERENCE_FOUND_NO_REQUEST"
@@ -48,7 +50,7 @@ export type BankTransactionList = {
   pending_count: number;
 };
 
-/** Trạng thái đối soát của một yêu cầu VietQR (modal soi "tiền đã về chưa"). */
+/** Tiền đã về chưa, tính trên một mã QR (modal hỏi "đã ghi nhận chưa"). */
 export type VietQrMatchingStatus = {
   state: "NONE" | "MATCHED" | "REVIEW" | "RECORDED";
   bank_transaction_id?: string | null;

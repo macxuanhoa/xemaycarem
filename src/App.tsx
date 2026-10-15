@@ -69,9 +69,6 @@ const ReceivablesPage = lazy(() =>
     default: m.ReceivablesPage,
   })),
 );
-const BankReconciliationPage = lazy(
-  () => import("@/features/reconciliation/BankReconciliationPage"),
-);
 const CustomersPage = lazy(() =>
   import("@/features/customers/CustomersPage").then((m) => ({
     default: m.CustomersPage,
@@ -216,10 +213,6 @@ export default function App() {
               </Route>
               <Route element={<Protected access="manage" />}>
                 <Route path="expenses" element={<ExpensesPage />} />
-                <Route
-                  path="bank-reconciliation"
-                  element={<BankReconciliationPage />}
-                />
                 {/* Managers reach Nhân sự only to set roles of their juniors. */}
                 <Route path="users" element={<UsersPage />} />
                 {/* Hàng đợi duyệt chung (Nghi trùng xe, Bán dưới giá thu, Xóa xe) */}

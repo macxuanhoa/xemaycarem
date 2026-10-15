@@ -174,7 +174,6 @@ Trích từ cây route trong `src/App.tsx` (thành phần `Protected` kế thừ
 | `/vehicles/:id/sell` | STAFF trở lên (trong lịch làm việc) |
 | `/sell` | STAFF trở lên (trong lịch làm việc) |
 | `/expenses` | MANAGER hoặc OWNER |
-| `/bank-reconciliation` | MANAGER hoặc OWNER |
 | `/users` | MANAGER hoặc OWNER |
 | `/duplicate-reviews` | MANAGER hoặc OWNER |
 | `/audit` | chỉ OWNER |

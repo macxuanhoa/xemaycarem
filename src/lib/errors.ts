@@ -126,15 +126,15 @@ export function friendlyError(error: unknown): string {
   if (/BANK_WEBHOOK_NOT_CONFIGURED/i.test(value))
     return "Kết nối ngân hàng chưa được cấu hình đầy đủ. Chủ cửa hàng cần kiểm tra cấu hình trước khi nhận giao dịch tự động.";
   if (/BANK_PROVIDER_MISMATCH/i.test(value))
-    return "Giao dịch đến từ dịch vụ ngân hàng khác với cấu hình cửa hàng. Hãy kiểm tra nguồn giao dịch trước khi đối soát.";
+    return "Giao dịch đến từ dịch vụ ngân hàng khác với cấu hình của cửa hàng. Kiểm tra lại nguồn giao dịch trước khi ghi nhận.";
   if (/BANK_ACCOUNT_MISMATCH/i.test(value))
     return "Tài khoản nhận tiền không khớp cấu hình cửa hàng. Hãy đối chiếu đúng tài khoản trước khi ghi nhận.";
   if (/BANK_TRANSACTION_AMOUNT_MISMATCH/i.test(value))
     return "Số tiền ngân hàng nhận không khớp yêu cầu VietQR. Hãy đối chiếu tiền thực nhận và tạo yêu cầu với đúng số tiền.";
   if (/VIETQR_REQUEST_NOT_PENDING/i.test(value))
-    return "Yêu cầu VietQR đã được xử lý hoặc không còn chờ thanh toán. Tải lại giao dịch trước khi đối soát.";
+    return "Mã này đã được ghi nhận hoặc hủy. Tải lại trang để thấy trạng thái mới.";
   if (/OPERATION_REQUEST_CONFLICT/i.test(value))
-    return "Mã giao dịch này đã được dùng với thông tin khác. Hãy đối soát giao dịch trước và kiểm tra lịch sử trước khi tạo giao dịch mới.";
+    return "Mã giao dịch này đã được dùng với thông tin khác. Hãy kiểm tra lại lịch sử trước khi tạo giao dịch mới.";
   if (/VEHICLE_EDIT_CONFLICT/i.test(value))
     return "Xe đã được người khác cập nhật. Thay đổi của bạn chưa được lưu; hãy tải lại hồ sơ xe và đối chiếu trước khi sửa tiếp.";
   if (/SALE_DUE_DATE_CONFLICT/i.test(value))

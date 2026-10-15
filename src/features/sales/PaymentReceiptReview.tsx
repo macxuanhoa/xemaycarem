@@ -27,7 +27,7 @@ export function PaymentReceiptReview({ saleId }: { saleId: string }) {
   if (!pending.length) return null;
   return <Card className="stack">
     <h2 className="section-title">Khoản thu chờ xác minh</h2>
-    <p className="muted">Các khoản này chưa tính vào tiền đã thu. Quản lý đối chiếu chứng từ, tiền thực nhận và lịch sử thanh toán trước khi ghi nhận.</p>
+    <p className="muted">Tiền đã về nhưng chưa ghi vào đơn. Khoản này chưa tính vào tiền đã thu; quản lý kiểm tra lại rồi bấm ghi nhận.</p>
     {pending.map(receipt => <ReceiptRow key={receipt.id} receipt={receipt} manager={canManage(profile)} />)}
   </Card>;
 }
@@ -50,7 +50,17 @@ function ReceiptRow({ receipt, manager }: { receipt: PaymentReceipt; manager: bo
     onSuccess: async () => { await client.invalidateQueries(); },
   });
   return <div className="stack inset-form">
-    <strong>{money(receipt.amount)} · {paymentLabels[receipt.payment_method]} · {dateLabel(receipt.payment_date)}</strong>
+    <strong>
+      {money(receipt.amount)} · {paymentLabels[receipt.payment_method]} · {dateLabel(receipt.payment_date)}
+      {receipt.evidence_kind === "BANK_TRANSACTION" && (
+        <span className="badge" style={{ marginLeft: 8 }}>Tiền về tự động</span>
+      )}
+    </strong>
+    {receipt.evidence_kind === "BANK_TRANSACTION" && (
+      <p className="notice" style={{ margin: 0 }}>
+        Ngân hàng báo đã nhận khoản này. Kiểm tra lại rồi bấm ghi nhận để tiền vào đơn.
+      </p>
+    )}
     {receipt.reference && <p className="muted">Tham chiếu: {receipt.reference}</p>}
     {receipt.notes && <p>{receipt.notes}</p>}
     {!manager ? <p className="notice">Đang chờ chủ cửa hàng hoặc quản lý xác minh.</p> : <>

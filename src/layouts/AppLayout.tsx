@@ -10,7 +10,6 @@ import {
 } from "react-router-dom";
 import {
   ArrowDownLeft,
-  Banknote,
   BookMarked,
   BookOpen,
   Bot,
@@ -39,7 +38,7 @@ import {
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { useAuth } from "@/features/auth/AuthProvider";
-import { canFinance, canManage, canOperate, isOwner, roleLabels } from "@/lib/permissions";
+import { canManage, canOperate, isOwner, roleLabels } from "@/lib/permissions";
 import { Loading } from "@/components/ui";
 import { useMobileDrawer } from "@/lib/useMobileDrawer";
 import { GlobalSearchPalette } from "@/components/search/GlobalSearchPalette";
@@ -151,8 +150,6 @@ export function AppLayout() {
     const item = mainNav.find((n) => pathname.startsWith(n.to) && n.to !== "/");
     if (item) return item.label;
     if (pathname.startsWith("/receivables")) return "Bán hàng & Thu nợ";
-    if (pathname.startsWith("/bank-reconciliation"))
-      return "Đối soát chuyển khoản";
     if (pathname.startsWith("/expenses")) return "Chi phí";
     if (pathname.startsWith("/settings")) return "Cài đặt";
     if (pathname.startsWith("/audit")) return "Lịch sử thao tác";
@@ -327,17 +324,6 @@ export function AppLayout() {
                   <Inbox size={20} />
                   Chờ duyệt
                 </NavLink>
-                {canFinance(profile) && (
-                  <NavLink
-                    to="/bank-reconciliation"
-                    onClick={drawer.close}
-                    onMouseEnter={() => preloadRoute("/bank-reconciliation")}
-                    onFocus={() => preloadRoute("/bank-reconciliation")}
-                  >
-                    <Banknote size={20} />
-                    Đối soát chuyển khoản
-                  </NavLink>
-                )}
                 {isOwner(profile) && (
                   <NavLink
                     to="/audit"

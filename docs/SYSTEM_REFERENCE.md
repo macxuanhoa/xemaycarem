@@ -158,9 +158,9 @@ Trích từ cây route trong `src/App.tsx` (thành phần `Protected` kế thừ
 | `/sales/:id` | đăng nhập |
 | `/capture` | đăng nhập |
 | `/assist` | đăng nhập |
-| `/assistant` | đăng nhập |
 | `/copilot` | đăng nhập |
 | `/posts` | đăng nhập |
+| `/reply` | đăng nhập |
 | `/brand-memory` | đăng nhập |
 | `/docs` | đăng nhập |
 | `/docs/:slug` | đăng nhập |
@@ -174,10 +174,11 @@ Trích từ cây route trong `src/App.tsx` (thành phần `Protected` kế thừ
 | `/vehicles/:id/sell` | STAFF trở lên (trong lịch làm việc) |
 | `/sell` | STAFF trở lên (trong lịch làm việc) |
 | `/expenses` | MANAGER hoặc OWNER |
+| `/bank-reconciliation` | MANAGER hoặc OWNER |
 | `/users` | MANAGER hoặc OWNER |
-| `/approvals` | MANAGER hoặc OWNER |
 | `/duplicate-reviews` | MANAGER hoặc OWNER |
 | `/audit` | chỉ OWNER |
+| `/approvals` | chỉ OWNER |
 | `/*` | công khai (không cần đăng nhập) |
 
 ## Edge Functions

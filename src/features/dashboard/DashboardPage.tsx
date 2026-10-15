@@ -34,7 +34,6 @@ import {
 } from "@/lib/format";
 import { useAuth } from "@/features/auth/AuthProvider";
 import { DashboardExecutiveBanner } from "./DashboardExecutiveBanner";
-import { UnclearMoneyNotice } from "./UnclearMoneyNotice";
 import type { DashboardData, DailyReconciliation, DateFilter } from "@/types";
 import { vehicleSubtitle, vehicleTitle } from "@/lib/vehicleDisplay";
 
@@ -356,8 +355,6 @@ export default function DashboardPage() {
                     </div>
                   )}
                 </Card>
-
-                <UnclearMoneyNotice />
               </div>
 
                 {/* 2.2 BIỂU ĐỒ NHỊP KINH DOANH TRONG KỲ */}

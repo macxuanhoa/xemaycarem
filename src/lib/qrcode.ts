@@ -44,33 +44,3 @@ export function generateQrSvg(value: string, size = 240): Promise<string> {
     errorCorrectionLevel: "M",
   });
 }
-
-/** PNG dùng cho tải về/in tem: mở được trên mọi điện thoại, máy in tem không đọc được SVG. */
-export function generateQrPng(value: string, size = 480): Promise<string> {
-  return QRCode.toDataURL(value, {
-    width: size,
-    margin: 4,
-    errorCorrectionLevel: "M",
-  });
-}
-
-/**
- * Tải data URL xuống thành file mà không điều hướng sang trang khác.
- * Anchor phải nằm trong DOM và blob chỉ được thu hồi sau khi trình duyệt
- * đã đọc xong — thu hồi sớm làm Safari/iPad mở tab lỗi.
- */
-export function downloadQrDataUrl(dataUrl: string, filename: string): void {
-  const [head, base64] = dataUrl.split(",");
-  const mime = /^data:(.*?)(;|$)/.exec(head)?.[1] ?? "application/octet-stream";
-  const binary = atob(base64 ?? "");
-  const bytes = new Uint8Array(binary.length);
-  for (let i = 0; i < binary.length; i += 1) bytes[i] = binary.charCodeAt(i);
-  const url = URL.createObjectURL(new Blob([bytes], { type: mime }));
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = filename;
-  document.body.appendChild(link);
-  link.click();
-  link.remove();
-  setTimeout(() => URL.revokeObjectURL(url), 30_000);
-}

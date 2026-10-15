@@ -190,7 +190,7 @@ export function StaffSettingsModal({
       void client.invalidateQueries({ queryKey: ["profiles"] });
       toast.success(
         result.outcome === "tombstoned"
-          ? `Đã xóa tài khoản của ${user.full_name}. Các nghiệp vụ người này đã ghi vẫn giữ lại để kiểm tra sau.`
+          ? `Đã xóa tài khoản của ${user.full_name}. Các nghiệp vụ người này đã ghi vẫn giữ để đối soát.`
           : `Đã xóa tài khoản của ${user.full_name} khỏi hệ thống.`,
       );
       onClose();
@@ -575,7 +575,7 @@ export function StaffSettingsModal({
                     Xóa ngay khỏi hệ thống: tài khoản biến mất khỏi danh sách Nhân sự,
                     không đăng nhập được nữa và không có cách khôi phục. Những gì người
                     này đã ghi nhận — xe thu vào, phiếu bán, chi phí, chứng từ, nhật ký —
-                    vẫn giữ nguyên để kiểm tra sau.
+                    vẫn giữ nguyên để đối soát.
                   </p>
                 </div>
 

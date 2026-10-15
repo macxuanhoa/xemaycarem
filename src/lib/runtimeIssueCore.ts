@@ -116,7 +116,6 @@ export const RUNTIME_ROUTES = [
   "/sales/:id",
   "/capture",
   "/assist",
-  "/assistant",
   "/copilot",
   "/docs",
   "/docs/:slug",

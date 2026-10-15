@@ -145,7 +145,7 @@ export async function runVietQrLifecycleTests(
       },
     );
     await check(
-      "manual button, forged bank sale and unauthorized ingestion cannot create paid state",
+      "forged no-QR bank sale is refused; a finance manual claim only flips the request; ingest stays service-only",
       async () => {
         const q = await qr();
         await assert.rejects(
@@ -155,10 +155,6 @@ export async function runVietQrLifecycleTests(
               amount: q.amount,
             }),
           /VIETQR_PAYER_REQUIRED/,
-        );
-        await assert.rejects(
-          () => call("confirm_vietqr_payment", { qr_request_id: q.id }),
-          /VIETQR_BANK_EVIDENCE_REQUIRED/,
         );
         await assert.rejects(
           () => call("sell_vehicle", sale(q, { vietqr_request_id: undefined })),
@@ -173,6 +169,17 @@ export async function runVietQrLifecycleTests(
           /permission denied|ACCESS_DENIED/,
         );
         assert.equal((await get(q.id)).status, "PENDING");
+        // Kiến trúc Mac: người tài chính được bấm "đã nhận tiền" trên mã PENDING —
+        // chỉ đổi trạng thái yêu cầu, không tự sinh khoản thu, không bịa giao dịch
+        // ngân hàng. Tiền vào sổ chỉ qua webhook ghi hoặc qua sell_vehicle nối đơn.
+        await call("confirm_vietqr_payment", { qr_request_id: q.id });
+        const claimed = await get(q.id);
+        assert.equal(claimed.status, "CONFIRMED");
+        assert.equal(claimed.payment_id, null);
+        assert.equal(
+          Number((await row("SELECT count(*) AS n FROM public.bank_transactions")).n),
+          0,
+        );
       },
     );
     await check(
@@ -299,7 +306,7 @@ export async function runVietQrLifecycleTests(
         assert.equal((await get(q.id)).status, "EXPIRED");
         await assert.rejects(
           () => call("confirm_bank_transaction", { id: response.id }),
-          /VIETQR_BANK_EVIDENCE_REQUIRED/,
+          /VIETQR_REQUEST_NOT_PENDING/,
         );
       },
     );

@@ -531,13 +531,13 @@ export function PaymentEditor({
         const ledger = await api.call<Sale & { payments: Payment[] }>("get_sale", { p_id: sale.id });
         if (ledger.payments.some(payment => payment.id === pending)) {
           confirmPayment(profile.id, sale.id, pending);
-          toast.success("Khoản thu trước đã được ghi nhận. Đã đối soát, không tạo thêm khoản thu.");
+          toast.success("Khoản thu trước đã được ghi nhận. Không tạo thêm khoản thu trùng.");
           return;
         }
         const latest = await api.call<{ confirmed: boolean; receipt: PaymentReceipt | null }>("get_payment_receipt_request", { p_request_id: pending });
         if (latest.confirmed && latest.receipt?.sale_id === sale.id) {
           confirmPayment(profile.id, sale.id, pending);
-          toast.success(latest.receipt.status === "RECORDED" ? "Khoản thu trước đã được ghi nhận. Đã đối soát, không tạo thêm khoản thu." : latest.receipt.status === "REJECTED" ? "Đề nghị thu tiền trước đã bị từ chối. Kiểm tra lại với quản lý." : "Đề nghị thu tiền trước đã được lưu. Không tạo thêm; quản lý kiểm tra mục chờ xác minh.");
+          toast.success(latest.receipt.status === "RECORDED" ? "Khoản thu trước đã được ghi nhận. Không tạo thêm khoản thu trùng." : latest.receipt.status === "REJECTED" ? "Đề nghị thu tiền trước đã bị từ chối. Kiểm tra lại với quản lý." : "Đề nghị thu tiền trước đã được lưu. Không tạo thêm; quản lý kiểm tra mục chờ xác minh.");
           return;
         }
       }

@@ -539,7 +539,7 @@ test("Compatibility: a retained legacy financial UUID reconciles the existing le
   await page.goto(`/sales/${saleId}`);
   await page.getByRole("button", { name: "Thu tiền", exact: true }).click();
   await page.getByRole("button", { name: "Lưu thanh toán", exact: true }).click();
-  await expect(page.getByText("Khoản thu trước đã được ghi nhận. Đã đối soát, không tạo thêm khoản thu.")).toBeVisible();
+  await expect(page.getByText("Khoản thu trước đã được ghi nhận. Không tạo thêm khoản thu trùng.")).toBeVisible();
   expect((await db.query("SELECT count(*)::text AS n FROM public.payment_receipts WHERE sale_id=$1",[saleId])).rows[0].n).toBe("0");
   expect((await db.query("SELECT count(*)::text AS n,sum(amount)::text AS paid FROM public.payments WHERE sale_id=$1",[saleId])).rows[0]).toEqual({n:"1",paid:"5000000"});
 });

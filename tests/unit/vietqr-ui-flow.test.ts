@@ -88,26 +88,30 @@ const modalCode = modalSource
   .replace(/^\s*\/\/.*$/gm, "");
 
 describe("VietQR modal — vòng đời ảnh QR và nguồn nội dung duy nhất", () => {
-  it("P0-4: màn hình, nút copy và mã QR cùng lấy một chuỗi từ selectQrTransferContent", () => {
-    expect(modalCode).toContain("selectQrTransferContent");
-    expect(modalCode).toContain("qrResult.description");
+  it("P0-4: màn hình, nút copy, QR và quick link đều lấy memo chuẩn do server cấp", () => {
+    // Kiến trúc "tiền về đúng đơn": server sinh transfer_content một lần và
+    // modal chỉ hiển thị lại nguyên văn — không tự dựng memo thứ hai.
+    expect(modalCode).toContain("request.transfer_content || request.qr_reference");
     // Không còn đường nào dựng memo thứ hai trong modal.
     expect(modalCode).not.toMatch(/const displayTransferContent\s*=\s*\(/);
     expect(modalCode).not.toMatch(/buildVietQrQuickLink\([\s\S]{0,400}?addInfo/);
   });
 
-  it("P0-4: qr_payload của server chỉ được tin khi đọc lại được memo trong nó", () => {
-    expect(modalCode).toContain("transferContentFromPayload(request.qr_payload)");
+  it('P0-4: modal không tự "dọn dẹp" memo — sao chép nguyên văn chuỗi server cấp', () => {
+    expect(modalCode).not.toMatch(
+      /handleCopy\(\s*[^,)]*removeVietnameseTones/,
+    );
+    expect(modalCode).not.toMatch(/description:\s*removeVietnameseTones/);
   });
 
-  it("P1-e: ảnh QR cache hỏng được phát hiện qua complete + naturalWidth, không chờ onLoad", () => {
-    expect(modalCode).toMatch(/node\.complete && node\.naturalWidth === 0/);
-    expect(modalCode).toMatch(/<img\s+ref=\{attachRemoteQr\}/s);
+  it("P1-e: QR render cục bộ qua renderQrToDataUrl, lỗi render có đường dự phòng hiện rõ", () => {
+    expect(modalCode).toContain("renderQrToDataUrl");
+    expect(modalCode).toContain(".catch(() => setQrDataUrl(null))");
   });
 
-  it("P1-e: trạng thái ảnh reset theo URL mới để mã kế tiếp không mang lỗi cũ", () => {
-    expect(modalCode).toMatch(/setImageFailed\(false\)/);
-    expect(modalCode).toMatch(/}, \[qrImageUrl\]\);/);
+  it("P1-e: không còn vòng đời ảnh remote cache (data URL tự sinh) — hết lớp lỗi cũ", () => {
+    expect(modalCode).not.toMatch(/attachRemoteQr/);
+    expect(modalCode).not.toMatch(/setImageFailed/);
   });
 
   it("modal giữ đúng chuỗi memo server cấp khi server đã nhúng memo vào payload", () => {

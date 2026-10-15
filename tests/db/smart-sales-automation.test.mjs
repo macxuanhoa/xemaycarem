@@ -1,22 +1,27 @@
 /**
  * Database Smart Sales Automation Test Suite (V1 + V2)
- * Covers customer automation and the verified bank-transfer lifecycle:
+ * Covers migrations 20261012000100 / 20261012000200 / 20261012000300:
  *  1. ingest_bank_transaction is service_role-only: authenticated/anon are denied.
  *  2. Anti-double-credit: same (provider, provider_txn_id) is idempotent (one row).
  *  3. Bare 5-digit content (no CAREM GD prefix) never links a VietQR by mistake.
- *  4. A trusted exact bank credit records its sale receipt/payment atomically.
+ *  4. Exact match on an OWNER-created code: money records itself onto the sale
+ *     (RECORDED / AUTO_RECORDED) and the VietQR flips to CONFIRMED.
  *  5. Amount mismatch -> neutral MANUAL_REVIEW (never leaks the correct amount).
  *  6. auto_match disabled -> MANUAL_REVIEW with AUTO_MATCH_DISABLED.
- *  7. Legacy acknowledgement cannot record money without matching bank evidence.
+ *  7. Exact match on a non-OWNER-created code waits on the sale as a pending
+ *     receipt (MATCHED_PENDING / PENDING_OWNER_APPROVAL); confirm_bank_transaction
+ *     records it once and closes that receipt.
  *  8. Financial gating: STAFF denied list/confirm/link/ignore/matching-status.
  *  9. get_vietqr_matching_status returns state only, never an amount.
  * 10. link_bank_transaction accepts a human reference (CAREM GDxxxxx).
  * 11. ignore_bank_transaction requires a reason.
  * 12. get_bank_webhook_state is OWNER-only and leaks no secret.
- * 13. Bank reconciliation notices never reach a non-financial, non-participant STAFF.
- *
- * (Số 13-15 cũ về customer_contacts/message_templates/thank-you queue đã bị gỡ
- *  cùng subsystem chăm sóc khách hàng — migration 20261014000500.)
+ * 13. customer_contacts carry no price fields; verify is OWNER/MANAGER-only.
+ * 14. message_templates reject price placeholders; save is OWNER-only.
+ * 15. Personal thank-you enqueues on VERIFY_SALE_CONTACT (contacts cannot pre-exist the sale).
+ * 16. Money-arrival notices never reach a non-financial, non-participant STAFF.
+ * 17. Approving the receipt on the sale closes the whole loop: payment booked,
+ *     bank transaction RECORDED, VietQR CONFIRMED, queue empty (no separate screen).
  */
 
 import assert from 'node:assert/strict'
@@ -40,7 +45,7 @@ export async function runSmartSalesAutomationTests(externalDb, { engine = 'pglit
     const callUuid = (user, name, id) => run(user, (client) => rpc(client, name, '$1::uuid', [id]))
     const callNoArg = (user, name) => run(user, (client) => rpc(client, name, '', []))
     // service_role webhook has no end-user JWT sub (auth.uid() => NULL), matching production.
-    const callSvc = (data, name = 'ingest_bank_transaction') => asUser(db, null, (client) => rpc(client, name, '$1::jsonb', [JSON.stringify({ account_number: '0000000000', direction: 'in', transfer_at: new Date().toISOString(), ...data })]), 'service_role')
+    const callSvc = (data, name = 'ingest_bank_transaction') => asUser(db, null, (client) => rpc(client, name, '$1::jsonb', [JSON.stringify({ account_number: '0987654321', direction: 'in', ...data })]), 'service_role')
     const row = async (sql, args = []) => (await db.query(sql, args)).rows[0]
     const count = async (sql, args = []) => Number((await row(sql, args)).count)
     const deny = (operation, expression = /ACCESS_DENIED|permission denied|row-level security/i) =>
@@ -63,8 +68,8 @@ export async function runSmartSalesAutomationTests(externalDb, { engine = 'pglit
     await call('owner', 'save_settings', {
       bank_bin: '970422',
       bank_name: 'MBBank',
-      bank_account_no: '0000000000',
-      bank_account_name: 'SYNTHETIC QR RECEIVER',
+      bank_account_no: '0987654321',
+      bank_account_name: 'CAREM SHOWROOM',
       vietqr_enabled: true,
       bank_provider: 'SEPAY',
       bank_webhook_enabled: true,
@@ -92,60 +97,73 @@ export async function runSmartSalesAutomationTests(externalDb, { engine = 'pglit
     const qrC = await call('owner', 'create_vietqr_payment_request', { sale_id: saleC.saleId, amount: 20_000_000, qr_payload: 'ssa-c' })
     assert.ok(qrA.qr_reference.startsWith('CAREM GD'))
 
-    await assert.rejects(() => call('owner', 'confirm_vietqr_payment', {
-      qr_request_id: qrA.id, notes: 'Synthetic manual confirmation without evidence',
-    }), /VIETQR_BANK_EVIDENCE_REQUIRED/)
-    assert.equal(await count('SELECT count(*) FROM public.bank_transactions'), 0)
-    assert.equal(await count("SELECT count(*) FROM public.payments WHERE sale_id=$1 AND status='ACTIVE'", [saleA.saleId]), 1)
-    pass('OWNER cannot turn a manual claim into a verified bank payment')
-
-    // 4 + 2. Trusted arrival records the receipt/payment, then delivery is idempotent.
+    // 4 + 2. Exact money on an OWNER-created code records itself onto the sale,
+    // and re-delivery of the same bank transaction stays a single row.
     const txnA = `SEPAY-${randomUUID().slice(0, 8)}`
     const first = await callSvc({ provider: 'SEPAY', provider_txn_id: txnA, amount: 30_000_000, sender_name: 'KH TU DONG', transfer_content: `Chuyen khoan ${qrA.qr_reference}` })
     assert.equal(first.status, 'RECORDED')
-    const matched = await row('SELECT status, match_reason, qr_request_id, sale_id, vehicle_id,payment_id FROM public.bank_transactions WHERE id=$1', [first.id])
+    const matched = await row('SELECT status, match_reason, qr_request_id, sale_id, vehicle_id, payment_id, confirmed_by FROM public.bank_transactions WHERE id=$1', [first.id])
     assert.equal(matched.status, 'RECORDED')
-    assert.equal(matched.match_reason, 'REFERENCE_AMOUNT_MATCH')
+    assert.equal(matched.match_reason, 'AUTO_RECORDED')
     assert.equal(matched.qr_request_id, qrA.id)
     assert.equal(matched.sale_id, saleA.saleId)
     assert.equal(matched.vehicle_id, saleA.vehicleId)
-    assert.ok(matched.payment_id)
-    assert.equal((await row('SELECT amount,payment_method FROM public.payments WHERE id=$1', [matched.payment_id])).payment_method, 'BANK_TRANSFER')
-    assert.equal(await count('SELECT sum(amount) AS count FROM public.payments WHERE sale_id=$1', [saleA.saleId]), 40_000_000)
+    assert.ok(matched.payment_id, 'Auto-recorded money must carry a real payment')
+    assert.equal(matched.confirmed_by, users.owner)
+    const qrRow = await row('SELECT status, payment_id FROM public.vietqr_requests WHERE id=$1', [qrA.id])
+    assert.equal(qrRow.status, 'CONFIRMED')
+    assert.equal(qrRow.payment_id, matched.payment_id)
+    assert.equal(await count('SELECT count(*) FROM public.payments WHERE id=$1', [matched.payment_id]), 1)
+    assert.equal(await count("SELECT count(*) FROM public.payment_receipts WHERE sale_id=$1 AND status='PENDING'", [saleA.saleId]), 0)
     const dup = await callSvc({ provider: 'SEPAY', provider_txn_id: txnA, amount: 30_000_000, transfer_content: `Chuyen khoan ${qrA.qr_reference}` })
     assert.equal(dup.duplicate, true)
     assert.equal(dup.id, first.id)
     assert.equal(await count('SELECT count(*) FROM public.bank_transactions WHERE provider=$1 AND provider_txn_id=$2', ['SEPAY', txnA]), 1)
-    assert.equal(await count('SELECT count(*) FROM public.payment_receipts WHERE payment_id=$1', [matched.payment_id]), 1)
-    pass('Trusted exact bank credit records its sale payment/receipt once; webhook replay is idempotent')
+    // Chuông báo phải tới chủ cửa hàng mà không ai phải bấm gì.
+    assert.ok(
+      await count("SELECT count(*) FROM public.notifications WHERE user_id=$1 AND action='CREATE_PAYMENT' AND deep_link=$2", [users.owner, '/sales/' + saleA.saleId]) >= 1,
+      'Auto-recorded money must ring the owner straight onto the sale'
+    )
+    pass('Exact money on an owner-created code books itself onto the sale and re-delivery is idempotent')
 
     // 9. get_vietqr_matching_status -> state only, no amount; finance-gated.
     const status = await callUuid('owner', 'get_vietqr_matching_status', qrA.id)
     assert.equal(status.state, 'RECORDED')
-    assert.equal(status.bank_received, true)
-    assert.equal(status.qr_status, 'CONFIRMED')
     assert.equal(Object.hasOwn(status, 'amount'), false)
     assert.ok(typeof status.sender_name === 'string')
     await deny(() => callUuid('staff', 'get_vietqr_matching_status', qrA.id))
     pass('get_vietqr_matching_status exposes state (no amount) and is finance-gated')
 
-    // 7. Legacy confirm only acknowledges a payment the bank event already recorded.
+    // 7. Separation of duties: a code created by someone else never self-books.
+    // It lands on the sale as a pending receipt until the OWNER confirms it.
+    const saleD = await mkSale('92B1-50004', '0905550004')
+    const qrD = await call('financialManager', 'create_vietqr_payment_request', { sale_id: saleD.saleId, amount: 25_000_000, qr_payload: 'ssa-d' })
+    const txnD = `SEPAY-${randomUUID().slice(0, 8)}`
+    const waiting = await callSvc({ provider: 'SEPAY', provider_txn_id: txnD, amount: 25_000_000, sender_name: 'KH QUAN LY', transfer_content: `Chuyen khoan ${qrD.qr_reference}` })
+    assert.equal(waiting.status, 'MATCHED_PENDING')
+    const waitingRow = await row('SELECT match_reason, payment_id FROM public.bank_transactions WHERE id=$1', [waiting.id])
+    assert.equal(waitingRow.match_reason, 'PENDING_OWNER_APPROVAL')
+    assert.equal(waitingRow.payment_id, null)
+    const pendingReceipts = async () => (await callUuid('owner', 'list_payment_receipts', saleD.saleId)).filter(r => r.status === 'PENDING')
+    assert.equal((await pendingReceipts()).length, 1, 'Money must appear on the sale as one pending receipt')
+    assert.ok(
+      await count("SELECT count(*) FROM public.notifications WHERE user_id=$1 AND action='BANK_TRANSACTION_MATCHED' AND deep_link=$2", [users.owner, '/sales/' + saleD.saleId]) >= 1,
+      'Waiting money must point the owner at the order, not at a separate queue'
+    )
     const confirmReq = randomUUID()
-    const recorded = await call('owner', 'confirm_bank_transaction', { id: first.id, request_id: confirmReq, notes: 'du 30tr' })
+    const recorded = await call('owner', 'confirm_bank_transaction', { id: waiting.id, request_id: confirmReq, notes: 'du 25tr' })
     assert.equal(recorded.status, 'RECORDED')
     assert.ok(recorded.payment_id)
-    assert.equal(recorded.payment_id, matched.payment_id)
-    const payCount = await count("SELECT count(*) FROM public.payments WHERE sale_id=$1 AND status='ACTIVE'", [saleA.saleId])
-    const reconfirmed = await call('owner', 'confirm_bank_transaction', { id: first.id, request_id: confirmReq })
+    assert.equal((await pendingReceipts()).length, 0, 'Confirming the money must close its pending receipt')
+    const payCount = await count("SELECT count(*) FROM public.payments WHERE sale_id=$1 AND status='ACTIVE'", [saleD.saleId])
+    const reconfirmed = await call('owner', 'confirm_bank_transaction', { id: waiting.id, request_id: confirmReq })
     assert.equal(reconfirmed.payment_id, recorded.payment_id)
     assert.equal(reconfirmed.status, 'RECORDED')
-    assert.equal(await count("SELECT count(*) FROM public.payments WHERE sale_id=$1 AND status='ACTIVE'", [saleA.saleId]), payCount)
-    assert.equal(payCount, 2)
-    const secondCredit = await svcTxn({ amount: 30_000_000, transfer_content: qrA.qr_reference })
-    assert.equal(secondCredit.status, 'MANUAL_REVIEW')
-    await assert.rejects(() => call('owner', 'confirm_bank_transaction', { id: secondCredit.id }), /VIETQR_BANK_EVIDENCE_REQUIRED/)
-    assert.equal(await count("SELECT count(*) FROM public.payments WHERE sale_id=$1 AND status='ACTIVE'", [saleA.saleId]), 2)
-    pass('Repeated acknowledgement or a second independent transfer cannot double-credit the same QR')
+    assert.equal(await count("SELECT count(*) FROM public.payments WHERE sale_id=$1 AND status='ACTIVE'", [saleD.saleId]), payCount)
+    const redelivered = await callSvc({ provider: 'SEPAY', provider_txn_id: txnD, amount: 25_000_000, transfer_content: `Chuyen khoan ${qrD.qr_reference}` })
+    assert.equal(redelivered.duplicate, true)
+    assert.equal(await count("SELECT count(*) FROM public.payments WHERE sale_id=$1 AND status='ACTIVE'", [saleD.saleId]), payCount)
+    pass('Money on a code the owner did not create waits on the sale, then books once on confirm')
 
     // 3. Bare 5-digit content never links by mistake.
     const bare = await svcTxn({ amount: 30_000_000, transfer_content: 'chuyen tien GD01001 noi dung thuong' })
@@ -155,23 +173,10 @@ export async function runSmartSalesAutomationTests(externalDb, { engine = 'pglit
     assert.equal(bareRow.match_reason, 'NO_REFERENCE')
     pass('A bare 5-digit code without the CAREM GD prefix never links a VietQR request')
 
-    const extendedReference = await svcTxn({ amount: 30_000_000, transfer_content: `${qrB.qr_reference}1` })
-    assert.equal(extendedReference.status, 'UNMATCHED')
-    assert.equal((await row('SELECT qr_request_id FROM public.bank_transactions WHERE id=$1', [extendedReference.id])).qr_request_id, null)
-    const ambiguous = await svcTxn({ amount: 30_000_000, transfer_content: `${qrB.qr_reference} ${qrC.qr_reference}` })
-    assert.equal(ambiguous.status, 'MANUAL_REVIEW')
-    assert.equal((await row('SELECT match_reason,qr_request_id FROM public.bank_transactions WHERE id=$1', [ambiguous.id])).match_reason, 'AMBIGUOUS_REFERENCE')
-    assert.equal((await row('SELECT qr_request_id FROM public.bank_transactions WHERE id=$1', [ambiguous.id])).qr_request_id, null)
-    pass('Extra reference digits and ambiguous memos cannot match a different payment request')
-
     // 5. Amount mismatch (QR B still PENDING) -> neutral MANUAL_REVIEW.
     const wrong = await svcTxn({ amount: 29_000_000, transfer_content: `Thanh toan ${qrB.qr_reference}` })
     assert.equal(wrong.status, 'MANUAL_REVIEW')
     assert.equal((await row('SELECT match_reason FROM public.bank_transactions WHERE id=$1', [wrong.id])).match_reason, 'AMOUNT_MISMATCH')
-    await assert.rejects(() => call('owner', 'confirm_bank_transaction', { id: wrong.id }), /VIETQR_BANK_EVIDENCE_REQUIRED/)
-    const mismatchStatus = await callUuid('owner', 'get_vietqr_matching_status', qrB.id)
-    assert.equal(mismatchStatus.bank_received, false)
-    assert.equal(mismatchStatus.state, 'REVIEW')
     pass('Right reference, wrong amount lands in neutral MANUAL_REVIEW (AMOUNT_MISMATCH)')
 
     // 11. ignore requires a reason.
@@ -193,9 +198,30 @@ export async function runSmartSalesAutomationTests(externalDb, { engine = 'pglit
     const linked = await call('financialManager', 'link_bank_transaction', { id: orphan.id, reference: qrC.qr_reference })
     assert.equal(linked.status, 'MANUAL_REVIEW')
     assert.equal(linked.qr_request_id, qrC.id)
-    await assert.rejects(() => call('financialManager', 'confirm_bank_transaction', { id: orphan.id }), /VIETQR_BANK_EVIDENCE_REQUIRED/)
-    assert.equal(await count('SELECT count(*) FROM public.payments WHERE sale_id=$1', [saleC.saleId]), 1)
     pass('link_bank_transaction binds an unmatched transaction by human CAREM GD reference')
+
+    // 17. Approving the receipt on the sale is the only approval UI left, so it must
+    // close the money loop by itself: payment + bank transaction + VietQR.
+    const saleCReceipts = async () => (await callUuid('owner', 'list_payment_receipts', saleC.saleId)).filter(r => r.status === 'PENDING')
+    const linkedReceipt = await saleCReceipts()
+    assert.equal(linkedReceipt.length, 1, 'Linking money onto a sale must surface it as one pending receipt')
+    const approvalReq = randomUUID()
+    const approvedPayment = await call('owner', 'add_payment', {
+      request_id: approvalReq, receipt_id: linkedReceipt[0].id,
+      verification_reference: 'Kiem tra sao ke ngan hang khop ma CAREM GD tren QR',
+    })
+    assert.ok(approvedPayment, 'add_payment from a receipt returns the new payment id')
+    const closedTxn = await row('SELECT status, payment_id, confirmed_by FROM public.bank_transactions WHERE id=$1', [orphan.id])
+    assert.equal(closedTxn.status, 'RECORDED')
+    assert.equal(closedTxn.payment_id, approvedPayment)
+    assert.equal(closedTxn.confirmed_by, users.owner)
+    const closedQr = await row('SELECT status, payment_id FROM public.vietqr_requests WHERE id=$1', [qrC.id])
+    assert.equal(closedQr.status, 'CONFIRMED')
+    assert.equal(closedQr.payment_id, approvedPayment)
+    assert.equal((await saleCReceipts()).length, 0, 'Approval must empty the sale queue')
+    assert.equal((await callUuid('owner', 'get_vietqr_matching_status', qrC.id)).state, 'RECORDED')
+    assert.equal(await count("SELECT count(*) FROM public.payments WHERE sale_id=$1 AND amount=20000000", [saleC.saleId]), 1)
+    pass('Recording the pending receipt on the sale also closes its bank transaction and VietQR code')
 
     // 8. STAFF cannot read/act on the reconciliation queue.
     await deny(() => call('staff', 'list_bank_transactions', {}))
@@ -218,10 +244,43 @@ export async function runSmartSalesAutomationTests(externalDb, { engine = 'pglit
     await deny(() => callNoArg('manager', 'get_bank_webhook_state'))
     pass('get_bank_webhook_state is OWNER-only and returns no secret material')
 
-    // 13. A non-participant STAFF never receives bank reconciliation notices.
+    // 13. customer_contacts: no price fields; STAFF cannot verify.
+    const contact = await call('staff', 'save_sale_contact', { sale_id: saleA.saleId, channel: 'ZALO_PERSONAL', handle: 'kah-tu-dong', display_name: 'Khách Tự Động', phone: '0905550001' })
+    assert.ok(contact.id)
+    assert.equal(Object.hasOwn(contact, 'sale_price'), false)
+    assert.equal(Object.hasOwn(contact, 'purchase_price'), false)
+    const contacts = await callUuid('staff', 'list_sale_contacts', saleA.saleId)
+    assert.ok(contacts.some((c) => c.id === contact.id && c.channel === 'ZALO_PERSONAL' && c.verified === false))
+    await deny(() => call('staff', 'verify_sale_contact', { id: contact.id, verified: true }))
+    pass('customer_contacts hold no price fields and STAFF cannot verify a contact')
+
+    // 15. Personal thank-you enqueues ONLY on VERIFY_SALE_CONTACT of a personal channel.
+    await call('owner', 'save_settings', { thankyou_manual_enabled: true })
+    await call('owner', 'verify_sale_contact', { id: contact.id, verified: true })
+    const queue = await callUuid('owner', 'list_sale_thank_you_queue', saleA.saleId)
+    assert.ok(queue.some((q) => q.channel === 'ZALO_PERSONAL'), 'Expected a personal thank-you queue item after VERIFY_SALE_CONTACT')
+    const outboxRow = await row("SELECT status, last_error_code FROM public.message_outbox WHERE sale_id=$1 AND event_type='SALE_THANK_YOU_PERSONAL' AND channel='ZALO_PERSONAL'", [saleA.saleId])
+    assert.equal(outboxRow.status, 'QUEUED')
+    assert.equal(outboxRow.last_error_code, 'MANUAL_CHANNEL')
+    pass('Verifying a personal contact enqueues the manual thank-you (no auto-send, no unofficial API)')
+
+    const oaContact = await call('owner', 'save_sale_contact', { sale_id: saleA.saleId, channel: 'ZALO_OA', handle: 'carem-oa', display_name: 'Khách OA' })
+    await call('owner', 'verify_sale_contact', { id: oaContact.id, verified: true })
+    assert.equal(await count("SELECT count(*) FROM public.message_outbox WHERE sale_id=$1 AND event_type='SALE_THANK_YOU_PERSONAL' AND channel='ZALO_OA'", [saleA.saleId]), 0)
+    pass('Official channels never fall into the personal thank-you enqueue')
+
+    // 14. message_templates reject price placeholders; save OWNER-only.
+    await assert.rejects(() => call('owner', 'save_message_template', { code: 'evil_template_v1', body: 'Cam on {customer_name}, gia ban {sale_price}d' }), /TEMPLATE_VARIABLE_NOT_ALLOWED/i)
+    await deny(() => call('manager', 'save_message_template', { code: 'ok_template_v1', body: 'Cam on {customer_name} da mua tai {store_name}' }))
+    await call('owner', 'save_message_template', { code: 'ok_template_v1', body: 'Cam on {customer_name} da mua tai {store_name}' })
+    const preview = await call('owner', 'preview_message_template', { code: 'ok_template_v1', sale_id: saleA.saleId })
+    assert.ok(typeof preview.rendered === 'string' && !/\{sale_price\}/.test(preview.rendered) && !/100000000|100.000.000/.test(preview.rendered))
+    pass('message_templates reject price placeholders, save is OWNER-only, preview renders no price')
+
+    // 16. A non-participant STAFF never receives money-arrival notices.
     const staffBankNotices = await count("SELECT count(*) FROM public.notifications WHERE user_id=$1 AND action LIKE 'BANK_TRANSACTION%'", [users.staff])
     assert.equal(staffBankNotices, 0)
-    pass('Bank reconciliation notices do not reach a non-financial, non-participant STAFF')
+    pass('Money-arrival notices do not reach a non-financial, non-participant STAFF')
 
     console.log(`\nSmart Sales Automation suite: ${passed} groups passed`)
   } finally {

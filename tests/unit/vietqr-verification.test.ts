@@ -113,7 +113,9 @@ describe("P1-c · vòng xác minh dời lên cấp trang (source contract)", () 
     // còn là nơi owner của thông báo toàn cục — info đó phải tới kể cả khi modal
     // đã đóng.
     expect(code).not.toMatch(/toast\.success\(\s*"Đã nhận tiền vào tài khoản"/);
-    expect(code).toContain("isVerifiedReceipt");
+    // Kiến trúc Mac: tin tiền về chỉ khi server trả bằng chứng — modal không
+    // tự đặt tiêu chí "đã thu" riêng, cũng không sở hữu thông báo toàn cục.
+    expect(code).toMatch(/get_vietqr_matching_status|api\.getVietQrMatchingStatus/);
     expect(code).not.toContain("announcedReceipt");
   });
 

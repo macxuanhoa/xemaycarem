@@ -1,9 +1,7 @@
 import { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Activity,
-  ArrowRight,
   Banknote,
   CheckCircle2,
   ChevronDown,
@@ -345,11 +343,8 @@ export function PaymentAutomationCard({ onOpenPayment }: { onOpenPayment?: () =>
           <h2 className="section-title" style={{ display: "flex", alignItems: "center", gap: 8 }}>
             <Banknote size={18} /> Đối soát thanh toán
           </h2>
-          {canRecon && (
-            <Link to="/bank-reconciliation" className="button button-secondary" style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
-              Mở trang đối soát <ArrowRight size={15} />
-            </Link>
-          )}
+          {/* Mac: không còn trang đối soát rời — hàng đợi hiển thị ngay trên từng
+              đơn hàng (nút "Ghi nhận tiền về"), nên thẻ này chỉ đưa số liệu thật. */}
         </div>
         {!canRecon ? (
           <p className="muted small" style={{ margin: 0 }}>
@@ -401,7 +396,10 @@ export function PaymentAutomationCard({ onOpenPayment }: { onOpenPayment?: () =>
             <label className="settings-switch-card">
               <div className="settings-switch-content">
                 <span className="settings-switch-title">Bật webhook ngân hàng</span>
-                <span className="settings-switch-desc">Nhận tự động giao dịch chuyển khoản để đưa vào hàng đợi đối soát.</span>
+                <span className="settings-switch-desc">
+                  Hệ thống tự nghe giao dịch chuyển khoản từ ngân hàng để khớp với đơn
+                  bán theo mã đối soát.
+                </span>
               </div>
               <input
                 type="checkbox"
@@ -417,8 +415,12 @@ export function PaymentAutomationCard({ onOpenPayment }: { onOpenPayment?: () =>
             )}
             <label className="settings-switch-card">
               <div className="settings-switch-content">
-                <span className="settings-switch-title">Tự động khớp mã tham chiếu</span>
-                <span className="settings-switch-desc">Khi tắt, mọi giao dịch về đều rơi vào hàng đợi rà soát thủ công.</span>
+                <span className="settings-switch-title">Tự ghi tiền khi khách chuyển đúng</span>
+                <span className="settings-switch-desc">
+                  Bật: tiền về khớp đúng số trên mã do chính chủ cửa hàng tạo sẽ tự vào
+                  đơn, không ai phải bấm gì. Tắt: tiền về vẫn hiện trên đơn hàng và chờ
+                  chủ cửa hàng bấm ghi nhận.
+                </span>
               </div>
               <input
                 type="checkbox"

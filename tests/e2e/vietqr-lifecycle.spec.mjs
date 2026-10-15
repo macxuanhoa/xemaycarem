@@ -8,10 +8,14 @@ import {
 
 const backend = "https://xe-test.supabase.co/rest/v1/rpc/";
 
-async function installQrMock(
-  page,
-  { theme = "light", monitoring = true } = {},
-) {
+// Miền thanh toán do kiến trúc Mac làm chủ (quyết duyệt 15/10/2026): modal tạo
+// mã VietQR động, TIỀN VỀ do server webhook tự ghi nhận — client không còn
+// đồng hồ đếm ngược, không tự tính hết hạn, không có nút "Xác nhận và đóng"
+// sau bằng chứng ngân hàng. Client chỉ đọc hai nguồn: create (server replay
+// bản ghi đang chạy) và matching status poll 6s. Memo ngắn lấy mã đối soát
+// đứng đầu, vừa trần byte EMVCo — hợp đồng đó test:db bảo chứng; mock ở đây
+// chỉ giả lập server trung thực cùng giao thức.
+async function installQrMock(page, { theme = "light", configured = true } = {}) {
   await page.clock.install();
   const calls = await installUiuxMock(page, { theme });
   const anchor = await page.evaluate(() => ({
@@ -31,9 +35,11 @@ async function installQrMock(
   let current = null;
   let bankState = "NONE";
   let createCount = 0;
-  let replaceCount = 0;
   const manualWrites = [];
-  // Ảnh VietQR chính thống (img.vietqr.io) được mock để mã hiển thị ổn định trong test
+  const nameKey = (value) =>
+    (value || "").trim().toLowerCase().replace(/\s+/g, " ");
+  // Ảnh VietQR chính thống (img.vietqr.io) được mock để thẻ ảnh hiển thị ổn
+  // định trong test.
   await page.route("https://img.vietqr.io/**", (route) =>
     route.fulfill({
       status: 200,
@@ -47,15 +53,18 @@ async function installQrMock(
   const withServerTime = async () => {
     if (!current) return null;
     const now = await serverMs();
+    // Server chỉ lật PENDING→EXPIRED khi được hỏi (lazy-expiry, đúng như
+    // migration); quá hạn thì tiền không tự nối vào mã nữa.
     if (current.status === "PENDING" && Date.parse(current.expires_at) <= now)
       current.status = "EXPIRED";
     return { ...current, server_now: new Date(now).toISOString() };
   };
   const makeRequest = async (data) => {
     const now = await serverMs();
-    const reference = `CRTEST00000${createCount + replaceCount}`;
+    const reference = `CAREM GD10000${createCount}`;
+    const payer = data.payer_name ?? "Khách kiểm thử";
     current = {
-      id: `00000000-0000-4000-8000-00000000010${createCount + replaceCount}`,
+      id: `00000000-0000-4000-8000-00000000010${createCount}`,
       qr_reference: reference,
       vehicle_id: vehicleId,
       sale_id: data.sale_id ?? null,
@@ -68,12 +77,11 @@ async function installQrMock(
       expires_at: new Date(now + 15 * 60_000).toISOString(),
       replace_available_at: new Date(now + 60_000).toISOString(),
       server_now: new Date(now).toISOString(),
-      monitoring_available: monitoring,
-      transfer_content: `${data.payer_name ?? "Khách kiểm thử"} thanh toán tiền xe Xe tay ga - XE-UI-001 với giá: ${String(
-        Math.round(Number(data.amount) || 0),
-      ).replace(/\B(?=(\d{3})+(?!\d))/g, ".")}; Mã giao dịch là: ${reference}`,
-      agreement_text: `${data.payer_name ?? "Khách kiểm thử"} đồng ý thanh toán cho CA REM TEST; xe Xe tay ga, biển 43A1-123.45, mã XE-UI-001, hợp đồng ${data.contract_reference ?? "BAN-UI-001"}.`,
-      payer_name: data.payer_name ?? "Khách kiểm thử",
+      // Server Mac sinh memo BẮT ĐẦU bằng mã đối soát và tự rút gọn khi vượt
+      // trần; fixture đi đúng shape đó để client không bao giờ cắt nhầm mã.
+      transfer_content: `${reference} thanh toán tiền xe XE-UI-001`,
+      agreement_text: `${payer} đồng ý thanh toán cho CA REM TEST; xe Xe tay ga, biển 43A1-123.45, mã XE-UI-001, hợp đồng ${data.contract_reference ?? "BAN-UI-001"}.`,
+      payer_name: payer,
       contract_reference: data.contract_reference ?? "BAN-UI-001",
       vehicle_label: vehicleTitle,
       bank_transaction_id: null,
@@ -87,7 +95,7 @@ async function installQrMock(
   };
   await page.route(`${backend}get_settings`, (route) =>
     reply(route, {
-      vietqr_enabled: true,
+      vietqr_enabled: configured,
       bank_bin: "970436",
       bank_account_no: "0000000000",
       bank_account_name: "CA REM TEST",
@@ -101,26 +109,20 @@ async function installQrMock(
   );
   await page.route(`${backend}create_vietqr_payment_request`, async (route) => {
     createCount += 1;
-    return reply(
-      route,
-      await makeRequest(route.request().postDataJSON().p_data),
-    );
+    const data = route.request().postDataJSON().p_data;
+    if (current) {
+      // Tiền đã về/đã vào sổ: server trung thực phát lại bản ghi, không xếp mã mới chồng lên.
+      if (["RECEIVED", "CONFIRMED"].includes(current.status))
+        return reply(route, { ...(await withServerTime()), superseded: false });
+      if (
+        Number(current.amount) !== Number(data.amount) ||
+        nameKey(current.payer_name) !== nameKey(data.payer_name)
+      )
+        return reply(route, { message: "VIETQR_REPLACE_REQUIRED" }, 400);
+      return reply(route, { ...(await withServerTime()), superseded: false });
+    }
+    return reply(route, { ...(await makeRequest(data)), superseded: false });
   });
-  await page.route(
-    `${backend}replace_vietqr_payment_request`,
-    async (route) => {
-      if (Date.parse(current.replace_available_at) > (await serverMs()))
-        return reply(route, { message: "VIETQR_REPLACEMENT_COOLDOWN" }, 400);
-      replaceCount += 1;
-      return reply(
-        route,
-        await makeRequest(route.request().postDataJSON().p_data),
-      );
-    },
-  );
-  await page.route(`${backend}get_vietqr_payment_request`, async (route) =>
-    reply(route, await withServerTime()),
-  );
   await page.route(`${backend}get_vietqr_matching_status`, async (route) =>
     reply(route, {
       state: bankState,
@@ -128,23 +130,27 @@ async function installQrMock(
       bank_received:
         !!current?.bank_transaction_id &&
         ["RECEIVED", "CONFIRMED"].includes(current?.status),
-      monitoring_available: monitoring,
+      monitoring_available: true,
       bank_transaction_id: current?.bank_transaction_id,
+      sender_name: bankState === "NONE" ? null : "Khách kiểm thử",
+      transfer_at: bankState === "NONE" ? null : current?.updated_at,
     }),
   );
-  for (const action of [
-    "confirm_vietqr_payment",
-    "cancel_vietqr_payment_request",
-  ]) {
-    await page.route(`${backend}${action}`, (route) => {
-      manualWrites.push(action);
-      return reply(
-        route,
-        { message: "No manual payment transitions allowed" },
-        403,
-      );
-    });
-  }
+  await page.route(`${backend}confirm_vietqr_payment`, async (route) => {
+    // Đường lùi cho cửa hàng chưa nối ngân hàng: server CHỈ ghi sau khi chủ
+    // kiểm bằng chứng; từ chối trùng/nghiệp vụ sống ở test:db, mock giữ đúng
+    // shape đáp án tin cậy.
+    manualWrites.push("confirm_vietqr_payment");
+    const now = await serverMs();
+    current.status = "CONFIRMED";
+    current.payment_id = "00000000-0000-4000-8000-000000000203";
+    current.updated_at = new Date(now).toISOString();
+    return reply(route, current.payment_id);
+  });
+  await page.route(`${backend}cancel_vietqr_payment_request`, (route) => {
+    manualWrites.push("cancel_vietqr_payment_request");
+    return reply(route, { message: "UNEXPECTED_WRITE" }, 500);
+  });
   return {
     calls,
     manualWrites,
@@ -153,9 +159,6 @@ async function installQrMock(
     },
     get createCount() {
       return createCount;
-    },
-    get replaceCount() {
-      return replaceCount;
     },
     setBankState(state) {
       bankState = state;
@@ -171,26 +174,32 @@ async function installQrMock(
   };
 }
 
-async function openSaleQr(page) {
+const panelOf = (page) => page.locator(".vietqr-modal-panel");
+const qrImage = (panel) =>
+  panel.getByRole("img", { name: "Mã VietQR động", exact: true });
+
+async function openPanel(page, launcherName) {
+  await page.getByRole("button", { name: launcherName, exact: true }).click();
+  const panel = panelOf(page);
+  await expect(panel).toBeVisible();
+  return panel;
+}
+
+async function openSalePanel(page) {
   await page.goto(`/sales/${saleId}`);
-  await page
-    .getByRole("button", { name: "VietQR", exact: true })
-    .click();
-  const dialog = page.getByRole("dialog", {
-    name: "Thanh toán chuyển khoản",
-    exact: true,
-  });
-  await expect(
-    dialog.getByRole("img", { name: "Mã QR chuyển khoản", exact: true }),
-  ).toBeVisible();
-  return dialog;
+  return openPanel(page, "VietQR");
+}
+
+async function fillSellForm(page) {
+  await page.getByLabel(/^Tên khách hàng/).fill("Khách kiểm thử");
+  await page.getByLabel("Bán với giá", { exact: true }).fill("35000000");
 }
 
 for (const surface of [
   { theme: "light", width: 1440 },
   { theme: "dark", width: 375 },
 ]) {
-  test(`one payment action at the bottom and a centered plain QR (${surface.theme})`, async ({
+  test(`dynamic VietQR with one display = copy chain and no silent writes (${surface.theme})`, async ({
     page,
   }) => {
     await page.setViewportSize({ width: surface.width, height: 960 });
@@ -201,8 +210,7 @@ for (const surface of [
       exact: true,
     });
     await expect(launcher).toHaveCount(1);
-    await page.getByLabel(/^Tên khách hàng/).fill("Khách kiểm thử");
-    await page.getByLabel("Bán với giá", { exact: true }).fill("35000000");
+    await fillSellForm(page);
     const footerAfterNotes = await launcher.evaluate((element) => {
       const notes = document.querySelector('textarea[name="notes"]');
       return (
@@ -215,47 +223,37 @@ for (const surface of [
     });
     expect(footerAfterNotes).toBe(true);
     await launcher.click();
-    const dialog = page.getByRole("dialog", {
-      name: "Thanh toán chuyển khoản",
-      exact: true,
-    });
-    const qr = dialog.getByRole("img", {
-      name: "Mã QR chuyển khoản",
-      exact: true,
-    });
+    const panel = panelOf(page);
+    await expect(panel).toBeVisible();
+    await expect(
+      panel.getByRole("heading", {
+        name: "Thanh toán VietQR động",
+        exact: true,
+      }),
+    ).toBeVisible();
+    const qr = qrImage(panel);
     await expect(qr).toBeVisible();
-    await expect(dialog.getByText("Mã QR đơn", { exact: true })).toHaveCount(0);
     await expect(
-      dialog.getByText("Thẻ có logo ngân hàng", { exact: true }),
-    ).toHaveCount(0);
+      panel.getByText("Đang chờ khách chuyển khoản", { exact: true }),
+    ).toBeVisible();
+    // Giao diện Mac có đủ hai chế độ xem cạnh mã đơn và nút tải kèm theo.
     await expect(
-      dialog.getByRole("button", { name: /Xác nhận đã nhận tiền/ }),
-    ).toHaveCount(0);
-    // P0-4 · MỘT chuỗi duy nhất cho màn hình, nút copy và chính mã QR.
-    // Memo mà server đang chạy (migration 20261014000700) sinh ra cho một phiếu
-    // bán thật dài 106 ký tự = 121 byte UTF-8. Thẻ EMVCo tag 62 chỉ mang nổi 95
-    // byte memo (chính nó phải nằm trong 2 chữ số độ dài, trừ 4 byte header), nên
-    // trước bản sửa app hiển thị nguyên văn 121 byte rồi nhúng đúng chuỗi đó vào
-    // QR — sinh ra TLV có độ dài 3 chữ số mà app ngân hàng đọc lệch toàn bộ phần
-    // sau. Giờ app chốt một bản rút gọn MÃ ĐỐI SOÁT đứng ĐẦU dùng chung ba kênh.
-    // Bất biến cần giữ: những gì nhân viên đọc/copy = những gì máy quét nhận,
-    // vẫn mang mã đối soát, và vừa khít trần byte của thẻ.
+      panel.getByRole("button", { name: "Mã QR đơn", exact: true }),
+    ).toBeVisible();
+    await expect(
+      panel.getByRole("button", { name: "Thẻ có logo ngân hàng", exact: true }),
+    ).toBeVisible();
+    await expect(
+      panel.getByRole("button", { name: "Tải mã QR", exact: true }),
+    ).toBeVisible();
+    // P0-4 · chuỗi duy nhất: hiển thị = memo server = bản copy. Memo ngắn đã
+    // nằm trong trần byte EMVCo và mở đầu bằng mã đối soát (server chốt,
+    // test:db kiểm; client từ chối mã vượt trần chứ không cắt trộm).
     const serverMemo = fixture.current.transfer_content;
-    const reference = fixture.current.qr_reference;
     const byteLength = (value) => new TextEncoder().encode(value).length;
-    const shown = (
-      await dialog.locator(".vietqr-transfer-text").textContent()
-    )?.trim();
-    expect(shown).not.toBe("");
-    expect(byteLength(shown)).toBeLessThanOrEqual(95);
-    expect(shown).toContain(reference);
-    expect(shown).toContain("thanh toán tiền xe");
-    // Memo vừa trần thì giữ NGUYÊN VĂN bản của server; chỉ khi vượt trần mới rút
-    // gọn, và rút gọn thì mã đối soát phải đứng đầu (sống sót qua lần cắt memo).
-    expect(byteLength(serverMemo) <= 95
-      ? shown === serverMemo
-      : shown.startsWith(reference)).toBe(true);
-    // Nút copy phải đưa đúng chuỗi đang hiển thị, không phải một bản khác.
+    await expect(panel.getByText(serverMemo, { exact: true })).toBeVisible();
+    expect(byteLength(serverMemo)).toBeLessThanOrEqual(95);
+    expect(serverMemo.startsWith(fixture.current.qr_reference)).toBe(true);
     await page.evaluate(() => {
       window.__copied = null;
       navigator.clipboard.writeText = (text) => {
@@ -263,156 +261,141 @@ for (const surface of [
         return Promise.resolve();
       };
     });
-    await dialog
-      .getByRole("button", { name: "Sao chép nội dung chuyển khoản" })
-      .click();
-    expect(await page.evaluate(() => window.__copied)).toBe(shown);
-    const qrBox = await qr.boundingBox();
-    const download = await dialog
-      .getByRole("button", { name: "Tải mã QR", exact: true })
-      .boundingBox();
+    await panel.getByRole("button", { name: "Sao chép", exact: true }).click();
+    expect(await page.evaluate(() => window.__copied)).toBe(serverMemo);
+    // Học thuyết Mac: lối ghi nhận thủ công HIỆN DIỆN nhưng client không bao
+    // giờ tự bấm hộ — mở cửa sổ chỉ được đọc, không được ghi.
+    await expect(
+      panel.getByRole("button", {
+        name: "Tôi đã thấy tiền vào app ngân hàng",
+      }),
+    ).toBeVisible();
+    expect(fixture.createCount).toBe(1);
+    expect(fixture.manualWrites).toHaveLength(0);
+    // Mã đơn nằm giữa khung hiển thị; panel không tràn ngang trên cả hai khổ.
+    const box = await panel.locator(".vietqr-display-box").boundingBox();
+    const img = await qr.boundingBox();
     expect(
-      Math.abs(qrBox.x + qrBox.width / 2 - download.x - download.width / 2),
-    ).toBeLessThan(2);
+      Math.abs(img.x + img.width / 2 - (box.x + box.width / 2)),
+    ).toBeLessThan(8);
     expect(
-      await dialog.evaluate(
+      await panel.evaluate(
         (element) => element.scrollWidth <= element.clientWidth,
       ),
     ).toBe(true);
-    await dialog
+    await panel
       .getByRole("button", { name: "Đóng hộp thoại", exact: true })
-      .focus();
-    await page.keyboard.press("Shift+Tab");
-    expect(
-      await dialog.evaluate((element) =>
-        element.contains(document.activeElement),
-      ),
-    ).toBe(true);
-    await page.keyboard.press("Escape");
-    await expect(dialog).toHaveCount(0);
+      .click();
+    await expect(panel).toHaveCount(0);
+    // Đóng cửa sổ KHÔNG hủy yêu cầu — khách vẫn chuyển được vào mã đang treo.
     expect(fixture.manualWrites).toHaveLength(0);
   });
 }
 
-test("closing and reopening preserves the deadline; expiry hides QR and replacement has a cooldown", async ({
-  page,
-}) => {
-  const fixture = await installQrMock(page);
-  let dialog = await openSaleQr(page);
-  const firstId = fixture.current.id;
-  const firstExpiry = fixture.current.expires_at;
-  await expect(
-    dialog.getByRole("button", { name: /^Tạo mã mới \(/ }),
-  ).toBeDisabled();
-  await dialog.getByRole("button", { name: "Quay lại", exact: true }).click();
-  await page.clock.fastForward(65_000);
-  await page
-    .getByRole("button", { name: "VietQR", exact: true })
-    .click();
-  dialog = page.getByRole("dialog", {
-    name: "Thanh toán chuyển khoản",
-    exact: true,
-  });
-  await expect(
-    dialog.getByRole("img", { name: "Mã QR chuyển khoản", exact: true }),
-  ).toBeVisible();
-  expect(fixture.current.id).toBe(firstId);
-  expect(fixture.current.expires_at).toBe(firstExpiry);
-  expect(fixture.createCount).toBe(1);
-  await expect(dialog.locator(".vietqr-countdown")).toHaveText(/^13:5\d$/);
-  await page.clock.fastForward(15 * 60_000);
-  await expect(
-    dialog.getByText("Mã QR đã hết hạn", { exact: true }),
-  ).toBeVisible();
-  await expect(
-    dialog.getByRole("img", { name: "Mã QR chuyển khoản", exact: true }),
-  ).toHaveCount(0);
-  await dialog.getByRole("button", { name: "Tạo mã mới", exact: true }).click();
-  await expect(
-    dialog.getByRole("img", { name: "Mã QR chuyển khoản", exact: true }),
-  ).toBeVisible();
-  expect(fixture.current.id).not.toBe(firstId);
-  expect(fixture.replaceCount).toBe(1);
-  await expect(
-    dialog.getByRole("button", { name: /^Tạo mã mới \(/ }),
-  ).toBeDisabled();
-  expect(fixture.manualWrites).toHaveLength(0);
-});
-
-test("a bank match or review is insufficient; trusted receipt enables acknowledgement only", async ({
-  page,
-}) => {
-  const fixture = await installQrMock(page);
-  const dialog = await openSaleQr(page);
-  fixture.setBankState("MATCHED");
-  await page.clock.fastForward(6_000);
-  await expect(
-    dialog.getByRole("button", { name: "Xác nhận và đóng", exact: true }),
-  ).toHaveCount(0);
-  fixture.setBankState("REVIEW");
-  await page.clock.fastForward(6_000);
-  await expect(
-    dialog.getByText("Giao dịch cần đối soát", { exact: true }),
-  ).toBeVisible();
-  await expect(
-    dialog.getByRole("button", { name: "Xác nhận và đóng", exact: true }),
-  ).toHaveCount(0);
-  fixture.receive("CONFIRMED");
-  await page.clock.fastForward(6_000);
-  await expect(
-    dialog.getByText("Đã nhận tiền vào tài khoản", { exact: true }),
-  ).toBeVisible();
-  await expect(
-    dialog.getByRole("img", { name: "Mã QR chuyển khoản", exact: true }),
-  ).toHaveCount(0);
-  await dialog
-    .getByRole("button", { name: "Xác nhận và đóng", exact: true })
-    .click();
-  await expect(dialog).toHaveCount(0);
-  expect(fixture.manualWrites).toHaveLength(0);
-});
-
-test("a trusted pre-sale receipt returns to the form without another collection", async ({
+test("reopening replays the active request; changing the amount never stacks a second code", async ({
   page,
 }) => {
   const fixture = await installQrMock(page);
   await page.goto(`/vehicles/${vehicleId}/sell`);
-  await page.getByLabel(/^Tên khách hàng/).fill("Khách kiểm thử");
-  await page.getByLabel("Bán với giá", { exact: true }).fill("35000000");
-  await page
-    .getByRole("button", { name: "Thanh toán chuyển khoản", exact: true })
+  await fillSellForm(page);
+  let panel = await openPanel(page, "Thanh toán chuyển khoản");
+  const firstId = fixture.current.id;
+  await panel
+    .getByRole("button", { name: "Đóng hộp thoại", exact: true })
     .click();
-  const dialog = page.getByRole("dialog", {
-    name: "Thanh toán chuyển khoản",
-    exact: true,
-  });
+  await page.clock.fastForward(65_000);
+  panel = await openPanel(page, "Thanh toán chuyển khoản");
+  await expect(qrImage(panel)).toBeVisible();
+  // Client hỏi lại, server phát lại ĐÚNG một bản ghi — không mã chồng mã.
+  expect(fixture.current.id).toBe(firstId);
+  expect(fixture.createCount).toBe(2);
+  await panel
+    .getByRole("button", { name: "Đóng hộp thoại", exact: true })
+    .click();
+  // Đổi số tiền khi mã còn treo: server từ chối phát hành chồng lên
+  // (VIETQR_REPLACE_REQUIRED); UI hiển thị nhánh lỗi, bản ghi cũ nguyên trạng.
+  await page.getByLabel("Bán với giá", { exact: true }).fill("32000000");
+  panel = await openPanel(page, "Thanh toán chuyển khoản");
   await expect(
-    dialog.getByRole("img", { name: "Mã QR chuyển khoản", exact: true }),
+    panel.getByRole("button", { name: "Thử tạo lại mã QR" }),
   ).toBeVisible();
-  const requestId = fixture.current.id;
-  fixture.receive("RECEIVED");
-  await page.clock.fastForward(6_000);
-  await dialog
-    .getByRole("button", { name: "Xác nhận và đóng", exact: true })
-    .click();
-  await expect(dialog).toHaveCount(0);
-  await expect(page.getByText(/Ngân hàng đã nhận 35\.000\.000/)).toBeVisible();
-  await page
-    .getByRole("button", { name: "Xem khoản chuyển đã nhận", exact: true })
-    .click();
-  await expect(
-    dialog.getByRole("button", { name: "Xác nhận và đóng", exact: true }),
-  ).toBeVisible();
-  expect(fixture.current.id).toBe(requestId);
-  expect(fixture.createCount).toBe(1);
+  expect(fixture.current.id).toBe(firstId);
+  expect(Number(fixture.current.amount)).toBe(35000000);
   expect(fixture.manualWrites).toHaveLength(0);
 });
 
-test("offline does not enable payment success and does not pause expiry", async ({
+test("webhook states drive the window: pending approval, mismatch review, recorded completion", async ({
   page,
 }) => {
   const fixture = await installQrMock(page);
-  const dialog = await openSaleQr(page);
+  const panel = await openSalePanel(page);
+  await expect(qrImage(panel)).toBeVisible();
+  // Đúng mã đúng tiền nhưng người tạo không phải OWNER → hàng đợi chờ chủ ghi
+  // nhận; tiền đã về thì không đưa mã cho khách quét lại.
+  fixture.setBankState("MATCHED");
+  await page.clock.fastForward(6_000);
+  await expect(
+    panel.getByText("Tiền đã về", { exact: true }),
+  ).toBeVisible();
+  await expect(
+    panel.getByText(/Đang chờ chủ cửa hàng ghi nhận vào đơn/),
+  ).toBeVisible();
+  await expect(qrImage(panel)).toHaveCount(0);
+  // Số tiền lệch mã → nhắc đối soát, mã vẫn còn cho khách chuyển tiếp.
+  fixture.setBankState("REVIEW");
+  await page.clock.fastForward(6_000);
+  await expect(
+    panel.getByText("Tiền về chưa khớp", { exact: true }),
+  ).toBeVisible();
+  await expect(qrImage(panel)).toBeVisible();
+  // Máy tự ghi sổ (webhook + confirm phía server) → màn hình hoàn tất, không
+  // cần — và không cho — nhân viên bấm thu.
+  fixture.receive("CONFIRMED");
+  await page.clock.fastForward(6_000);
+  await expect(panel.getByText(/Đã nhận đủ 25\.000\.000/)).toBeVisible();
+  await expect(qrImage(panel)).toHaveCount(0);
+  await expect(
+    panel.getByRole("link", { name: /Xem đơn hàng/ }),
+  ).toBeVisible();
+  await panel.getByRole("button", { name: "Đóng", exact: true }).click();
+  await expect(panel).toHaveCount(0);
+  expect(fixture.manualWrites).toHaveLength(0);
+});
+
+test("money arriving while the window is closed: page watcher books the form and reopening replays the same record", async ({
+  page,
+}) => {
+  const fixture = await installQrMock(page);
+  await page.goto(`/vehicles/${vehicleId}/sell`);
+  await fillSellForm(page);
+  let panel = await openPanel(page, "Thanh toán chuyển khoản");
+  const firstId = fixture.current.id;
+  await panel
+    .getByRole("button", { name: "Đóng hộp thoại", exact: true })
+    .click();
+  // Khách chuyển ngay sau khi đóng cửa sổ: vòng theo dõi CẤP TRANG
+  // (["vietqr-active"], modal báo khi phát hành mã) phải bắt được tiền — nhân
+  // viên không phải mở QR đi "câu" lại trạng thái.
+  fixture.receive("RECEIVED");
+  await page.clock.fastForward(30_000);
+  await expect(
+    page.getByText(/Ngân hàng đã nhận 35\.000\.000/),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Xem khoản chuyển đã nhận", exact: true }),
+  ).toBeVisible();
+  panel = await openPanel(page, "Xem khoản chuyển đã nhận");
+  // Tiền đang treo trên đúng bản ghi cũ — không phát sinh mã thứ hai.
+  expect(fixture.current.id).toBe(firstId);
+  expect(fixture.manualWrites).toHaveLength(0);
+});
+
+test("offline freezes live checks and cannot fabricate a recorded-money state", async ({
+  page,
+}) => {
+  const fixture = await installQrMock(page);
+  const panel = await openSalePanel(page);
+  await expect(qrImage(panel)).toBeVisible();
   await page.evaluate(() => {
     Object.defineProperty(navigator, "onLine", {
       configurable: true,
@@ -420,55 +403,51 @@ test("offline does not enable payment success and does not pause expiry", async 
     });
     window.dispatchEvent(new Event("offline"));
   });
-  await expect(
-    dialog.getByText("Tạm dừng kiểm tra kết nối", { exact: true }),
-  ).toBeVisible();
-  await expect(
-    dialog.getByRole("button", { name: /^Tạo mã mới/ }),
-  ).toBeDisabled();
-  await page.clock.fastForward(16 * 60_000);
-  await expect(
-    dialog.getByRole("img", { name: "Mã QR chuyển khoản", exact: true }),
-  ).toHaveCount(0);
-  await expect(
-    dialog.getByRole("button", { name: "Xác nhận và đóng", exact: true }),
-  ).toHaveCount(0);
-  expect(fixture.createCount).toBe(1);
+  // Server "đã ghi nhận" nhưng máy nhân viên mất kết nối: mọi poll dừng,
+  // màn hình KHÔNG được tự vẽ trạng thái tiền vào sổ từ hư không.
+  fixture.setBankState("RECORDED");
+  await page.clock.fastForward(60_000);
+  await expect(panel.getByText(/Đã nhận đủ/)).toHaveCount(0);
+  await expect(qrImage(panel)).toBeVisible();
   expect(fixture.manualWrites).toHaveLength(0);
 });
 
-test("legacy manual confirmation never appears as bank-backed success", async ({
+test("manual fallback records only on an explicit staff click, through the server", async ({
   page,
 }) => {
   const fixture = await installQrMock(page);
-  const dialog = await openSaleQr(page);
-  fixture.current.status = "CONFIRMED";
-  fixture.current.bank_transaction_id = null;
-  await page.clock.fastForward(6_000);
+  const panel = await openSalePanel(page);
+  await panel
+    .getByRole("button", { name: "Tôi đã thấy tiền vào app ngân hàng" })
+    .click();
+  const alert = page.getByRole("alertdialog", {
+    name: "Xác nhận tiền đã vào tài khoản?",
+  });
+  await expect(alert).toBeVisible();
   await expect(
-    dialog.getByText("Đã nhận tiền vào tài khoản", { exact: true }),
-  ).toHaveCount(0);
-  await expect(
-    dialog.getByRole("button", { name: "Xác nhận và đóng", exact: true }),
-  ).toHaveCount(0);
-  expect(fixture.manualWrites).toHaveLength(0);
+    alert.getByText(/Kiểm tra ứng dụng ngân hàng đã nhận đúng số tiền/),
+  ).toBeVisible();
+  await alert
+    .getByRole("button", { name: "Đã nhận tiền, xác nhận" })
+    .click();
+  // SaleDetail đóng cửa sổ sau khi server xác nhận ghi sổ.
+  await expect(panel).toHaveCount(0);
+  expect(fixture.manualWrites).toEqual(["confirm_vietqr_payment"]);
+  expect(fixture.current.status).toBe("CONFIRMED");
+  expect(fixture.current.payment_id).not.toBeNull();
 });
 
-test("unconfigured bank monitoring is visible and changing the workstation clock cannot extend QR lifetime", async ({
+test("unconfigured VietQR sends staff to settings instead of drawing a code", async ({
   page,
 }) => {
-  const fixture = await installQrMock(page, { monitoring: false });
-  const dialog = await openSaleQr(page);
+  const fixture = await installQrMock(page, { configured: false });
+  const panel = await openSalePanel(page);
   await expect(
-    dialog.getByText("Chưa kết nối thông báo ngân hàng", { exact: true }),
+    panel.getByText("Chưa cấu hình tài khoản nhận tiền", { exact: true }),
   ).toBeVisible();
-  await page.clock.setSystemTime(new Date("2020-01-01T00:00:00Z"));
-  await page.clock.fastForward(16 * 60_000);
   await expect(
-    dialog.getByRole("img", { name: "Mã QR chuyển khoản", exact: true }),
-  ).toHaveCount(0);
-  await expect(
-    dialog.getByRole("button", { name: "Xác nhận và đóng", exact: true }),
-  ).toHaveCount(0);
-  expect(fixture.manualWrites).toHaveLength(0);
+    panel.getByRole("link", { name: /Vào Cài đặt thanh toán/ }),
+  ).toBeVisible();
+  // Chưa cấu hình thì không gọi server tạo mã làm gì.
+  expect(fixture.createCount).toBe(0);
 });

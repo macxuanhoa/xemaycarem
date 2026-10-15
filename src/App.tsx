@@ -61,9 +61,6 @@ const DuplicateReviewsPage = lazy(
   () => import("@/features/approvals/DuplicateReviewsPage"),
 );
 const SettingsPage = lazy(() => import("@/features/settings/SettingsPage"));
-const BankReconciliationPage = lazy(
-  () => import("@/features/reconciliation/BankReconciliationPage"),
-);
 const CustomersPage = lazy(() =>
   import("@/features/customers/CustomersPage").then((m) => ({
     default: m.CustomersPage,
@@ -76,6 +73,9 @@ const NotificationsPage = lazy(() =>
 );
 const CapturePage = lazy(() => import("@/features/capture/CapturePage"));
 const AssistPage = lazy(() => import("@/features/assistant/AssistPage"));
+const CaremAssistantPage = lazy(
+  () => import("@/features/assistant/CaremAssistantPage"),
+);
 const CopilotPage = lazy(() => import("@/features/copilot/CopilotPage"));
 const DocsPage = lazy(() => import("@/features/docs/DocsPage"));
 const ShowroomPage = lazy(() => import("@/features/showroom/ShowroomPage"));
@@ -187,6 +187,7 @@ export default function App() {
               <Route path="sales/:id" element={<SaleDetailPage />} />
               <Route path="capture" element={<CapturePage />} />
               <Route path="assist" element={<AssistPage />} />
+              <Route path="assistant" element={<CaremAssistantPage />} />
               <Route path="copilot" element={<CopilotPage />} />
               <Route path="docs" element={<DocsPage />} />
               <Route path="docs/:slug" element={<DocsPage />} />
@@ -207,10 +208,6 @@ export default function App() {
               </Route>
               <Route element={<Protected access="manage" />}>
                 <Route path="expenses" element={<ExpensesPage />} />
-                <Route
-                  path="bank-reconciliation"
-                  element={<BankReconciliationPage />}
-                />
                 {/* Managers reach Nhân sự only to set roles of their juniors. */}
                 <Route path="users" element={<UsersPage />} />
                 {/* Hàng đợi duyệt chung (Nghi trùng xe, Bán dưới giá thu, Xóa xe) */}

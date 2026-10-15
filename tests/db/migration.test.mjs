@@ -12,6 +12,7 @@
  */
 
 import assert from 'node:assert/strict'
+import { existsSync } from 'node:fs'
 import { createDatabase } from '../../scripts/db-harness.mjs'
 
 export async function runMigrationTests({ engine = 'postgres' } = {}) {
@@ -129,25 +130,45 @@ export async function runMigrationTests({ engine = 'postgres' } = {}) {
     }
     console.log(`✓ Unique constraints and all ${expectedIndexes.length} performance indexes exist`)
 
-    // 4b. Purge guard: the six retired vehicle fields, the retired messaging/config
-    // fields and the whole thank-you/messaging subsystem must stay gone for good, and
-    // the transactional history tables start empty (migrations 20261008000300, 20261014000500).
+    // 4b. Purge guard: the six retired vehicle fields and the retired messaging/config
+    // quickpick fields must stay gone for good, and the transactional history tables
+    // start empty (migration 20261008000300). The CSKH retire pair lives in
+    // supabase/deferred/ (owner decision 2026-10-15: paired destructive release held
+    // back), so its columns/tables are only asserted gone once it returns to
+    // supabase/migrations/ — the guard self-restores at that release window.
+    const retireMessagingDeferred = existsSync(
+      'supabase/deferred/20261014000500_retire_thankyou_messaging.sql'
+    )
+    const purgedColumnTuples = [
+      "('public','vehicles','brand')",
+      "('public','vehicles','model')",
+      "('public','vehicles','variant')",
+      "('public','vehicles','engine_number')",
+      "('public','vehicles','odometer')",
+      "('public','vehicles','asking_price')",
+      "('public','system_settings','quickpick_brands')",
+      "('public','system_settings','quickpick_models')",
+    ]
+    if (!retireMessagingDeferred) {
+      purgedColumnTuples.push(
+        "('public','system_settings','thankyou_manual_enabled')",
+        "('public','system_settings','customer_messaging_enabled')",
+        "('public','system_settings','sale_thank_you_enabled')",
+        "('public','system_settings','primary_message_channel')",
+        "('public','system_settings','fallback_channel')",
+      )
+    }
     const purgedColumns = await db.query(`
       SELECT table_schema || '.' || table_name || '.' || column_name AS col
       FROM information_schema.columns
-      WHERE (table_schema, table_name, column_name) IN (
-        ('public','vehicles','brand'),('public','vehicles','model'),('public','vehicles','variant'),
-        ('public','vehicles','engine_number'),('public','vehicles','odometer'),('public','vehicles','asking_price'),
-        ('public','system_settings','quickpick_brands'),('public','system_settings','quickpick_models'),
-        ('public','system_settings','thankyou_manual_enabled'),('public','system_settings','customer_messaging_enabled'),
-        ('public','system_settings','sale_thank_you_enabled'),('public','system_settings','primary_message_channel'),
-        ('public','system_settings','fallback_channel'))
+      WHERE (table_schema, table_name, column_name) IN (${purgedColumnTuples.join(',')})
     `)
     assert.deepEqual(purgedColumns.rows, [], 'Retired vehicle and messaging columns must not exist any more')
+    const purgedTableNames = ['message_outbox','customer_communications','customer_contacts','message_templates']
     const purgedTables = await db.query(`
       SELECT table_name FROM information_schema.tables
       WHERE table_schema = 'public' AND table_name IN
-        ('message_outbox','customer_communications','customer_contacts','message_templates')
+        (${retireMessagingDeferred ? "''" : purgedTableNames.map((t) => `'${t}'`).join(',')})
       ORDER BY table_name
     `)
     assert.deepEqual(purgedTables.rows, [], 'Retired messaging tables must stay dropped')
@@ -242,9 +263,13 @@ export async function runMigrationTests({ engine = 'postgres' } = {}) {
       'mark_personal_thank_you_sent',
       'list_sale_thank_you_queue',
     ]
-    const resurrected = retiredPublicFunctions.filter((fn) => procs.has(fn))
+    const resurrected = retireMessagingDeferred
+      ? []
+      : retiredPublicFunctions.filter((fn) => procs.has(fn))
     assert.deepEqual(resurrected, [], `Retired messaging RPCs must not exist any more: ${resurrected.join(', ')}`)
-    console.log(`✓ All ${retiredPublicFunctions.length} retired messaging RPCs stay dropped`)
+    console.log(retireMessagingDeferred
+      ? '✓ Retired messaging RPC guard skipped (CSKH retire pair đang ở supabase/deferred/)'
+      : `✓ All ${retiredPublicFunctions.length} retired messaging RPCs stay dropped`)
 
     // 5c. plpgsql không kiểm tra tên bảng lúc tạo hàm, nên một EXISTS sót trỏ tới bảng đã
     // DROP (migration 20261014000500) chỉ nổ khi gọi — đúng lỗi đã làm check_user_can_hard_delete
@@ -287,19 +312,23 @@ export async function runMigrationTests({ engine = 'postgres' } = {}) {
       'SALE_THANK_YOU',
       'AUTO_MESSAGE',
     ].join('|')
-    const danglingReferences = await db.query(
-      `SELECT n.nspname || '.' || p.proname AS fn
-         FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
-         WHERE n.nspname IN ('public', 'private') AND p.prosrc ~ $1
-         ORDER BY 1`,
-      [retiredReferencePattern],
-    )
+    const danglingRows = retireMessagingDeferred
+      ? []
+      : (await db.query(
+          `SELECT n.nspname || '.' || p.proname AS fn
+             FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
+             WHERE n.nspname IN ('public', 'private') AND p.prosrc ~ $1
+             ORDER BY 1`,
+          [retiredReferencePattern],
+        )).rows
     assert.deepEqual(
-      danglingReferences.rows.map((r) => r.fn),
+      danglingRows.map((r) => r.fn),
       [],
-      `Live functions must not reference retired messaging objects: ${danglingReferences.rows.map((r) => r.fn).join(', ')}`,
+      `Live functions must not reference retired messaging objects: ${danglingRows.map((r) => r.fn).join(', ')}`,
     )
-    console.log('✓ No surviving function body references the retired messaging subsystem')
+    console.log(retireMessagingDeferred
+      ? '✓ Dangling-reference scan skipped (CSKH retire pair đang ở supabase/deferred/)'
+      : '✓ No surviving function body references the retired messaging subsystem')
 
     // 6. Expected private helper functions exist
     const expectedPrivateFunctions = [

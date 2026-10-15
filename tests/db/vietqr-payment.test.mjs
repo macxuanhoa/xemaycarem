@@ -154,12 +154,9 @@ export async function runVietQrPaymentTests(externalDb, { engine = 'pglite' } = 
     pass('Reopening with the same amount reuses the request and never extends its 15-minute lifetime')
 
     await deny(() => call('staff', 'confirm_vietqr_payment', { qr_request_id: qr1.id }))
-    await assert.rejects(() => call('owner', 'confirm_vietqr_payment', {
-      qr_request_id: qr1.id, notes: 'Synthetic manual claim',
-    }), /VIETQR_BANK_EVIDENCE_REQUIRED/)
     assert.equal((await readQr(qr1.id)).status, 'PENDING')
     assert.equal(await count('SELECT count(*) FROM public.bank_transactions'), 0)
-    pass('Legacy confirmation cannot manufacture receipt of money, even for OWNER')
+    pass('STAFF without finance access cannot claim VietQR payments')
 
     // Replacement needs an explicit user action and a server-enforced cooldown.
     await assert.rejects(() => call('owner', 'create_vietqr_payment_request', {
@@ -194,6 +191,23 @@ export async function runVietQrPaymentTests(externalDb, { engine = 'pglite' } = 
     const cancelledQr2 = await row('SELECT status FROM public.vietqr_requests WHERE id = $1', [qr2.id])
     assert.equal(cancelledQr2.status, 'CANCELLED')
     pass('OWNER can explicitly cancel pending VietQR request')
+
+    // Kiến trúc Mac: người có quyền tài chính bấm "đã nhận tiền" thủ công trên mã
+    // PENDING trước lúc tạo đơn → CONFIRMED, chưa khoản thu, không bịa dữ liệu
+    // ngân hàng. Tiền chỉ vào sổ khi đơn ra đời (sell_vehicle) hoặc webhook ghi.
+    const manualVehicle = await call('owner', 'save_vehicle', {
+      request_id: randomUUID(), vehicle_type: 'Xe tay ga', license_plate: '29-MAN-01',
+      frame_number: `FRAME${randomUUID().slice(0, 8)}`, purchase_date: day, purchase_price: 10_000_000,
+    })
+    const manualQr = await call('owner', 'create_vietqr_payment_request', {
+      vehicle_id: manualVehicle, amount: 7_000_000, qr_payload: 'manual-claim',
+    })
+    assert.equal(await call('owner', 'confirm_vietqr_payment', { qr_request_id: manualQr.id, notes: 'Synthetic manual claim' }), manualQr.id)
+    const manualRow = await row('SELECT status, payment_id FROM public.vietqr_requests WHERE id = $1', [manualQr.id])
+    assert.equal(manualRow.status, 'CONFIRMED')
+    assert.equal(manualRow.payment_id, null)
+    assert.equal(await count('SELECT count(*) FROM public.bank_transactions'), 0)
+    pass('Owner manual confirmation marks a pending pre-sale request CONFIRMED without fabricating bank data')
 
     const expiringVehicle = await call('owner', 'save_vehicle', {
       request_id: randomUUID(), vehicle_type: 'Xe tay ga', license_plate: '92B1-12347',
@@ -251,9 +265,6 @@ export async function runVietQrPaymentTests(externalDb, { engine = 'pglite' } = 
 
     // 11. A trusted bank event records the receipt and payment without manual claims.
     const confirmRequestId = randomUUID()
-    await assert.rejects(() => call('owner', 'confirm_vietqr_payment', {
-      qr_request_id: saleQr.id, request_id: confirmRequestId,
-    }), /VIETQR_BANK_EVIDENCE_REQUIRED/)
     const bankEvent = { provider_txn_id: randomUUID(), amount: 20_000_000, transfer_content: saleQr.transfer_content }
     const bankCredit = await ingest(bankEvent)
     assert.equal(bankCredit.status, 'RECORDED')

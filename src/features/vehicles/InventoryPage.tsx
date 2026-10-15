@@ -56,6 +56,7 @@ import { Highlight } from "@/components/search/Highlight";
 import { QuickExpenseModal } from "@/features/expenses/QuickExpenseModal";
 import { VehicleActionsSheet } from "./VehicleActionsSheet";
 import { VehicleFavoriteButton } from "./VehicleFavoriteButton";
+import { VehicleThumb } from "./VehicleThumb";
 import { useFavoriteVehicleCount } from "@/lib/useVehicleFavorite";
 import { useVehicleTypes } from "@/lib/useVehicleTypes";
 import { vehicleSubtitle, vehicleTitle } from "@/lib/vehicleDisplay";
@@ -767,6 +768,8 @@ export function InventoryPage() {
                   onClick={rememberPosition}
                   onPointerDown={() => prefetch(vehicle.id)}
                 >
+                  <VehicleThumb path={vehicle.primary_image_path} alt={vehicleTitle(vehicle)} />
+                  <div className="record-body">
                   <div className="row between">
                     <strong className="record-title">
                       <Highlight text={vehicleTypeName(vehicle)} query={deferredSearch} />
@@ -802,6 +805,7 @@ export function InventoryPage() {
                         : money(vehicle.total_cost)}
                     </small>
                   )}
+                  </div>
                 </Link>
                 <div className="record-actions">
                   {pickMode ? (

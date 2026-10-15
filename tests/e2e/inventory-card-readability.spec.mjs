@@ -41,6 +41,7 @@ async function installMock(page) {
       purchase_price: 28000000,
       total_cost: 30000000,
       cost_pending: false,
+      primary_image_path: "vehicle-images/00000000-0000-4000-8000-000000000011/a.jpg",
     },
     {
       id: "00000000-0000-4000-8000-000000000012",
@@ -54,6 +55,7 @@ async function installMock(page) {
       purchase_price: 40000000,
       total_cost: 42000000,
       cost_pending: false,
+      primary_image_path: "vehicle-images/00000000-0000-4000-8000-000000000012/b.jpg",
     },
     {
       id: "00000000-0000-4000-8000-000000000013",
@@ -100,6 +102,13 @@ async function installMock(page) {
       });
     const name = url.pathname.split("/").at(-1);
     if (name === "check_user_access") return reply({ allowed: true });
+    // Ký URL ảnh (storage gateway) — trả signedUrl giả để nhánh <img> chạy được;
+    // thẻ không có primary_image_path không gọi tới đây (enabled:false).
+    if (url.pathname.includes("/storage/v1/object/sign/"))
+      return reply({
+        signedUrl: "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg'/%3E",
+        token: "mock-token",
+      });
     if (name === "list_active_announcements") return reply([]);
     if (name === "get_settings")
       return reply({ store_name: "Cửa hàng kiểm thử" });
@@ -176,6 +185,19 @@ for (const width of [320, 375, 390, 430]) {
     await expect(card.getByText("Đời xe: 2023", { exact: true })).toBeVisible();
     await expect(card.getByText("Màu sắc: Đen", { exact: true })).toBeVisible();
     await expect(card.locator(".record-cost")).toContainText("Giá vốn:");
+
+    // Ngang: khung ảnh đại diện đứng TRÁI, thân thẻ (tên/chip/meta) bên phải.
+    const thumb = card.locator(".record-thumb");
+    await expect(thumb).toBeVisible();
+    const thumbBox = await thumb.boundingBox();
+    const titleBox = await card.locator(".record-title").boundingBox();
+    expect(thumbBox.x + thumbBox.width).toBeLessThanOrEqual(titleBox.x + 1);
+    // Khung ảnh gần vuông (giữ bố cục đều giữa các thẻ).
+    expect(Math.abs(thumbBox.width - thumbBox.height)).toBeLessThanOrEqual(4);
+    // Xe có primary_image_path ký được URL -> nhánh <img>; xe không có ảnh -> icon Bike.
+    await expect(card.locator(".record-thumb img")).toHaveCount(1);
+    await expect(cards.nth(2).locator(".record-thumb img")).toHaveCount(0);
+    await expect(cards.nth(2).locator(".record-thumb svg")).toHaveCount(1);
 
     // D. Actions are a compact ••• pinned to the card's top-right corner.
     const actions = card.locator(".record-actions");

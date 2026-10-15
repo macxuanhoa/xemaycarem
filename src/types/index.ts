@@ -154,6 +154,9 @@ export type Vehicle = {
   pending_sale_approval?: boolean;
   /** Id của đơn chờ duyệt bán — để rút yêu cầu ngay trên hồ sơ xe. */
   sale_approval_id?: string | null;
+  /** Đường dẫn tương đối ảnh đại diện (display_order nhỏ nhất, chưa soft-delete)
+   *  do list_vehicles ghép vào; NULL khi xe chưa có ảnh. Ký URL qua api.imageUrl. */
+  primary_image_path?: string | null;
   images?: VehicleImage[];
   expenses?: Expense[];
   sales?: Sale[];

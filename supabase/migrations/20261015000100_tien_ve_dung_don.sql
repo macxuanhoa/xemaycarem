@@ -706,7 +706,13 @@ BEGIN
            AND (v_actor IS NULL OR p.id <> v_actor))
     GROUP BY p.id, p.role, p.can_view_financials
   LOOP
-    IF r.role = 'OWNER' OR (r.role = 'MANAGER' AND r.can_view_financials) OR r.id = v_actor THEN
+    -- Bản chữ có số tiền chỉ dành cho OWNER, MANAGER xem được tài chính,
+    -- hoặc chính người thao tác — TRỪ yêu cầu bán dưới giá thu trên xe ẩn
+    -- chi phí: người gửi cũng không được thấy số chênh khi chủ chưa duyệt.
+    IF r.role = 'OWNER' OR (r.role = 'MANAGER' AND r.can_view_financials)
+       OR (r.id = v_actor AND (v_action <> 'REQUEST_SALE_BELOW_COST'
+         OR EXISTS (SELECT 1 FROM public.vehicle_financials vf
+                    WHERE vf.vehicle_id=v_vehicle AND vf.purchase_price_visibility='PUBLIC'))) THEN
       INSERT INTO public.notifications (user_id, actor_id, action, entity_type, entity_id,
                                         vehicle_id, title, body, deep_link)
       VALUES (r.id, v_actor, v_action, NEW.entity_type, NEW.entity_id,

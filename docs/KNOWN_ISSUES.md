@@ -6,6 +6,19 @@ LIVE ledger đã áp dụng 70 migrations đến `20261011000100`, gồm purge, 
 
 Audit phát hiện receipt đọc và notification shortfall có thể lộ giá PRIVATE; webhook có lỗi xác thực/amount/đối soát và worker cần trust boundary server. Corrections được giữ trong forward migrations `20261014000100`/`20261014000200`, chưa áp production. Kết quả cổng kiểm thử và giới hạn nằm trong `docs/MASTER_RELEASE_AUDIT_20261011.md`. Staging Auth/Storage, Facebook thật, Web Share trên thiết bị và asset Tết đã duyệt còn cần bằng chứng thực tế.
 
+## Xác nhận VietQR thủ công — hợp đồng tiền đang chờ chủ quyết (17/10/2026)
+
+`20261015000200_tien_ve_dung_don.sql` (15/10) định nghĩa lại `public.confirm_vietqr_payment` và **bỏ cổng** `VIETQR_BANK_EVIDENCE_REQUIRED` cho mã còn `PENDING`: mã chưa gắn đơn bán chỉ chuyển sang `CONFIRMED` (có audit `CONFIRM_VIETQR_PAYMENT`, không tạo khoản thu); mã **đã gắn đơn bán** thì ghi khoản thu bằng `private.add_payment_verified_impl` ngay trong lần bấm. Chú giải dòng 974–979 của migration nêu chủ đích "mở thêm đường xác nhận thủ công" nhưng cũng khẳng định nguyên tắc "tiền vào đúng đơn qua hàm thu nội bộ, **không tự xưng phía client**" — trong khi RPC này vẫn `GRANT EXECUTE ... TO authenticated` (`20261010000700:563`) và **không còn lối nào trong giao diện gọi nó**: `api.confirmVietQrPayment` (`src/lib/api.ts:607`) có đúng một nơi khai báo, không có nơi dùng.
+
+Bốn test DB vẫn chốt hợp đồng cũ ("bấm tay không được tự xưng đã thu tiền, kể cả OWNER") nên đang đỏ: `tests/db/vietqr-payment.test.mjs:157`, `tests/db/vietqr-lifecycle.test.mjs`, `tests/db/smart-sales-automation.test.mjs:95`, `tests/db/security-integration.test.mjs`. Đã kiểm chứng bằng worktree sạch ở HEAD: **đỏ y hệt**, có từ 15/10, không phải do đợt thay đổi đang chờ commit.
+
+Hai ngả, chọn ngả nào thì sửa đúng một phía — **không tự ý sửa vì đây là luồng tiền**:
+
+- **Cho phép xác nhận tay** (theo chú giải migration): cập nhật bốn test thành "được xác nhận, nhưng không được tạo bằng chứng ngân hàng giả", giữ nguyên các bất biến còn lại (`bank_transactions` vẫn 0, role không tài chính vẫn `ACCESS_DENIED`, luôn có audit).
+- **Giữ cổng ngân hàng** (theo lời hứa trong modal: "Cà Rem chỉ xác nhận khi ngân hàng báo tiền đã vào đúng tài khoản"): cần migration forward-only đặt lại cổng `VIETQR_BANK_EVIDENCE_REQUIRED` cho nhánh đã gắn đơn, hoặc rút quyền `authenticated` của RPC vì không còn UI nào dùng tới.
+
+`scripts/test-db.mjs` nay chạy hết 37 suite rồi tổng kết một lượt, nên bốn suite này không còn che 33 suite phía sau; exit code vẫn 1 cho tới khi ngả nào được chọn.
+
 ## Behavioral defect audit A1–A7 — 2026-10-02
 
 All seven confirmed behavioral defects are FIXED with regression coverage and deployed — migrations `003200`/`003300`/`003400` are applied on production (live ledger verified read-only 2026-10-03); none is DEFERRED or BLOCKED.

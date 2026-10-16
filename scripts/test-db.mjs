@@ -33,6 +33,7 @@ import { verifiedPayment } from '../tests/db/payment-fixtures.mjs'
 import { runPaymentReceiptSecurityTests } from '../tests/db/payment-receipt-security.test.mjs'
 import { runVietQrPaymentTests } from '../tests/db/vietqr-payment.test.mjs'
 import { runVietQrLifecycleTests } from '../tests/db/vietqr-lifecycle.test.mjs'
+import { runVietQrCompactMemoTests } from '../tests/db/vietqr-compact-memo.test.mjs'
 import { runSmartSalesAutomationTests } from '../tests/db/smart-sales-automation.test.mjs'
 import { runSeasonalThemeTetTests } from '../tests/db/seasonal-theme-tet2027.test.mjs'
 import { runSecurityIntegrationTests } from '../tests/db/security-integration.test.mjs'
@@ -41,42 +42,59 @@ import { runInventoryPrimaryImageTests } from '../tests/db/inventory-list-primar
 
 const engine = process.argv.includes('--pglite') ? 'pglite' : 'postgres'
 console.log(`Database integration suite: ${engine} (disposable database; no cloud credentials)`)
-await runMigrationTests({ engine })
-await runBusinessRisksTests(null, { engine })
-await runOperationalTests(null, { engine })
-await runAuthSecurityTests({ engine })
-await runKnowledgeTests(null, { engine })
-await runCopilotGapTests(null, { engine })
-await runIdentityDocumentTests(null, { engine })
-await runShowroomTests(null, { engine })
-await runHardDeleteTests(null, { engine })
-await runStaffDeleteApprovalTests(null, { engine })
-await runBelowCostSaleApprovalTests(null, { engine })
-await runNotificationsTests(null, { engine })
-await runPushNotificationsTests(null, { engine })
-await runSaleDueDateConflictTests(null, { engine })
-await runOperationReceiptTests(null, { engine })
-await runExpenseConflictTests(null, { engine })
-await runMandatoryWriteProtocolTests(null, { engine })
-await runPaymentReceiptTests()
-await runPaymentReceiptSecurityTests(null, { engine })
-await runInventoryCreationReceiptTests(null, { engine })
-await runVehicleTypeCatalogTests(null, { engine })
-await runFieldPurgeIntegrityTests(null, { engine })
-await runPlateDisplayFormatTests(null, { engine })
-await runVehicleDuplicateDetectionTests(null, { engine })
-await runDuplicatePlateLast5ReviewTests(null, { engine })
-await runVehicleIdentifierLookupTests(null, { engine })
-await runVehicleLabelPlaceholderTests(null, { engine })
-await runRuntimeMonitoringTests(null, { engine })
-await runPostStudioAiTests(null, { engine })
-await runVietQrPaymentTests(null, { engine })
-await runVietQrLifecycleTests(null, { engine })
-await runSmartSalesAutomationTests(null, { engine })
-await runSeasonalThemeTetTests(null, { engine })
-await runSecurityIntegrationTests(null, { engine })
-await runVehicleFavoriteTests(null, { engine })
-await runInventoryPrimaryImageTests(null, { engine })
+
+// Một suite hỏng không được phép che toàn bộ phần còn lại. Gate này đang có hợp
+// đồng chờ chủ quyết định (mục "Xác nhận VietQR thủ công" trong docs/KNOWN_ISSUES.md),
+// và trước đây chỉ riêng nó cũng khiến 6 suite phía sau chưa từng được chạy lấy một
+// lần. Chạy hết rồi tổng kết một lượt: exit code vẫn 1 khi có suite đỏ, CI không
+// mất tín hiệu — chỉ mất đúng hiệu ứng "đứt gánh giữa đường".
+const suiteFailures = []
+const suite = async (name, execute) => {
+  try {
+    await execute()
+  } catch (error) {
+    const first = String(error?.message ?? error).split("\n").find((line) => line.trim()) ?? ""
+    suiteFailures.push(`${name}: ${first.slice(0, 160)}`)
+    console.error(`✖ Suite "${name}" hỏng — vẫn chạy tiếp các suite phía sau`)
+  }
+}
+await suite('migration', () => runMigrationTests({ engine }))
+await suite('vietqr-compact-memo', () => runVietQrCompactMemoTests({ engine }))
+await suite('business-risks', () => runBusinessRisksTests(null, { engine }))
+await suite('operational-features', () => runOperationalTests(null, { engine }))
+await suite('auth-security', () => runAuthSecurityTests({ engine }))
+await suite('knowledge', () => runKnowledgeTests(null, { engine }))
+await suite('copilot-gaps', () => runCopilotGapTests(null, { engine }))
+await suite('identity-documents', () => runIdentityDocumentTests(null, { engine }))
+await suite('showroom', () => runShowroomTests(null, { engine }))
+await suite('hard-delete', () => runHardDeleteTests(null, { engine }))
+await suite('staff-parity-delete-approval', () => runStaffDeleteApprovalTests(null, { engine }))
+await suite('below-cost-sale-approval', () => runBelowCostSaleApprovalTests(null, { engine }))
+await suite('notifications', () => runNotificationsTests(null, { engine }))
+await suite('push-notifications', () => runPushNotificationsTests(null, { engine }))
+await suite('sale-due-date-conflict', () => runSaleDueDateConflictTests(null, { engine }))
+await suite('operation-receipts', () => runOperationReceiptTests(null, { engine }))
+await suite('expense-conflict', () => runExpenseConflictTests(null, { engine }))
+await suite('mandatory-write-protocol', () => runMandatoryWriteProtocolTests(null, { engine }))
+await suite('payment-receipts', () => runPaymentReceiptTests())
+await suite('payment-receipt-security', () => runPaymentReceiptSecurityTests(null, { engine }))
+await suite('inventory-creation-receipts', () => runInventoryCreationReceiptTests(null, { engine }))
+await suite('vehicle-type-catalogue', () => runVehicleTypeCatalogTests(null, { engine }))
+await suite('field-purge-integrity', () => runFieldPurgeIntegrityTests(null, { engine }))
+await suite('plate-display-format', () => runPlateDisplayFormatTests(null, { engine }))
+await suite('vehicle-duplicate-detection', () => runVehicleDuplicateDetectionTests(null, { engine }))
+await suite('duplicate-plate-last5-review', () => runDuplicatePlateLast5ReviewTests(null, { engine }))
+await suite('vehicle-identifier-lookup', () => runVehicleIdentifierLookupTests(null, { engine }))
+await suite('vehicle-label-placeholder', () => runVehicleLabelPlaceholderTests(null, { engine }))
+await suite('runtime-monitoring', () => runRuntimeMonitoringTests(null, { engine }))
+await suite('post-studio-ai', () => runPostStudioAiTests(null, { engine }))
+await suite('vietqr-payment', () => runVietQrPaymentTests(null, { engine }))
+await suite('vietqr-lifecycle', () => runVietQrLifecycleTests(null, { engine }))
+await suite('smart-sales-automation', () => runSmartSalesAutomationTests(null, { engine }))
+await suite('seasonal-theme-tet2027', () => runSeasonalThemeTetTests(null, { engine }))
+await suite('security-integration', () => runSecurityIntegrationTests(null, { engine }))
+await suite('vehicle-favorites', () => runVehicleFavoriteTests(null, { engine }))
+await suite('inventory-list-primary-image', () => runInventoryPrimaryImageTests(null, { engine }))
 const db = await createDatabase({ engine })
 let passed = 0
 const users = Object.fromEntries(['owner', 'manager', 'financialManager', 'staff', 'disabled'].map((role) => [role, randomUUID()]))
@@ -343,6 +361,13 @@ try {
   process.exitCode = 1
 } finally {
   await db.close()
+  // Tổng kết suite ở finally để CI luôn thấy danh sách đầy đủ, kể cả khi phần
+  // kiểm tra inline bên dưới còn hỏng trước đó.
+  if (suiteFailures.length) {
+    console.error(`\n${suiteFailures.length} suite DB hỏng:`)
+    for (const line of suiteFailures) console.error(`  - ${line}`)
+    process.exitCode = 1
+  }
   // Embedded-postgres handles can keep the event loop alive after close(); exit
   // explicitly, but propagate the recorded status so CI sees real failures.
   process.exit(process.exitCode ?? 0)

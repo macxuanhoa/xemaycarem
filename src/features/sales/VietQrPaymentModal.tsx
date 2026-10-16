@@ -366,7 +366,7 @@ export function VietQrPaymentModal({
         {/* Đã có request VietQR hợp lệ */}
         {request && (
           <div className="stack" style={{ gap: 16 }}>
-            {/* Cảnh báo hủy QR cũ nếu số tiền vừa thay đổi */}
+            {/* Cảnh báo server vừa tự hủy mã cũ khi thông tin thanh toán đổi */}
             {supersededWarning && (
               <div
                 className="notice warning"
@@ -374,9 +374,10 @@ export function VietQrPaymentModal({
               >
                 <AlertTriangle size={16} style={{ flexShrink: 0, marginTop: 2 }} />
                 <span>
-                  <strong>Số tiền thanh toán đã thay đổi:</strong> Mã VietQR cũ đã
-                  được hệ thống tự động hủy hiệu lực. Nếu khách đã chuyển vào mã cũ,
-                  số tiền đó sẽ hiện trên đơn hàng để chủ cửa hàng ghi nhận.
+                  <strong>Thông tin thanh toán đã thay đổi:</strong> Mã VietQR cũ đã
+                  được hệ thống tự động hủy hiệu lực và mã mới đã sẵn sàng bên dưới.
+                  Nếu khách đã chuyển vào mã cũ, số tiền đó sẽ hiện trên đơn hàng
+                  để chủ cửa hàng ghi nhận.
                 </span>
               </div>
             )}

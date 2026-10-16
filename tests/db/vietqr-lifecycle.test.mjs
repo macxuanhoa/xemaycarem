@@ -148,32 +148,36 @@ export async function runVietQrLifecycleTests(
       "forged no-QR bank sale is refused; a finance manual claim only flips the request; ingest stays service-only",
       async () => {
         const q = await qr();
+        // Học thuyết Mac (20261016000100): thiếu tên người trả không còn là lỗi
+        // PAYER_REQUIRED — create() tự supersede mã cũ (thông tin đổi) và phát
+        // mã mới dùng được, không vòng lặp lỗi trên UI không có nút thay mã.
+        const forged = await call("create_vietqr_payment_request", {
+          vehicle_id: q.vehicle_id,
+          amount: q.amount,
+        });
+        assert.notEqual(forged.id, q.id);
+        assert.equal(forged.superseded, true);
+        assert.equal((await get(q.id)).status, "CANCELLED");
+        const live = await get(forged.id);
+        assert.equal(live.status, "PENDING");
         await assert.rejects(
-          () =>
-            call("create_vietqr_payment_request", {
-              vehicle_id: q.vehicle_id,
-              amount: q.amount,
-            }),
-          /VIETQR_PAYER_REQUIRED/,
-        );
-        await assert.rejects(
-          () => call("sell_vehicle", sale(q, { vietqr_request_id: undefined })),
+          () => call("sell_vehicle", sale(live, { customer_name: "Nguyễn Văn An", vietqr_request_id: undefined })),
           /VIETQR_BANK_EVIDENCE_REQUIRED/,
         );
         await assert.rejects(
-          () => call("sell_vehicle", sale(q)),
+          () => call("sell_vehicle", sale(live, { customer_name: "Nguyễn Văn An" })),
           /VIETQR_BANK_EVIDENCE_REQUIRED/,
         );
         await assert.rejects(
-          () => call("ingest_bank_transaction", sender(q)),
+          () => call("ingest_bank_transaction", sender(live)),
           /permission denied|ACCESS_DENIED/,
         );
-        assert.equal((await get(q.id)).status, "PENDING");
+        assert.equal((await get(forged.id)).status, "PENDING");
         // Kiến trúc Mac: người tài chính được bấm "đã nhận tiền" trên mã PENDING —
         // chỉ đổi trạng thái yêu cầu, không tự sinh khoản thu, không bịa giao dịch
         // ngân hàng. Tiền vào sổ chỉ qua webhook ghi hoặc qua sell_vehicle nối đơn.
-        await call("confirm_vietqr_payment", { qr_request_id: q.id });
-        const claimed = await get(q.id);
+        await call("confirm_vietqr_payment", { qr_request_id: forged.id });
+        const claimed = await get(forged.id);
         assert.equal(claimed.status, "CONFIRMED");
         assert.equal(claimed.payment_id, null);
         assert.equal(
@@ -183,41 +187,43 @@ export async function runVietQrLifecycleTests(
       },
     );
     await check(
-      "changed amount requires explicit replace, cooldown persists across cancel/reopen",
+      "changed amount auto-supersedes the pending code; reopen after cancel issues a fresh code without cooldown deadlock",
       async () => {
         const q = await qr();
-        await assert.rejects(
-          () =>
-            call("create_vietqr_payment_request", {
-              vehicle_id: q.vehicle_id,
-              amount: 101,
-              payer_name: q.payer_name,
-            }),
-          /VIETQR_REPLACE_REQUIRED/,
-        );
+        const bumped = await call("create_vietqr_payment_request", {
+          vehicle_id: q.vehicle_id,
+          amount: 101,
+          payer_name: q.payer_name,
+        });
+        assert.notEqual(bumped.id, q.id);
+        assert.equal(bumped.amount, 101);
+        assert.equal(bumped.superseded, true);
+        assert.equal((await get(q.id)).status, "CANCELLED");
+        assert.equal((await active(q.vehicle_id)).id, bumped.id);
+        // Đường replace() tường minh vẫn giữ cooldown 60 giây như cũ.
         await assert.rejects(
           () =>
             call("replace_vietqr_payment_request", {
-              replace_request_id: q.id,
-              amount: q.amount,
+              replace_request_id: bumped.id,
+              amount: bumped.amount,
               payer_name: q.payer_name,
             }),
           /VIETQR_REPLACEMENT_COOLDOWN/,
         );
-        await call("cancel_vietqr_payment_request", q.id);
-        await assert.rejects(
-          () =>
-            call("create_vietqr_payment_request", {
-              vehicle_id: q.vehicle_id,
-              amount: q.amount,
-              payer_name: q.payer_name,
-            }),
-          /VIETQR_REPLACEMENT_COOLDOWN/,
-        );
+        // Học thuyết Mac: hủy xong mở lại = phát mã mới ngay, không lỗi cooldown.
+        await call("cancel_vietqr_payment_request", bumped.id);
+        const reopened = await call("create_vietqr_payment_request", {
+          vehicle_id: q.vehicle_id,
+          amount: q.amount,
+          payer_name: q.payer_name,
+        });
+        assert.notEqual(reopened.id, bumped.id);
+        assert.equal(reopened.status, "PENDING");
+        assert.equal(reopened.superseded, false);
       },
     );
     await check(
-      "server expiry remains visible on reopen and requires explicit renewal",
+      "server expiry stays visible on read; reopening an expired code auto-issues a fresh live one",
       async () => {
         const q = await qr();
         await db.query(
@@ -227,20 +233,16 @@ export async function runVietQrLifecycleTests(
         const expired = await get(q.id);
         assert.equal(expired.status, "EXPIRED");
         assert.equal((await active(q.vehicle_id)).id, q.id);
-        const repeat = await call("create_vietqr_payment_request", {
+        const renewal = await call("create_vietqr_payment_request", {
           vehicle_id: q.vehicle_id,
           amount: q.amount,
           payer_name: q.payer_name,
         });
-        assert.equal(repeat.id, q.id);
-        const fresh = await call("replace_vietqr_payment_request", {
-          replace_request_id: q.id,
-          amount: q.amount,
-          payer_name: q.payer_name,
-        });
-        assert.notEqual(fresh.id, q.id);
+        assert.notEqual(renewal.id, q.id);
+        assert.equal(renewal.status, "PENDING");
+        assert.equal(renewal.superseded, true);
         assert.equal((await get(q.id)).status, "CANCELLED");
-        assert.equal(fresh.status, "PENDING");
+        assert.equal((await active(q.vehicle_id)).id, renewal.id);
       },
     );
     await check("wrong amount or direction never succeeds", async () => {

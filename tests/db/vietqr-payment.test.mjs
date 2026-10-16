@@ -115,9 +115,13 @@ export async function runVietQrPaymentTests(externalDb, { engine = 'pglite' } = 
     }))
     pass('STAFF is strictly denied from creating VietQR payment requests')
 
-    await assert.rejects(() => run('owner', (client) => rpc(client, 'create_vietqr_payment_request', '$1::jsonb', [JSON.stringify({
+    // Học thuyết Mac (20261016000100): thiếu tên người trả KHÔNG chặn phát mã —
+    // memo/agreement dùng fallback "Khách mua xe"/"Người thanh toán".
+    const anonQr = await run('owner', (client) => rpc(client, 'create_vietqr_payment_request', '$1::jsonb', [JSON.stringify({
       vehicle_id: vehicleId, amount: 5_000_000,
-    })])), /VIETQR_PAYER_REQUIRED/)
+    })]))
+    assert.equal(anonQr.status, 'PENDING')
+    assert.equal(anonQr.superseded, false)
 
     // 6. Dynamic QR Creation for intake/reserved bike
     const qr1 = await call('owner', 'create_vietqr_payment_request', {
@@ -131,11 +135,13 @@ export async function runVietQrPaymentTests(externalDb, { engine = 'pglite' } = 
     assert.equal(qr1.status, 'PENDING')
     assert.equal(qr1.bank_bin, '970422')
     assert.equal(qr1.bank_account_no, '0000000000')
-    assert.equal(qr1.superseded, false)
     assert.equal(new Date(qr1.expires_at) - new Date(qr1.created_at), 15 * 60_000)
     assert.equal(new Date(qr1.replace_available_at) - new Date(qr1.created_at), 60_000)
     assert.equal(qr1.monitoring_available, true)
     assert.equal(qr1.payer_name, 'Synthetic QR Payer')
+    // qr1 thay anonQr (cùng tiền nhưng thông tin người trả đổi) → auto-supersede kiểu Mac.
+    assert.equal(qr1.superseded, true)
+    assert.equal((await readQr(anonQr.id)).status, 'CANCELLED')
     assert.ok(qr1.agreement_text.includes('Synthetic QR Payer'))
     assert.ok(qr1.agreement_text.includes('SYNTHETIC QR RECEIVER'))
     pass('OWNER creates dynamic VietQR request with formatted unique reference CAREM GD...')
@@ -158,16 +164,23 @@ export async function runVietQrPaymentTests(externalDb, { engine = 'pglite' } = 
     assert.equal(await count('SELECT count(*) FROM public.bank_transactions'), 0)
     pass('STAFF without finance access cannot claim VietQR payments')
 
-    // Replacement needs an explicit user action and a server-enforced cooldown.
-    await assert.rejects(() => call('owner', 'create_vietqr_payment_request', {
+    // Học thuyết Mac (20261016000100): đổi số tiền → create() TỰ HỦY mã cũ và
+    // phát mã mới (superseded:true) — UI Mac không có nút "thay mã" nên nền cũ
+    // REPORT_REQUIRED sẽ kẹt vòng lặp lỗi.
+    const qr1b = await call('owner', 'create_vietqr_payment_request', {
       vehicle_id: vehicleId, amount: 10_000_000,
-    }), /VIETQR_REPLACE_REQUIRED/)
+    })
+    assert.notEqual(qr1b.id, qr1.id)
+    assert.equal(qr1b.amount, 10_000_000)
+    assert.equal(qr1b.status, 'PENDING')
+    assert.equal(qr1b.superseded, true)
+    // Đường replace() tường minh (API cũ) vẫn giữ cooldown 60 giây.
     await assert.rejects(() => call('owner', 'replace_vietqr_payment_request', {
-      replace_request_id: qr1.id, amount: 10_000_000,
+      replace_request_id: qr1b.id, amount: 10_000_000,
     }), /VIETQR_REPLACEMENT_COOLDOWN/)
-    await db.query("UPDATE public.vietqr_requests SET replace_available_at=clock_timestamp()-interval '1 second' WHERE id=$1", [qr1.id])
+    await db.query("UPDATE public.vietqr_requests SET replace_available_at=clock_timestamp()-interval '1 second' WHERE id=$1", [qr1b.id])
     const qr2 = await call('owner', 'replace_vietqr_payment_request', {
-      replace_request_id: qr1.id, amount: 10_000_000,
+      replace_request_id: qr1b.id, amount: 10_000_000,
     })
     assert.notEqual(qr2.id, qr1.id)
     assert.equal(qr2.amount, 10_000_000)
@@ -184,7 +197,7 @@ export async function runVietQrPaymentTests(externalDb, { engine = 'pglite' } = 
     await assert.rejects(() => call('owner', 'replace_vietqr_payment_request', {
       replace_request_id: qr2.id, amount: 10_000_000,
     }), /VIETQR_REPLACEMENT_COOLDOWN/)
-    pass('Changing the amount requires explicit replacement, cancels the old request and enforces cooldown')
+    pass('Changing the amount auto-supersedes the pending code; the explicit replace path keeps its cooldown')
 
     // 9. Cancel QR explicitly
     await call('owner', 'cancel_vietqr_payment_request', qr2.id)
@@ -214,17 +227,20 @@ export async function runVietQrPaymentTests(externalDb, { engine = 'pglite' } = 
       frame_number: `FRAME${randomUUID().slice(0, 8)}`, purchase_date: day, purchase_price: 10_000_000,
     })
     const expiring = await call('owner', 'create_vietqr_payment_request', { vehicle_id: expiringVehicle, amount: 10_000_000 })
-    const expiredTiming = await row("UPDATE public.vietqr_requests SET created_at=clock_timestamp()-interval '16 minutes', expires_at=clock_timestamp()-interval '1 minute', replace_available_at=clock_timestamp()-interval '15 minutes' WHERE id=$1 RETURNING created_at,expires_at", [expiring.id])
+    await row("UPDATE public.vietqr_requests SET created_at=clock_timestamp()-interval '16 minutes', expires_at=clock_timestamp()-interval '1 minute', replace_available_at=clock_timestamp()-interval '15 minutes' WHERE id=$1 RETURNING created_at,expires_at", [expiring.id])
     assert.equal((await readQr(expiring.id)).status, 'EXPIRED')
     const reopenedExpired = await call('owner', 'create_vietqr_payment_request', { vehicle_id: expiringVehicle, amount: 10_000_000 })
-    assert.equal(reopenedExpired.id, expiring.id)
-    assert.equal(reopenedExpired.status, 'EXPIRED')
-    assert.equal(new Date(reopenedExpired.expires_at).getTime(), new Date(expiredTiming.expires_at).getTime())
+    // Học thuyết Mac: mở lại mã hết hạn → server tự phát mã SỐNG mới, nhân viên
+    // không bao giờ bị trao nhầm mã chết để khách quét.
+    assert.notEqual(reopenedExpired.id, expiring.id)
+    assert.equal(reopenedExpired.status, 'PENDING')
+    assert.equal(reopenedExpired.superseded, true)
+    assert.equal((await readQr(expiring.id)).status, 'CANCELLED')
     const late = await ingest({ amount: 10_000_000, transfer_content: expiring.qr_reference })
     assert.equal(late.status, 'MANUAL_REVIEW')
-    await assert.rejects(() => call('owner', 'confirm_vietqr_payment', { qr_request_id: expiring.id }), /VIETQR_BANK_EVIDENCE_REQUIRED/)
+    await assert.rejects(() => call('owner', 'confirm_vietqr_payment', { qr_request_id: expiring.id }), /VIETQR_BANK_EVIDENCE_REQUIRED|VIETQR_REQUEST_CANCELLED/)
     assert.equal((await readQr(expiring.id)).bank_transaction_id, null)
-    pass('Expired requests remain expired across reopening; a late bank credit never produces payment success')
+    pass('Reopening an expired code auto-issues a fresh live one; a late bank credit never produces payment success')
 
     // 10. Multi-stage Sale & Balance Protection:
     // Create Sale: 25,000,000 VND, initial payment: 5,000,000 VND (remaining: 20,000,000 VND)

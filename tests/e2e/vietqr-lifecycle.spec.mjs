@@ -117,8 +117,12 @@ async function installQrMock(page, { theme = "light", configured = true } = {}) 
       if (
         Number(current.amount) !== Number(data.amount) ||
         nameKey(current.payer_name) !== nameKey(data.payer_name)
-      )
-        return reply(route, { message: "VIETQR_REPLACE_REQUIRED" }, 400);
+      ) {
+        // Server Mac: thông tin đổi → tự hủy mã cũ, phát mã mới (superseded:true).
+        // Không còn VIETQR_REPLACE_REQUIRED — UI Mac không có nút "thay mã".
+        const fresh = await makeRequest(data);
+        return reply(route, { ...fresh, superseded: true });
+      }
       return reply(route, { ...(await withServerTime()), superseded: false });
     }
     return reply(route, { ...(await makeRequest(data)), superseded: false });
@@ -298,7 +302,7 @@ for (const surface of [
   });
 }
 
-test("reopening replays the active request; changing the amount never stacks a second code", async ({
+test("reopening replays the active request; changing the amount auto-issues a fresh live code", async ({
   page,
 }) => {
   const fixture = await installQrMock(page);
@@ -318,15 +322,17 @@ test("reopening replays the active request; changing the amount never stacks a s
   await panel
     .getByRole("button", { name: "Đóng hộp thoại", exact: true })
     .click();
-  // Đổi số tiền khi mã còn treo: server từ chối phát hành chồng lên
-  // (VIETQR_REPLACE_REQUIRED); UI hiển thị nhánh lỗi, bản ghi cũ nguyên trạng.
+  // Học thuyết Mac: đổi số tiền khi mã còn treo → server TỰ HỦY mã cũ, phát mã
+  // mới và cảnh báo một dòng — nhân viên không kẹt vòng "bấm tạo lại mà lỗi".
   await page.getByLabel("Bán với giá", { exact: true }).fill("32000000");
   panel = await openPanel(page, "Thanh toán chuyển khoản");
   await expect(
-    panel.getByRole("button", { name: "Thử tạo lại mã QR" }),
+    panel.getByText(/Thông tin thanh toán đã thay đổi/),
   ).toBeVisible();
-  expect(fixture.current.id).toBe(firstId);
-  expect(Number(fixture.current.amount)).toBe(35000000);
+  await expect(qrImage(panel)).toBeVisible();
+  expect(fixture.current.id).not.toBe(firstId);
+  expect(Number(fixture.current.amount)).toBe(32000000);
+  expect(fixture.current.status).toBe("PENDING");
   expect(fixture.manualWrites).toHaveLength(0);
 });
 

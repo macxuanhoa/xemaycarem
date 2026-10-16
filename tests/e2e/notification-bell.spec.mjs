@@ -23,8 +23,8 @@ const notification = (over = {}) => ({
   ...over,
 });
 
-async function installMock(page, { empty = false } = {}) {
-  let unread = empty ? 0 : 2;
+async function installMock(page, { empty = false, unread: startUnread = 2 } = {}) {
+  let unread = empty ? 0 : startUnread;
   await page.addInitScript(
     (value) =>
       localStorage.setItem("sb-xe-test-auth-token", JSON.stringify(value)),
@@ -88,7 +88,7 @@ async function installMock(page, { empty = false } = {}) {
                   deep_link: "/acquisitions",
                 }),
               ],
-              total: 4,
+              total: Math.max(4, unread),
               unread_count: unread,
             },
     ],
@@ -192,6 +192,57 @@ test("Bell shows on desktop and mobile with unread badge and grouped panel", asy
     await page.mouse.click(viewport.width / 4, dismissY);
     await expect(panel).toHaveCount(0);
     await expect(bell(page)).toBeVisible();
+  }
+});
+
+/**
+ * Chuông phải giữ "Thông báo" và pill số chưa đọc trên MỘT hàng chữ. Trước đây
+ * cả hai co theo chỗ còn lại, nên đúng lúc có tin mới — số dài ra, chữ "chưa
+ * đọc" dài nhất — tiêu đề gãy thành "Thông / báo" còn pill gãy thành
+ * "1234 chưa / đọc" và tràn ra khỏi ô cao 19px của nó.
+ */
+const textLines = (page, selector) =>
+  page.locator(selector).evaluate((node) => {
+    const range = document.createRange();
+    range.selectNodeContents(node);
+    return new Set([...range.getClientRects()].map((r) => Math.round(r.y))).size;
+  });
+
+test("Panel header keeps the title and the unread count on one line", async ({
+  page,
+}) => {
+  await installMock(page, { unread: 1234 });
+  for (const viewport of [
+    { width: 1440, height: 960 },
+    { width: 390, height: 844 },
+    { width: 320, height: 568 },
+  ]) {
+    await page.setViewportSize(viewport);
+    await page.goto("/");
+    await expect(badge(page)).toHaveText("99+");
+    expect(await textLines(page, ".notification-badge")).toBe(1);
+    await bell(page).click();
+    const panel = page.locator(".notification-panel");
+    await expect(panel).toBeVisible();
+    await expect(page.locator(".notification-panel-count")).toHaveText(
+      "1234 chưa đọc",
+    );
+    expect(await textLines(page, ".notification-panel-title-text")).toBe(1);
+    expect(await textLines(page, ".notification-panel-count")).toBe(1);
+    // Chữ không được tràn ra ngoài viên pill bo tròn.
+    expect(
+      await panel
+        .locator(".notification-panel-count")
+        .evaluate((node) => node.scrollHeight),
+    ).toBeLessThanOrEqual(21);
+    // Và cũng không có chữ nào bị cắt cứng ra ngoài panel.
+    expect(
+      await panel
+        .locator(".notification-panel-header")
+        .evaluate((node) => node.scrollWidth > node.clientWidth),
+    ).toBe(false);
+    await page.keyboard.press("Escape");
+    await expect(panel).toHaveCount(0);
   }
 });
 

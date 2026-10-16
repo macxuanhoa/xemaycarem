@@ -1,14 +1,15 @@
 import type { LucideIcon } from "lucide-react";
 import {
-  ArrowDownLeft,
   ArrowUpRight,
   Ban,
   Banknote,
   Bell,
   Bike,
   Check,
+  Import,
   Inbox,
   Landmark,
+  Pencil,
   ScanSearch,
   Scale,
   Send,
@@ -172,14 +173,14 @@ export function splitVehicleIdentity(title: string): {
  */
 export const NOTIFICATION_FALLBACK_ICON = Bell;
 export const ACTION_ICON: Record<NotificationAction, LucideIcon> = {
-  CREATE_ACQUISITION: ArrowDownLeft,
+  CREATE_ACQUISITION: Import,
   CANCEL_ACQUISITION: Ban,
-  CREATE_SALE: ArrowUpRight,
+  CREATE_SALE: Banknote,
   CANCEL_SALE: Ban,
-  CREATE_PAYMENT: Banknote,
+  CREATE_PAYMENT: ArrowUpRight,
   VOID_PAYMENT: Undo2,
   CREATE_VEHICLE: Bike,
-  UPDATE_VEHICLE: Bike,
+  UPDATE_VEHICLE: Pencil,
   REQUEST_DELETE_VEHICLE: Inbox,
   REQUEST_SALE_BELOW_COST: Send,
   APPROVE_SALE_BELOW_COST: Check,

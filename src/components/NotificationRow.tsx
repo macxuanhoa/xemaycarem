@@ -139,7 +139,14 @@ export function NotificationRow({
           )}
           {after}
         </span>
-        {item.body && <span className={cls.body}>{tidyBody(item.body)}</span>}
+        {item.body && (
+          <span className={cls.body}>
+            {tidyBody(item.body)}
+            {item.vehicle_internal_code && (
+              <span className="notification-internal-code"> · {item.vehicle_internal_code}</span>
+            )}
+          </span>
+        )}
         <span className={cls.time}>{relativeTime(item.created_at, now)}</span>
       </span>
       {unread && cls.unreadDot && (

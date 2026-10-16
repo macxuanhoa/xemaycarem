@@ -14220,6 +14220,8 @@ html[data-theme="dark"] .header-theme-toggle {
   font-weight: 700;
   line-height: 15px;
   text-align: center;
+  /* "99+" là một khối: tuyệt đối không được gãy xuống hàng trong ô 15px. */
+  white-space: nowrap;
   font-variant-numeric: tabular-nums;
   border: 1.5px solid #fff;
   pointer-events: none;
@@ -14261,7 +14263,11 @@ html[data-theme="dark"] .header-theme-toggle {
 .notification-panel {
   position: fixed;
   z-index: 63;
-  width: 388px;
+  /* 420px: ở 388px, hàng tiêu đề "Thông báo · 123 chưa đọc" cộng cụm hành động
+     "Đánh dấu tất cả đã đọc ✕" chiếm đúng 359/356px nội dung — lệch có 3px mà
+     cả cụm rớt xuống hàng hai, panel nhấp nhô theo TỪNG con số chưa đọc.
+     Thêm chiều rộng còn giúp tiêu đề dòng tin dài bớt gãy đôi. */
+  width: 420px;
   max-width: calc(100vw - 24px);
   max-height: 72vh;
   display: flex;
@@ -14293,16 +14299,23 @@ html[data-theme="dark"] .header-theme-toggle {
 }
 .notification-panel-header {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
-  gap: 10px;
+  column-gap: 10px;
+  row-gap: 6px;
   padding: 14px 16px 12px;
   border-bottom: 1px solid var(--line-subtle);
   flex-shrink: 0;
 }
+/* Tiêu đề và con số chưa đọc luôn đi trên MỘT hàng chữ. Trước đây cả hai co
+   theo chiều rộng còn lại: đúng lúc có tin mới (số chưa đọc lớn nhất, chữ
+   "chưa đọc" dài nhất) thì "Thông báo" gãy thành "Thông / báo" và pill
+   "123 chưa đọc" gãy thành "123 chưa / đọc", tràn ra khỏi ô cao 19px của nó.
+   Giờ phần hành động — mới là khối thừa chỗ — tự xuống hàng khi chật. */
 .notification-panel-header h2 {
   margin: 0;
-  display: inline-flex;
+  display: flex;
   align-items: center;
   gap: 8px;
   font-size: 14.5px;
@@ -14310,6 +14323,14 @@ html[data-theme="dark"] .header-theme-toggle {
   letter-spacing: -0.01em;
   color: #1e293b;
   min-width: 0;
+  white-space: nowrap;
+}
+/* Chỉ chữ "Thông báo" được phép cắt bằng dấu … khi panel hẹp đến mức vô lý;
+   pill số chưa đọc thì không bao giờ — nó là thông tin người dùng cần thấy. */
+.notification-panel-header h2 .notification-panel-title-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .notification-panel-count {
   display: inline-flex;
@@ -14324,12 +14345,17 @@ html[data-theme="dark"] .header-theme-toggle {
   letter-spacing: 0.01em;
   line-height: 1;
   font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 .notification-panel-actions {
   display: flex;
   align-items: center;
   gap: 8px;
-  min-width: 0;
+  flex-shrink: 0;
+  /* Auto margin thay cho justify-content ở hàng cuối: khi bị đẩy xuống hàng
+     riêng, cụm hành động vẫn nép sát mép phải đúng chỗ nó đứng lúc còn rộng. */
+  margin-left: auto;
 }
 .notification-mark-all {
   border: 0;
@@ -14591,6 +14617,15 @@ html[data-theme="dark"] .header-theme-toggle {
   color: #5b6678;
   margin-top: 1px;
   overflow-wrap: break-word;
+}
+/* Mã nội bộ xe (XE-0042…) hiển thị ngay cuối dòng body, kiểu monospace nhạt
+   để chủ quán tra xe trong kho mà không phải bấm vào chi tiết. */
+.notification-internal-code {
+  font-family: var(--font-mono, "JetBrains Mono", ui-monospace, monospace);
+  font-size: 11.5px;
+  color: #7c8a9b;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
 }
 .notification-row-time {
   font-size: 11px;
@@ -14889,9 +14924,13 @@ html[data-theme="dark"] .header-theme-toggle {
 /* ── Header ── */
 .notifications-page-header {
   display: flex;
+  /* Như trong chuông: tiêu đề + huy hiệu số chưa đọc là một hàng chữ; khi hẹp
+     thì nút hành động xuống hàng, chứ không bóp chữ "Thông báo" gãy đôi. */
+  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
+  column-gap: 12px;
+  row-gap: 8px;
   padding: 20px 0 14px;
   border-bottom: 1px solid var(--line-subtle, #f0f0f5);
 }
@@ -14907,6 +14946,7 @@ html[data-theme="dark"] .header-theme-toggle {
   font-weight: 700;
   letter-spacing: -0.02em;
   color: #0f172a;
+  white-space: nowrap;
 }
 .notifications-page-badge {
   display: inline-flex;
@@ -14918,6 +14958,7 @@ html[data-theme="dark"] .header-theme-toggle {
   font-size: 12px;
   font-weight: 650;
   white-space: nowrap;
+  flex-shrink: 0;
 }
 .notifications-mark-all-btn {
   display: inline-flex;
@@ -14932,6 +14973,8 @@ html[data-theme="dark"] .header-theme-toggle {
   font-weight: 550;
   cursor: pointer;
   white-space: nowrap;
+  flex-shrink: 0;
+  margin-left: auto;
   transition:
     background-color 0.15s ease,
     border-color 0.15s ease;

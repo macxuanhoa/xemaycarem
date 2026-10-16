@@ -586,6 +586,8 @@ export type NotificationItem = {
   actor_name: string | null;
   /** Tên loại xe (Honda Wave, Sirius…) — JOIN từ vehicles + vehicle_types, null khi xe đã bị xóa. */
   vehicle_type?: string | null;
+  /** Mã nội bộ xe (XE-0042…) — JOIN từ vehicles.internal_code, null khi xe đã bị xóa. */
+  vehicle_internal_code?: string | null;
 };
 
 export type NotificationList = {

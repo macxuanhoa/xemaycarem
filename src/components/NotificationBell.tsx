@@ -209,7 +209,7 @@ export function NotificationBell() {
             >
               <div className="notification-panel-header">
                 <h2>
-                  Thông báo
+                  <span className="notification-panel-title-text">Thông báo</span>
                   {unreadCount > 0 && (
                     <span className="notification-panel-count">
                       {unreadCount} chưa đọc

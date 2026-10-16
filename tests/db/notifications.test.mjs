@@ -185,7 +185,10 @@ export async function runNotificationsTests(externalDb, { engine = 'postgres' } 
     await deny(() => run('staff', (client) => client.query('UPDATE public.notifications SET read_at=now()')), /permission denied/)
     pass('direct table access to notifications is revoked for every browser role')
 
-    // 11. A service-role audit row with no session actor renders "Hệ thống" for bosses only.
+    // 11. A service-role audit row with no session actor must still attribute its body
+    // to somebody. Since migration 20261016000200 the transactional bodies name the
+    // STORE instead of the actor, so the old "Hệ thống" label no longer appears here
+    // (it survives only in the approval branches, which keep v_actor_name).
     const beforeBosses = await count('SELECT count(*) AS count FROM public.notifications WHERE action=$1', ['UPDATE_VEHICLE'])
     await db.query(
       "INSERT INTO public.audit_logs(user_id,action,entity_type,entity_id,new_data) VALUES(NULL,'UPDATE_VEHICLE','vehicles',$1::uuid,$2::jsonb)",
@@ -194,9 +197,15 @@ export async function runNotificationsTests(externalDb, { engine = 'postgres' } 
     created = await notifs('UPDATE_VEHICLE', carA)
     const fresh = created.filter((n) => n.actor_id === null)
     assert.equal(fresh.length, 4) // three active bosses plus the vehicle creator copy
-    assert.ok(fresh.some((n) => /Hệ thống/.test(n.body)))
+    const storeName = (await db.query(
+      "SELECT coalesce((SELECT store_name FROM public.system_settings LIMIT 1), 'Cà Rem') AS name",
+    )).rows[0].name
+    assert.ok(
+      fresh.every((n) => n.body.startsWith(storeName)),
+      `null-actor bodies must open with the store attribution, got: ${fresh.map((n) => n.body).join(' | ')}`,
+    )
     assert.equal(await count('SELECT count(*) AS count FROM public.notifications WHERE action=$1', ['UPDATE_VEHICLE']), beforeBosses + fresh.length)
-    pass('null-actor audits notify bosses and the entity owner with a Hệ thống attribution')
+    pass('null-actor audits notify bosses and the entity owner attributed to the store name')
 
     // 12. Phân trang thật bằng offset trên một hộp thư lớn hơn trần 100 dòng.
     //     `list_notifications` cắt `least(100, …)`, còn bản cũ của trang

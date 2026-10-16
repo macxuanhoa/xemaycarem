@@ -129,28 +129,45 @@ export async function runMigrationTests({ engine = 'postgres' } = {}) {
     }
     console.log(`✓ Unique constraints and all ${expectedIndexes.length} performance indexes exist`)
 
-    // 4b. Purge guard: the six retired vehicle fields, the retired messaging/config
-    // fields and the whole thank-you/messaging subsystem must stay gone for good, and
-    // the transactional history tables start empty (migrations 20261008000300, 20261014000500).
+    // 4b. Purge guard: the six retired vehicle fields and the two retired quickpick
+    // settings must stay gone for good, and the transactional history tables start
+    // empty (migration 20261008000300).
     const purgedColumns = await db.query(`
       SELECT table_schema || '.' || table_name || '.' || column_name AS col
       FROM information_schema.columns
       WHERE (table_schema, table_name, column_name) IN (
         ('public','vehicles','brand'),('public','vehicles','model'),('public','vehicles','variant'),
         ('public','vehicles','engine_number'),('public','vehicles','odometer'),('public','vehicles','asking_price'),
-        ('public','system_settings','quickpick_brands'),('public','system_settings','quickpick_models'),
-        ('public','system_settings','thankyou_manual_enabled'),('public','system_settings','customer_messaging_enabled'),
-        ('public','system_settings','sale_thank_you_enabled'),('public','system_settings','primary_message_channel'),
-        ('public','system_settings','fallback_channel'))
+        ('public','system_settings','quickpick_brands'),('public','system_settings','quickpick_models'))
     `)
-    assert.deepEqual(purgedColumns.rows, [], 'Retired vehicle and messaging columns must not exist any more')
-    const purgedTables = await db.query(`
+    assert.deepEqual(purgedColumns.rows, [], 'Retired vehicle and quickpick columns must not exist any more')
+
+    // Cặp migration nghỉ hưu CSKH (20261014000500 + 20261014001000) đang được giữ ở
+    // supabase/deferred/ theo quyết định của Owner ngày 15/10, nên một DB dựng từ
+    // supabase/migrations/ vẫn còn nguyên hệ thống nhắn tin. Guard dưới đây tự đảo
+    // theo đúng thực tế trong DB: chưa nghỉ hưu thì chốt "còn nguyên một khối", đã
+    // nghỉ hưu thì chốt "biến mất vĩnh viễn" — không bao giờ chấp nhận trạng thái lửng.
+    // Đọc supabase/deferred/README.md trước khi chuyển cặp migration về lại.
+    const cskhTables = await db.query(`
       SELECT table_name FROM information_schema.tables
       WHERE table_schema = 'public' AND table_name IN
         ('message_outbox','customer_communications','customer_contacts','message_templates')
       ORDER BY table_name
     `)
-    assert.deepEqual(purgedTables.rows, [], 'Retired messaging tables must stay dropped')
+    const cskhRetired = cskhTables.rows.length === 0
+    const cskhColumns = await db.query(`
+      SELECT count(*)::int AS n FROM information_schema.columns
+      WHERE table_schema = 'public' AND table_name = 'system_settings' AND column_name IN
+        ('thankyou_manual_enabled','customer_messaging_enabled','sale_thank_you_enabled',
+         'primary_message_channel','fallback_channel')
+    `)
+    if (cskhRetired) {
+      assert.deepEqual(cskhTables.rows, [], 'Retired messaging tables must stay dropped')
+      assert.equal(cskhColumns.rows[0].n, 0, 'CSKH settings columns must be gone with the retired messaging tables')
+    } else {
+      assert.equal(cskhTables.rows.length, 4, 'The four CSKH tables must all exist while supabase/deferred/ is unapplied')
+      assert.equal(cskhColumns.rows[0].n, 5, 'The five CSKH settings columns must all exist while supabase/deferred/ is unapplied')
+    }
     const fkCount = await db.query(`
       SELECT count(*)::int AS n FROM information_schema.table_constraints
       WHERE constraint_type='FOREIGN KEY' AND table_schema='public' AND table_name='vehicles'
@@ -162,7 +179,7 @@ export async function runMigrationTests({ engine = 'postgres' } = {}) {
         + (SELECT count(*) FROM public.notifications) AS leftover
     `)
     assert.equal(Number(historyCounts.rows[0].leftover), 0, 'Purged history tables must be empty after the migration chain')
-    console.log('✓ Retired columns/tables are gone and every purged history table is empty')
+    console.log(`✓ Retired columns are gone (${cskhRetired ? 'CSKH retirement applied' : 'CSKH retirement still deferred'}) and every purged history table is empty`)
 
     // 5. Expected public RPC functions exist and have fixed search_path
     const expectedPublicFunctions = [
@@ -216,8 +233,9 @@ export async function runMigrationTests({ engine = 'postgres' } = {}) {
     }
     console.log(`✓ All ${expectedPublicFunctions.length} public RPCs exist with SECURITY DEFINER and fixed search_path`)
 
-    // 5b. The retired thank-you/messaging RPCs (migration 20261014000500) must stay gone,
-    // so a later CREATE OR REPLACE cannot silently resurrect the cleaned-up subsystem.
+    // 5b. The retired thank-you/messaging RPCs must stay gone once the retirement has
+    // shipped, so a later CREATE OR REPLACE cannot silently resurrect the subsystem.
+    // While the pair sits in supabase/deferred/ those RPCs are legitimately still live.
     const retiredPublicFunctions = [
       'get_sale_communication',
       'list_customer_communications',
@@ -243,12 +261,18 @@ export async function runMigrationTests({ engine = 'postgres' } = {}) {
       'list_sale_thank_you_queue',
     ]
     const resurrected = retiredPublicFunctions.filter((fn) => procs.has(fn))
-    assert.deepEqual(resurrected, [], `Retired messaging RPCs must not exist any more: ${resurrected.join(', ')}`)
-    console.log(`✓ All ${retiredPublicFunctions.length} retired messaging RPCs stay dropped`)
+    if (cskhRetired) {
+      assert.deepEqual(resurrected, [], `Retired messaging RPCs must not exist any more: ${resurrected.join(', ')}`)
+      console.log(`✓ All ${retiredPublicFunctions.length} retired messaging RPCs stay dropped`)
+    } else {
+      console.log(`- Nghỉ hưu CSKH còn hoãn ở supabase/deferred/: ${retiredPublicFunctions.length} RPC nhắn tin vẫn còn sống nên chưa chốt đã_drop`)
+    }
 
     // 5c. plpgsql không kiểm tra tên bảng lúc tạo hàm, nên một EXISTS sót trỏ tới bảng đã
-    // DROP (migration 20261014000500) chỉ nổ khi gọi — đúng lỗi đã làm check_user_can_hard_delete
-    // và sell_vehicle_impl hỏng. Quét nguồn mọi hàm đang sống để bắt sớm ngay tại gate.
+    // DROP chỉ nổ khi gọi — đúng lỗi đã làm check_user_can_hard_delete và sell_vehicle_impl
+    // hỏng. Quét nguồn mọi hàm đang sống để bắt sớm ngay tại gate. Chỉ có nghĩa khi cặp
+    // migration nghỉ hưu CSKH đã được áp: lúc còn hoãn ở supabase/deferred/ thì chưa có
+    // đối tượng nào bị DROP nên mọi hàm nhắn tin đều còn tham chiếu hợp lệ.
     const retiredReferencePattern = [
       'message_outbox',
       'customer_communications',
@@ -287,19 +311,23 @@ export async function runMigrationTests({ engine = 'postgres' } = {}) {
       'SALE_THANK_YOU',
       'AUTO_MESSAGE',
     ].join('|')
-    const danglingReferences = await db.query(
-      `SELECT n.nspname || '.' || p.proname AS fn
-         FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
-         WHERE n.nspname IN ('public', 'private') AND p.prosrc ~ $1
-         ORDER BY 1`,
-      [retiredReferencePattern],
-    )
-    assert.deepEqual(
-      danglingReferences.rows.map((r) => r.fn),
-      [],
-      `Live functions must not reference retired messaging objects: ${danglingReferences.rows.map((r) => r.fn).join(', ')}`,
-    )
-    console.log('✓ No surviving function body references the retired messaging subsystem')
+    if (!cskhRetired) {
+      console.log('- Nghỉ hưu CSKH còn hoãn ở supabase/deferred/: chưa có đối tượng nào bị DROP nên bỏ qua quét tham chiếu treo')
+    } else {
+      const danglingReferences = await db.query(
+        `SELECT n.nspname || '.' || p.proname AS fn
+           FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
+           WHERE n.nspname IN ('public', 'private') AND p.prosrc ~ $1
+           ORDER BY 1`,
+        [retiredReferencePattern],
+      )
+      assert.deepEqual(
+        danglingReferences.rows.map((r) => r.fn),
+        [],
+        `Live functions must not reference retired messaging objects: ${danglingReferences.rows.map((r) => r.fn).join(', ')}`,
+      )
+      console.log('✓ No surviving function body references the retired messaging subsystem')
+    }
 
     // 6. Expected private helper functions exist
     const expectedPrivateFunctions = [

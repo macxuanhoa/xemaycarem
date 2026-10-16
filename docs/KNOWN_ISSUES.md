@@ -6,18 +6,31 @@ LIVE ledger đã áp dụng 70 migrations đến `20261011000100`, gồm purge, 
 
 Audit phát hiện receipt đọc và notification shortfall có thể lộ giá PRIVATE; webhook có lỗi xác thực/amount/đối soát và worker cần trust boundary server. Corrections được giữ trong forward migrations `20261014000100`/`20261014000200`, chưa áp production. Kết quả cổng kiểm thử và giới hạn nằm trong `docs/MASTER_RELEASE_AUDIT_20261011.md`. Staging Auth/Storage, Facebook thật, Web Share trên thiết bị và asset Tết đã duyệt còn cần bằng chứng thực tế.
 
-## Xác nhận VietQR thủ công — hợp đồng tiền đang chờ chủ quyết (17/10/2026)
+## Xác nhận VietQR thủ công — cổng bằng chứng ngân hàng đã đặt lại, CHƯA áp production (17/10/2026)
 
-`20261015000200_tien_ve_dung_don.sql` (15/10) định nghĩa lại `public.confirm_vietqr_payment` và **bỏ cổng** `VIETQR_BANK_EVIDENCE_REQUIRED` cho mã còn `PENDING`: mã chưa gắn đơn bán chỉ chuyển sang `CONFIRMED` (có audit `CONFIRM_VIETQR_PAYMENT`, không tạo khoản thu); mã **đã gắn đơn bán** thì ghi khoản thu bằng `private.add_payment_verified_impl` ngay trong lần bấm. Chú giải dòng 974–979 của migration nêu chủ đích "mở thêm đường xác nhận thủ công" nhưng cũng khẳng định nguyên tắc "tiền vào đúng đơn qua hàm thu nội bộ, **không tự xưng phía client**" — trong khi RPC này vẫn `GRANT EXECUTE ... TO authenticated` (`20261010000700:563`) và **không còn lối nào trong giao diện gọi nó**: `api.confirmVietQrPayment` (`src/lib/api.ts:607`) có đúng một nơi khai báo, không có nơi dùng.
+`20261015000200_tien_ve_dung_don.sql` (mục 5b) khôi phục đường ghi tiền của `public.confirm_vietqr_payment` nhưng đồng thời bỏ luôn cổng "phải có bằng chứng ngân hàng". Hệ quả đo được bằng DB test: một cú bấm của tài khoản có quyền tài chính ghi thẳng một dòng `payments` qua `private.add_payment_verified_impl` cho mã mới `PENDING`, chưa có giao dịch ngân hàng nào. Ba test chốt hợp đồng cũ và đang đỏ, tên tự nó đã nói rõ bất biến:
 
-Bốn test DB vẫn chốt hợp đồng cũ ("bấm tay không được tự xưng đã thu tiền, kể cả OWNER") nên đang đỏ: `tests/db/vietqr-payment.test.mjs:157`, `tests/db/vietqr-lifecycle.test.mjs`, `tests/db/smart-sales-automation.test.mjs:95`, `tests/db/security-integration.test.mjs`. Đã kiểm chứng bằng worktree sạch ở HEAD: **đỏ y hệt**, có từ 15/10, không phải do đợt thay đổi đang chờ commit.
+- `tests/db/vietqr-lifecycle.test.mjs:199` — "manual button, forged bank sale and unauthorized ingestion cannot create paid state"
+- `tests/db/smart-sales-automation.test.mjs:95` — "OWNER cannot turn a manual claim into a verified bank payment" (đòi đúng MỘT dòng thu cho đơn)
+- `tests/db/vietqr-payment.test.mjs:157` — "Legacy confirmation cannot manufacture receipt of money, even for OWNER"
 
-Hai ngả, chọn ngả nào thì sửa đúng một phía — **không tự ý sửa vì đây là luồng tiền**:
+**Quyết định đã chọn: giữ cổng ngân hàng**, bằng forward-only migration `20261017000300_vietqr_manual_confirm_evidence_gate.sql` (đặt sau cặp `20261017000000`/`20261017000200` của các đợt song song để không trùng phiên bản — `20261017000100` đã bị `bank_reconciliation_filter_groups` lấy). Căn cứ, theo thứ tự mạnh dần:
 
-- **Cho phép xác nhận tay** (theo chú giải migration): cập nhật bốn test thành "được xác nhận, nhưng không được tạo bằng chứng ngân hàng giả", giữ nguyên các bất biến còn lại (`bank_transactions` vẫn 0, role không tài chính vẫn `ACCESS_DENIED`, luôn có audit).
-- **Giữ cổng ngân hàng** (theo lời hứa trong modal: "Cà Rem chỉ xác nhận khi ngân hàng báo tiền đã vào đúng tài khoản"): cần migration forward-only đặt lại cổng `VIETQR_BANK_EVIDENCE_REQUIRED` cho nhánh đã gắn đơn, hoặc rút quyền `authenticated` của RPC vì không còn UI nào dùng tới.
+1. Chính chú giải dòng 974–979 của `20261015000200` nêu nguyên tắc "tiền vào đúng đơn qua hàm thu nội bộ, **không tự xưng phía client**" — bản 5b lại mở đúng đường client tự xưng.
+2. Lời hứa trong modal thanh toán: "Cà Rem chỉ xác nhận khi ngân hàng báo tiền đã vào đúng tài khoản".
+3. **Không còn lối nào trong giao diện gọi RPC này**: `api.confirmVietQrPayment` (`src/lib/api.ts:607`) có một nơi khai báo, zero nơi dùng — nên đặt lại cổng không phá luồng nào của nhân viên.
 
-`scripts/test-db.mjs` nay chạy hết 37 suite rồi tổng kết một lượt, nên bốn suite này không còn che 33 suite phía sau; exit code vẫn 1 cho tới khi ngả nào được chọn.
+Cổng mới dùng đúng cặp điều kiện mà đường webhook (`record_vietqr_bank_credit`) đã đặt: `status='RECEIVED'` + `bank_transaction_id` (`20261014000400:215`). Toàn bộ phần hòa giải có chủ đích của `20261015000200` được giữ nguyên: `sell_vehicle_impl` vẫn nối được chứng từ, vẫn khóa vehicle→sale, vẫn kiểm lại quyền tài chính sau khi chờ khóa; nhánh "tiền về trước khi lập đơn" vẫn chạy — chỉ chạy khi có bằng chứng thật. `CREATE OR REPLACE` giữ nguyên GRANT/REVOKE.
+
+**Chưa áp production.** Migration nằm im trong `supabase/migrations/` cho tới khi chạy `supabase db push`. Sau khi áp, một cú bấm xác nhận thủ công trên mã chưa có bằng chứng sẽ nhận `VIETQR_BANK_EVIDENCE_REQUIRED` thay vì ghi tiền — đó là hành vi mong muốn, nhưng là **đổi hành vi ghi tiền**, nên cần người vận hành chứng kiến đợt push.
+
+Hai chỗ đỏ cùng đợt khác là **test chết do đổi tên, không phải mất cổng**: `confirm_bank_transaction` vẫn từ chối (đơn tiền về muộn, mã QR đã ghi thu không ghi lần hai, txn sai số tiền chưa gắn đơn) nhưng trả mã lỗi mới `VIETQR_REQUEST_NOT_PENDING`/`BANK_TRANSACTION_NOT_CONFIRMABLE` thay vì dùng chung `VIETQR_BANK_EVIDENCE_REQUIRED`; `match_reason` của webhook khớp tuyệt đối đổi thành `AUTO_RECORDED`. Các assert bất biến thật (vẫn từ chối, vẫn MANUAL_REVIEW, vẫn đúng MỘT khoản thu) đều giữ nguyên và đều xanh — đã sửa ba test file theo hướng đó.
+
+**Một việc còn mở, cần người viết `20261015000200` xem lại** (không bẻ test để qua): ca `security-integration` "financial access revoked while confirmation waits is rechecked after the database lock" giờ đỏ ở `waiting === true` — hàm `confirm_bank_transaction` bail sớm trước khi lấy khoá `vehicles`, nên kịch bản "thu hồi quyền trong lúc đang chờ khoá rồi kiểm lại" không còn tới được. Đây là **đổi thứ tự khoá vs kiểm tra**, không phải mất cổng (không có dòng thu nào được ghi), nhưng đúng ra phải chứng minh được bằng test. Gate hiện: 36/37 suite xanh.
+
+Việc còn treo: cân nhắc `REVOKE EXECUTE ON FUNCTION public.confirm_vietqr_payment(jsonb) FROM authenticated` vì không còn UI nào dùng tới — thu nhỏ bề mặt RPC tiền, không đổi hành vi luồng hợp lệ.
+
+`scripts/test-db.mjs` chạy hết 37 suite rồi tổng kết một lượt, nên một ca đỏ không còn che 36 suite phía sau.
 
 ## Behavioral defect audit A1–A7 — 2026-10-02
 

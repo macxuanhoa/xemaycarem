@@ -299,7 +299,11 @@ export async function runVietQrLifecycleTests(
         assert.equal((await get(q.id)).status, "EXPIRED");
         await assert.rejects(
           () => call("confirm_bank_transaction", { id: response.id }),
-          /VIETQR_BANK_EVIDENCE_REQUIRED/,
+          // 20261015000200 tách mã lỗi theo đúng nguyên nhân (không còn dùng chung
+          // VIETQR_BANK_EVIDENCE_REQUIRED). Điều cần chốt ở đây là TIỀN VỀ MUỘN không
+          // được kích hoạt trạng thái thu — mọi ngả từ chối hợp lệ đều nằm trong hai
+          // mã dưới đây; ngả "ghi được tiền" sẽ rơi xuống và làm đỏ ca này.
+          /VIETQR_REQUEST_NOT_PENDING|BANK_TRANSACTION_NOT_CONFIRMABLE/,
         );
       },
     );

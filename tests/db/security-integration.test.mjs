@@ -134,7 +134,11 @@ export async function runSecurityIntegrationTests(externalDb, { engine = 'postgr
       assert.equal(second.status, 'MANUAL_REVIEW')
       const recorded = await call('owner', 'confirm_bank_transaction', { id: first.id, request_id: randomUUID() })
       assert.equal(Number((await row('SELECT amount FROM public.payments WHERE id=$1', [recorded.payment_id])).amount), 100)
-      await assert.rejects(() => call('owner', 'confirm_bank_transaction', { id: second.id, request_id: randomUUID() }), /VIETQR_BANK_EVIDENCE_REQUIRED/)
+      // Một mã QR đã được ghi thu thì không ghi thêm lần hai. 20261015000200 tách
+      // mã lỗi theo nguyên nhân nên yêu cầu thứ hai nhận VIETQR_REQUEST_NOT_PENDING
+      // (mã QR không còn PENDING) thay vì VIETQR_BANK_EVIDENCE_REQUIRED; ba dòng
+      // dưới mới là bất biến: vẫn bị từ chối, vẫn MANUAL_REVIEW, vẫn đúng MỘT khoản thu.
+      await assert.rejects(() => call('owner', 'confirm_bank_transaction', { id: second.id, request_id: randomUUID() }), /VIETQR_REQUEST_NOT_PENDING|VIETQR_BANK_EVIDENCE_REQUIRED/)
       assert.equal((await row('SELECT status FROM public.bank_transactions WHERE id=$1', [second.id])).status, 'MANUAL_REVIEW')
       assert.equal(Number((await row('SELECT count(*) AS n FROM public.payments WHERE sale_id=$1 AND amount=100', [privateSale])).n), 1)
       assert.equal((await call('owner', 'confirm_bank_transaction', { id: first.id })).payment_id, recorded.payment_id)

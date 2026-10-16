@@ -105,7 +105,10 @@ export async function runSmartSalesAutomationTests(externalDb, { engine = 'pglit
     assert.equal(first.status, 'RECORDED')
     const matched = await row('SELECT status, match_reason, qr_request_id, sale_id, vehicle_id,payment_id FROM public.bank_transactions WHERE id=$1', [first.id])
     assert.equal(matched.status, 'RECORDED')
-    assert.equal(matched.match_reason, 'REFERENCE_AMOUNT_MATCH')
+    // 20261015000200 đổi lý do khớp từ REFERENCE_AMOUNT_MATCH sang AUTO_RECORDED khi
+    // đường webhook tự ghi khoản thu cho đúng đơn. Bất biến thật vẫn là bốn dòng dưới:
+    // khớp đúng mã QR, đúng đơn, đúng xe và khoản thu được ghi MỘT lần.
+    assert.equal(matched.match_reason, 'AUTO_RECORDED')
     assert.equal(matched.qr_request_id, qrA.id)
     assert.equal(matched.sale_id, saleA.saleId)
     assert.equal(matched.vehicle_id, saleA.vehicleId)
@@ -143,7 +146,11 @@ export async function runSmartSalesAutomationTests(externalDb, { engine = 'pglit
     assert.equal(payCount, 2)
     const secondCredit = await svcTxn({ amount: 30_000_000, transfer_content: qrA.qr_reference })
     assert.equal(secondCredit.status, 'MANUAL_REVIEW')
-    await assert.rejects(() => call('owner', 'confirm_bank_transaction', { id: secondCredit.id }), /VIETQR_BANK_EVIDENCE_REQUIRED/)
+    // 20261015000200 tam ma loi theo dung nguyen nhan: chuyen khoan thu hai cho mot
+    // ma QR da ghi thu bi choi vi ma khong con PENDING (truoc day dung chung
+    // VIETQR_BANK_EVIDENCE_REQUIRED). Bat bien can chot van la dong 150: khong co
+    // them dong thu nao, va dong 151 cam "double-credit".
+    await assert.rejects(() => call('owner', 'confirm_bank_transaction', { id: secondCredit.id }), /VIETQR_REQUEST_NOT_PENDING|VIETQR_BANK_EVIDENCE_REQUIRED/)
     assert.equal(await count("SELECT count(*) FROM public.payments WHERE sale_id=$1 AND status='ACTIVE'", [saleA.saleId]), 2)
     pass('Repeated acknowledgement or a second independent transfer cannot double-credit the same QR')
 
@@ -168,7 +175,10 @@ export async function runSmartSalesAutomationTests(externalDb, { engine = 'pglit
     const wrong = await svcTxn({ amount: 29_000_000, transfer_content: `Thanh toan ${qrB.qr_reference}` })
     assert.equal(wrong.status, 'MANUAL_REVIEW')
     assert.equal((await row('SELECT match_reason FROM public.bank_transactions WHERE id=$1', [wrong.id])).match_reason, 'AMOUNT_MISMATCH')
-    await assert.rejects(() => call('owner', 'confirm_bank_transaction', { id: wrong.id }), /VIETQR_BANK_EVIDENCE_REQUIRED/)
+    // Same drift: txn khong gan duoc voi yeu cau nao (AMOUNT_MISMATCH) nen bi tu choi
+    // vi "khong xac nhan duoc", khong phai vi thieu bang chung. Dong 176-177 van chot
+    // rang ngan hang chua duoc ghi nhan la ve.
+    await assert.rejects(() => call('owner', 'confirm_bank_transaction', { id: wrong.id }), /BANK_TRANSACTION_NOT_CONFIRMABLE|VIETQR_BANK_EVIDENCE_REQUIRED/)
     const mismatchStatus = await callUuid('owner', 'get_vietqr_matching_status', qrB.id)
     assert.equal(mismatchStatus.bank_received, false)
     assert.equal(mismatchStatus.state, 'REVIEW')

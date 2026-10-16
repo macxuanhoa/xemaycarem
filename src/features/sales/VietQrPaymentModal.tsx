@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
@@ -62,9 +62,14 @@ export function VietQrPaymentModal({
   onPaymentConfirmed?: (confirmedRequest: VietQrPaymentRequest) => void;
 }) {
   const client = useQueryClient();
+  // Vỏ cũ (nền 011a138): panel noir định danh bằng aria-labelledby — giữ nguyên
+  // luồng Mac, chỉ mặc định hiển thị ảnh thẻ VietQR chính thống có avt chủ tài
+  // khoản như bản cũ, mã QR trơn lùi về nút "Mã QR đơn".
+  const titleId = useId();
+  const descriptionId = useId();
   const [request, setRequest] = useState<VietQrPaymentRequest | null>(null);
   const [qrDataUrl, setQrDataUrl] = useState<string | null>(null);
-  const [viewCardMode, setViewCardMode] = useState(false);
+  const [viewCardMode, setViewCardMode] = useState(true);
   const [supersededWarning, setSupersededWarning] = useState(false);
   // StrictMode dev effects chạy hai lượt; nếu không chốt, một lần mở cửa sổ
   // sẽ POST create hai lần — server replay thì vô hại nhưng để máy lẻ một
@@ -262,13 +267,13 @@ export function VietQrPaymentModal({
             description: request.transfer_content || request.qr_reference,
             accountName: request.bank_account_name,
           },
-          "compact2",
+          "default2",
         )
       : null;
 
   return (
     <div
-      className="dialog-backdrop"
+      className="dialog-backdrop vietqr-backdrop"
       onClick={(e) => {
         if (e.target === e.currentTarget) onClose();
       }}
@@ -276,27 +281,41 @@ export function VietQrPaymentModal({
     >
       <div
         className="dialog-panel vietqr-modal-panel"
-        style={{ width: "min(520px, 100%)", padding: "20px" }}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={titleId}
+        aria-describedby={descriptionId}
       >
-        <div className="row between gap-sm" style={{ marginBottom: "16px" }}>
-          <div>
-            <h2 className="section-title" style={{ margin: 0, display: "flex", alignItems: "center", gap: 8 }}>
-              <QrCode size={20} color="var(--brand-emerald-dark, #059669)" />
-              Thanh toán VietQR động
-            </h2>
-            <p className="muted small" style={{ margin: "2px 0 0" }}>
-              Cà Rem CRM · Quét mã chuyển nhanh Napas 24/7
-            </p>
+        {/* Vỏ cũ: nền ảnh noir thương hiệu Cà Rem (giữ quyết định "bề mặt noir
+            cố định cho cả Light lẫn Dark" — xem docs/DECISIONS.md). */}
+        <div className="vietqr-ambient" aria-hidden="true">
+          <span className="vietqr-ambient-photo" />
+          <span className="vietqr-ambient-scrim" />
+          <span className="vietqr-ambient-grain" />
+          <span className="vietqr-ambient-sign">
+            <em>Cà Rem</em>
+            <em>Uy Tín Tạo Niềm Tin</em>
+          </span>
+        </div>
+
+        <div className="vietqr-modal-heading">
+          <span
+            className="vietqr-brand-badge"
+            role="img"
+            aria-label="Logo Cà Rem"
+          />
+          <div className="vietqr-heading-text">
+            <h2 id={titleId}>Thanh toán chuyển khoản</h2>
+            <p id={descriptionId}>Cà Rem · Mã QR có hiệu lực 15 phút</p>
           </div>
-          <button
-            type="button"
-            className="button ghost"
-            style={{ padding: "6px" }}
+          <Button
+            variant="ghost"
+            className="vietqr-close"
             aria-label="Đóng hộp thoại"
             onClick={onClose}
           >
             <X size={18} />
-          </button>
+          </Button>
         </div>
 
         {/* Chưa cấu hình tài khoản nhận tiền */}
@@ -499,7 +518,7 @@ export function VietQrPaymentModal({
                   {viewCardMode && quickLinkUrl ? (
                     <img
                       src={quickLinkUrl}
-                      alt="Thẻ VietQR có logo"
+                      alt="Mã QR chuyển khoản"
                       style={{ width: "100%", maxWidth: 320, borderRadius: 8 }}
                     />
                   ) : qrDataUrl ? (

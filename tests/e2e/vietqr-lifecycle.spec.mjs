@@ -175,8 +175,10 @@ async function installQrMock(page, { theme = "light", configured = true } = {}) 
 }
 
 const panelOf = (page) => page.locator(".vietqr-modal-panel");
+// Mặc định cũ (vỏ 011a138): ảnh thẻ VietQR chính thống từ img.vietqr.io — có
+// avt chủ tài khoản; mã QR trơn lùi về chế độ "Mã QR đơn".
 const qrImage = (panel) =>
-  panel.getByRole("img", { name: "Mã VietQR động", exact: true });
+  panel.getByRole("img", { name: "Mã QR chuyển khoản", exact: true });
 
 async function openPanel(page, launcherName) {
   await page.getByRole("button", { name: launcherName, exact: true }).click();
@@ -227,9 +229,13 @@ for (const surface of [
     await expect(panel).toBeVisible();
     await expect(
       panel.getByRole("heading", {
-        name: "Thanh toán VietQR động",
+        name: "Thanh toán chuyển khoản",
         exact: true,
       }),
+    ).toBeVisible();
+    // Huy hiệu thương hiệu cũ phải còn: avt Logo Cà Rem cạnh đề thoại.
+    await expect(
+      panel.getByRole("img", { name: "Logo Cà Rem", exact: true }),
     ).toBeVisible();
     const qr = qrImage(panel);
     await expect(qr).toBeVisible();

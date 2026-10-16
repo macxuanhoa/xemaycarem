@@ -1,9 +1,26 @@
 import { useEffect, useState, type ChangeEvent } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Camera, Check, Images, ShieldAlert, Trash2 } from "lucide-react";
+import {
+  Camera,
+  Check,
+  Download,
+  Images,
+  LoaderCircle,
+  ShieldAlert,
+  Trash2,
+} from "lucide-react";
 import { api } from "@/lib/api";
 import { compressImage } from "@/lib/imageCompression";
+import {
+  saveImageToDevice,
+  saveOutcomeToast,
+  warmImageForSave,
+} from "@/lib/imageSave";
 import { confirmAction } from "@/components/ui/ConfirmDialog";
+import {
+  PhotoSaveSheet,
+  type PhotoSaveSheetRequest,
+} from "@/components/ui/PhotoSaveSheet";
 import { Button, Card, Field, Loading } from "@/components/ui";
 import { toast } from "@/lib/toast";
 import type { IdentityDocument, IdentitySubject } from "@/types";
@@ -13,41 +30,111 @@ type Side = "front" | "back";
 /** CCCD nhập tay hoặc đọc từ ảnh chỉ còn chữ số khi đối chiếu; dấu phân cách là tolerated. */
 const digitsOnly = (value: string) => value.replace(/[\s.-]/g, "");
 
+/**
+ * Một liên kết ký ngắn hạn dùng chung cho khung ảnh và nút tải: tra theo cache
+ * của react-query nên hai chỗ không ký hai URL khác nhau cho cùng một tấm ảnh.
+ */
+function useIdentityImage(path?: string | null) {
+  return useQuery({
+    queryKey: ["identity-image", path],
+    queryFn: () => api.identityImageUrl(path as string),
+    enabled: !!path,
+    staleTime: 60 * 1000,
+  });
+}
+
 /** Loads a private CCCD image through a short-lived signed URL, never a public link. */
 function IdentityPhoto({ path, alt }: { path: string; alt: string }) {
-  const [url, setUrl] = useState<string | null>(null);
-  const [error, setError] = useState("");
-  useEffect(() => {
-    let active = true;
-    setUrl(null);
-    setError("");
-    api
-      .identityImageUrl(path)
-      .then((next) => active && setUrl(next))
-      .catch(
-        (reason) =>
-          active &&
-          setError(
-            reason instanceof Error ? reason.message : "Không tải được ảnh",
-          ),
-      );
-    return () => {
-      active = false;
-    };
-  }, [path]);
-  if (error)
+  const image = useIdentityImage(path);
+  if (image.isError)
     return (
       <p className="field-error" role="alert">
-        {error}
+        {image.error instanceof Error && image.error.message
+          ? image.error.message
+          : "Không tải được ảnh"}
       </p>
     );
-  if (!url)
+  if (!image.data)
     return (
       <div className="image-placeholder">
         <Loading />
       </div>
     );
-  return <img src={url} alt={alt} className="identity-photo" />;
+  return <img src={image.data} alt={alt} className="identity-photo" />;
+}
+
+/**
+ * Tải một mặt CCCD về máy: trên điện thoại ảnh đi thẳng vào Bộ sưu tập qua bảng
+ * lưu của hệ điều hành, trên máy tính tải tệp bình thường. Ảnh giấy tờ là PII,
+ * nên nút này chỉ sống trong hồ sơ vốn đã khóa OWNER/MANAGER ở cả hai phía.
+ */
+function IdentityPhotoSave({
+  path,
+  label,
+  nameBase,
+}: {
+  path: string;
+  label: string;
+  nameBase: string;
+}) {
+  const image = useIdentityImage(path);
+  const url = image.data;
+  const [saving, setSaving] = useState(false);
+  const [sheet, setSheet] = useState<PhotoSaveSheetRequest | null>(null);
+  // Gom ảnh vào bộ nhớ sớm để cú chạm mở được bảng lưu của máy ngay tức thì.
+  useEffect(() => {
+    if (url) warmImageForSave(url);
+  }, [url]);
+  const save = async () => {
+    if (!url || saving) return;
+    setSaving(true);
+    try {
+      const outcome = await saveImageToDevice({
+        url,
+        nameBase,
+        title: `CCCD ${label.toLowerCase()} — ${nameBase}`,
+      });
+      // iPhone không có bảng chia sẻ: mở khung hướng dẫn nhấn giữ thay vì tải tệp
+      // sang app FILES, và im lặng khi người dùng tự đóng bảng lưu.
+      if (outcome === "long-press") setSheet({ url, caption: nameBase });
+      else {
+        const note = saveOutcomeToast(outcome);
+        if (note)
+          toast.success(
+            note.title,
+            note.description ? { description: note.description } : undefined,
+          );
+      }
+    } catch (error) {
+      toast.error(
+        error instanceof Error && error.message
+          ? error.message
+          : "Không tải được ảnh về máy. Hãy thử lại.",
+      );
+    } finally {
+      setSaving(false);
+    }
+  };
+  return (
+    <>
+      <Button
+        variant="ghost"
+        className="small identity-slot-save"
+        onClick={() => void save()}
+        disabled={!url || saving}
+        aria-label={`Tải ảnh CCCD ${label.toLowerCase()} về máy`}
+        title="Tải ảnh về máy — điện thoại lưu thẳng vào Bộ sưu tập"
+      >
+        {saving ? (
+          <LoaderCircle size={13} className="spin" />
+        ) : (
+          <Download size={13} />
+        )}
+        {saving ? "Đang tải…" : "Tải ảnh"}
+      </Button>
+      <PhotoSaveSheet request={sheet} onClose={() => setSheet(null)} />
+    </>
+  );
 }
 
 /**
@@ -294,18 +381,27 @@ export function IdentityDocumentPanel({
                       </span>
                     )}
                   </button>
-                  {imagePath && (
-                    <Button
-                      variant="ghost"
-                      className="small identity-slot-remove"
-                      onClick={() => void handleRemove(side, label, imagePath)}
-                      disabled={remove.isPending}
-                      aria-label={`Gỡ ảnh CCCD ${label.toLowerCase()}`}
-                      title="Gỡ ảnh này khỏi hồ sơ và xóa hẳn khỏi kho"
-                    >
-                      <Trash2 size={13} /> Gỡ ảnh
-                    </Button>
-                  )}
+                  {imagePath ? (
+                    <div className="identity-slot-actions">
+                      <IdentityPhotoSave
+                        path={imagePath}
+                        label={label}
+                        nameBase={`CCCD ${personLabel} ${label}`}
+                      />
+                      <Button
+                        variant="ghost"
+                        className="small identity-slot-remove"
+                        onClick={() =>
+                          void handleRemove(side, label, imagePath)
+                        }
+                        disabled={remove.isPending}
+                        aria-label={`Gỡ ảnh CCCD ${label.toLowerCase()}`}
+                        title="Gỡ ảnh này khỏi hồ sơ và xóa hẳn khỏi kho"
+                      >
+                        <Trash2 size={13} /> Gỡ ảnh
+                      </Button>
+                    </div>
+                  ) : null}
                 </div>
               );
             })}

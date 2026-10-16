@@ -2828,6 +2828,33 @@ pre {
 .vehicle-display-close:hover {
   background: rgba(255, 255, 255, 0.3);
 }
+/* Nút tải ảnh trong khung xem lớn: cùng cỡ, cùng chất liệu với nút đóng để thành
+   một cặp ở góc phải trên, và đứng bên TRÁI nút đóng nên thói quen chạm "đóng"
+   ở corner phải không bị dịch khi thêm nút mới. */
+.vehicle-display-save {
+  position: absolute;
+  top: 14px;
+  right: 60px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.16);
+  color: #f8fafc;
+  cursor: pointer;
+  transition: background-color 150ms ease;
+}
+.vehicle-display-save:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.3);
+}
+.vehicle-display-save:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
 /* Compact, wrapping action bar so "Gỡ ảnh"/"Giữ lại" never squish or break
    mid-word inside the narrow gallery cell on mobile and desktop. */
 .photo-actions {
@@ -5479,6 +5506,40 @@ mark.search-hit {
 [data-theme="dark"] .identity-slot-remove:hover {
   color: #fca5a5;
   background: rgba(239, 68, 68, 0.14);
+}
+/* Hai điều khiển dưới mỗi mặt CCCD: "Tải ảnh" vô hại đứng cạnh "Gỡ ảnh" phá hủy.
+   auto-fit để cặp nút chung hàng khi ô đủ rộng và tự xếp chồng khi ô hẹp (màn
+   320px) — nhãn không bao giờ vỡ dòng, bố cục không nhảy theo tên người. */
+.identity-slot-actions {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(104px, 1fr));
+  gap: 6px;
+}
+/* Cùng trần chạm 44px với nút gỡ nhưng viền liền, mực trung tính: phân cấp bằng
+   chất liệu thay vì bằng đỏ, để "tải về" không trông như một lệnh xóa. */
+.identity-slot-save {
+  justify-self: stretch;
+  min-height: var(--touch-target, 44px);
+  padding: 6px 10px;
+  color: #334155;
+  background: transparent;
+  border: 1px solid var(--line, #e3e4ea);
+}
+.identity-slot-save:hover:not(:disabled) {
+  color: #0f172a;
+  border-color: #94a3b8;
+  background: rgba(100, 116, 139, 0.08);
+}
+.identity-slot-save:disabled {
+  opacity: 0.55;
+}
+[data-theme="dark"] .identity-slot-save {
+  color: #cbd5e1;
+  border-color: rgba(203, 213, 225, 0.22);
+}
+[data-theme="dark"] .identity-slot-save:hover:not(:disabled) {
+  color: #f1f5f9;
+  background: rgba(148, 163, 184, 0.16);
 }
 .identity-upload-slot .image-placeholder {
   width: 100%;
@@ -9787,6 +9848,44 @@ mark.search-hit {
   max-height: min(90dvh, 700px);
   overflow: hidden;
   box-sizing: border-box;
+}
+/* Khung hướng dẫn "nhấn giữ để lưu" cho iPhone không mở được bảng chia sẻ của
+   máy: ảnh hiển thị nguyên vẹn và menu ngữ cảnh của ảnh được mở thẳng tay
+   (-webkit-touch-callout) vì cú nhấn giữ là đường duy nhất trang web ghi được
+   vào Bộ sưu tập. */
+/* Nền phải đứng trên khung ảnh xem lớn (z-index 120): nút tải ảnh cũng nằm
+   trong đó, nếu không khung hướng dẫn sẽ hiện sau lưng tấm ảnh. */
+.photo-save-sheet-backdrop {
+  z-index: 130;
+}
+.photo-save-sheet {
+  display: grid;
+  gap: 12px;
+  justify-items: center;
+  text-align: center;
+}
+.photo-save-sheet-lead {
+  margin: 0;
+  font-size: 14.5px;
+  line-height: 1.5;
+}
+.photo-save-sheet-img {
+  width: 100%;
+  max-height: 46dvh;
+  object-fit: contain;
+  border-radius: 12px;
+  background: #f4f4f6;
+  -webkit-touch-callout: default !important;
+}
+[data-theme="dark"] .photo-save-sheet-img {
+  background: #14151b;
+}
+.photo-save-sheet-caption {
+  max-width: 100%;
+  margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .confirm-dialog-icon {
   width: 44px;

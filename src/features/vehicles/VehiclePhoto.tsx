@@ -5,11 +5,22 @@ import {
   Camera,
   ChevronLeft,
   ChevronRight,
+  Download,
   ImagePlus,
+  LoaderCircle,
   X,
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { toast } from "@/lib/toast";
+import {
+  saveImageToDevice,
+  saveOutcomeToast,
+  warmImageForSave,
+} from "@/lib/imageSave";
+import {
+  PhotoSaveSheet,
+  type PhotoSaveSheetRequest,
+} from "@/components/ui/PhotoSaveSheet";
 import { Button, ErrorState } from "@/components/ui";
 import type { VehicleImage } from "@/types";
 
@@ -56,6 +67,66 @@ export function VehiclePhotoDisplay({
       client.invalidateQueries();
     },
   });
+  // Tải ảnh về máy: một hành động cho cả thềm nút lẫn ảnh xem lớn, dùng đúng
+  // signed URL đang hiển thị nên không ký lại liên kết.
+  const shownUrl = query?.data;
+  const saveName = `${vehicleName} ảnh ${current + 1}`;
+  const [saving, setSaving] = useState(false);
+  const [sheet, setSheet] = useState<PhotoSaveSheetRequest | null>(null);
+  useEffect(() => {
+    if (shownUrl) warmImageForSave(shownUrl);
+  }, [shownUrl]);
+  const save = async () => {
+    if (!shownUrl || saving) return;
+    setSaving(true);
+    try {
+      const outcome = await saveImageToDevice({
+        url: shownUrl,
+        nameBase: saveName,
+        title: `${vehicleName} — ảnh ${current + 1}/${count}`,
+      });
+      // Bảng chia sẻ của máy đã hiện: ảnh vào Bộ sưu tập khi người dùng chọn
+      // "Lưu vào Ảnh". Người tự đóng bảng thì coi như không làm gì. iPhone không
+      // mở được bảng đó thì đưa ảnh vào khung nhấn giữ, đừng tải sang FILES.
+      if (outcome === "long-press")
+        setSheet({
+          url: shownUrl,
+          caption: `${vehicleName} — ảnh ${current + 1}`,
+        });
+      else {
+        const note = saveOutcomeToast(outcome);
+        if (note)
+          toast.success(
+            note.title,
+            note.description ? { description: note.description } : undefined,
+          );
+      }
+    } catch (error) {
+      toast.error(
+        error instanceof Error && error.message
+          ? error.message
+          : "Không tải được ảnh về máy. Hãy thử lại.",
+      );
+    } finally {
+      setSaving(false);
+    }
+  };
+  const saveButton = (
+    <Button
+      variant="secondary"
+      disabled={!shownUrl || saving || remove.isPending}
+      onClick={() => void save()}
+      aria-label={`Tải ảnh ${current + 1}/${count} về máy`}
+      title="Tải ảnh về máy — điện thoại lưu thẳng vào Bộ sưu tập"
+    >
+      {saving ? (
+        <LoaderCircle size={14} className="spin" />
+      ) : (
+        <Download size={14} />
+      )}
+      {saving ? "Đang tải…" : "Tải ảnh"}
+    </Button>
+  );
   const step = (delta: number) => {
     setConfirm(false);
     setSelected((current + delta + count) % count);
@@ -134,9 +205,7 @@ export function VehiclePhotoDisplay({
       ) : (
         <div className="image-placeholder">
           <Camera size={28} />
-          <span>
-            {query?.isError ? "Không tải được ảnh" : "Đang tải ảnh…"}
-          </span>
+          <span>{query?.isError ? "Không tải được ảnh" : "Đang tải ảnh…"}</span>
         </div>
       )}
       {count > 1 && (
@@ -203,9 +272,9 @@ export function VehiclePhotoDisplay({
               />
             );
           })}
-          {(onAddPhoto || addPhotoHref) && (
+          {(onAddPhoto || addPhotoHref) &&
             /* Ô "+ ảnh" cuối dải: thêm bao nhiêu ảnh cũng không tràn UI */
-            onAddPhoto ? (
+            (onAddPhoto ? (
               <button
                 type="button"
                 onClick={onAddPhoto}
@@ -224,34 +293,40 @@ export function VehiclePhotoDisplay({
               >
                 <ImagePlus size={18} />
               </Link>
-            )
-          )}
+            ))}
         </div>
       )}
-      {removable && (
-        <div className="photo-actions">
-          {confirm ? (
-            <>
-              <Button
-                variant="danger"
-                disabled={remove.isPending}
-                onClick={() => remove.mutate()}
-              >
-                Gỡ ảnh
-              </Button>
-              {/* secondary (viền rõ) thay ghost: người dùng nhìn thấy lối
-                  "Giữ lại" ngay, không phải dò hover mới thấy nút. */}
-              <Button variant="secondary" onClick={() => setConfirm(false)}>
-                Giữ lại
-              </Button>
-            </>
-          ) : (
-            <Button variant="secondary" onClick={() => setConfirm(true)}>
-              Gỡ ảnh này
+      <div className="photo-actions">
+        {confirm ? (
+          <>
+            <Button
+              variant="danger"
+              disabled={remove.isPending}
+              onClick={() => remove.mutate()}
+            >
+              Gỡ ảnh
             </Button>
-          )}
-        </div>
-      )}
+            {/* secondary (viền rõ) thay ghost: người dùng nhìn thấy lối
+                "Giữ lại" ngay, không phải dò hover mới thấy nút. */}
+            <Button variant="secondary" onClick={() => setConfirm(false)}>
+              Giữ lại
+            </Button>
+          </>
+        ) : (
+          <>
+            {saveButton}
+            {removable && (
+              <Button
+                variant="ghost"
+                className="photo-actions-remove"
+                onClick={() => setConfirm(true)}
+              >
+                Gỡ ảnh này
+              </Button>
+            )}
+          </>
+        )}
+      </div>
       {remove.isError && <ErrorState error={remove.error} />}
       {zoom && query?.data && (
         <div
@@ -297,9 +372,28 @@ export function VehiclePhotoDisplay({
               >
                 <ChevronRight size={24} />
               </button>
-              <span className="vehicle-display-count">{current + 1}/{count}</span>
+              <span className="vehicle-display-count">
+                {current + 1}/{count}
+              </span>
             </>
           )}
+          <button
+            type="button"
+            className="vehicle-display-save"
+            aria-label={`Tải ảnh ${current + 1}/${count} về máy`}
+            title="Tải ảnh về máy — điện thoại lưu thẳng vào Bộ sưu tập"
+            disabled={!shownUrl || saving}
+            onClick={(event) => {
+              event.stopPropagation();
+              void save();
+            }}
+          >
+            {saving ? (
+              <LoaderCircle size={22} className="spin" />
+            ) : (
+              <Download size={22} />
+            )}
+          </button>
           <button
             type="button"
             className="vehicle-display-close"
@@ -310,6 +404,7 @@ export function VehiclePhotoDisplay({
           </button>
         </div>
       )}
+      <PhotoSaveSheet request={sheet} onClose={() => setSheet(null)} />
     </div>
   );
 }

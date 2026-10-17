@@ -1,0 +1,88 @@
+name: nightly backup to Google Drive
+# Sao lưu độc lập với máy của chủ quán: GitHub tự chạy mỗi đêm 02:30 (giờ VN),
+# máy tính tắt vẫn chạy. Đổ ra Google Drive qua rclone + OAuth client tự tạo.
+#
+# SECRET BẮT BUỘC (Settings → Secrets and variables → Actions), thiếu một trong ba
+# thì job FAIL — đó là chủ ý, không được im lặng bỏ qua bước upload:
+#   BACKUP_DB_URL       postgres://postgres:<MAT_KHAU_DB>@db.<REF>.supabase.co:5432/postgres
+#                       PHẢI dùng host "db." (kết nối trực tiếp). Host chứa "pooler."
+#                       làm pg_dump lỗi hoặc treo, và lỗi trông như hỏng mạng.
+#   GOOGLE_DRIVE_CONFIG toàn bộ nội dung file rclone.conf (đã có remote tên "gdrive")
+#   DRIVE_BACKUP_PATH   đường thư mục con trong Drive, ví dụ: Carem Backup/nightly
+on:
+  schedule:
+    - cron: "30 19 * * *" # 19:30 UTC = 02:30 sáng hôm sau, giờ Asia/Ho_Chi_Minh
+  workflow_dispatch: {} # cho phép bấm chạy thử tay bất cứ lúc nào
+
+permissions:
+  contents: read
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Cài rclone
+        run: |
+          curl -sS https://rclone.org/install.sh | sudo bash
+          rclone version | head -1
+
+      - name: Nạp chìa Google Drive
+        env:
+          GOOGLE_DRIVE_CONFIG: ${{ secrets.GOOGLE_DRIVE_CONFIG }}
+        run: |
+          test -n "$GOOGLE_DRIVE_CONFIG" || { echo "Thiếu secret GOOGLE_DRIVE_CONFIG"; exit 1; }
+          mkdir -p ~/.config/rclone
+          printf '%s\n' "$GOOGLE_DRIVE_CONFIG" > ~/.config/rclone/rclone.conf
+          # Không in nội dung: file này chứa refresh token.
+
+      - name: Kiểm chìa còn sống không (fail sớm, rõ nguyên nhân)
+        run: |
+          # Nếu app OAuth còn ở chế độ Testing thì chìa hết hạn sau 7 ngày, và
+          # rclone sẽ báo ở đây. Biết sớm hơn là để backup chết lặng giữa đêm.
+          rclone lsd gdrive: --max-depth 1 | sed -n '1,10p'
+
+      - name: Xuất cấu trúc + dữ liệu database
+        env:
+          BACKUP_DB_URL: ${{ secrets.BACKUP_DB_URL }}
+        run: |
+          test -n "$BACKUP_DB_URL" || { echo "Thiếu secret BACKUP_DB_URL"; exit 1; }
+          case "$BACKUP_DB_URL" in
+            *pooler.*) echo "BACKUP_DB_URL đang trỏ vào pooler — phải dùng host db.<ref>.supabase.co"; exit 1;;
+          esac
+          docker run --rm -v "$PWD:/w" -w /w postgres:16-alpine \
+            pg_dump "$BACKUP_DB_URL" --no-owner --if-exists --clean \
+              --schema=public --schema=private -f schema.sql
+          docker run --rm -v "$PWD:/w" -w /w postgres:16-alpine \
+            pg_dump "$BACKUP_DB_URL" --no-owner --data-only -f data.sql
+          # Ledger migration: biết production đang ở phiên bản nào để dựng lại đúng chỗ.
+          { echo "# Migration ledger (GitHub Actions) $(date -u +%FT%TZ)"; echo '```'; \
+            docker run -i --rm -v "$PWD:/w" -w /w postgres:16-alpine \
+              psql "$BACKUP_DB_URL" -At -c "select version from supabase_migrations.schema_migrations order by version"; echo '```'; \
+          } > migration-history.txt || echo "khong doc duoc ledger" > migration-history.txt
+          du -h schema.sql data.sql migration-history.txt
+
+      - name: Đóng gói và đẩy lên Google Drive
+        env:
+          DRIVE_BACKUP_PATH: ${{ secrets.DRIVE_BACKUP_PATH }}
+        run: |
+          test -n "$DRIVE_BACKUP_PATH" || { echo "Thiếu secret DRIVE_BACKUP_PATH"; exit 1; }
+          DAY=$(date -u +%F)
+          tar czf "carem-github-backup-$DAY.tar.gz" schema.sql data.sql migration-history.txt
+          rclone copyto "carem-github-backup-$DAY.tar.gz" "gdrive:$DRIVE_BACKUP_PATH/carem-github-backup-$DAY.tar.gz" \
+            --checksum
+          # Giữ 30 bản gần nhất trong Drive để không phình hạn mức miễn phí.
+          rclone delete gdrive:"$DRIVE_BACKUP_PATH" \
+            --min-age 30d --include "carem-github-backup-*.tar.gz"
+          echo "Đã lên Drive: $DRIVE_BACKUP_PATH/carem-github-backup-$DAY.tar.gz"
+
+      - name: Báo thất bại rõ ràng (không im lặng)
+        if: failure()
+        run: |
+          echo "::error::Backup lên Google Drive THẤT BẠI. Kiểm tra: (1) OAuth app còn In production chứ không rớt về Testing; (2) chìa rclone còn hiệu lực; (3) BACKUP_DB_URL dùng host db., không pooler."
+
+# CHƯA LÀM (có chủ đích, thêm sau khi job này xanh): tải ẢNH từ Storage.
+# Ảnh vẫn được lấy đủ 49 file bởi worker trên máy quán lúc 01:00
+# (scripts/backup-daily.ps1). Đưa tải ảnh vào đây cần thêm SUPABASE_SERVICE_KEY
+# và vòng lặp đệ quy theo cấu trúc thư mục — làm từng bước một để biết chắc
+# bước nào hỏng khi nó đỏ.

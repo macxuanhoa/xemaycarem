@@ -151,7 +151,7 @@ try {
         .replace(/\b(Bearer|Authorization|password|secret|token|api[_-]?key)(\s*[:=]\s*|\s+)['"]?([^\s'",)]{6,})/gi,
           (_m, word, sep) => `${word}${sep}<DAU-GIAY>`
         )
-        .replace(/[A-Za-z0-9+\/=_-]{40,}/g, '<CHUOI_BI_MAT>')
+        .replace(/[A-Za-z0-9+/=_-]{40,}/g, '<CHUOI_BI_MAT>')
     }
     if (Array.isArray(value)) return value.map(scrub)
     if (value && typeof value === 'object') return Object.fromEntries(Object.entries(value).map(([k, v]) => [k, scrub(v)]))
@@ -203,7 +203,7 @@ try {
   writeFileSyncSafe(`${prefix}-rebuild-kit.json`, JSON.stringify(kit, null, 2) + '\n')
   // Cổng chặn lần hai, chạy trên nội dung ĐÃ tẩy. Còn sót bất kỳ credential nào (kể cả
   // hash JWT, key Vercel/Supabase, chuỗi opaque 40+) -> xóa file và HỦY cả bản backup.
-  const leaked = JSON.stringify(kit).match(/vcp_[A-Za-z0-9]{6,}|eyJ[A-Za-z0-9_-]{10,}\.eyJ|sb_secret_[A-Za-z0-9]{6,}|postgres:\/\/[^\s"]*:[^\s"]*@|Bearer\s+[A-Za-z0-9+\/=_-]{6,}|[A-Za-z0-9+\/=_-]{40,}/)
+  const leaked = JSON.stringify(kit).match(/vcp_[A-Za-z0-9]{6,}|eyJ[A-Za-z0-9_-]{10,}\.eyJ|sb_secret_[A-Za-z0-9]{6,}|postgres:\/\/[^\s"]*:[^\s"]*@|Bearer\s+[A-Za-z0-9+/=_-]{6,}|[A-Za-z0-9+/=_-]{40,}/)
   if (leaked) {
     rmSync(`${prefix}-rebuild-kit.json`, { force: true })
     throw new Error(`rebuild kit refuses to store a secret value (${leaked[0].slice(0, 14)}...)`)

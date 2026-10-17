@@ -26,8 +26,32 @@ New-Item -ItemType Directory -Force -Path 'backups' | Out-Null
 function Test-DockerEngine {
   $ErrorActionPreference = 'Continue'
   if (-not (Get-Command docker -ErrorAction SilentlyContinue)) { return $false }
-  docker info --format '{{.ServerVersion}}' 2>&1 | Out-Null
-  return ($LASTEXITCODE -eq 0)
+  # `docker info` CO THE TRE VO HAN khi Docker Desktop song giua chung: engine liet
+  # nhung named pipe van chap ket noi. Goi truc tiep khien backup-daily.ps1 ding lai
+  # ngay tai day, khong ghi duoc dong log nao, Task Scheduler bao "Running" cho den
+  # han 2 gio roi chet lang -> dem do KHONG CO ban sao luu ma khong ai biet.
+  # Dung Process + WaitForExit(millisecond) vi do la cach duy nhat co dong ho gem ma
+  # KHONG can Start-Job: Start-Job bi cam trong mot so moi truong ("Access is denied"),
+  # ma dung no thi loi lai thanh that bai im lang khi may that chang hon may nay.
+  # Khong doc stdout: lenh nay tra ve duoi 100 byte, du ngan de day khong bao gio nghet.
+  try {
+    $psi = New-Object System.Diagnostics.ProcessStartInfo
+    $psi.FileName = 'docker'
+    $psi.Arguments = 'info --format {{.ServerVersion}}'
+    $psi.UseShellExecute = $false
+    $psi.CreateNoWindow = $true
+    $process = [System.Diagnostics.Process]::Start($psi)
+    if (-not $process.WaitForExit(25000)) {
+      try { $process.Kill() } catch {}
+      try { $process.WaitForExit(3000) } catch {}
+      return $false
+    }
+    return ($process.ExitCode -eq 0)
+  } catch {
+    return $false
+  } finally {
+    if ($process) { $process.Dispose() }
+  }
 }
 function Ensure-Docker {
   if (Test-DockerEngine) { return $true }

@@ -25,14 +25,18 @@ import { toast } from "@/lib/toast";
 import { friendlyError } from "@/lib/errors";
 import { canManage, canOperate } from "@/lib/permissions";
 import { resolveVehicleQr } from "@/lib/qrcode";
+import { canonicalizePlate } from "@/lib/plate";
 import { useAuth } from "@/features/auth/AuthProvider";
 import { Button, Card } from "@/components/ui";
 import {
   classifyFields,
+  decisionTier,
   normalizeScan,
   normalizeScanRisks,
   saveRecognitionDraft,
+  type DecisionTier,
   type Recognition,
+  type ScannedFields,
   type ScannedKey,
   type VehicleMatch,
 } from "@/lib/smartcam/recognition";
@@ -101,9 +105,17 @@ import {
 } from "@/lib/smartcam/local/analysisBridge";
 import {
   nextTickMs,
-  pushVote,
-  type VoteState,
+  pushEvidence,
+  readEvidence,
+  type FieldEvidence,
 } from "@/lib/smartcam/local/voting";
+import {
+  inventoryNearMatches,
+  type NearMatch,
+} from "@/lib/smartcam/inventoryPrior";
+import ScanConfirmStrip, {
+  type ScanConfirmation,
+} from "./ScanConfirmStrip";
 import {
   cloudAllowed,
   loadLedger,
@@ -117,6 +129,26 @@ const FIELD_LABELS: Record<ScannedKey, string> = {
   license_plate: "Biển số",
   frame_number: "Số khung",
 };
+/**
+ * A read the camera is not entitled to commit on its own: the recognition is
+ * prepared and waiting, the preview stays live, and one tap decides.
+ */
+type PendingScan = {
+  recognition: Recognition;
+  confirmation: ScanConfirmation;
+};
+
+/** Alphanumerics only — the space vote positions are counted against. */
+const compactIdentifier = (value: string) => value.replace(/[^A-Z0-9]/g, "");
+/**
+ * A tick only contributes evidence when the frame physically deserves trust:
+ * the scene must be steady, the analysis confident, and the characters big
+ * enough to tell `5` from `S`. Failing the gate costs nothing — such a tick
+ * neither votes nor resets — so a shaky hand delays the beep instead of
+ * producing a plausible-but-wrong identifier.
+ */
+const TICK_QUALITY_FLOOR = 0.5;
+const TICK_GLYPH_HEIGHT = 18;
 const STATUS_LABELS = {
   IN_STOCK: "còn kho",
   RESERVED: "đã giữ chỗ",
@@ -267,7 +299,10 @@ export default function SmartVehicleScan({
   const cloudPending = useRef(false);
   const resultRef = useRef<Recognition | null>(null);
   const followUpDraft = useRef<Recognition | null>(null);
-  const voteRef = useRef<VoteState>(null);
+  const plateEvidence = useRef<FieldEvidence | null>(null);
+  const frameEvidence = useRef<FieldEvidence | null>(null);
+  const identityEvidence = useRef<FieldEvidence | null>(null);
+  const pendingScan = useRef<PendingScan | null>(null);
   const misses = useRef(0);
   const previousScene = useRef<Float32Array | null>(null);
   // Pixel localization is the heaviest main-thread work in the tick; a stable
@@ -289,6 +324,9 @@ export default function SmartVehicleScan({
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
   const [liveHint, setLiveHint] = useState("");
+  const [confirmation, setConfirmation] = useState<ScanConfirmation | null>(
+    null,
+  );
   const [result, setResult] = useState<Recognition | null>(null);
   const [identityMatch, setIdentityMatch] = useState<VehicleMatch | null>(null);
   const identityMatchRef = useRef<VehicleMatch | null>(null);
@@ -327,6 +365,32 @@ export default function SmartVehicleScan({
     resultRef.current = value;
     setResult(value);
   }, []);
+
+  /** Evidence belongs to one look at one bike; a new view starts clean. */
+  const resetEvidence = useCallback(() => {
+    plateEvidence.current = null;
+    frameEvidence.current = null;
+    identityEvidence.current = null;
+  }, []);
+
+  /**
+   * Leave the ask-a-human surface. `rescan` also drops the accumulated
+   * evidence so the staff is not re-asked about the same shaky read.
+   */
+  const clearConfirmation = useCallback(
+    (rescan = false) => {
+      pendingScan.current = null;
+      setConfirmation(null);
+      if (rescan) {
+        resetEvidence();
+        frameWindow.current = [];
+        misses.current = 0;
+        if (mounted.current)
+          setLiveHint("Đưa biển số hoặc số khung rõ hơn vào khung…");
+      }
+    },
+    [resetEvidence],
+  );
 
   const stopCamera = useCallback(async () => {
     epoch.current++;
@@ -395,7 +459,9 @@ export default function SmartVehicleScan({
       commitResult(null);
       identityMatchRef.current = null;
       setIdentityMatch(null);
-      voteRef.current = null;
+      resetEvidence();
+      pendingScan.current = null;
+      setConfirmation(null);
       misses.current = 0;
       previousScene.current = null;
       frameWindow.current = [];
@@ -499,7 +565,7 @@ export default function SmartVehicleScan({
         if (mounted.current) setCameraBusy(false);
       }
     },
-    [activeFacing, commitResult, isCurrent, mode],
+    [activeFacing, commitResult, isCurrent, mode, resetEvidence],
   );
 
   useEffect(() => {
@@ -530,52 +596,19 @@ export default function SmartVehicleScan({
     [identityAllowed, isCurrent, navigate, stopCamera],
   );
 
-  const finishWithFields = useCallback(
-    async (
-      draft: Record<string, unknown>,
-      via: "local" | "cloud",
-      frame: CapturedFrame | null,
-      token: number,
-    ) => {
-      if (!isCurrent(token)) return false;
-      const current = normalizeScan(draft);
-      if (!Object.values(current).some(Boolean)) return false;
-      const fields =
-        followUpDraft.current && mode === "scan"
-          ? { ...followUpDraft.current.fields }
-          : { ...current };
-      for (const key of Object.keys(current) as ScannedKey[])
-        if (current[key]) fields[key] = current[key];
-      const riskCharacters = { ...followUpDraft.current?.riskCharacters };
-      const currentRisks = normalizeScanRisks(draft, current);
-      for (const key of ["license_plate", "frame_number"] as const) {
-        if (current[key]) {
-          delete riskCharacters[key];
-          if (currentRisks[key]) riskCharacters[key] = currentRisks[key];
-        }
-      }
-      const match = await lookupScan(fields);
-      if (!isCurrent(token)) return false;
-      const recognition: Recognition = {
-        version: 1,
-        scannedAt: new Date().toISOString(),
-        fields,
-        statuses: classifyFields(fields, match, riskCharacters),
-        match,
-        photos: [
-          ...(followUpDraft.current?.photos ?? []),
-          ...(frame ? [frame.dataUrl] : []),
-        ].slice(0, 4),
-        source: via,
-        riskCharacters,
-      };
-      const uncertain = Object.values(riskCharacters).some(
-        (indexes) => indexes && indexes.length > 0,
-      );
+  /**
+   * Commit a read and take the staff where it points. `locked` means the
+   * camera proved it — or a person just decided it — so it may open a record
+   * or prefill the acquisition form without another touch.
+   */
+  const settleResult = useCallback(
+    async (recognition: Recognition, locked: boolean): Promise<boolean> => {
+      const fields = recognition.fields;
+      const match = recognition.match;
       scanTone(
-        uncertain || match.state === "conflict" || match.state === "ambiguous"
-          ? "review"
-          : "match",
+        locked && match.state !== "conflict" && match.state !== "ambiguous"
+          ? "match"
+          : "review",
       );
       commitResult(recognition);
       saveRecognitionDraft(profile?.id, recognition);
@@ -596,18 +629,21 @@ export default function SmartVehicleScan({
         (key) => !fields[key] || recognition.statuses[key] === "VERIFIED",
       );
       if (
+        locked &&
         mode === "scan" &&
         match.state === "unique" &&
-        safeIdentity &&
-        !uncertain
+        safeIdentity
       ) {
         navigate("/vehicles/" + match.vehicle.id);
         return true;
       }
 
       // 2. Khi quét ở màn hình camera chính và xe chưa có trong kho:
-      // Tự động chuyển thẳng vào form thu xe và điền sẵn thông tin vừa quét!
+      // Tự động chuyển thẳng vào form thu xe và điền sẵn thông tin vừa quét.
+      // Chỉ chạy khi ký tự đã chắc chắn — một suy đoán không được phép trở
+      // thành phiếu thu xe.
       if (
+        locked &&
         mode === "scan" &&
         match.state === "none" &&
         (fields.license_plate || fields.frame_number)
@@ -619,7 +655,6 @@ export default function SmartVehicleScan({
             (fields.license_plate ? `biển số ${fields.license_plate}` : `số khung ${fields.frame_number}`),
           {
             description: "Đã tự động điền thông tin vào form thu xe.",
-            duration: 4000,
           },
         );
         navigate(returnTo, {
@@ -635,7 +670,166 @@ export default function SmartVehicleScan({
       }
       return true;
     },
-    [commitResult, isCurrent, mode, navigate, onScanComplete, profile?.id, stopCamera],
+    [commitResult, mode, navigate, onScanComplete, profile?.id, stopCamera],
+  );
+
+  /** Ask inventory only about the glyph this read admitted it could not read. */
+  const askInventory = useCallback(
+    async (confirmation: ScanConfirmation, token: number) => {
+      const groups = await Promise.all(
+        (["license_plate", "frame_number"] as ScannedKey[])
+          .filter(
+            (key) => confirmation.fields[key] && confirmation.disputed[key].length,
+          )
+          .map((key) =>
+            inventoryNearMatches(key, confirmation.fields[key], confirmation.disputed[key]),
+          ),
+      );
+      const near = groups.flat().slice(0, 2);
+      const pending = pendingScan.current;
+      if (!near.length || !isCurrent(token) || pending?.confirmation !== confirmation)
+        return;
+      const next = { ...confirmation, near };
+      pendingScan.current = { recognition: pending.recognition, confirmation: next };
+      if (mounted.current) setConfirmation(next);
+    },
+    [isCurrent],
+  );
+
+  const finishWithFields = useCallback(
+    async (
+      draft: Record<string, unknown>,
+      via: "local" | "cloud",
+      frame: CapturedFrame | null,
+      token: number,
+      options: {
+        /** Per-field proof from the frame evidence; absent = never AUTO. */
+        evidence?: { license_plate: boolean; frame_number: boolean };
+        /** Runner-up readings, for the ask-a-human surface. */
+        alternatives?: Record<ScannedKey, string[]>;
+        /** Live loop: an uncertain read pauses instead of closing the camera. */
+        interactive?: boolean;
+        /** A person already chose these characters on the strip. */
+        reviewed?: boolean;
+      } = {},
+    ) => {
+      if (!isCurrent(token)) return false;
+      const current = normalizeScan(draft);
+      if (!Object.values(current).some(Boolean)) return false;
+      const fields =
+        followUpDraft.current && mode === "scan"
+          ? { ...followUpDraft.current.fields }
+          : { ...current };
+      for (const key of Object.keys(current) as ScannedKey[])
+        if (current[key]) fields[key] = current[key];
+      const riskCharacters = { ...followUpDraft.current?.riskCharacters };
+      const currentRisks = normalizeScanRisks(draft, current);
+      for (const key of ["license_plate", "frame_number"] as const) {
+        if (current[key]) {
+          delete riskCharacters[key];
+          if (currentRisks[key]) riskCharacters[key] = currentRisks[key];
+        }
+      }
+      const match = await lookupScan(fields);
+      if (!isCurrent(token)) return false;
+      // A cloud read carries no per-frame evidence of its own; it can still be
+      // proved by matching one stored vehicle exactly.
+      const tier: DecisionTier = options.reviewed
+        ? "AUTO"
+        : decisionTier(
+            fields,
+            riskCharacters,
+            options.evidence ?? { license_plate: false, frame_number: false },
+            match,
+          );
+      const recognition: Recognition = {
+        version: 1,
+        scannedAt: new Date().toISOString(),
+        fields,
+        statuses: classifyFields(fields, match, riskCharacters),
+        match,
+        photos: [
+          ...(followUpDraft.current?.photos ?? []),
+          ...(frame ? [frame.dataUrl] : []),
+        ].slice(0, 4),
+        source: via,
+        riskCharacters,
+        tier,
+        ...(options.alternatives ? { alternatives: options.alternatives } : {}),
+      };
+      if (tier === "CONFIRM" && options.interactive) {
+        // A read the camera cannot prove is a question, not a result: the
+        // preview stays live, the low tone says "look at this one", and only
+        // the character in doubt is put in front of the staff.
+        const confirmation: ScanConfirmation = {
+          fields,
+          disputed: {
+            license_plate: riskCharacters.license_plate ?? [],
+            frame_number: riskCharacters.frame_number ?? [],
+          },
+          alternatives: options.alternatives ?? {
+            license_plate: [],
+            frame_number: [],
+          },
+          near: [],
+        };
+        pendingScan.current = { recognition, confirmation };
+        scanTone("review");
+        if (mounted.current) {
+          setConfirmation(confirmation);
+          setLiveHint("Camera chưa chắc chắn — giữ yên để đọc lại, hoặc xác nhận ký tự được đánh dấu.");
+        }
+        void askInventory(confirmation, token);
+        return false;
+      }
+      return settleResult(recognition, tier === "AUTO");
+    },
+    [askInventory, isCurrent, mode, settleResult],
+  );
+
+  /** The staff confirmed the read: it is now an authoritative value. */
+  const acceptConfirmation = useCallback(() => {
+    const pending = pendingScan.current;
+    clearConfirmation();
+    if (!pending) return;
+    void settleResult({ ...pending.recognition, tier: "AUTO" }, true);
+  }, [clearConfirmation, settleResult]);
+
+  /**
+   * The staff said "this is the bike in stock". The record's own characters
+   * become the value, so the exact-match lookup legitimately returns VERIFIED —
+   * a person chose it, the camera never substituted it.
+   */
+  const acceptInventoryMatch = useCallback(
+    async (match: NearMatch) => {
+      const pending = pendingScan.current;
+      if (!pending) return;
+      const fields: ScannedFields = {
+        ...pending.confirmation.fields,
+        [match.field]:
+          match.field === "license_plate"
+            ? canonicalizePlate(match.vehicle.license_plate)
+            : match.vehicle.frame_number,
+      };
+      clearConfirmation();
+      try {
+        const resolved = await lookupScan(fields);
+        await settleResult(
+          {
+            ...pending.recognition,
+            fields,
+            statuses: classifyFields(fields, resolved, {}),
+            match: resolved,
+            riskCharacters: {},
+            tier: "AUTO",
+          },
+          true,
+        );
+      } catch (error) {
+        if (mounted.current) setMessage(friendlyError(error));
+      }
+    },
+    [clearConfirmation, settleResult],
   );
 
   const cloudRead = useCallback(
@@ -772,6 +966,9 @@ export default function SmartVehicleScan({
       processing.current ||
       busyRef.current ||
       resultRef.current ||
+      // Waiting on a human answer: the preview stays live, but the loop must
+      // not spend another OCR pass on a read it has already put up for review.
+      pendingScan.current ||
       identityMatchRef.current
     )
       return;
@@ -803,7 +1000,7 @@ export default function SmartVehicleScan({
         const motion = motionScore(previousScene.current, sig);
         motionStable = motion < 0.1;
         if (motion > 0.60) {
-          voteRef.current = null;
+          resetEvidence();
           frameWindow.current = [];
           misses.current = 0;
           analysisCache.current = { at: 0, analysis: null };
@@ -837,20 +1034,24 @@ export default function SmartVehicleScan({
       if (mode === "identity") {
         const read = await localReadIdentity(canvas);
         if (!isCurrent(token)) return;
-        const vote = pushVote(
-          voteRef.current,
-          read?.document_number ?? "",
-          read?.confidence ?? 0,
+        identityEvidence.current = pushEvidence(
+          identityEvidence.current,
+          read?.document_number
+            ? {
+                value: read.document_number,
+                compact: read.document_number,
+                confidence: read.confidence,
+                disputed: read.uncertainCharacters,
+                // A CCCD whose digit had to be guessed is never automatic.
+                autoEligible: read.uncertainCharacters.length === 0,
+              }
+            : null,
         );
-        voteRef.current = vote.state;
+        const outcome = readEvidence(identityEvidence.current);
         if (
-          vote.settled &&
-          read &&
-          (await finishIdentity(
-            read.document_number,
-            token,
-            read.uncertainCharacters,
-          ))
+          outcome.settled &&
+          !outcome.disputed.length &&
+          (await finishIdentity(outcome.value, token, outcome.disputed))
         )
           return;
         if (read) setLiveHint("Đang kiểm tra số CCCD — giữ yên căn cước…");
@@ -864,55 +1065,120 @@ export default function SmartVehicleScan({
           fast: true,
         });
         if (!isCurrent(token)) return;
-        const key = read ? read.license_plate + "|" + read.frame_number : "";
         const hasIdentifier = !!(read?.license_plate || read?.frame_number);
         frameWindow.current = appendScanSample(frameWindow.current, {
-          key: hasIdentifier ? key : "",
+          // Keyed by how many characters were read, not by the exact string: a
+          // single disagreeing glyph is evidence, not a different object.
+          slots: read
+            ? compactIdentifier(read.license_plate).length +
+              compactIdentifier(read.frame_number).length
+            : 0,
           analysis,
           value: { canvas, read },
         });
-        const confidence = read?.license_plate
-          ? read.plateConfidence
-          : (read?.frameConfidence ?? 0);
-        // Khi độ tin cậy cao (>= 70) và có cấu trúc hợp lệ, settle nhanh chỉ sau 1 frame
-        const isVeryConfident = confidence >= 70;
-        const vote = pushVote(
-          voteRef.current,
-          hasIdentifier ? key : "",
-          confidence,
-          isVeryConfident ? 1 : 2,
+        // A tick only votes when the frame physically deserves trust: steady,
+        // confidently analysed, characters big enough to tell 5 from S, and not
+        // two conflicting identifiers. Failing the gate neither adds nor
+        // discards evidence, so the cadence is untouched — a shaky hand delays
+        // the beep instead of producing a plausible-but-wrong identifier.
+        const tallest = Math.max(
+          0,
+          ...(analysis?.regions.map((region) => region.characterHeight) ?? []),
         );
-        voteRef.current = vote.state;
+        const trustworthy =
+          !!read &&
+          hasIdentifier &&
+          motionStable &&
+          (analysis?.quality.score ?? 0) >= TICK_QUALITY_FLOOR &&
+          !read.ambiguous.length &&
+          (!analysis?.regions.length || tallest >= TICK_GLYPH_HEIGHT);
+        if (trustworthy && read) {
+          plateEvidence.current = pushEvidence(
+            plateEvidence.current,
+            read.license_plate
+              ? {
+                  value: read.license_plate,
+                  compact: compactIdentifier(read.license_plate),
+                  confidence: read.plateConfidence,
+                  disputed: read.warnings.license_plate,
+                  autoEligible: read.autoEligible.license_plate,
+                }
+              : null,
+          );
+          frameEvidence.current = pushEvidence(
+            frameEvidence.current,
+            read.frame_number
+              ? {
+                  value: read.frame_number,
+                  compact: compactIdentifier(read.frame_number),
+                  confidence: read.frameConfidence,
+                  disputed: read.warnings.frame_number,
+                  autoEligible: read.autoEligible.frame_number,
+                }
+              : null,
+          );
+        }
         if (hasIdentifier)
           setLiveHint(
             "Đang đọc " +
               (read?.license_plate || read?.frame_number) +
               " — giữ yên…",
           );
-        if (vote.settled && read) {
+        const plate = readEvidence(plateEvidence.current);
+        const chassis = readEvidence(frameEvidence.current);
+        // Fire only once every field this burst has seen has settled, so a
+        // confident biển số cannot cut off a số khung still being resolved.
+        const settled =
+          (plate.settled || chassis.settled) &&
+          (!plateEvidence.current || plate.settled) &&
+          (!frameEvidence.current || chassis.settled);
+        if (settled && read) {
           const best = bestScanSample(frameWindow.current)?.value;
           const chosen = best?.read ?? read;
-          // A clearer image must not erase warnings observed on another agreeing frame.
-          const warnings = {
-            license_plate: [] as number[],
-            frame_number: [] as number[],
+          const fields: Record<ScannedKey, string> = {
+            // The winning reading of the vote, not whichever frame happened to
+            // be sharpest: agreement across frames is the evidence.
+            license_plate: plate.value,
+            frame_number: chassis.value,
           };
-          for (const field of ["license_plate", "frame_number"] as const) {
-            warnings[field] = [
-              ...new Set(
-                frameWindow.current.flatMap(
-                  (sample) => sample.value.read?.warnings[field] ?? [],
-                ),
-              ),
-            ];
-          }
-          const frame = await captureVideoFrame(best?.canvas ?? canvas);
+          // A clearer image must not erase warnings observed on another
+          // agreeing frame.
+          const disputed = {
+            license_plate: [...new Set([...plate.disputed, ...chosen.warnings.license_plate])].sort(
+              (a, b) => a - b,
+            ),
+            frame_number: [...new Set([...chassis.disputed, ...chosen.warnings.frame_number])].sort(
+              (a, b) => a - b,
+            ),
+          };
+          const still = await captureVideoFrame(best?.canvas ?? canvas);
           if (
             await finishWithFields(
-              { ...chosen, uncertain_characters: warnings },
+              { ...fields, uncertain_characters: disputed },
               "local",
-              frame,
+              still,
               token,
+              {
+                evidence: {
+                  license_plate: plate.autoEligible,
+                  frame_number: chassis.autoEligible,
+                },
+                alternatives: {
+                  license_plate: [
+                    ...new Set([
+                      ...chosen.alternatives.license_plate,
+                      ...plate.alternatives,
+                    ]),
+                  ],
+                  frame_number: [
+                    ...new Set([
+                      ...chosen.alternatives.frame_number,
+                      ...chassis.alternatives,
+                    ]),
+                  ],
+                },
+                interactive: true,
+              },
             )
           )
             return;
@@ -940,6 +1206,7 @@ export default function SmartVehicleScan({
     isCurrent,
     mode,
     readCodes,
+    resetEvidence,
   ]);
 
   useEffect(() => {
@@ -1008,6 +1275,12 @@ export default function SmartVehicleScan({
             "local",
             frame,
             token,
+            {
+              // One still image carries no per-frame vote, but its own region
+              // and full-frame passes must still agree before anything locks.
+              evidence: read.autoEligible,
+              alternatives: read.alternatives,
+            },
           );
       }
     } finally {
@@ -1361,6 +1634,14 @@ export default function SmartVehicleScan({
             )}
           </div>
           <div className="smartcam-control-panel">
+            {confirmation && (
+              <ScanConfirmStrip
+                confirmation={confirmation}
+                onAccept={acceptConfirmation}
+                onRescan={() => clearConfirmation(true)}
+                onUseInventory={(match) => void acceptInventoryMatch(match)}
+              />
+            )}
             <div className="smartcam-controls">
               {!running && (
                 <div className="smartcam-idle-actions">

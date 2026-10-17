@@ -3,43 +3,46 @@ import { cameraViewportBounds } from "../../src/lib/smartcam/capture";
 import {
   appendScanSample,
   bestScanSample,
+  SCAN_WINDOW_SIZE,
   type ScanSample,
 } from "../../src/lib/smartcam/local/frameWindow";
 import type { FrameAnalysis } from "../../src/lib/smartcam/local/regions";
 const analysis = (score: number) => ({ quality: { score } }) as FrameAnalysis;
-const sample = (key: string, value: number, score: number) => ({
-  key,
+const sample = (slots: number, value: number, score: number) => ({
+  slots,
   value,
   analysis: analysis(score),
 });
 describe("bounded scan evidence", () => {
-  it("keeps at most three frames and chooses the clearest among the same identifier", () => {
-    let window: ScanSample<number>[] = [sample("A", 1, 0.9)];
-    for (const i of [2, 3, 4])
-      window = appendScanSample(window, sample("A", i, i / 10));
-    expect(window.map((x) => x.value)).toEqual([2, 3, 4]);
-    expect(bestScanSample(window)?.value).toBe(4);
+  it("keeps a bounded window and chooses the clearest frame of the same shape", () => {
+    let window: ScanSample<number>[] = [sample(9, 1, 0.9)];
+    for (const i of [2, 3, 4, 5, 6, 7])
+      window = appendScanSample(window, sample(9, i, i / 10));
+    expect(window).toHaveLength(SCAN_WINDOW_SIZE);
+    expect(window.map((x) => x.value)).toEqual([3, 4, 5, 6, 7]);
+    expect(bestScanSample(window)?.value).toBe(7);
     expect(
-      bestScanSample([sample("A", 1, 0.9), sample("A", 2, 0.2)])?.value,
+      bestScanSample([sample(9, 1, 0.9), sample(9, 2, 0.2)])?.value,
     ).toBe(1);
   });
-  it("discards old evidence immediately on a different or missing identifier", () => {
-    expect(
-      appendScanSample([sample("A", 1, 1)], sample("B", 2, 0.1)).map(
-        (x) => x.value,
-      ),
-    ).toEqual([2]);
-    expect(
-      appendScanSample([sample("A", 1, 1)], sample("", 3, 0.1)).map(
-        (x) => x.value,
-      ),
-    ).toEqual([3]);
+  it("keeps frames that differ by one glyph, because the vote decides", () => {
+    // The old key was the exact string, so a single wobbling character threw
+    // away every sharp frame before it. Shape alone keeps the window.
+    const window = appendScanSample(
+      [sample(9, 1, 1), sample(9, 2, 0.8)],
+      sample(9, 3, 0.6),
+    );
+    expect(window.map((x) => x.value)).toEqual([1, 2, 3]);
+  });
+  it("discards old evidence on a different shape or a frame that read nothing", () => {
+    expect(appendScanSample([sample(9, 1, 1)], sample(8, 2, 0.1)).map((x) => x.value)).toEqual([2]);
+    expect(appendScanSample([sample(9, 1, 1)], sample(0, 3, 0.1)).map((x) => x.value)).toEqual([3]);
   });
   it("uses the latest frame when quality analysis is unavailable", () => {
     expect(
       bestScanSample([
-        { key: "", analysis: null, value: 1 },
-        { key: "", analysis: null, value: 2 },
+        { slots: 0, analysis: null, value: 1 },
+        { slots: 0, analysis: null, value: 2 },
       ])?.value,
     ).toBe(2);
     expect(bestScanSample([])).toBeUndefined();

@@ -297,7 +297,11 @@ test('smart camera: CCCD photo upload uses exact identity lookup and opens the s
   expect(calls.assist).toHaveLength(1)
   expect(calls.assist[0]).toMatchObject({ scan_mode: 'identity', consent: true })
   expect(calls.reads.filter(entry => entry.name === 'lookup_identity_document_vehicles')).toEqual([{ name: 'lookup_identity_document_vehicles', body: { p_id_number: '079090123456' } }])
-  expect(calls.reads.filter(entry => entry.name === 'list_vehicles')).toEqual([])
+  // The identity flow must resolve a vehicle ONLY through the exact-CCCD RPC.
+  // A badge count poll (`p_filters: { limit: 1 }`, no search) fires from the nav
+  // shell on its own 15 s timer and is unrelated background traffic, so the
+  // assertion is scoped to search-based inventory resolution.
+  expect(calls.reads.filter(entry => entry.name === 'list_vehicles' && entry.body.p_filters?.search)).toEqual([])
   expect(calls.writes).toEqual([])
   expect(calls.storage).toEqual([])
 })

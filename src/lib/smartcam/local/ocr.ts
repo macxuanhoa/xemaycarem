@@ -20,6 +20,7 @@ import {
   uniqueCandidate,
   type Candidate,
 } from "./candidates";
+import { AUTO_GLYPH_CONFIDENCE } from "./decoder";
 import {
   analyzeFrame,
   bandCanvas,
@@ -58,6 +59,13 @@ export type LocalRead = {
   passes: number;
   /** Analysis of the source frame; regions are pixel-based text hypotheses. */
   analysis?: FrameAnalysis;
+  /**
+   * This frame alone carries no unresolved evidence — still needs a second
+   * agreeing frame before the camera may lock without asking.
+   */
+  autoEligible: { license_plate: boolean; frame_number: boolean };
+  /** Runner-up readings the decoder ranked below the winner. */
+  alternatives: { license_plate: string[]; frame_number: string[] };
 };
 
 const WORKER_PATH = "/tesseract/worker.min.js";
@@ -223,6 +231,8 @@ export function releaseOcrWorker(): void {
 
 /**
  * Associate symbol confidence with a candidate rather than background text.
+ * A glyph the engine itself was unsure about can never be part of a silent
+ * auto-lock, however well the rest of the read lines up.
  */
 function withSymbolRisks(candidate: Candidate, pass: OcrPass): Candidate {
   if (!pass.glyphs?.length || !candidate.rawValue) return candidate;
@@ -232,6 +242,7 @@ function withSymbolRisks(candidate: Candidate, pass: OcrPass): Candidate {
     .indexOf(candidate.rawValue);
   if (start < 0) return candidate;
   const glyphs = pass.glyphs.slice(start, start + candidate.rawValue.length);
+  if (glyphs.length !== candidate.rawValue.length) return candidate;
   const value = candidate.value.replace(/[^A-Z0-9]/g, "");
   const corrected = [...candidate.rawValue].flatMap((character, index) =>
     character !== value[index] ? [index] : [],
@@ -251,7 +262,11 @@ function withSymbolRisks(candidate: Candidate, pass: OcrPass): Candidate {
           glyph.confidence < 68 ? [index] : [],
         ),
       ]),
-    ],
+    ].sort((a, b) => a - b),
+    // The engine's own weakest glyph is the honest floor for this reading.
+    autoEligible:
+      !!candidate.autoEligible &&
+      glyphs.every((glyph) => glyph.confidence >= AUTO_GLYPH_CONFIDENCE),
   };
 }
 
@@ -265,7 +280,7 @@ export function chooseIdentifierRead(
     target === "frame"
       ? []
       : complete.flatMap((pass) =>
-          parsePlateCandidates(pass.text, pass.confidence).map((candidate) =>
+          parsePlateCandidates(pass.text, pass.confidence, pass.glyphs).map((candidate) =>
             withSymbolRisks(candidate, pass),
           ),
         );
@@ -279,6 +294,12 @@ export function chooseIdentifierRead(
         );
   const plate = uniqueCandidate(plates);
   const frame = uniqueCandidate(frames);
+  const tier = (candidate: Candidate | null) => ({
+    autoEligible: !!candidate?.autoEligible && !candidate?.uncertainCharacters?.length,
+    alternatives: candidate?.alternatives ?? [],
+  });
+  const plateTier = tier(plate);
+  const frameTier = tier(frame);
   return {
     license_plate: plate?.value ?? "",
     frame_number: frame?.value ?? "",
@@ -296,6 +317,8 @@ export function chooseIdentifierRead(
         ? ["frame_number" as const]
         : []),
     ],
+    autoEligible: { license_plate: plateTier.autoEligible, frame_number: frameTier.autoEligible },
+    alternatives: { license_plate: plateTier.alternatives, frame_number: frameTier.alternatives },
     ocrMs: passes.reduce((sum, pass) => sum + pass.ms, 0),
     passes: passes.length,
   };

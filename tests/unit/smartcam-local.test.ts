@@ -11,7 +11,7 @@ import {
   parseFrameCandidates,
   parsePlateCandidates,
 } from "../../src/lib/smartcam/local/candidates";
-import { nextTickMs, pushVote, shouldDecodeCodes } from "../../src/lib/smartcam/local/voting";
+import { nextTickMs, pushEvidence, readEvidence, shouldDecodeCodes } from "../../src/lib/smartcam/local/voting";
 import { cloudAllowed, DEFAULT_BUDGET, recordCall, summarize, type CloudCall } from "../../src/lib/smartcam/local/budget";
 import { alignCreatedIds, hasTrustedIds } from "../../src/lib/smartcam/correlate";
 
@@ -81,31 +81,30 @@ describe("frame OCR candidate parsing", () => {
   });
 });
 
-describe("stable-frame voting and adaptive sampling", () => {
+describe("stable-frame evidence and adaptive sampling", () => {
+  const read = (value: string, confidence: number, over = {}) => ({
+    value,
+    compact: value.replace(/[^A-Z0-9]/g, ""),
+    confidence,
+    ...over,
+  });
   it("only settles after repeated identical reads with enough confidence", () => {
-    let outcome = pushVote(null, "59B1-234.56", 90);
-    expect(outcome.settled).toBe(false);
-    outcome = pushVote(outcome.state, "59B1-234.56", 85);
+    let evidence = pushEvidence(null, read("59B1-234.56", 90));
+    expect(readEvidence(evidence).settled).toBe(false);
+    evidence = pushEvidence(evidence, read("59B1-234.56", 85));
+    const outcome = readEvidence(evidence);
     expect(outcome.settled).toBe(true);
     expect(outcome.confidence).toBeCloseTo(87.5);
   });
-  it("a high-confidence one-off guess never fires, a changed read restarts", () => {
-    let outcome = pushVote(null, "59B1-234.56", 99);
-    expect(outcome.settled).toBe(false);
-    outcome = pushVote(outcome.state, "59B1-234.57", 99);
-    expect(outcome.state?.count).toBe(1);
-    expect(outcome.settled).toBe(false);
+  it("a high-confidence one-off guess never fires on its own", () => {
+    const evidence = pushEvidence(null, read("59B1-234.56", 99));
+    expect(readEvidence(evidence).settled).toBe(false);
+    expect(readEvidence(evidence).autoEligible).toBe(false);
   });
-  it("low-confidence streaks do not settle even when repeated", () => {
-    let outcome = pushVote(null, "61B1-777.77", 40);
-    outcome = pushVote(outcome.state, "61B1-777.77", 40);
-    expect(outcome.settled).toBe(false);
-  });
-  it("an unreadable tick resets the streak (scene moved on)", () => {
-    const half = pushVote(null, "59B1-234.56", 90);
-    const reset = pushVote(half.state, "", 0);
-    expect(reset.state).toBeNull();
-    expect(reset.settled).toBe(false);
+  it("an unreadable tick resets the evidence (scene moved on)", () => {
+    const half = pushEvidence(null, read("59B1-234.56", 90));
+    expect(pushEvidence(half, null)).toBeNull();
+    expect(readEvidence(pushEvidence(half, null)).settled).toBe(false);
   });
   it("sampling backs off on misses and speeds up while a pass is in flight", () => {
     expect(nextTickMs({ busy: true, missStreak: 0, sharp: true })).toBeLessThan(400);

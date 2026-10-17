@@ -309,6 +309,70 @@ function textLines(chars: Component[]): TextLine[] {
   return result;
 }
 
+/**
+ * Dark-ink-on-light-background evidence, sampled at a stride so it costs a
+ * couple of hundred pixel reads. A motorbike plate (black on reflective white)
+ * and a chassis stamp (engraved shadow on bright metal) both qualify; a glowing
+ * sign, a wheel or a shadowed fairing does not. Purely a ranking signal — it
+ * never vetoes a region, because a dirty plate is still the plate.
+ */
+function inkPolarity(gray: Gray, bounds: RegionBounds): number {
+  const step = Math.max(
+    1,
+    Math.round(Math.min(bounds.width, bounds.height) / 24),
+  );
+  let dark = 0,
+    bright = 0,
+    total = 0;
+  for (
+    let y = Math.max(0, Math.floor(bounds.y));
+    y < Math.min(gray.height, Math.ceil(bounds.y + bounds.height));
+    y += step
+  )
+    for (
+      let x = Math.max(0, Math.floor(bounds.x));
+      x < Math.min(gray.width, Math.ceil(bounds.x + bounds.width));
+      x += step
+    ) {
+      const value = gray.data[y * gray.width + x];
+      total++;
+      if (value < 110) dark++;
+      if (value > 150) bright++;
+    }
+  if (!total) return 0;
+  const darkFraction = dark / total;
+  // Real plate and stamp text covers roughly a fifth of its own box.
+  if (darkFraction < 0.06 || darkFraction > 0.62) return 0;
+  return Math.min(1, darkFraction / 0.18) * (bright / total > 0.2 ? 1 : 0.5);
+}
+
+/**
+ * How much this line looks like the identifiers the camera is hunting, capped
+ * so it can only tip a ranking, never replace legibility. Without it a shop
+ * sign with bigger, tidier letters beats the actual plate — which is half of
+ * the misreads this pipeline used to produce.
+ */
+function identifierPrior(
+  line: TextLine & { kind: "line" | "block" },
+  gray: Gray,
+): number {
+  const aspect = line.bounds.width / line.bounds.height;
+  const plateSizedRun = line.count >= 7 && line.count <= 12;
+  let prior = 0;
+  // Single-row plate, or the two-row plate a bike actually wears.
+  if (plateSizedRun && aspect >= 1.9 && aspect <= 2.6) prior += 0.14;
+  else if (
+    plateSizedRun &&
+    line.kind === "block" &&
+    aspect >= 0.7 &&
+    aspect <= 1.7
+  )
+    prior += 0.14;
+  // A chassis stamp is a long thin run of more characters than a plate holds.
+  if (aspect > 2.6 && line.count >= 11) prior += 0.08;
+  return Math.min(0.22, prior + inkPolarity(gray, line.bounds) * 0.08);
+}
+
 function regionsFromLines(
   lines: TextLine[],
   gray: Gray,
@@ -350,7 +414,8 @@ function regionsFromLines(
   const priority = (line: (typeof candidates)[number]) =>
     line.confidence +
     Math.min(0.16, (line.height / Math.min(gray.width, gray.height)) * 2) +
-    (line.kind === "block" ? 0.07 : 0);
+    (line.kind === "block" ? 0.07 : 0) +
+    identifierPrior(line, gray);
   // Large readable characters and close two-row blocks deserve focused OCR
   // before tiny background labels; the complete-image pass still checks all.
   candidates.sort(

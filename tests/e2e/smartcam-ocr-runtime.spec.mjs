@@ -197,11 +197,16 @@ test(`smart camera runtime: continuous live ${target} scan votes and opens the v
     test.skip(true, `Tesseract language data unavailable in this environment: ${calls.languageFailures.join(', ')}`)
   }
   await expect(page).toHaveURL(new RegExp(`/vehicles/${vehicleId}$`))
-  await expect(page.locator('.identity-chip-frame code')).toHaveText(known.frame_number)
+  // The identity hero of the vehicle page: số khung renders split into prefix
+  // plus the highlighted last six characters.
+  await expect(page.locator('.vehicle-frame-badge')).toContainText(known.frame_number)
   expect(calls.lookups).toContain(value)
-  // Each observation uses two OCR regions. Four reads prove that the live
-  // path repeated the observation and reached its stable-frame vote.
-  expect(await page.evaluate(() => window.__smartcamRuntimeRecognitions)).toBeGreaterThanOrEqual(4)
+  // Real WASM ran repeatedly on the live path. A tick emits 1-3 focused reads
+  // depending on how many text regions the locator found, so the count is a
+  // floor for "the loop kept reading", not the proof of the vote: settling now
+  // requires two agreeing frames by construction (EVIDENCE_LIMITS.requiredFrames,
+  // pinned in tests/unit/smartcam-evidence.test.ts).
+  expect(await page.evaluate(() => window.__smartcamRuntimeRecognitions)).toBeGreaterThanOrEqual(3)
   expect(calls.assist).toEqual([])
   expect(calls.tesseract.some(entry => entry.path.startsWith('/tesseract/core/'))).toBe(true)
   await page.screenshot({ path: testInfo.outputPath(`${target}-live-ocr-vehicle.png`), fullPage: true })
@@ -273,9 +278,13 @@ test(`smart camera runtime: real WASM ${target} OCR opens the matching vehicle w
   }
   expect(outcome, `real local OCR failed to resolve a clean rendered ${target}`).toBe('matched')
   await expect(page).toHaveURL(new RegExp(`/vehicles/${vehicleId}$`))
-  await expect(page.locator('.identity-chip-plate strong')).toHaveText(known.license_plate)
-  await expect(page.locator('.identity-chip-frame code')).toHaveText(known.frame_number)
-  expect(calls.tesseract.filter(entry => entry.path.endsWith('worker.min.js'))).toHaveLength(1)
+  await expect(page.locator('.vehicle-plate-text')).toHaveText(known.license_plate)
+  await expect(page.locator('.vehicle-frame-badge')).toContainText(known.frame_number)
+  // The worker script is fetched once per pool slot (two parallel workers), never
+  // once per read — a per-read fetch would show dozens of requests here.
+  const workerScripts = calls.tesseract.filter(entry => entry.path.endsWith('worker.min.js'))
+  expect(workerScripts.length).toBeGreaterThanOrEqual(1)
+  expect(workerScripts.length).toBeLessThanOrEqual(2)
   // The LSTM core is served from our own /tesseract/core/ (worker.min.js and
   // the core loader arrive as *.wasm.js — the binary comes with them).
   expect(calls.tesseract.some(entry => entry.path.startsWith('/tesseract/core/')), JSON.stringify(calls.tesseract)).toBe(true)

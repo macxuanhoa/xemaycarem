@@ -16,6 +16,7 @@
     "typecheck": "tsc -b",
     "lint": "eslint .",
     "test": "vitest run",
+    "test:ocr-accuracy": "vitest run tests/accuracy",
     "test:db": "node scripts/test-db.mjs",
     "test:e2e": "playwright test",
     "test:seed": "node supabase/tests/seed-smoke.mjs",

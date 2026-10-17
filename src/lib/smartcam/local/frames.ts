@@ -38,59 +38,6 @@ export function analyzeFrame(
   return image ? analyzeGray(image) : null;
 }
 
-/** Crop content-based bounds, straighten a mild text tilt and retain safe borders. */
-export function regionCanvas(
-  canvas: HTMLCanvasElement,
-  region: DetectedRegion,
-  targetWidth = 1080,
-): HTMLCanvasElement | null {
-  if (
-    !canvas.width ||
-    !canvas.height ||
-    !canvas.getContext("2d", { willReadFrequently: true })
-  )
-    return null;
-  const x = Math.max(0, region.bounds.x),
-    y = Math.max(0, region.bounds.y);
-  const width = Math.min(canvas.width - x, region.bounds.width),
-    height = Math.min(canvas.height - y, region.bounds.height);
-  if (width < 4 || height < 4) return null;
-  const geometry = deskewGeometry({ x, y, width, height }, region.angleDegrees);
-  const border = Math.max(8, region.characterHeight * 0.18);
-  const scale = Math.min(
-    4,
-    targetWidth / (geometry.width + border * 2),
-    640 / (geometry.height + border * 2),
-    Math.max(1, 48 / region.characterHeight),
-  );
-  const out = document.createElement("canvas");
-  out.width = Math.max(1, Math.ceil((geometry.width + border * 2) * scale));
-  out.height = Math.max(1, Math.ceil((geometry.height + border * 2) * scale));
-  const ctx = out.getContext("2d", { willReadFrequently: true });
-  if (!ctx) return null;
-  ctx.fillStyle = "white";
-  ctx.fillRect(0, 0, out.width, out.height);
-  ctx.save();
-  ctx.translate(out.width / 2, out.height / 2);
-  ctx.scale(scale, scale);
-  ctx.rotate(geometry.radians);
-  ctx.drawImage(
-    canvas,
-    x,
-    y,
-    width,
-    height,
-    -width / 2,
-    -height / 2,
-    width,
-    height,
-  );
-  ctx.restore();
-  const gray = toGray(out);
-  if (gray) stretchInto(gray, ctx, out);
-  return out;
-}
-
 /** Draw the current video frame (or any canvas/photo) down to a bounded canvas. */
 export function sourceCanvas(
   source: HTMLVideoElement | HTMLImageElement | HTMLCanvasElement,
@@ -129,25 +76,146 @@ export function toGray(canvas: HTMLCanvasElement): Gray | null {
 }
 
 /** Linear stretch between the 2nd/98th percentile luma — fades noise to ends. */
+const SHARPEN_AMOUNT = 0.55;
+
 function stretchInto(
   gray: Gray,
   ctx: CanvasRenderingContext2D,
   canvas: HTMLCanvasElement,
+  options: { sharpen?: boolean; invert?: boolean } = {},
 ): void {
-  const sorted = Uint8Array.from(gray.data).sort();
+  const { width, height, data } = gray;
+  const sorted = Uint8Array.from(data).sort();
   const lo = sorted[Math.floor(sorted.length * 0.02)] ?? 0;
   const hi = sorted[Math.floor(sorted.length * 0.98)] ?? 255;
   const span = Math.max(1, hi - lo);
+  const level = (value: number) => {
+    const stretched = ((value - lo) * 255) / span;
+    const clamped = stretched < 0 ? 0 : stretched > 255 ? 255 : stretched;
+    return options.invert ? 255 - clamped : clamped;
+  };
   const out = ctx.createImageData(canvas.width, canvas.height);
-  for (let i = 0; i < gray.data.length; i++) {
-    const value = ((gray.data[i] - lo) * 255) / span;
-    out.data[i * 4] =
-      out.data[i * 4 + 1] =
-      out.data[i * 4 + 2] =
-        value < 0 ? 0 : value > 255 ? 255 : value;
-    out.data[i * 4 + 3] = 255;
-  }
+  for (let y = 0; y < height; y++)
+    for (let x = 0; x < width; x++) {
+      const index = y * width + x;
+      let value = level(data[index]);
+      if (options.sharpen) {
+        // 3x3 high-boost, clamped at the crop edge. An engraved chassis stroke
+        // survives the stretch only as a soft gradient; the LSTM needs the
+        // edge back. Arithmetic over an array already in memory, so it costs
+        // the same order as the stretch it replaces rather than an extra pass.
+        let sum = 0,
+          count = 0;
+        for (let dy = -1; dy <= 1; dy++)
+          for (let dx = -1; dx <= 1; dx++) {
+            if (!dx && !dy) continue;
+            const nx = x + dx,
+              ny = y + dy;
+            if (nx < 0 || ny < 0 || nx >= width || ny >= height) continue;
+            sum += level(data[ny * width + nx]);
+            count++;
+          }
+        if (count)
+          value = Math.max(
+            0,
+            Math.min(255, value + SHARPEN_AMOUNT * (value - sum / count)),
+          );
+      }
+      out.data[index * 4] = out.data[index * 4 + 1] = out.data[index * 4 + 2] =
+        value;
+      out.data[index * 4 + 3] = 255;
+    }
   ctx.putImageData(out, 0, 0);
+}
+
+/**
+ * Tesseract reads dark ink on a light ground. A plate always is that; a
+ * head-tube stamp under the torch frequently is not, and the engine then
+ * recognises the *background* as text. Detected on the crop itself, so an
+ * inverted photo of a plate gets inverted back rather than trusted.
+ */
+function needsInvert(gray: Gray): boolean {
+  let dark = 0,
+    bright = 0;
+  const step = Math.max(1, Math.round(Math.min(gray.width, gray.height) / 48));
+  for (let y = 0; y < gray.height; y += step)
+    for (let x = 0; x < gray.width; x += step) {
+      const value = gray.data[y * gray.width + x];
+      if (value < 96) dark++;
+      else if (value > 160) bright++;
+    }
+  const total = Math.max(1, Math.ceil(gray.width / step) * Math.ceil(gray.height / step));
+  return dark > total * 0.45 && dark > bright * 1.8;
+}
+
+/**
+ * Glyph height the OCR engine is given. LSTM accuracy peaks around 30-64 px,
+ * but inference cost grows with the crop's *pixel area*, and the tick cadence
+ * is frozen: 48 px is the measured compromise, and a plate-shaped crop is
+ * allowed the top of the safe band because it is short and cheap to scale.
+ */
+const GLYPH_TARGET = 48;
+const PLATE_GLYPH_TARGET = 56;
+
+/** Crop content-based bounds, straighten a mild text tilt and retain safe borders. */
+export function regionCanvas(
+  canvas: HTMLCanvasElement,
+  region: DetectedRegion,
+  targetWidth = 1080,
+): HTMLCanvasElement | null {
+  if (
+    !canvas.width ||
+    !canvas.height ||
+    !canvas.getContext("2d", { willReadFrequently: true })
+  )
+    return null;
+  const x = Math.max(0, region.bounds.x),
+    y = Math.max(0, region.bounds.y);
+  const width = Math.min(canvas.width - x, region.bounds.width),
+    height = Math.min(canvas.height - y, region.bounds.height);
+  if (width < 4 || height < 4) return null;
+  const geometry = deskewGeometry({ x, y, width, height }, region.angleDegrees);
+  const border = Math.max(8, region.characterHeight * 0.18);
+  const plateShaped =
+    geometry.width / geometry.height >= 1.6 &&
+    geometry.width / geometry.height <= 2.8;
+  const glyphTarget = plateShaped ? PLATE_GLYPH_TARGET : GLYPH_TARGET;
+  const scale = Math.min(
+    4,
+    targetWidth / (geometry.width + border * 2),
+    640 / (geometry.height + border * 2),
+    Math.max(1, glyphTarget / region.characterHeight),
+  );
+  const out = document.createElement("canvas");
+  out.width = Math.max(1, Math.ceil((geometry.width + border * 2) * scale));
+  out.height = Math.max(1, Math.ceil((geometry.height + border * 2) * scale));
+  const ctx = out.getContext("2d", { willReadFrequently: true });
+  if (!ctx) return null;
+  ctx.fillStyle = "white";
+  ctx.fillRect(0, 0, out.width, out.height);
+  ctx.save();
+  ctx.translate(out.width / 2, out.height / 2);
+  ctx.scale(scale, scale);
+  ctx.rotate(geometry.radians);
+  ctx.drawImage(
+    canvas,
+    x,
+    y,
+    width,
+    height,
+    -width / 2,
+    -height / 2,
+    width,
+    height,
+  );
+  ctx.restore();
+  const gray = toGray(out);
+  if (gray)
+    stretchInto(gray, ctx, out, {
+      sharpen: true,
+      invert: needsInvert(gray),
+    });
+  return out;
 }
 
 /**

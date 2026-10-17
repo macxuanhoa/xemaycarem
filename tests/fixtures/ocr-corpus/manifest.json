@@ -1,0 +1,173 @@
+{
+  "$comment": [
+    "Ground-truth corpus for the Smart Camera accuracy harness (npm run test:ocr-accuracy).",
+    "One entry = one look at one identifier: `truth` is what is physically stamped, `frames`",
+    "is what the OCR engine reported on each live tick of that look, in tick order.",
+    "confidence is the engine's own line confidence; `glyphs` is optional per-character",
+    "confidence, comma separated, in the same compact order Tesseract emits.",
+    "Values marked source=production come from the shop's own database dumps.",
+    "Real labelled photos (20-30 plates + 20-30 head-tube stamps) are still needed: drop the",
+    "file next to this manifest and replace `frames` with { \"file\": \"photo.jpg\" } — the",
+    "harness skips those entries until the WASM browser path is wired for them."
+  ],
+  "plates": [
+    {
+      "id": "59A1-clean",
+      "truth": "59A1-234.56",
+      "source": "production",
+      "frames": [
+        { "observed": "59A1-234.56", "confidence": 95 },
+        { "observed": "59A1-234.56", "confidence": 96 }
+      ]
+    },
+    {
+      "id": "92D1-clean-dashed",
+      "truth": "92D1-746.75",
+      "source": "production",
+      "frames": [
+        { "observed": "92-D1 746.75", "confidence": 93 },
+        { "observed": "92D1-746.75", "confidence": 94 }
+      ]
+    },
+    {
+      "id": "59B1-letter-I-as-1",
+      "truth": "59B1-234.56",
+      "source": "synthetic",
+      "frames": [
+        { "observed": "59-BI 234.56", "confidence": 90 },
+        { "observed": "59-BI 234.56", "confidence": 91 }
+      ]
+    },
+    {
+      "id": "S9-guessy-serif",
+      "truth": "59B1-234.56",
+      "source": "synthetic",
+      "frames": [
+        { "observed": "S9-BI 234.S6", "confidence": 95 },
+        { "observed": "S9-BI 234.S6", "confidence": 95 }
+      ]
+    },
+    {
+      "id": "49D1-wobble-last-digit",
+      "truth": "49D1-837.87",
+      "source": "production",
+      "frames": [
+        { "observed": "49D1-837.87", "confidence": 92 },
+        { "observed": "49D1-837.81", "confidence": 90 },
+        { "observed": "49D1-837.87", "confidence": 93 }
+      ]
+    },
+    {
+      "id": "76A5-low-glyph-confidence",
+      "comment": "The last-but-one serial digit is read as 1 and the engine itself scores that glyph at 44: the camera must hand this one to a human, not lock it.",
+      "truth": "76A5-677.75",
+      "source": "production",
+      "frames": [
+        {
+          "observed": "76A5-671.75",
+          "confidence": 88,
+          "glyphs": "90,90,92,90,92,92,44,90,90"
+        },
+        {
+          "observed": "76A5-671.75",
+          "confidence": 89,
+          "glyphs": "91,91,93,91,93,93,46,91,91"
+        }
+      ]
+    },
+    {
+      "id": "13B1-impossible-province",
+      "truth": null,
+      "source": "synthetic",
+      "frames": [
+        { "observed": "13-B1 234.56", "confidence": 95 },
+        { "observed": "13-B1 234.56", "confidence": 95 }
+      ]
+    },
+    {
+      "id": "80A3-agency-code",
+      "truth": "80A3-999.99",
+      "source": "synthetic",
+      "frames": [
+        { "observed": "80-A3 999.99", "confidence": 92 },
+        { "observed": "80A3-999.99", "confidence": 93 }
+      ]
+    },
+    {
+      "id": "modern-two-letter",
+      "comment": "Two-letter series issued from 15/08/2023. The canonical display keeps plate.ts today's rule (59XA1-2345); plan P4 turns both this truth and plate.ts into 59XA-123.45 together.",
+      "truth": "59XA1-2345",
+      "source": "synthetic",
+      "frames": [
+        { "observed": "59-XA 123.45", "confidence": 94 },
+        { "observed": "59XA-123.45", "confidence": 95 }
+      ]
+    },
+    {
+      "id": "legacy-four-digit-serial",
+      "truth": "29A1-1234",
+      "source": "synthetic",
+      "frames": [
+        { "observed": "29-A1 1234", "confidence": 91 },
+        { "observed": "29A1-1234", "confidence": 92 }
+      ]
+    },
+    {
+      "id": "82A7-undetectable-digit-swap",
+      "comment": "Every frame says the same wrong digit at high confidence: no text-layer evidence contradicts it. Reported as residual risk, never as a pipeline defect.",
+      "truth": "82A7-828.82",
+      "source": "production",
+      "frames": [
+        { "observed": "82A7-826.82", "confidence": 93 },
+        { "observed": "82A7-826.82", "confidence": 94 }
+      ]
+    }
+  ],
+  "frames": [
+    {
+      "id": "RLH-clean-stamp",
+      "truth": "RLH160KD12345",
+      "source": "production",
+      "frames": [
+        { "observed": "RLH160KD12345", "confidence": 92 },
+        { "observed": "RLH160KD12345", "confidence": 93 }
+      ]
+    },
+    {
+      "id": "RLH-letter-O-as-0",
+      "truth": "RLH160KD12345",
+      "source": "synthetic",
+      "frames": [
+        { "observed": "RLH16OKD12345", "confidence": 90 },
+        { "observed": "RLH16OKD12345", "confidence": 91 }
+      ]
+    },
+    {
+      "id": "honda-short-stamp",
+      "truth": "JA29E1234567",
+      "source": "synthetic",
+      "frames": [
+        { "observed": "JA29E1234567", "confidence": 89 },
+        { "observed": "JA29E1234567", "confidence": 90 }
+      ]
+    },
+    {
+      "id": "spaced-stamp",
+      "truth": "RLH160KD12345",
+      "source": "synthetic",
+      "frames": [
+        { "observed": "Số khung: RLH 160 KD 12345", "confidence": 88 },
+        { "observed": "Số khung RLH160KD12345", "confidence": 90 }
+      ]
+    },
+    {
+      "id": "signboard-not-a-frame",
+      "truth": null,
+      "source": "synthetic",
+      "frames": [
+        { "observed": "HONDA 2020 PARKING2WHEEL2025", "confidence": 92 },
+        { "observed": "DATE20261009 MODEL2026ABC", "confidence": 91 }
+      ]
+    }
+  ]
+}

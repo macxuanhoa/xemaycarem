@@ -21,6 +21,19 @@ export type RecognitionFieldStatus =
   | "CONFLICT"; // identifiers contradict each other or CRM data
 
 /**
+ * How much the scan is entitled to do on its own.
+ *
+ * `AUTO` means the evidence proves the read: every agreeing frame decoded to
+ * the same grammar-valid identifier with no substituted glyph and no rival
+ * reading, so the camera may close and open the record silently.
+ * `CONFIRM` means the read is probably right but a human is the only thing
+ * that can make it certain — the camera keeps running and asks about the
+ * specific character it could not resolve. Nothing in between: a wrong
+ * identifier must never reach the CRM without a person deciding it.
+ */
+export type DecisionTier = "AUTO" | "CONFIRM";
+
+/**
  * Identifier fields whose CRM match decides VERIFIED/CONFLICT.
  * Số máy, Hãng, Dòng, Phiên bản và ảnh chụp đồng hồ km đã bị gỡ khỏi hợp đồng.
  * Nhận diện ngoại hình xe (loại xe, màu, năm từ ảnh) cũng đã bị xoá hẳn:
@@ -71,6 +84,10 @@ export type Recognition = {
   source?: "local" | "cloud";
   /** Unclear OCR characters stay red even when a candidate exists in the CRM. */
   riskCharacters?: RecognitionRisks;
+  /** Missing is treated as CONFIRM — an old draft is never trusted as AUTO. */
+  tier?: DecisionTier;
+  /** Runner-up readings per field, shown only in the CONFIRM strip. */
+  alternatives?: Partial<Record<ScannedKey, string[]>>;
 };
 
 const LIMITS: Partial<Record<ScannedKey, number>> = {
@@ -233,6 +250,42 @@ export function scanTargetKey(match: VehicleMatch, fields: ScannedFields): strin
   return `${match.state}:${match.candidates.map((row) => row.id).sort().join(",")}`;
 }
 
+/**
+ * Decide how much the camera may do on its own.
+ *
+ * Two independent forms of proof, either of which is enough:
+ *  - **Corroboration.** The read matches one stored vehicle character for
+ *    character on every identifier it produced. Nine to seventeen glyphs
+ *    landing exactly on another bike's plate is not a misread that survives;
+ *    the shop's own record is the second opinion here, which is why a single
+ *    gallery photo or a paid AI read can still open a known vehicle.
+ *  - **Evidence.** No unresolved character and the local reader says every
+ *    agreeing frame decoded to the same grammar-valid identifier. This is the
+ *    only route for a vehicle that is not in the CRM yet, and it is why an
+ *    unknown plate can never be silently turned into an acquisition record.
+ * A single risk mark vetoes both: nothing is auto-applied while the engine
+ * itself admits it guessed a glyph.
+ */
+export function decisionTier(
+  fields: ScannedFields,
+  risks: RecognitionRisks,
+  evidence: { license_plate: boolean; frame_number: boolean },
+  match: VehicleMatch,
+): DecisionTier {
+  const present = SCANNED_KEYS.filter((key) => fields[key]);
+  if (!present.length) return "CONFIRM";
+  if (present.some((key) => risks[key]?.length)) return "CONFIRM";
+  const corroborated =
+    match.state === "unique" &&
+    present.every((key) =>
+      key === "license_plate"
+        ? compact(canonicalizePlate(match.vehicle.license_plate)) === compact(canonicalizePlate(fields.license_plate))
+        : compact(match.vehicle.frame_number) === compact(fields.frame_number),
+    );
+  if (corroborated) return "AUTO";
+  return present.every((key) => evidence[key]) ? "AUTO" : "CONFIRM";
+}
+
 /** Field keys the intake cards render, mapped 1:1 from the scan contract. */
 const INTAKE_KEY: Record<ScannedKey, IntakeFieldKey> = {
   license_plate: "license_plate",
@@ -342,5 +395,29 @@ export function parseRecognition(value: unknown): Recognition | null {
     ? raw.photos.filter((photo): photo is string => typeof photo === "string" && photo.startsWith("data:image/")).slice(0, 4)
     : [];
   const engine = raw.source === "local" || raw.source === "cloud" ? raw.source : undefined;
-  return { version: 1, scannedAt: raw.scannedAt, fields, statuses, match, photos, riskCharacters, ...(engine ? { source: engine } : {}) };
+  // A draft written before this field existed, or tampered with, must not be
+  // trusted as an auto-lock: only an explicit AUTO survives the round trip.
+  let tier: DecisionTier | undefined =
+    raw.tier === "AUTO" ? "AUTO" : raw.tier === "CONFIRM" ? "CONFIRM" : undefined;
+  // Any unresolved character demotes a stored AUTO back to a human decision.
+  // The *raw* marks are checked, not the remapped ones: a draft that claims a
+  // warning must never be trusted as proven just because a separator shifted
+  // the position out of range on the way back in.
+  const givenRisks = (raw.riskCharacters ?? {}) as Record<string, unknown>;
+  if (
+    tier === "AUTO" &&
+    SCANNED_KEYS.some((key) => Array.isArray(givenRisks[key]) && givenRisks[key].length > 0)
+  )
+    tier = "CONFIRM";
+  const alternatives = {} as Partial<Record<ScannedKey, string[]>>;
+  const givenAlternatives = (raw.alternatives ?? {}) as Record<string, unknown>;
+  for (const key of ["license_plate", "frame_number"] as const) {
+    const list = Array.isArray(givenAlternatives[key])
+      ? givenAlternatives[key].filter(
+          (item): item is string => typeof item === "string" && !!item.trim(),
+        ).slice(0, 3)
+      : [];
+    if (list.length) alternatives[key] = list;
+  }
+  return { version: 1, scannedAt: raw.scannedAt, fields, statuses, match, photos, riskCharacters, ...(engine ? { source: engine } : {}), ...(tier ? { tier } : {}), ...(Object.keys(alternatives).length ? { alternatives } : {}) };
 }

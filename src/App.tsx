@@ -81,6 +81,7 @@ const CaremAssistantPage = lazy(
 );
 const DocsPage = lazy(() => import("@/features/docs/DocsPage"));
 const ShowroomPage = lazy(() => import("@/features/showroom/ShowroomPage"));
+const PrivacyPolicyPage = lazy(() => import("@/features/legal/PrivacyPolicyPage"));
 /* Unapproved prototype stays available for local review only. */
 const LoadingDemoPage = import.meta.env.DEV
   ? lazy(() => import("@/components/loader/LoadingDemoPage"))
@@ -170,6 +171,11 @@ export default function App() {
         <Routes>
           <Route path="/login" element={<LoginPage />} />
           <Route path="/showroom" element={<ShowroomPage />} />
+          {/* Public legal document, deliberately outside <Protected>: the catch-all
+              route below would otherwise bounce it to the staff login screen, and a
+              policy page behind a login is unreachable to customers and to anyone
+              verifying the site. */}
+          <Route path="/privacy-policy" element={<PrivacyPolicyPage />} />
           {LoadingDemoPage && <Route path="/loading-demo" element={<LoadingDemoPage />} />}
           {/* Password recovery is OWNER/admin-initiated; this route is the
               Supabase Auth recovery callback where the signed-in user sets a new

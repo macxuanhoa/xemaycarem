@@ -1,0 +1,102 @@
+/*
+ * Standalone styling for public legal pages.
+ *
+ * Colours are set explicitly instead of inheriting app theme tokens: this page
+ * is read by customers and by external reviewers on a bare URL, so it must keep
+ * a stable, high-contrast look regardless of which seasonal theme a staff
+ * account has switched on.
+ */
+.legal-page {
+  max-width: 46rem;
+  margin: 0 auto;
+  padding: 3rem 1.25rem 4rem;
+  background: #fff;
+  color: #1f2430;
+  min-height: 100vh;
+  font-size: 1rem;
+  line-height: 1.7;
+}
+
+.legal-head {
+  border-bottom: 1px solid #e3e6ec;
+  padding-bottom: 1.25rem;
+  margin-bottom: 2rem;
+}
+
+.legal-brand {
+  margin: 0 0 .35rem;
+  font-size: .8rem;
+  font-weight: 700;
+  letter-spacing: .14em;
+  text-transform: uppercase;
+  color: #b3121f;
+}
+
+.legal-head h1 {
+  margin: 0 0 .5rem;
+  font-size: clamp(1.6rem, 4vw, 2.1rem);
+  line-height: 1.25;
+}
+
+.legal-meta {
+  margin: 0;
+  color: #5c6472;
+  font-size: .9rem;
+}
+
+.legal-section {
+  margin: 0 0 2rem;
+}
+
+.legal-section h2 {
+  font-size: 1.1rem;
+  margin: 0 0 .6rem;
+}
+
+.legal-section h3 {
+  font-size: .95rem;
+  margin: 1.1rem 0 .3rem;
+  color: #3b4252;
+}
+
+.legal-section p,
+.legal-section ul {
+  margin: 0 0 .7rem;
+}
+
+.legal-section ul {
+  padding-left: 1.25rem;
+}
+
+.legal-section li {
+  margin-bottom: .35rem;
+}
+
+.legal-foot {
+  border-top: 1px solid #e3e6ec;
+  padding-top: 1.25rem;
+  margin-top: 2.5rem;
+  color: #5c6472;
+  font-size: .85rem;
+}
+
+@media (prefers-color-scheme: dark) {
+  /* Dark mode keeps the same contrast ratio rather than inverting to a
+     low-contrast grey wash; legal text must stay comfortably readable. */
+  .legal-page {
+    background: #14171d;
+    color: #e8eaf0;
+  }
+  .legal-head,
+  .legal-foot {
+    border-color: #2a2f39;
+  }
+  .legal-brand {
+    color: #ff6b76;
+  }
+  .legal-meta,
+  .legal-foot,
+  .legal-section h3 {
+    color: #a3abb9;
+  }
+}

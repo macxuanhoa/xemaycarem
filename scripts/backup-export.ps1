@@ -44,10 +44,18 @@ $ErrorActionPreference = 'Stop'
 if ($verifyExit -ne 0) { throw 'Ban sao luu goc khong dat kiem tra checksum; tu choi xuat ZIP' }
 
 Write-Host "Chuan bi danh muc va dat ten de doc cho cac tep..."
-$prepRaw = node scripts/backup-export-prepare.mjs $Stamp
-if ($LASTEXITCODE -ne 0 -or -not $prepRaw) { throw 'Loi khi chuan bi cau truc tep de doc' }
-
-$prep = $prepRaw | ConvertFrom-Json
+# KHONG duoc bat stdout cua node vao bien: PowerShell 5.1 giai ma stdout theo bang
+# ma console, nen ten thu muc co dau tieng Viet bi vo hoa va Test-Path that bai.
+# node ghi ban ke hoach ra file UTF-8; doc file do bang -Encoding UTF8.
+$ErrorActionPreference = 'Continue'
+node scripts/backup-export-prepare.mjs $Stamp | Out-Null
+$prepExit = $LASTEXITCODE
+$ErrorActionPreference = 'Stop'
+$planFile = Join-Path $backupRoot "export-plan-$Stamp.json"
+if ($prepExit -ne 0 -or -not (Test-Path -LiteralPath $planFile)) {
+  throw "Loi khi chuan bi cau truc tep de doc (exit=$prepExit, ke hoach=$planFile)"
+}
+$prep = Get-Content -LiteralPath $planFile -Raw -Encoding UTF8 | ConvertFrom-Json
 $exportName = $prep.ExportName
 $stagePath = $prep.StagePath
 $expectedPath = $prep.ExpectedPath

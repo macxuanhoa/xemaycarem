@@ -180,6 +180,16 @@ const names = new Map([
 if (existsSync(inventoryFile)) {
   names.set(inventorySource, '04 - Danh mục ảnh và đường dẫn khôi phục.json')
 }
+// Hai mảnh của "bộ dựng lại" chỉ tồn tại từ bản sao lưu 17/10 trở đi. Bắt buộc phải
+// kiểm tra existsSync từng cái: vòng lặp bên dưới coi mọi tên có trong bảng `names` là
+// file BẮT BUỘC tồn tại, nên thêm vô điều kiện sẽ làm hỏng luôn việc xuất ZIP của
+// những bản cũ hơn (không có hai file này).
+for (const [source, label] of [
+  [`${prefix}-HUONG-DAN-KHOI-PHUC.md`, '00 - ĐỌC TRƯỚC - Cách dựng lại web từ bản sao lưu.md'],
+  [`${prefix}-rebuild-kit.json`, '06 - Bộ dựng lại hệ thống (cấu hình, cron, tên secret).json'],
+]) {
+  if (existsSync(join(backupRoot, source))) names.set(source, label)
+}
 
 for (const [source] of names) {
   if (!sourcePaths.includes(source)) throw new Error(`Required export source missing: ${source}`)
@@ -408,16 +418,23 @@ writeFileSync(expectedPath, JSON.stringify({ files: expected }, null, 2) + '\n',
 
 if (!existsSync(stagePath) || relative(backupRoot, stagePath).startsWith(`..${sep}`)) throw new Error('Export staging left backup root')
 
-console.log(
-  JSON.stringify({
-    ExportName: exportName,
-    StagePath: stagePath,
-    ExpectedPath: expectedPath,
-    SourceFiles: files.length,
-    StorageObjects: storageObjects.size,
-    GeneratedFiles: 2,
-    MappingPath: mappingName,
-    MappingSHA256: sha256(mappingPath).toUpperCase(),
-    NativeBytesPreserved: true,
-  }),
-)
+const plan = {
+  ExportName: exportName,
+  StagePath: stagePath,
+  ExpectedPath: expectedPath,
+  SourceFiles: files.length,
+  StorageObjects: storageObjects.size,
+  GeneratedFiles: 2,
+  MappingPath: mappingName,
+  MappingSHA256: sha256(mappingPath).toUpperCase(),
+  NativeBytesPreserved: true,
+}
+// Bản kế hoạch cũng được ghi RA FILE UTF-8, không chỉ in ra stdout. Lý do thật:
+// caller PowerShell 5.1 đọc stdout của tiến trình con theo bảng mã console (CP1252/
+// CP437), nên mọi tên tiếng Việt có dấu trong đường dẫn đều vỡ thành "Ná»™i dung"
+// và Test-Path không tìm thấy thư mục node vừa tạo — lỗi này làm hỏng toàn bộ bước
+// xuất ZIP từ 09/10 tới giờ. Đọc file UTF-8 thì không đi qua bảng mã console nữa.
+// Tên file KHÔNG bắt đầu bằng carem-prod- để listSets() không coi nó là một bản sao lưu.
+writeFileSync(join(backupRoot, `export-plan-${stamp}.json`), JSON.stringify(plan, null, 2) + '\n', 'utf8')
+
+console.log(JSON.stringify(plan))

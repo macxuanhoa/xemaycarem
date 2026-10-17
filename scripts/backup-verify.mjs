@@ -57,6 +57,13 @@ const isPlatformStmt = (stmt) => /(?:^|[^A-Za-z0-9_])"?(?:auth|storage)"?\./.tes
 // one. Each is skipped ONLY after proving nothing in the dump references its own schema, so
 // a genuine dependency can never be papered over.
 const CORE_EXTENSIONS = new Set(['pgcrypto', 'uuid-ossp']) // migrations/RPC actually use these
+// Schema mà extension THẬT SỰ tạo đối tượng trong đó. Supabase cài pg_cron/pg_net với
+// "WITH SCHEMA pg_catalog", nhưng đối tượng của chúng lại nằm trong schema cron/net.
+// Dùng thẳng pg_catalog để dò tham chiếu là sai: pg_catalog là schema lõi, dump nào cũng
+// tham chiếu (pg_catalog.now(), pg_catalog.hashtextextended…), nên công cụ luôn kết luận
+// "không an toàn để bỏ qua" và làm hỏng bước chạy thử khôi phục từ 17/10.
+const PLATFORM_OBJECT_SCHEMAS = { pg_cron: 'cron', pg_net: 'net', supabase_vault: 'vault', pgmq: 'pgmq' }
+const CORE_SCHEMAS = new Set(['pg_catalog', 'information_schema', 'public'])
 async function loadSchemaResilient(database, sqlIn) {
   let sql = sqlIn
   const skipped = []
@@ -77,7 +84,10 @@ async function loadSchemaResilient(database, sqlIn) {
       }
       const ext = /extension "([a-z0-9_]+)" is not available/i.exec(message)?.[1]
       if (!ext || CORE_EXTENSIONS.has(ext) || skipped.includes(ext)) throw error
-      const schema = new RegExp(`CREATE EXTENSION IF NOT EXISTS "${ext}"[^;]*WITH SCHEMA "([a-z0-9_]+)"`, 'i').exec(sql)?.[1] ?? ext.replace(/^supabase_/, '')
+      const declared = new RegExp(`CREATE EXTENSION IF NOT EXISTS "${ext}"[^;]*WITH SCHEMA "([a-z0-9_]+)"`, 'i').exec(sql)?.[1]
+      const schema = PLATFORM_OBJECT_SCHEMAS[ext]
+        ?? (CORE_SCHEMAS.has(declared ?? '') ? ext.replace(/^supabase_/, '').replace(/^pg_/, '') : declared)
+        ?? ext.replace(/^supabase_/, '')
       if (new RegExp(`\\b${schema}\\.[a-z_]`, 'i').test(sql.replace(new RegExp(`CREATE EXTENSION IF NOT EXISTS "${ext}"[^;]*;`, 'i'), ''))) {
         throw new Error(`extension ${ext} is unavailable but the dump still references ${schema}.* objects - not safe to skip`)
       }

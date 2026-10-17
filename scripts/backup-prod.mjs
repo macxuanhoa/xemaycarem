@@ -118,6 +118,158 @@ try {
   const counts = wanted.map((t) => `${t}=${capturedCounts[t] ?? 0}`).join(', ') + (missing.length ? ` | MISSING_TABLES=${missing.join(',')}` : '')
   const authUsers = query('SELECT count(*)::int AS c FROM auth.users')[0].c
 
+  // ── Bộ dựng lại hệ thống từ đầu (rebuild kit) ────────────────────────────────
+  // schema + data + ảnh là CHƯA ĐỦ để "mở web mới mà khách không thấy mất dữ liệu".
+  // Một project Supabase trắng còn cần: đúng MỘT hàng system_settings (số tài khoản
+  // nhận tiền, cờ webhook, giờ làm việc), danh sách extension, publication Realtime,
+  // lịch pg_cron, function đã deploy kèm verify_jwt, và TÊN các biến môi trường bí mật
+  // (không bao giờ là giá trị). Thiếu một trong đó là dựng lại xong mà web vẫn liệt.
+  const safeQuery = (sql, label) => {
+    try { return { read: true, rows: query(sql) } }
+    catch (error) {
+      log(`rebuild kit: ${label} not readable - ${String(error?.message ?? error).split('\n')[0].slice(0, 140)}`)
+      return { read: false, rows: [] }
+    }
+  }
+  const safeCli = (...args) => {
+    try { return { read: true, text: supabase(...args) } }
+    catch (error) {
+      log(`rebuild kit: \`supabase ${args.join(' ')}\` not readable - ${String(error?.message ?? error).split('\n')[0].slice(0, 140)}`)
+      return { read: false, text: '' }
+    }
+  }
+  const functionsList = safeCli('functions', 'list')
+  const secretsList = safeCli('secrets', 'list')
+  // TẨY TRƯỚC KHI GHI. Bài học thật của chính file này: hàng mục pg_cron chứa
+  // 'Authorization, Bearer <token>' trong chuỗi command, nên "chụp" cron.job nguyên
+  // văn bản là chép thẳng secret vào bản sao lưu rồi đưa lên Google Drive. Quy tắc:
+  // mọi chuỗi dài từ 40 ký tự không có khoảng trắng đều bị coi là credential, cộng
+  // mọi thứ sau từ khoá Bearer/Password/Key/Token.
+  const scrub = (value) => {
+    if (typeof value === 'string') {
+      return value
+        .replace(/\b(Bearer|Authorization|password|secret|token|api[_-]?key)(\s*[:=]\s*|\s+)['"]?([^\s'",)]{6,})/gi,
+          (_m, word, sep) => `${word}${sep}<DAU-GIAY>`
+        )
+        .replace(/[A-Za-z0-9+\/=_-]{40,}/g, '<CHUOI_BI_MAT>')
+    }
+    if (Array.isArray(value)) return value.map(scrub)
+    if (value && typeof value === 'object') return Object.fromEntries(Object.entries(value).map(([k, v]) => [k, scrub(v)]))
+    return value
+  }
+  // Bảng "secrets list" của CLI là table nhiều cột. CHỌC lấy ô ĐẦU TIÊN của mỗi dòng,
+  // vì lấy cả dòng là ăn luôn ô giá trị. Dòng không khớp dạng TÊN_biến bị bỏ.
+  const secretNames = (raw) => (raw ?? '').split(/\r?\n/)
+    .map((line) => /^\s*[│|]\s*([A-Z][A-Z0-9_]{2,})\s*[│|]/.exec(line)?.[1]
+      ?? /^\s*([A-Z][A-Z0-9_]{2,})\s*:/.exec(line)?.[1])
+    .filter(Boolean).sort()
+  // Nguồn đáng tin hơn để biết "phải tạo lại những biến nào": chính mã nguồn Edge
+  // Function liệt kê Deno.env.get('...'). Cách này KHÔNG BAO GIỜ đọc trúng giá trị,
+  // và vẫn đúng kể cả khi CLI đổi định dạng bảng.
+  const requiredSecretNames = () => {
+    const found = new Set(['SUPABASE_URL', 'SUPABASE_ANON_KEY', 'SUPABASE_SERVICE_ROLE_KEY'])
+    const walk = (dir) => {
+      for (const entry of readdirSync(dir, { withFileTypes: true })) {
+        const full = join(dir, entry.name)
+        if (entry.isDirectory()) walk(full)
+        else if (/\.tsx?$/.test(entry.name)) {
+          for (const m of readFileSync(full, 'utf8').matchAll(/Deno\.env\.get\(\s*['"]([A-Z0-9_]+)['"]/g)) found.add(m[1])
+        }
+      }
+    }
+    try { walk('supabase/functions') } catch { /* khong co thu muc -> bo */ }
+    return [...found].sort()
+  }
+  const kit = scrub({
+    version: 2,
+    capturedAt: now.toISOString(),
+    projectRef: projectRef,
+    supabaseUrl: `https://${projectRef}.supabase.co`,
+    note: 'File này KHÔNG chứa giá trị bí mật: mọi credential đã bị tẩy trước khi ghi. secretVariableNames chỉ là DANH SÁCH TÊN, để chủ biết phải tạo lại những biến nào khi dựng project mới.',
+    systemSettings: safeQuery('SELECT * FROM public.system_settings ORDER BY id', 'system_settings'),
+    extensions: safeQuery("SELECT extname AS name, extnamespace::regnamespace::text AS schema FROM pg_extension ORDER BY extname", 'extensions'),
+    realtimePublications: safeQuery("SELECT p.pubname AS publication, t.schemaname AS schema, t.tablename AS table_name FROM pg_publication p JOIN pg_publication_tables t ON t.pubname = p.pubname ORDER BY 1, 2, 3", 'realtime publications'),
+    cronJobs: safeQuery("SELECT jobid, jobname, schedule, command FROM cron.job ORDER BY jobid", 'pg_cron jobs'),
+    edgeFunctions: { read: functionsList.read, listing: functionsList.text.split(/\r?\n/).slice(0, 80) },
+    secretVariableNames: { read: secretsList.read, names: secretNames(secretsList.text) },
+    requiredSecretNames: requiredSecretNames(),
+    frontendEnvVariableNames: (() => {
+      try {
+        return [...new Set(readFileSync('.env.example', 'utf8')
+          .split(/\r?\n/).map((line) => /^([A-Z0-9_]+)=/.exec(line)?.[1]).filter(Boolean))].sort()
+      } catch { return [] }
+    })(),
+  })
+  writeFileSyncSafe(`${prefix}-rebuild-kit.json`, JSON.stringify(kit, null, 2) + '\n')
+  // Cổng chặn lần hai, chạy trên nội dung ĐÃ tẩy. Còn sót bất kỳ credential nào (kể cả
+  // hash JWT, key Vercel/Supabase, chuỗi opaque 40+) -> xóa file và HỦY cả bản backup.
+  const leaked = JSON.stringify(kit).match(/vcp_[A-Za-z0-9]{6,}|eyJ[A-Za-z0-9_-]{10,}\.eyJ|sb_secret_[A-Za-z0-9]{6,}|postgres:\/\/[^\s"]*:[^\s"]*@|Bearer\s+[A-Za-z0-9+\/=_-]{6,}|[A-Za-z0-9+\/=_-]{40,}/)
+  if (leaked) {
+    rmSync(`${prefix}-rebuild-kit.json`, { force: true })
+    throw new Error(`rebuild kit refuses to store a secret value (${leaked[0].slice(0, 14)}...)`)
+  }
+  writeFileSyncSafe(`${prefix}-HUONG-DAN-KHOI-PHUC.md`, `# Cách dựng lại Cà Rem từ bản sao lưu này (${stamp})
+
+Bản này dựng lại được ĐƯỜNG TRUY CẬP + DỮ LIỆU + ẢNH, không cần web cũ còn sống.
+Đọc hết mục 0 trước khi làm — bỏ mục 0 là dựng xong mà web vẫn lỗi.
+
+## 0. Phải chuẩn bị gì trước
+- Tạo project Supabase MỚI (region Singapore) → lấy Project Ref + ANON KEY + SERVICE ROLE KEY.
+- Project mới phải BẬT cùng extension (mục 4) và pg_cron (mục 5), nếu không schema.sql sẽ chết ở dòng CREATE EXTENSION.
+- File chứa mật khẩu khách hàng và hash mật khẩu nhân viên: chỉ mở trên máy của chủ, không upload nơi công khai.
+
+## 1. Cấu trúc database
+  npx supabase db push --db-url "postgres://postgres.<REF>:<MAT_KHAU>@db.<REF>.supabase.co:5432/postgres" --local ..
+  hoặc chạy trực tiếp: psql "<DATABASE_URL>" -f "${SET_PREFIX}${stamp}-schema.sql"
+  (schema.sql có đầy đủ bảng, RLS, policy, function, trigger, enum, grant)
+
+## 2. Dữ liệu
+  psql "<DATABASE_URL>" -f "${SET_PREFIX}${stamp}-data.sql"
+  Gồm: xe, thu xe, bán, thanh toán, công nợ, chi phí, lịch sử giao dịch ngân hàng,
+  audit, hồ sơ nhân viên, và bảng auth.users (kèm hash mật khẩu).
+
+## 3. Tài khoản đăng nhập
+  data.sql đã chứa auth.users. Sau khi nạp:
+  - Đăng nhập bằng đúng email/username + mật khẩu CŨ (hash bcrypt mang đi được).
+  - Bắt buộc kiểm tra: Auth → Site URL, SMTP, "Confirm email", mật khẩu tối thiểu —
+    project mới KHÔNG tự có mấy cái này; xem rebuild-kit.json và docs/OPERATIONS.md.
+  - Nếu project mới chặn ghi auth.users: tạo lại từng tài khoản bằng
+    npx supabase functions invoke manage-users (hoặc Dashboard → Authentication → Add user)
+    rồi đặt lại mật khẩu cho nhân viên.
+
+## 4. Ảnh xe và giấy tờ (pg_dump KHÔNG chứa ảnh, nên ảnh nằm riêng trong bản này)
+  npx supabase storage create bucket <ten-bucket> --private   # xem -storage-inventory.json
+  npx supabase storage cp "${SET_PREFIX}${stamp}-storage/<bucket>/<duong-dan>" ss:///<bucket>/<duong-dan> --experimental
+  Danh mục đầy đủ + sha256 từng ảnh: ${SET_PREFIX}${stamp}-storage-inventory.json
+
+## 5. Function, cron, biến môi trường
+  - Xem "${SET_PREFIX}${stamp}-rebuild-kit.json": tên function đã deploy, verify_jwt,
+    lịch pg_cron, danh sách TÊN biến bí mật cần tạo lại (giá trị KHÔNG nằm trong backup).
+  - npx supabase functions deploy <ten>   (mã nguồn nằm trong supabase/functions/ của repo)
+  - npx supabase secrets set <TEN_BIEN>=<gia tri chu tu nho>
+    Danh sách biến PHẢI có: look at rebuild-kit.json -> "requiredSecretNames"
+    (rút từ đúng mã nguồn Edge Function, nên không bao giờ chứa giá trị cũ).
+    LUU Y: token PUSH_SWEEP_TOKEN đang nằm TRONG cu phap cua hang muc cron.job,
+    ma pg_dump sao luu ca bang cron -> no co trong data.sql cua moi ban backup tu
+    khi bat pg_cron (sau 15/10). Doi moi project thi PHAI doi token do truoc khi
+    nap data.sql, va khong dung token cu.
+  - Đăng ký lại webhook ngân hàng với SePay/Casso trỏ tới URL project MỚI, rồi bật
+    "Bật webhook ngân hàng" trong Cài đặt → Thanh toán & Đối soát.
+
+## 6. Frontend
+  - Repo: github.com/macxuanhoa/xemaycarem  (branch integration/one-carem-latest)
+  - Vercel: env theo đúng tên ở rebuild-kit.json (frontendEnvVariableNames), rồi
+    npx vercel deploy --prod
+  - CHÚ Ý: bản sao lưu NÀY KHÔNG chứa mã nguồn web. Nó chứa dữ liệu + ảnh + cấu hình
+    database. Mất cả GitHub lẫn máy này thì mất mã nguồn -> giữ một bản clone repo
+    ở NƠI THỨ BA (kéo file .bundle hoặc zip repo sang cùng thư mục Google Drive).
+
+## 7. Kiểm tra sau khi dựng
+  npm run backup:verify -- --set ${stamp}   (xác minh từng byte của bản này)
+  npx playwright test                        (luồng bán xe, thu tiền, đối soát)
+  Đăng nhập thử 1 tài khoản nhân viên + mở 1 hồ sơ xe có ảnh.
+`)
+
   // Collect every file this run produced (basename carem-prod-<stamp>*), hash it, and
   // write the manifest. Walks the backups/ tree so Storage subdirectories are included.
   const collected = []

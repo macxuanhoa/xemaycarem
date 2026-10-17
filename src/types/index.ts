@@ -74,6 +74,16 @@ export type Expense = {
   updated_at?: string;
 };
 /**
+ * Dòng chi phí gắn trong hồ sơ xe (`get_vehicle.expenses`). Với nhân viên, server
+ * chủ đích KHÔNG trả `amount` và chỉ trả `description` của đúng dòng họ ghi — xem
+ * migration 20261017000500_staff_expense_visibility. Hai khóa vì thế phải được
+ * phép vắng mặt trong kiểu, để không màn hình nào giả định số tiền luôn có.
+ */
+export type VehicleExpense = Omit<Expense, "amount" | "description"> & {
+  amount?: number | null;
+  description?: string | null;
+};
+/**
  * Public showroom projection from list_showroom_vehicles — identity fields only.
  * The RPC never emits a price, an odometer reading, a variant or a brand; keep
  * this type free of those keys so no screen can quietly reintroduce them.
@@ -158,7 +168,7 @@ export type Vehicle = {
    *  do list_vehicles ghép vào; NULL khi xe chưa có ảnh. Ký URL qua api.imageUrl. */
   primary_image_path?: string | null;
   images?: VehicleImage[];
-  expenses?: Expense[];
+  expenses?: VehicleExpense[];
   sales?: Sale[];
   activity?: Activity[];
 };

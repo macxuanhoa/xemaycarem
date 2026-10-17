@@ -663,9 +663,24 @@ export function VehicleDetailPage() {
               personLabel="Người bán"
             />
           )}
-          {canManage(profile) && (
+          {/* Card hiện khi người đọc có quyền thao tác với chi phí của xe VÀ thực
+              sự nhận về dữ liệu. Nhân viên chỉ nhận về dữ liệu từ
+              migration 20261017000500; trước khi migration đó được áp, điều kiện
+              thứ hai giữ đúng hiện trạng thay vì mở một thẻ trống báo "chưa có". */}
+          {canOperate(profile) &&
+            (financial || (vehicle.expenses?.length ?? 0) > 0) && (
             <Card>
               <h2 className="section-title">Chi phí của xe</h2>
+              {/* Nhân viên là người ghi chi phí nên phải đọc lại được sổ của xe.
+                  Ai được thấy số tiền là quyết định của server (get_vehicle phân
+                  chiếu theo người đọc), giao diện chỉ vẽ khi khóa amount có mặt. */}
+              {!financial && (
+                <p className="muted small">
+                  {profile?.role === "STAFF"
+                    ? "Bạn xem được loại và ngày chi phí; số tiền hiện với đúng dòng bạn đã ghi."
+                    : "Bạn xem được loại và mô tả chi phí; số tiền chỉ Chủ/Quản lý được cấp quyền tài chính thấy."}
+                </p>
+              )}
               {vehicle.expenses?.length ? (
                 <div className="compact-list">
                   {vehicle.expenses.map((expense) => (
@@ -684,10 +699,17 @@ export function VehicleDetailPage() {
                               expense.expense_type ?? "OTHER"
                             ]
                           }
+                          {!financial &&
+                          expense.created_by &&
+                          expense.created_by === profile?.id
+                            ? " · bạn đã ghi"
+                            : ""}
                         </small>
                       </div>
                       <div className="align-right">
-                        <strong>{money(expense.amount)}</strong>
+                        {expense.amount != null && (
+                          <strong>{money(expense.amount)}</strong>
+                        )}
                         {expense.status === "CANCELLED" && (
                           <Badge status="CANCELLED" />
                         )}

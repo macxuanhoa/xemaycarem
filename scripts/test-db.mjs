@@ -39,6 +39,7 @@ import { runSeasonalThemeTetTests } from '../tests/db/seasonal-theme-tet2027.tes
 import { runSecurityIntegrationTests } from '../tests/db/security-integration.test.mjs'
 import { runVehicleFavoriteTests } from '../tests/db/vehicle-favorites.test.mjs'
 import { runInventoryPrimaryImageTests } from '../tests/db/inventory-list-primary-image.test.mjs'
+import { runBankReconciliationFilterGroupTests } from '../tests/db/bank-reconciliation-filter-groups.test.mjs'
 
 const engine = process.argv.includes('--pglite') ? 'pglite' : 'postgres'
 console.log(`Database integration suite: ${engine} (disposable database; no cloud credentials)`)
@@ -95,6 +96,7 @@ await suite('seasonal-theme-tet2027', () => runSeasonalThemeTetTests(null, { eng
 await suite('security-integration', () => runSecurityIntegrationTests(null, { engine }))
 await suite('vehicle-favorites', () => runVehicleFavoriteTests(null, { engine }))
 await suite('inventory-list-primary-image', () => runInventoryPrimaryImageTests(null, { engine }))
+await suite('bank-reconciliation-filter-groups', () => runBankReconciliationFilterGroupTests(null, { engine }))
 const db = await createDatabase({ engine })
 let passed = 0
 const users = Object.fromEntries(['owner', 'manager', 'financialManager', 'staff', 'disabled'].map((role) => [role, randomUUID()]))
@@ -336,7 +338,28 @@ try {
     for (const field of ['inventory_cost', 'today_revenue', 'month_revenue', 'revenue', 'today_profit', 'month_profit', 'gross_profit', 'business_expenses']) assert.equal(dashboard[field], null)
     assert.deepEqual(dashboard.top_profitable, [])
     const detail = await getVehicle('staff', vehicleId)
-    assert.deepEqual(detail.expenses, [])
+    // Trước 20261017000500 nhân viên không nhận về dòng chi phí nào, nên check này
+    // chỉ cần `[]`. Hợp đồng mới: nhân viên thấy ĐÚNG tập dòng chủ xe thấy (họ là
+    // người ghi chi phí), nhưng tiền và ghi chú chỉ đi kèm đúng dòng chính họ ghi.
+    const ownerDetail = await getVehicle('owner', vehicleId)
+    assert.deepEqual(detail.expenses.map((entry) => entry.id).sort(), ownerDetail.expenses.map((entry) => entry.id).sort(), 'staff sees the same expense rows as the owner')
+    const ownRows = detail.expenses.filter((entry) => entry.created_by === users.staff)
+    const foreignRows = detail.expenses.filter((entry) => entry.created_by !== users.staff)
+    assert.ok(ownRows.length > 0 && foreignRows.length > 0, 'the fixture mixes staff rows and other people rows')
+    for (const expense of ownRows) assert.equal(expense.amount, 100_000, 'a staff member sees the money on their own entry')
+    for (const expense of foreignRows) {
+      assert.ok(!Object.hasOwn(expense, 'amount'), "another person's money stays hidden from staff")
+      assert.equal(expense.description ?? null, null, "another person's free-text note stays hidden from staff")
+    }
+    for (const expense of detail.expenses)
+      assert.ok(!Object.hasOwn(expense, 'cancellation_reason'), 'no cancellation reason in a staff projection')
+    // MANAGER không giữ quyền tài chính: vẫn thấy mô tả vận hành, nhưng server
+    // không gửi amount nữa (trước migration này bản ghi đầy đủ bị gửi cho cả vai
+    // này — UI ẩn nhưng dữ liệu đã đi qua mạng).
+    const managerDetail = await getVehicle('manager', vehicleId)
+    assert.ok(managerDetail.expenses.every((entry) => !Object.hasOwn(entry, 'amount')), 'a non-financial MANAGER receives no amounts')
+    assert.ok(managerDetail.expenses.every((entry) => typeof entry.description === 'string'), 'MANAGER still reads operational notes')
+    assert.ok((await getVehicle('financialManager', vehicleId)).expenses.every((entry) => typeof entry.amount === 'number'), 'a financial MANAGER keeps full projection')
     assert.ok(detail.activity.every((entry) => !Object.hasOwn(entry, 'old_data') && !Object.hasOwn(entry, 'new_data') && !Object.hasOwn(entry, 'amount')))
   })
   await test('Purchase cost completion and missing inventory costs remain explicit', async () => {

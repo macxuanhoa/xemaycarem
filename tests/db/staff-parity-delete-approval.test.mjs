@@ -66,6 +66,25 @@ export async function runStaffDeleteApprovalTests(externalDb, { engine = 'postgr
     assert.equal((await getVehicle('staff', parityVehicle)).status, 'IN_STOCK')
     const staffExpense = await saveExpense('staff', 'vehicle', { vehicle_id: parityVehicle, expense_type: 'REPAIR', description: 'Chi phí nhân viên', amount: 400_000, expense_date: day })
     await cancelExpense('staff', 'vehicle', staffExpense, 'Hủy bởi nhân viên')
+    // 1b. Ghi được mà không nhìn lại được thì vẫn là một vòng lặp đứt: nhân viên
+    // bấm lưu rồi thấy "Chưa ghi nhận chi phí". get_vehicle phân chiếu theo người
+    // đọc: nhân viên thấy sổ của xe, nhưng chỉ thấy tiền và ghi chú của đúng
+    // dòng chính họ ghi; manager không giữ quyền tài chính không nhận amount nào.
+    await saveExpense('owner', 'vehicle', { vehicle_id: parityVehicle, expense_type: 'OTHER', description: 'Ghi chú riêng của chủ', amount: 900_000, expense_date: day })
+    const staffView = await getVehicle('staff', parityVehicle)
+    const mine = staffView.expenses.find((entry) => entry.id === staffExpense)
+    assert.ok(mine, 'a staff member sees the expense they just saved')
+    assert.equal(mine.description, 'Chi phí nhân viên')
+    assert.equal(mine.status, 'CANCELLED')
+    assert.equal(mine.amount, 400_000, 'a staff member sees the money on their own entry')
+    const theirs = staffView.expenses.find((entry) => entry.created_by === users.owner)
+    assert.ok(theirs && theirs.description == null, "another person's free-text note stays hidden from staff")
+    assert.ok(!Object.hasOwn(theirs, 'amount'), "another person's money stays hidden from staff")
+    const managerView = await getVehicle('manager', parityVehicle)
+    assert.ok(managerView.expenses.every((entry) => !Object.hasOwn(entry, 'amount')), 'a non-financial MANAGER receives no amounts either')
+    assert.ok(managerView.expenses.some((entry) => entry.description === 'Ghi chú riêng của chủ'), 'MANAGER still reads operational notes')
+    const ownerView = await getVehicle('owner', parityVehicle)
+    assert.ok(ownerView.expenses.every((entry) => typeof entry.amount === 'number'), 'OWNER keeps the full expense projection')
     await deny(() => saveExpense('staff', 'business', { category: 'RENT', description: 'Unauthorized', amount: 1000, expense_date: day }))
     pass('STAFF cancels/restores vehicle status and manages vehicle expenses but cannot touch business expenses')
 

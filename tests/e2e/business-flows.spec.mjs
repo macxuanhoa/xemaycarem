@@ -408,6 +408,49 @@ test("FLOW D: STAFF login -> attempt unauthorized admin/financial action -> acce
   // 4. Vehicle detail does not show purchase cost
   await page.goto(`/vehicles/${createdVehicles[0]}`);
   await expect(page.getByText("Giá mua", { exact: true })).toHaveCount(0);
+
+  // 5. Nhân viên ghi được chi phí thì phải đọc lại được sổ của xe. Ranh giới
+  //    nằm ở server (get_vehicle phân chiếu theo người đọc): họ thấy số tiền của
+  //    đúng dòng mình ghi, và không thấy số tiền của dòng người khác ghi.
+  const staffExpenseConnection = await db.connection();
+  try {
+    await asUser(staffExpenseConnection, ids.STAFF, (client) =>
+      rpc(client, "save_expense", "'vehicle',$1::jsonb", [JSON.stringify({
+        vehicle_id: createdVehicles[0], expense_type: "PARTS",
+        description: `Thay nhớt ${ids.STAFF.slice(0, 6)}`,
+        amount: 350_000, expense_date: day,
+      })]),
+    );
+    await asUser(staffExpenseConnection, ids.OWNER, (client) =>
+      rpc(client, "save_expense", "'vehicle',$1::jsonb", [JSON.stringify({
+        vehicle_id: createdVehicles[0], expense_type: "REPAIR",
+        description: "Công sửa của chủ cửa hàng",
+        amount: 777_000, expense_date: day,
+      })]),
+    );
+  } finally {
+    await staffExpenseConnection.close();
+  }
+  await page.reload();
+  await expect(
+    page.getByRole("heading", { name: "Chi phí của xe" }),
+  ).toBeVisible();
+  await expect(
+    page.getByText(`Thay nhớt ${ids.STAFF.slice(0, 6)}`, { exact: true }),
+  ).toBeVisible();
+  await expect(
+    page.getByText(
+      "Bạn xem được loại và ngày chi phí; số tiền hiện với đúng dòng bạn đã ghi.",
+    ),
+  ).toBeVisible();
+  await expect(page.getByText("350.000", { exact: false })).toBeVisible();
+  await expect(page.getByText("777.000", { exact: false })).toHaveCount(0);
+  // Ghi chú của người khác cũng ẩn với nhân viên, dù dòng đó vẫn hiện loại/ngày.
+  await expect(page.getByText("Công sửa của chủ cửa hàng")).toHaveCount(0);
+
+  await loginAs(page, "owner");
+  await page.goto(`/vehicles/${createdVehicles[0]}`);
+  await expect(page.getByText("777.000", { exact: false })).toBeVisible();
 });
 
 async function seedSale(overrides = {}) {

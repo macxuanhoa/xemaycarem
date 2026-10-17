@@ -131,9 +131,9 @@ test("OWNER toggles TET_2027 on and off from the Giao diện hệ thống tab", 
   await expect(page.getByRole("heading", { name: "Hồ sơ của bạn" })).toBeVisible();
 
   await openThemeTab(page);
-  await expect(page.getByText("Giao diện thường ngày.", { exact: true })).toBeVisible();
+  await expect(page.getByText("Thường ngày", { exact: true })).toBeVisible();
 
-  await page.getByText("Tết 2027 — bật ngay", { exact: true }).click();
+  await page.getByText("Áo Tết 2027", { exact: true }).click();
   await page.getByRole("button", { name: "Lưu giao diện", exact: true }).click();
   await expect(page.getByText("Đã lưu giao diện", { exact: true })).toBeVisible();
   await expect(page.locator("html")).toHaveAttribute("data-seasonal", "tet");
@@ -149,7 +149,7 @@ test("OWNER toggles TET_2027 on and off from the Giao diện hệ thống tab", 
 
   // And back off.
   await openThemeTab(page);
-  await page.getByText("Mặc định", { exact: true }).click();
+  await page.getByText("Áo Tết 2027", { exact: true }).click();
   await page.getByRole("button", { name: "Lưu giao diện", exact: true }).click();
   await expect(page.locator("html")).toHaveAttribute("data-seasonal", "default");
 });
@@ -190,11 +190,6 @@ async function openThemeTab(page) {
   ).toBeVisible();
 }
 
-/** The preview button relabels itself while the preview is active. */
-function previewButton(page) {
-  return page.getByRole("button", { name: /Áo Tết|Đang xem Tết/, exact: true });
-}
-
 test("STAFF never sees the tab; a forced write is denied by the server", async ({ page }) => {
   await setup(page, { role: "STAFF" });
   await page.goto("/settings");
@@ -222,13 +217,10 @@ test("cinematic greeting: app-wide at open, once per session, never a hijack", a
   await expect(page.locator("html")).toHaveAttribute("data-seasonal", "tet");
   await expect(stage).toHaveCount(0);
 
-  // The look preview is a look-only switch: it must never summon the story.
+  // The explicit replay in the settings card does play, and it writes nothing
+  // to the server.
   await page.goto("/settings");
   await openThemeTab(page);
-  await previewButton(page).click();
-  await expect(stage).toHaveCount(0);
-
-  // The explicit replay does play, and it writes nothing to the server.
   const savesBefore = calls.saves.length;
   await page.getByRole("button", { name: /Xem lại màn chào Tết/ }).click();
   await expect(stage).toBeVisible();

@@ -5,6 +5,7 @@ import {
 } from "@tanstack/react-query";
 import type { RealtimeChannel } from "@supabase/supabase-js";
 import { api } from "./api";
+import { setTetAmbient } from "./tetAmbient";
 import { supabase } from "./supabase";
 
 /**
@@ -278,6 +279,10 @@ export function applySeasonalTheme(theme: SeasonalTheme): SeasonalAttribute {
   put(ATTRIBUTE_KEY, attribute);
   put(CINEMATIC_KEY, theme.cinematic_enabled && active ? "1" : "0");
   if (attribute === "tet") ensureSeasonalFonts();
+  // The drifting-petal ambient layer belongs to the festive look, so it is
+  // synced here — every write of data-seasonal (load, tick, preview, realtime)
+  // brings the decoration along with the theme, never ahead of it.
+  setTetAmbient(attribute === "tet");
   return attribute;
 }
 

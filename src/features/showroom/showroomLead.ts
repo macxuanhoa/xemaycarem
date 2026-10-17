@@ -19,12 +19,20 @@ const VN_PHONE_PATTERN = /^0[35789][0-9]{8}$/;
 const YEAR_PATTERN = /^(19|20)\d{2}$/;
 
 export const buybackLeadSchema = z.object({
-  customer_name: z.string().trim().min(2, "Cho em xin tên ngắn gọn (≥ 2 ký tự).").max(120),
+  customer_name: z
+    .string()
+    .trim()
+    .min(2, "Cho em xin tên ngắn gọn (≥ 2 ký tự).")
+    .max(120, "Tên tối đa 120 ký tự, hãy viết gọn lại."),
   phone: z
     .string()
     .transform((value) => normalizeVietnamPhone(value))
     .refine((value) => VN_PHONE_PATTERN.test(value), "Số điện thoại Việt Nam không hợp lệ (ví dụ 0901234567)."),
-  vehicle_name: z.string().trim().min(2, "Nhập tên xe cần bán (ví dụ: Wave Alpha 2023).").max(160),
+  vehicle_name: z
+    .string()
+    .trim()
+    .min(2, "Nhập tên xe cần bán (ví dụ: Wave Alpha 2023).")
+    .max(160, "Tên xe tối đa 160 ký tự, hãy viết gọn lại."),
   vehicle_year: z
     .string()
     .trim()

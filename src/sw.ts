@@ -24,7 +24,7 @@ import {
 import { NavigationRoute, registerRoute } from "workbox-routing";
 import { CacheFirst } from "workbox-strategies";
 import { ExpirationPlugin } from "workbox-expiration";
-import { parsePushPayload, safeDeepLink } from "./lib/pushContracts";
+import { parsePushPayload, safeDeepLink, buildNotificationOptions, type CaremNotificationOptions } from "./lib/pushContracts";
 
 interface PrecacheManifestEntry {
   url: string;
@@ -56,10 +56,12 @@ interface SwNotificationLike {
 }
 interface SwNotificationClickEventLike extends Event {
   notification: SwNotificationLike;
+  /** Nút người dùng bấm trên notification ('open' | 'dismiss' | '' khi chạm thân). */
+  action?: string;
   waitUntil(promise: Promise<unknown>): void;
 }
 interface SwRegistrationLike {
-  showNotification(title: string, options?: Record<string, unknown>): Promise<void>;
+  showNotification(title: string, options?: CaremNotificationOptions): Promise<void>;
 }
 interface SwPushSubscriptionChangeLike extends Event {
   waitUntil(promise: Promise<unknown>): void;
@@ -125,29 +127,21 @@ registerRoute(
 
 // ---- LAYER 2: Web Push ----
 
-const NOTIFICATION_ICON = "/icon-192.png";
-
 async function showCaremNotification(raw: string | null): Promise<void> {
   const payload = parsePushPayload(raw);
   if (!payload) {
     // Payload hỏng/lạ: phát tin chung chung, KHÔNG suy diễn nội dung.
-    await scope.registration.showNotification("Cà Rem", {
+    await scope.registration.showNotification("Cà Rem", buildNotificationOptions({
+      v: 1,
+      kind: "notification",
+      id: "generic",
+      title: "Cà Rem",
       body: "Bạn có thông báo mới. Mở ứng dụng để xem chi tiết.",
-      tag: "carem:generic",
-      icon: NOTIFICATION_ICON,
-      badge: NOTIFICATION_ICON,
-      data: { deepLink: "/thong-bao" },
-    });
+      link: "/thong-bao",
+    }));
     return;
   }
-  await scope.registration.showNotification(payload.title, {
-    body: payload.body,
-    // tag theo từng delivery: trình duyệt thu gọn notification trùng khi gửi lại.
-    tag: `${payload.kind}:${payload.id}`,
-    icon: NOTIFICATION_ICON,
-    badge: NOTIFICATION_ICON,
-    data: { deepLink: payload.link },
-  });
+  await scope.registration.showNotification(payload.title, buildNotificationOptions(payload));
 }
 
 scope.addEventListener("push", (pushEvent) => {
@@ -172,6 +166,11 @@ async function focusOrCreateWindow(path: string): Promise<void> {
 }
 
 scope.addEventListener("notificationclick", (clickEvent) => {
+  // "Bỏ qua" trên màn hình khóa là quyết định tường minh: đóng, KHÔNG mở app.
+  if (clickEvent.action === "dismiss") {
+    clickEvent.notification.close();
+    return;
+  }
   clickEvent.notification.close();
   const data = clickEvent.notification.data as { deepLink?: unknown } | undefined;
   clickEvent.waitUntil(focusOrCreateWindow(safeDeepLink(data?.deepLink)));

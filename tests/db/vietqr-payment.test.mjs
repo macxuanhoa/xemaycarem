@@ -161,14 +161,13 @@ export async function runVietQrPaymentTests(externalDb, { engine = 'pglite' } = 
     assert.equal(await count('SELECT count(*) FROM public.bank_transactions'), 0)
     pass('Legacy confirmation cannot manufacture receipt of money, even for OWNER')
 
-    // Replacement needs an explicit user action and a server-enforced cooldown.
+    // Đổi thông tin (số tiền/tên) là thao tác thay mã rõ ràng nên được BỎ 60 giây
+    // cooldown: nhân viên sửa biểu mẫu rồi mở lại thấy ngay mã đúng số tiền mới,
+    // không bị kẹt hiển thị mã cũ. Create mới (v_replace NULL) với thông tin khác
+    // vẫn bắt buộc phải thay mã; thay mã CÙNG thông tin (bấm spam) vẫn dính cooldown.
     await assert.rejects(() => call('owner', 'create_vietqr_payment_request', {
       vehicle_id: vehicleId, amount: 10_000_000,
     }), /VIETQR_REPLACE_REQUIRED/)
-    await assert.rejects(() => call('owner', 'replace_vietqr_payment_request', {
-      replace_request_id: qr1.id, amount: 10_000_000,
-    }), /VIETQR_REPLACEMENT_COOLDOWN/)
-    await db.query("UPDATE public.vietqr_requests SET replace_available_at=clock_timestamp()-interval '1 second' WHERE id=$1", [qr1.id])
     const qr2 = await call('owner', 'replace_vietqr_payment_request', {
       replace_request_id: qr1.id, amount: 10_000_000,
     })
@@ -187,7 +186,7 @@ export async function runVietQrPaymentTests(externalDb, { engine = 'pglite' } = 
     await assert.rejects(() => call('owner', 'replace_vietqr_payment_request', {
       replace_request_id: qr2.id, amount: 10_000_000,
     }), /VIETQR_REPLACEMENT_COOLDOWN/)
-    pass('Changing the amount requires explicit replacement, cancels the old request and enforces cooldown')
+    pass('A detail change replaces the code instantly (bypassing cooldown) while identical reissues still wait')
 
     // 9. Cancel QR explicitly
     await call('owner', 'cancel_vietqr_payment_request', qr2.id)

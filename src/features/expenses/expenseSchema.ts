@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { dateValue, moneyValue } from "@/lib/validation";
+import { cappedString, CHAR_LIMITS, dateValue, moneyValue } from "@/lib/validation";
 
 export const vehicleExpenseLabels: Record<string, string> = {
   REPAIR: "Sửa chữa",
@@ -23,9 +23,13 @@ export const businessExpenseLabels: Record<string, string> = {
 
 export const expenseSchema = z.object({
   vehicle_id: z.string().uuid("Chọn xe hợp lệ.").optional().or(z.literal("")),
-  expense_type: z.string().trim().max(80).optional(),
-  category: z.string().trim().max(80).optional(),
-  description: z.string().trim().min(1, "Nhập nội dung chi phí.").max(250),
+  expense_type: cappedString("Loại chi phí", CHAR_LIMITS.shortLabel).optional(),
+  category: cappedString("Danh mục", CHAR_LIMITS.shortLabel).optional(),
+  description: z
+    .string()
+    .trim()
+    .min(1, "Nhập nội dung chi phí.")
+    .max(CHAR_LIMITS.description, `Nội dung chi phí tối đa ${CHAR_LIMITS.description} ký tự, hãy viết gọn lại.`),
   amount: moneyValue.refine((val) => val > 0, "Số tiền phải lớn hơn 0."),
   expense_date: dateValue,
 });

@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { dateValue, moneyValue } from "@/lib/validation";
+import { cappedString, CHAR_LIMITS, dateValue, moneyValue } from "@/lib/validation";
 import { isValidMotorbikePlate, PLATE_INVALID_MESSAGE } from "@/lib/plate";
 import { compactFrame } from "@/lib/frameNumber";
 
@@ -24,34 +24,30 @@ export const vehicleSchema = z.object({
     .string()
     .trim()
     .min(2, "Nhập loại / dòng xe (tối thiểu 2 ký tự).")
-    .max(60, "Tên xe tối đa 60 ký tự."),
-  license_plate: z
-    .string()
-    .trim()
-    .max(30)
-    .refine(isValidMotorbikePlate, PLATE_INVALID_MESSAGE),
+    .max(CHAR_LIMITS.vehicleType, `Tên xe tối đa ${CHAR_LIMITS.vehicleType} ký tự, hãy viết gọn lại.`),
+  license_plate: cappedString("Biển số", CHAR_LIMITS.plate).refine(
+    isValidMotorbikePlate,
+    PLATE_INVALID_MESSAGE,
+  ),
   year: z
     .number({ error: "Nhập năm sản xuất hợp lệ." })
-    .int()
-    .min(1950)
-    .max(new Date().getFullYear() + 1)
+    .int("Năm sản xuất phải là số nguyên.")
+    .min(1950, "Năm sản xuất từ 1950 trở lại đây.")
+    .max(new Date().getFullYear() + 1, "Năm sản xuất không được vượt quá năm tới.")
     .optional(),
-  color: z.string().trim().max(60),
+  color: cappedString("Màu sắc", CHAR_LIMITS.color),
   // Số khung: máy chủ TỰ suy loại theo độ dài chuỗi nén (`private.frame_kind`):
   // rỗng hoặc ≥ 11 ký tự = FULL (VIN đầy đủ, chặn trùng tuyệt đối); 5–10 ký tự
   // = PARTIAL (mảnh rút gọn, chỉ báo nghi trùng). Nhân viên không chọn tay nữa.
-  frame_number: z
-    .string()
-    .trim()
-    .max(100, "Số khung tối đa 100 ký tự."),
+  frame_number: cappedString("Số khung", CHAR_LIMITS.frame),
   // Bật khi nhân viên đã đối chiếu danh sách xe tương tự ở mức YELLOW.
   duplicate_ack: z.boolean().optional(),
   purchase_date: dateValue,
   purchase_price: moneyValue.optional(),
-  supplier_name: z.string().trim().max(160),
-  supplier_phone: z.string().trim().max(30),
+  supplier_name: cappedString("Tên nhà cung cấp", CHAR_LIMITS.name),
+  supplier_phone: cappedString("Số điện thoại nhà cung cấp", CHAR_LIMITS.phone),
   status: z.enum(["IN_STOCK", "RESERVED", "CANCELLED"]),
-  notes: z.string().trim().max(5000),
+  notes: cappedString("Ghi chú", CHAR_LIMITS.notes),
 });
 
 vehicleSchema.superRefine((values, ctx) => {

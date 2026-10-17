@@ -25,6 +25,12 @@ export function friendlyError(error: unknown): string {
   const passwordMin = /password should be at least (\d+) characters?/i.exec(value);
   if (passwordMin)
     return `Mật khẩu phải có ít nhất ${passwordMin[1]} ký tự.`;
+  // Mã lỗi số tiền đặc trưng của một mã VietQR (money_input chặn > 1.000.000.000.000 ₫
+  // hoặc nhận số thập phân). Ánh xạ SỚM, trước cả nhánh "mất mạng", để lúc offline
+  // thật (hoặc navigator.onLine giả trong môi trường test) người dùng vẫn đọc đúng
+  // giới hạn thay vì bị nuốt vào câu "Không thể kết nối".
+  if (/INVALID_PAYMENT_AMOUNT|INVALID_MONEY|MONEY_OUT_OF_RANGE/i.test(value))
+    return "Số tiền không hợp lệ cho một mã chuyển khoản: phải là số nguyên, lớn hơn 0 và tối đa 1.000.000.000.000 ₫.";
   if (error instanceof AppError) return error.message;
   if (
     (typeof navigator !== "undefined" && !navigator.onLine) ||

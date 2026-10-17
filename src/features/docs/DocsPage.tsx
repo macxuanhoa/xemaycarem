@@ -216,7 +216,7 @@ export default function DocsPage() {
               {article.data.section ? ` · mục: ${article.data.section}` : ""}
             </p>
             <MarkdownLite text={article.data.body_md} className="doc-body" />
-            <Link className="carem-btn" to="/copilot">
+            <Link className="carem-btn" to="/assistant">
               <Sparkles size={16} aria-hidden="true" /> Hỏi AI về tài liệu này
             </Link>
           </Card>

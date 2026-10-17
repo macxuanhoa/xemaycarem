@@ -1,4 +1,4 @@
-import { Fragment, useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useDebouncedValue } from "@/lib/useDebouncedValue";
 import { useFormDraft } from "@/lib/useFormDraft";
 import { MoneyInput } from "@/components/ui/MoneyInput";
@@ -18,6 +18,7 @@ import { OperationRecoveryNotice } from "@/components/OperationRecoveryNotice";
 import { canFinance, canOperate, isOwner } from "@/lib/permissions";
 import { dateLabel, money, today } from "@/lib/format";
 import { displayFrame } from "@/lib/frameNumber";
+import { CHAR_LIMITS } from "@/lib/validation";
 import { toast } from "@/lib/toast";
 import { useAuth } from "@/features/auth/AuthProvider";
 import {
@@ -303,13 +304,38 @@ function SaleEditor({ vehicle }: { vehicle: Vehicle }) {
   const belowCost = (value: number) =>
     purchaseCost != null && Number.isFinite(value) && value < purchaseCost;
   const isBelowCost = belowCost(price);
-  const shortfall = isBelowCost ? purchaseCost! - price : 0;
   const needsApproval = !owner && (isBelowCost || costHidden);
   const awaitingApproval = !!vehicle.pending_sale_approval;
   const qrRequiresApproval = needsApproval || awaitingApproval;
-  // MỘT dòng cảnh báo duy nhất cho mọi mức "bán dưới" (giá thu — ai thao tác
-  // được xe cũng thấy; giá vốn — chỉ role tài chính). Dùng chung cho cả form
-  // lẫn hộp "Kiểm tra giao dịch bán xe" để hai chỗ luôn cùng câu, cùng kiểu.
+  // Ngân hàng đã xác nhận tiền vào (receivedQr) → biểu mẫu chỉ còn để KIỂM TRA và
+  // XÁC NHẬN: khóa mọi ô để số tiền / người trả / hình thức không lệch chứng từ.
+  const locked = !!receivedQr;
+  // MỘT con số duy nhất cho mọi mức "bán dưới" (giá thu — ai thao tác được xe
+  // cũng thấy; giá vốn — chỉ role tài chính): tổng đang lỗ. Nhân viên không
+  // cần đọc giảng giải giá thu/giá vốn, chỉ cần biết bán hời hay lỗ bao nhiêu.
+  const lossBaseline =
+    purchaseCost == null && vehicle.total_cost == null
+      ? null
+      : Math.max(purchaseCost ?? 0, vehicle.total_cost ?? 0);
+  const lossAmount =
+    lossBaseline != null && Number.isFinite(price) && price < lossBaseline
+      ? lossBaseline - price
+      : 0;
+  // Cảnh báo lỗ gọn ghẽ nằm NGAY DƯỚI Ô GIÁ BÁN trong cùng thẻ trắng — không
+  // còn dải vàng chen giữa các thẻ khiến khung form bị cắt khúc.
+  const lossAlert =
+    lossAmount > 0 ? (
+      <div className="sale-loss-alert" role="status">
+        <AlertTriangle size={14} />
+        <span>Bán dưới giá thu</span>
+        <strong className="sale-loss-amount">−{money(lossAmount)}</strong>
+        {!owner && (
+          <span className="sale-loss-sub">· cần chủ duyệt để chốt</span>
+        )}
+      </div>
+    ) : null;
+  // Bản chữ một dòng cho hộp "Kiểm tra giao dịch bán xe": cùng số lỗ với form,
+  // riêng role tài chính mới thêm mốc giá vốn nếu lỗ tính theo giá vốn sâu hơn.
   const belowPriceNotice = (salePrice: number, extraClass = "") => {
     const parts: { label: string; amount: number }[] = [];
     if (Number.isFinite(salePrice) && purchaseCost != null && salePrice < purchaseCost)
@@ -327,13 +353,9 @@ function SaleEditor({ vehicle }: { vehicle: Vehicle }) {
         <AlertTriangle size={15} />
         <span>
           Bán dưới{" "}
-          {parts.map((part, index) => (
-            <Fragment key={part.label}>
-              {index > 0 ? " · " : ""}
-              {part.label}{" "}
-              <strong className="danger">−{money(part.amount)}</strong>
-            </Fragment>
-          ))}
+          {parts
+            .map((part) => `${part.label} — lỗ ${money(part.amount)}`)
+            .join(" · ")}
           .
         </span>
       </p>
@@ -388,6 +410,7 @@ function SaleEditor({ vehicle }: { vehicle: Vehicle }) {
         toast.success("Đã gửi yêu cầu duyệt lên chủ cửa hàng.", {
           description:
             "Xe vẫn nằm trong kho, chưa ghi nhận doanh thu. Giao dịch bán hoàn tất khi chủ duyệt.",
+          important: true,
         });
         navigate(`/vehicles/${vehicle.id}`);
         return;
@@ -432,6 +455,7 @@ function SaleEditor({ vehicle }: { vehicle: Vehicle }) {
           toast.success("Cần chủ cửa hàng xác nhận giá bán.", {
             description:
               "Đã gửi yêu cầu duyệt. Xe vẫn nằm trong kho, chưa ghi nhận doanh thu cho tới khi chủ duyệt.",
+            important: true,
           });
           navigate(`/vehicles/${vehicle.id}`);
         } catch (submitError) {
@@ -516,17 +540,20 @@ function SaleEditor({ vehicle }: { vehicle: Vehicle }) {
     setReviewing(true);
     // Review and send the same validated values, even if form state later changes.
     const snapshot = Object.freeze({ ...values, payment_method: finalPaymentMethod });
+    // Khi tiền đã vào tài khoản (locked), hộp kiểm tra là bước XEM LẠI + XÁC NHẬN
+    // bán xe, không còn là "gửi yêu cầu duyệt" — số liệu đã chốt theo chứng từ.
+    const approvalMode = needsApproval && !locked;
     try {
       const confirmed = await confirmAction({
-        title: needsApproval
+        title: approvalMode
           ? costHidden
             ? "Gửi yêu cầu bán — cần chủ duyệt"
             : "Gửi yêu cầu bán dưới giá thu"
           : "Kiểm tra giao dịch bán xe",
-        description: needsApproval
+        description: approvalMode
           ? "Chủ cửa hàng sẽ nhận yêu cầu ở mục Chờ duyệt. Xe chưa bị bán và chưa ghi nhận doanh thu."
           : undefined,
-        confirmLabel: needsApproval ? "Gửi yêu cầu duyệt" : "Xác nhận bán xe",
+        confirmLabel: approvalMode ? "Gửi yêu cầu duyệt" : "Xác nhận bán xe",
         cancelLabel: "Quay lại chỉnh sửa",
         summary: (
           <div className="sale-review-stack">
@@ -671,6 +698,14 @@ function SaleEditor({ vehicle }: { vehicle: Vehicle }) {
         title="Bán xe"
         description="Hoàn tất thông tin khách hàng, giá bán và thanh toán trong một bước."
       />
+      {locked && (
+        <div className="notice success sale-transfer-lock" role="status">
+          <CheckCircle2 size={16} aria-hidden="true" />
+          Ngân hàng đã nhận <strong>{money(receivedQr!.amount)}</strong>
+          {receivedQr!.payer_name ? ` từ ${receivedQr!.payer_name}` : ""}. Biểu mẫu đã
+          khóa để khớp chứng từ chuyển khoản — bạn chỉ còn kiểm tra và xác nhận bán xe.
+        </div>
+      )}
       {aiDraft && (
         <p className="notice">
           Bản nháp từ câu lệnh của Cà Rem: kiểm tra lại khách hàng, số điện thoại
@@ -722,10 +757,16 @@ function SaleEditor({ vehicle }: { vehicle: Vehicle }) {
           <Card>
             <h2 className="section-title">Khách hàng</h2>
             <div className="form-grid">
-              <Field label="Tên khách hàng" error={error("customer_name")}>
+              <Field
+                label="Tên khách hàng"
+                error={error("customer_name")}
+                counter={{ value: form.watch("customer_name"), max: CHAR_LIMITS.name }}
+              >
                 <input
                   autoComplete="name"
+                  maxLength={CHAR_LIMITS.name}
                   {...form.register("customer_name")}
+                  disabled={locked}
                   placeholder="Khách lẻ (tùy chọn)"
                 />
               </Field>
@@ -733,39 +774,47 @@ function SaleEditor({ vehicle }: { vehicle: Vehicle }) {
                 <input
                   type="tel"
                   autoComplete="tel"
+                  maxLength={CHAR_LIMITS.phone}
                   {...form.register("customer_phone")}
+                  disabled={locked}
                 />
               </Field>
             </div>
           </Card>
           <Card>
             <h2 className="section-title">Giá bán & thanh toán</h2>
-            {/* Hàng luôn hiển thị: giá bán và ngày bán */}
+            {/* Hàng luôn hiển thị: giá bán và ngày bán. Cảnh báo lỗ bám ngay
+                dưới ô giá, trong cùng thẻ — không đẩy ra ngoài thành dải rời. */}
             <div className="form-grid">
-              <Field label="Bán với giá" error={error("sale_price")}>
-                <MoneyInput
-                  aria-label="Bán với giá"
-                  name={priceField.name}
-                  ref={priceField.ref}
-                  value={priceInput}
-                  min={0}
-                  required
-                  onBlur={() => void form.trigger("sale_price")}
-                  onChange={(value) => {
-                    form.setValue("sale_price", value ?? Number.NaN, {
-                      shouldValidate: true,
-                      shouldDirty: true,
-                    });
-                    // "Trả trước" được đồng bộ về đúng giá bán (mặc định khách đã
-                    // trả đủ) bởi effect ở trên — không xử lý ở đây để tránh
-                    // trạng thái dirtyFields cũ khiến số tiền bị lệch.
-                  }}
-                />
-              </Field>
+              <div className="sale-price-cell stack">
+                <Field label="Bán với giá" error={error("sale_price")}>
+                  <MoneyInput
+                    aria-label="Bán với giá"
+                    name={priceField.name}
+                    ref={priceField.ref}
+                    value={priceInput}
+                    min={0}
+                    required
+                    disabled={locked}
+                    onBlur={() => void form.trigger("sale_price")}
+                    onChange={(value) => {
+                      form.setValue("sale_price", value ?? Number.NaN, {
+                        shouldValidate: true,
+                        shouldDirty: true,
+                      });
+                      // "Trả trước" được đồng bộ về đúng giá bán (mặc định khách đã
+                      // trả đủ) bởi effect ở trên — không xử lý ở đây để tránh
+                      // trạng thái dirtyFields cũ khiến số tiền bị lệch.
+                    }}
+                  />
+                </Field>
+                {lossAlert}
+              </div>
               <Field label="Ngày bán *" error={error("sale_date")}>
                 <DatePicker
                   aria-label="Ngày bán *"
                   value={form.watch("sale_date")}
+                  disabled={locked}
                   onChange={(val) =>
                     form.setValue("sale_date", val, {
                       shouldDirty: true,
@@ -784,19 +833,21 @@ function SaleEditor({ vehicle }: { vehicle: Vehicle }) {
               variant="ghost"
               className="sale-payment-details-toggle"
               onClick={() => setShowPaymentDetails((v) => !v)}
-              aria-expanded={showPaymentDetails}
+              aria-expanded={showPaymentDetails || locked}
+              disabled={locked}
             >
-              {showPaymentDetails ? <ChevronUp size={15} /> : <ChevronDown size={15} />}
-              {showPaymentDetails ? "Ẩn chi tiết thanh toán" : "Thêm chi tiết thanh toán (trả trước, hình thức, hạn nợ)"}
+              {showPaymentDetails || locked ? <ChevronUp size={15} /> : <ChevronDown size={15} />}
+              {showPaymentDetails || locked ? "Ẩn chi tiết thanh toán" : "Thêm chi tiết thanh toán (trả trước, hình thức, hạn nợ)"}
             </Button>
 
             {/* Fields stay mounted so "đã trả trước" attaches at first paint
                 like "Bán với giá" (a late-mounted controlled money input lets
                 react-hook-form write the NaN blank-sentinel into the DOM as
-                the literal "NaN"); the toggle only collapses its visibility. */}
+                the literal "NaN"); the toggle only collapses its visibility.
+                Khi locked, chi tiết luôn mở để nhân viên đọc lại chứng từ. */}
             <div
               className="form-grid sale-payment-details"
-              style={{ display: showPaymentDetails ? undefined : "none" }}
+              style={{ display: showPaymentDetails || locked ? undefined : "none" }}
             >
                 <Field
                   label="Khách đã trả trước (₫)"
@@ -808,6 +859,7 @@ function SaleEditor({ vehicle }: { vehicle: Vehicle }) {
                     ref={paidField.ref}
                     value={paidInput}
                     min={0}
+                    disabled={locked}
                     onBlur={() => void form.trigger("initial_payment")}
                     onChange={(value) => {
                       // Nhân viên chạm tay vào ô trả trước (kể cả gõ 0 khi khách
@@ -853,6 +905,7 @@ function SaleEditor({ vehicle }: { vehicle: Vehicle }) {
                     aria-label="Hạn thanh toán (nếu còn nợ)"
                     value={form.watch("due_date")}
                     min={form.watch("sale_date")}
+                    disabled={locked}
                     onChange={(val) =>
                       form.setValue("due_date", val, {
                         shouldDirty: true,
@@ -876,10 +929,16 @@ function SaleEditor({ vehicle }: { vehicle: Vehicle }) {
               <div><dt>Đã trả trước</dt><dd>{Number.isFinite(paid) ? money(paid) : "Chưa hợp lệ"}</dd></div>
               <div className="summary-total"><dt>Còn phải thu</dt><dd>{paymentValid ? money(remaining) : "Kiểm tra số tiền"}</dd></div>
             </dl>
-            <Field label="Ghi chú" error={error("notes")}>
+            <Field
+              label="Ghi chú"
+              error={error("notes")}
+              counter={{ value: form.watch("notes"), max: CHAR_LIMITS.notes }}
+            >
               <textarea
                 rows={3}
+                maxLength={CHAR_LIMITS.notes}
                 {...form.register("notes")}
+                disabled={locked}
                 placeholder="Điều kiện bàn giao, thỏa thuận với khách hàng…"
               />
             </Field>
@@ -888,10 +947,8 @@ function SaleEditor({ vehicle }: { vehicle: Vehicle }) {
             <div className="notice warning">
               <Clock size={15} />
               <span>
-                Xe này đang có yêu cầu bán dưới giá thu chờ chủ duyệt. Chưa bán
-                được và cũng chưa gửi thêm yêu cầu khác cho tới khi chủ quyết
-                định. Cần đổi giá bán hay thông tin khách thì rút yêu cầu rồi gửi
-                lại bản mới.
+                Xe đang chờ chủ duyệt yêu cầu bán dưới giá thu — chưa bán được.
+                Cần đổi số liệu thì rút yêu cầu rồi gửi lại.
               </span>
               <Button
                 variant="secondary"
@@ -903,7 +960,6 @@ function SaleEditor({ vehicle }: { vehicle: Vehicle }) {
             </div>
           )}
           {mutation.isError && <ErrorState error={mutation.error} />}
-          {belowPriceNotice(price)}
         </div>
         <aside className="stack">
           <Card>
@@ -920,12 +976,8 @@ function SaleEditor({ vehicle }: { vehicle: Vehicle }) {
                   <dd>{money(vehicle.total_cost)}</dd>
                 </div>
               )}
-              {isBelowCost && (
-                <div>
-                  <dt>Thấp hơn giá thu</dt>
-                  <dd className="danger">−{money(shortfall)}</dd>
-                </div>
-              )}
+              {/* Không lặp lại số lỗ trong tóm tắt — cảnh báo "Bán dưới giá thu"
+                  đã đặt ngay dưới ô giá bán, một chỗ duy nhất, khó bỏ sót. */}
               <div className="summary-total">
                 <dt>Còn phải thu</dt>
                 <dd>
@@ -937,37 +989,56 @@ function SaleEditor({ vehicle }: { vehicle: Vehicle }) {
         </aside>
         <Card className="sale-final-actions">
             <div className="sale-action-footer">
-              <Button
-                type="button"
-                variant="secondary"
-                className="full-width sale-aside-vietqr-btn"
-                onClick={handleOpenVietQr}
-                disabled={qrRequiresApproval}
-                title={qrRequiresApproval ? "Chờ chủ cửa hàng duyệt giao dịch trước khi thu tiền chuyển khoản." : undefined}
-              >
-                <QrCode size={15} /> {receivedQr ? "Xem khoản chuyển đã nhận" : "Thanh toán chuyển khoản"}
-              </Button>
-              {qrRequiresApproval && <p className="muted small">Chờ duyệt giao dịch trước khi tạo mã thu tiền.</p>}
-              {receivedQr && <p className="notice success" role="status">Ngân hàng đã nhận {money(receivedQr.amount)}. Khoản tiền sẽ gắn với hợp đồng khi bạn xác nhận bán xe.</p>}
-              <Button
-                type="submit"
-                className="full-width"
-                disabled={mutation.isPending || reviewing || awaitingApproval}
-                title={
-                  awaitingApproval
-                    ? "Đang có yêu cầu chờ chủ duyệt nên chưa bán được"
-                    : undefined
-                }
-              >
-                {needsApproval ? <Send size={17} /> : <ShoppingBag size={17} />}
-                {mutation.isPending
-                  ? needsApproval
-                    ? "Đang gửi yêu cầu…"
-                    : "Đang hoàn tất…"
-                  : needsApproval
-                    ? "Gửi yêu cầu duyệt"
-                    : "Xác nhận bán xe"}
-              </Button>
+              {locked ? (
+                <Button
+                  type="submit"
+                  className="full-width"
+                  disabled={mutation.isPending || reviewing}
+                >
+                  <CheckCircle2 size={17} />
+                  {mutation.isPending
+                    ? "Đang hoàn tất…"
+                    : "Kiểm tra & xác nhận bán xe"}
+                </Button>
+              ) : (
+                <>
+                  {/* Máy chủ chặn STAFF phát mã (can_financials chỉ OWNER/MANAGER), nên
+                      nút cũng chỉ bày ra cho đúng nhóm đó — khỏi bấm rồi ăn lỗi quyền
+                      ngay trước mặt khách. */}
+                  {canFinance(profile) && (
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      className="full-width sale-aside-vietqr-btn"
+                      onClick={handleOpenVietQr}
+                      disabled={qrRequiresApproval}
+                      title={qrRequiresApproval ? "Chờ chủ cửa hàng duyệt giao dịch trước khi thu tiền chuyển khoản." : undefined}
+                    >
+                      <QrCode size={15} /> Thanh toán chuyển khoản
+                    </Button>
+                  )}
+                  {qrRequiresApproval && <p className="muted small">Chờ duyệt giao dịch trước khi tạo mã thu tiền.</p>}
+                  <Button
+                    type="submit"
+                    className="full-width"
+                    disabled={mutation.isPending || reviewing || awaitingApproval}
+                    title={
+                      awaitingApproval
+                        ? "Đang có yêu cầu chờ chủ duyệt nên chưa bán được"
+                        : undefined
+                    }
+                  >
+                    {needsApproval ? <Send size={17} /> : <ShoppingBag size={17} />}
+                    {mutation.isPending
+                      ? needsApproval
+                        ? "Đang gửi yêu cầu…"
+                        : "Đang hoàn tất…"
+                      : needsApproval
+                        ? "Gửi yêu cầu duyệt"
+                        : "Xác nhận bán xe"}
+                  </Button>
+                </>
+              )}
               <Link
                 className="button ghost full-width"
                 to={`/vehicles/${vehicle.id}`}

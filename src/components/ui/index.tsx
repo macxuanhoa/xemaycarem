@@ -59,6 +59,7 @@ export function Field({
   children,
   className = "",
   labelAction,
+  counter,
 }: {
   label: string;
   error?: string;
@@ -67,6 +68,8 @@ export function Field({
   className?: string;
   /** Optional widget rendered inline with the label (e.g. a colour swatch). */
   labelAction?: ReactNode;
+  /** Optional live character counter shown beside the label for long-text fields. */
+  counter?: { value: string; max: number };
 }) {
   const generatedId = useId();
   const controlId = `field-${generatedId}`;
@@ -104,12 +107,16 @@ export function Field({
     else if (hadError.current && !control.closest(".money-input-wrap")) control.removeAttribute("aria-invalid");
     hadError.current = !!error;
   }, [children, controlId, error, errorId]);
+  const hasAside = !!labelAction || !!counter;
   return (
     <div ref={wrapperRef} className={`field ${className}`.trim()}>
-      {labelAction ? (
+      {hasAside ? (
         <span className="field-label-row">
           <label ref={labelRef} htmlFor={controlId} className="field-label-text">{label}</label>
-          {labelAction}
+          <span className="field-label-aside">
+            {labelAction}
+            {counter && <CharCounter value={counter.value} max={counter.max} />}
+          </span>
         </span>
       ) : (
         <label ref={labelRef} htmlFor={controlId}>{label}</label>
@@ -121,6 +128,25 @@ export function Field({
         </span>
       )}
     </div>
+  );
+}
+/**
+ * Bộ đếm ký tự nhỏ hiển thị cạnh nhãn cho các ô văn bản dài: cho nhân viên
+ * thấy “đã viết bao nhiêu / tối đa bao nhiêu” và chuyển màu khi sắp chạm
+ * giới hạn, thay vì để họ nhập tràn rồi nhận lỗi làm hỏng form.
+ */
+export function CharCounter({ value, max }: { value: string; max: number }) {
+  const len = value.length;
+  const state =
+    len >= max ? "is-limit" : len >= Math.ceil(max * 0.9) ? "is-near" : "";
+  return (
+    <span
+      className={`char-counter ${state}`.trim()}
+      aria-hidden="true"
+      title={`Tối đa ${max} ký tự`}
+    >
+      {len}/{max}
+    </span>
   );
 }
 export function EmptyState({

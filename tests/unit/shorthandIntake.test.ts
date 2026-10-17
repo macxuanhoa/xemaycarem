@@ -268,14 +268,17 @@ describe("learnedDictionary", () => {
   });
   it("refuses purged fields and drops stale rules saved before the purge", () => {
     const storage = memory();
-    // Luật cũ lưu theo field đã bị xoá khỏi hồ sơ (model/odometer/brand): bị lọc
-    // ngay lúc đọc nên không cần đổi khoá localStorage.
+    // Luật cũ lưu theo field đã bị xoá khỏi hồ sơ (model/odometer/brand) và
+    // cả Màu sắc / Năm sản xuất (bộ nhớ giờ chỉ nhận Loại xe): bị lọc ngay
+    // lúc đọc nên không cần đổi khoá localStorage.
     storage.setItem(
       "carem_shorthand_dict_v1:u1",
       JSON.stringify({
         sh: { key: "sh", field: "model", value: "SH 160i" },
         km: { key: "km", field: "odometer", value: "20000" },
         hang: { key: "hang", field: "brand", value: "Honda" },
+        den: { key: "den", field: "color", value: "Đen nhám" },
+        "22": { key: "22", field: "year", value: "2022" },
         ga: { key: "ga", field: "vehicle_type", value: "Xe tay ga" },
       }),
     );
@@ -283,9 +286,8 @@ describe("learnedDictionary", () => {
     expect(Object.keys(dict)).toEqual(["ga"]);
     const purgedField = "model" as unknown as IntakeFieldKey;
     expect(learnRule("u1", "abc", purgedField, "SH 160i", storage)).toEqual(dict);
-    expect(learnRule("u1", "abc", "color", "Đen nhám", storage)["abc"].value).toBe(
-      "Đen nhám",
-    );
+    expect(learnRule("u1", "abc", "color", "Đen nhám", storage)["abc"]).toBeUndefined();
+    expect(learnRule("u1", "abc", "year", "2022", storage)["abc"]).toBeUndefined();
   });
   it("survives corrupt payloads and anonymous users", () => {
     const storage = memory();

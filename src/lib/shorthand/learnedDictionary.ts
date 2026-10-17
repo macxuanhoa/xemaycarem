@@ -12,14 +12,12 @@ import type {
 import { normalizeKey } from "./vocabulary";
 
 const PREFIX = "carem_shorthand_dict_v1";
-// Hãng/Dòng/Phiên bản/Số máy/Số km đã bị xoá vĩnh viễn nên không còn là ô nào
-// để "dạy" nữa. Bộ lọc này chạy lúc đọc, vì vậy luật cũ đã lưu tự bị loại thay
-// vì nạp giá trị vô nghĩa vào form — không cần đổi khoá lưu trữ.
-export const LOCAL_LEARNING_FIELDS = new Set<IntakeFieldKey>([
-  "vehicle_type",
-  "color",
-  "year",
-]);
+// Hãng/Dòng/Phiên bản/Số máy/Số km đã bị xoá vĩnh viễn, và từ bản này người
+// dùng chỉ còn dạy được viết tắt cho LOẠI XE — Màu sắc / Năm sản xuất dùng từ
+// điển mặc định của parser, không cần ô "Trường điền" nữa. Bộ lọc này chạy lúc
+// đọc, nên luật cũ đã lưu các field khác tự bị loại thay vì nạp giá trị vô
+// nghĩa vào form — không cần đổi khoá lưu trữ.
+export const LOCAL_LEARNING_FIELDS = new Set<IntakeFieldKey>(["vehicle_type"]);
 
 export type ShorthandStorage = {
   getItem(key: string): string | null;

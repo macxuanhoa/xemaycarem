@@ -11,6 +11,7 @@ import {
   groupNotifications,
   isFreshGroup,
   relativeTime,
+  splitNotificationTitle,
   splitVehicleIdentity,
   withTodayGroup,
 } from "@/lib/notifications";
@@ -169,6 +170,30 @@ describe("shared icon and tone tables", () => {
   });
 });
 
+/**
+ * Chi phí theo xe vừa bước vào "chuỗi thông báo" (migration 20261017000600):
+ * ADD/UPDATE/CANCEL_EXPENSE phải có icon + tone để mỗi dòng chuông render, và
+ * CANCEL_EXPENSE mang sắc "cảnh báo" như mọi thao tác hủy khác — một khoản tiền
+ * đã ghi bị gỡ là ngoại lệ cần người nhìn, không chìm nghỉm như tin tham khảo.
+ */
+describe("vehicle-expense notification actions", () => {
+  const EXPENSE: NotificationAction[] = ["ADD_EXPENSE", "UPDATE_EXPENSE", "CANCEL_EXPENSE"];
+  it("registers an icon and a tone for add/edit/cancel expense", () => {
+    for (const action of EXPENSE) {
+      expect(ACTION_ICON[action]).toBeDefined();
+      expect(ACTION_TONE[action]).toBeDefined();
+    }
+  });
+  it("gives the three expense events three distinct icons", () => {
+    expect(new Set(EXPENSE.map((action) => ACTION_ICON[action])).size).toBe(EXPENSE.length);
+  });
+  it("tones recording/editing as neutral and cancelling as a warning", () => {
+    expect(ACTION_TONE.ADD_EXPENSE).toBe("neutral");
+    expect(ACTION_TONE.UPDATE_EXPENSE).toBe("neutral");
+    expect(ACTION_TONE.CANCEL_EXPENSE).toBe("warning");
+  });
+});
+
 describe("groupNotifications", () => {
   it("keeps newest-first buckets contiguous without re-sorting", () => {
     const groups = groupNotifications(
@@ -227,5 +252,65 @@ describe("splitVehicleIdentity", () => {
   it("leaves internal codes and money untouched (no false highlight)", () => {
     expect(splitVehicleIdentity("Thu vào xe XE-0042").plate).toBeNull();
     expect(splitVehicleIdentity("Thu tiền đơn bán hàng 25.000.000 đ").plate).toBeNull();
+  });
+});
+
+/**
+ * Dòng tiêu đề phải đọc là THAO TÁC → danh tính xe, mã nội bộ chỉ ghi thêm
+ * ở cuối. Bản cũ ghép chip tên loại xe vào ĐẦU dòng nên "Honda Wave Alpha
+ * Thu vào xe 43A1-99999" — nhân viên đọc ngược hành động vừa xảy ra.
+ */
+describe("splitNotificationTitle", () => {
+  it("puts the action first and the plate in the highlighted identity", () => {
+    expect(splitNotificationTitle("Thu vào xe 43A1-99999 · 8D4AA1234", "XE-0042")).toEqual({
+      action: "Thu vào xe",
+      identity: "43A1-99999",
+      identityKind: "plate",
+      code: "XE-0042",
+    });
+  });
+  it("drops the frame tail from the title — body đã nêu lại nguyên nhãn", () => {
+    const parts = splitNotificationTitle("Cập nhật xe 43A1-99999 · chưa có khung", "XE-0042");
+    expect(parts.action).toBe("Cập nhật xe");
+    expect(parts.identity).toBe("43A1-99999");
+    expect(JSON.stringify(parts)).not.toContain("chưa có khung");
+  });
+  it("treats the internal code AS the identity when the vehicle has no plate — and never twice", () => {
+    expect(splitNotificationTitle("Thu vào xe XE-0042", "XE-0042")).toEqual({
+      action: "Thu vào xe",
+      identity: "XE-0042",
+      identityKind: "code",
+      code: null,
+    });
+  });
+  it("keeps 'chưa có biển · <khung>' together as the identity", () => {
+    expect(splitNotificationTitle("Thu vào xe chưa có biển · 8D4AA1234", "XE-0099")).toEqual({
+      action: "Thu vào xe",
+      identity: "chưa có biển · 8D4AA1234",
+      identityKind: "phrase",
+      code: "XE-0099",
+    });
+  });
+  it("appends the code after a title that names no vehicle", () => {
+    const parts = splitNotificationTitle("Thu tiền đơn SALE-0042", "XE-0042");
+    expect(parts.action).toBe("Thu tiền đơn SALE-0042");
+    expect(parts.identity).toBeNull();
+    expect(parts.code).toBe("XE-0042");
+  });
+  it("leaves non-vehicle rows alone", () => {
+    expect(splitNotificationTitle("Giao dịch ngân hàng cần đối soát", null)).toEqual({
+      action: "Giao dịch ngân hàng cần đối soát",
+      identity: null,
+      identityKind: null,
+      code: null,
+    });
+  });
+  it("reads an expense title as action → plate, chip intact", () => {
+    expect(splitNotificationTitle("Sửa chi phí xe 43A1-99999 · 8D4AA1234", "XE-0042")).toEqual({
+      action: "Sửa chi phí xe",
+      identity: "43A1-99999",
+      identityKind: "plate",
+      code: "XE-0042",
+    });
   });
 });

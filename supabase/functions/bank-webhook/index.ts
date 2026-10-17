@@ -9,9 +9,18 @@ import {
 const url = Deno.env.get('SUPABASE_URL');
 const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? Deno.env.get('SUPABASE_SECRET_KEY');
 const MAX_BODY_BYTES = 128 * 1024;
+// Browser health probes ("Kiểm tra kết nối") are cross-origin and need a valid
+// preflight; provider webhooks are server-to-server and unaffected by CORS.
+// Health bodies carry only CONFIGURED/NOT_CONFIGURED — never secrets or financial data.
+const CORS_HEADERS: Record<string, string> = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+  'Access-Control-Allow-Headers': 'Authorization, apikey, Content-Type, x-sepay-signature, x-sepay-timestamp, x-webhook-token, x-hmac-sha256, secure-token, x-casso-signature',
+  'Access-Control-Max-Age': '86400',
+};
 const json = (status: number, body: Record<string, unknown>) =>
   new Response(JSON.stringify(body), {
-    status, headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' },
+    status, headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store', ...CORS_HEADERS },
   });
 // SePay and strict-mode Casso require success:true, independent of match state.
 const received = () => json(200, { success: true });
@@ -56,6 +65,7 @@ async function ingest(events: BankEvent[]): Promise<Response> {
 }
 
 Deno.serve(async (request: Request) => {
+  if (request.method === 'OPTIONS') return new Response(null, { status: 204, headers: CORS_HEADERS });
   if (request.method === 'GET') {
     const ready = Boolean(url && serviceKey && [
       'BANK_WEBHOOK_SEPAY_SECRET', 'BANK_WEBHOOK_SEPAY_API_KEY',

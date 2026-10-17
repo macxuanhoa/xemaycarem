@@ -171,6 +171,7 @@ Trích từ cây route trong `src/App.tsx` (thành phần `Protected` kế thừ
 | `/sales/:id` | đăng nhập |
 | `/capture` | đăng nhập |
 | `/assist` | đăng nhập |
+| `/assistant` | đăng nhập |
 | `/copilot` | đăng nhập |
 | `/docs` | đăng nhập |
 | `/docs/:slug` | đăng nhập |

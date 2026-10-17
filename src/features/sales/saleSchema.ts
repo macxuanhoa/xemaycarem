@@ -1,20 +1,18 @@
 import { z } from "zod";
-import { dateValue, moneyValue } from "@/lib/validation";
+import { cappedString, CHAR_LIMITS, dateValue, moneyValue } from "@/lib/validation";
 
 export const saleSchema = z
   .object({
-    customer_name: z
-      .string()
-      .trim()
-      .max(160, "Tên khách hàng tối đa 160 ký tự.")
-      .transform((val) => val || "Khách lẻ"),
-    customer_phone: z.string().trim().max(30),
+    customer_name: cappedString("Tên khách hàng", CHAR_LIMITS.name).transform(
+      (val) => val || "Khách lẻ",
+    ),
+    customer_phone: cappedString("Số điện thoại khách hàng", CHAR_LIMITS.phone),
     sale_price: moneyValue,
     sale_date: dateValue,
     due_date: z.string().optional().or(z.literal("")),
     initial_payment: moneyValue,
     payment_method: z.enum(["CASH", "BANK_TRANSFER", "OTHER"]),
-    notes: z.string().trim().max(5000),
+    notes: cappedString("Ghi chú", CHAR_LIMITS.notes),
   })
   .refine((values) => values.initial_payment <= values.sale_price, {
     path: ["initial_payment"],
@@ -39,7 +37,7 @@ export const paymentSchema = z.object({
   ),
   payment_method: z.enum(["CASH", "BANK_TRANSFER", "OTHER"]),
   payment_date: dateValue,
-  reference: z.string().trim().max(160),
-  notes: z.string().trim().max(2000),
+  reference: cappedString("Tài khoản nhận / mã chứng từ", CHAR_LIMITS.reference),
+  notes: cappedString("Ghi chú", CHAR_LIMITS.paymentNotes),
 });
 export type PaymentFormValues = z.infer<typeof paymentSchema>;

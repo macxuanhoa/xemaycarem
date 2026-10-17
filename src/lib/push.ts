@@ -1,9 +1,15 @@
 /**
  * push.ts — phía client của Web Push Cà Rem (Phase 2.1).
  *
+ * Push bật MẶC ĐỊNH, không có công tắc trong app: người dùng muốn ngưng chỉ
+ * cần chặn thông báo ngay trong cài đặt trình duyệt (app tự tôn trọng quyết
+ * định đó và không hỏi lại).
+ *
  * Quy tắc vàng:
- * - KHÔNG chủ động xin quyền Notification khi mở app; chỉ gọi
- *   enablePush() từ một nút rõ ràng của người dùng.
+ * - KHÔNG xin quyền Notification giữa luồng mở app; lời hỏi chỉ đi theo một
+ *   thao tác thật của người dùng (chạm đầu tiên sau khi đăng nhập) — trình
+ *   duyệt tự chặn mọi requestPermission không có gesture nên im lặng hỏi
+ *   ngay lúc mở app chỉ tổ thất bại.
  * - Khóa subscription (endpoint/p256dh/auth) là bearer bí mật: chúng đi thẳng
  *   RPC register_push_subscription và không bao giờ được lưu lại phía client
  *   ngoài localStorage id hàng của chính máy đó để thu hồi.
@@ -15,6 +21,9 @@ import { api } from "./api";
 import { AppError } from "./errors";
 
 const SUB_ID_KEY = "carem:push:sub-id";
+const AUTO_PROMPT_KEY = "carem:push:auto-prompt-at";
+/** Người chọn "Sau có thể" không bị hỏi lại dồn dập — nghỉ 7 ngày rồi thử. */
+const AUTO_PROMPT_COOLDOWN_MS = 7 * 24 * 60 * 60 * 1000;
 
 function readStoredSubscriptionId(): string | null {
   try {
@@ -109,8 +118,8 @@ async function registerWithServer(subscription: PushSubscription): Promise<void>
 }
 
 /**
- * Bật push cho thiết bị này — CHỈ được gọi từ thao tác rõ ràng của người dùng
- * (nút trong Cài đặt). Xin quyền hệ thống xảy ra đúng một lần theo ý người bấm.
+ * Bật push cho thiết bị này. Đường mặc định: armAutoEnableOnFirstGesture()
+ * gọi sau thao tác thật đầu tiên của phiên; nút/cài đặt không còn cần thiết.
  */
 export async function enablePush(): Promise<void> {
   const support = pushSupportInfo();
@@ -141,41 +150,56 @@ export async function enablePush(): Promise<void> {
   }
   await registerWithServer(subscription);
   await api.call("set_push_enabled", { p_enabled: true });
+  // Bật xong là thấy ngay: rút luôn phần dồn lúc chưa cho phép, không chờ.
+  await drainMyPushQueue();
 }
 
-/** Tắt push riêng thiết bị này: gỡ đăng ký trình duyệt + xóa hàng trên server. */
-export async function disableThisDevice(): Promise<void> {
-  const registration = await readyRegistration().catch(() => null);
-  const subscription = registration ? await registration.pushManager.getSubscription() : null;
-  const storedId = readStoredSubscriptionId();
-  if (storedId) {
-    // RPC cần phiên đang đăng nhập; lỗi mạng không được chặn bước unsubscribe.
-    await api.call("unregister_push_subscription", { p_id: storedId }).catch(() => null);
-    writeStoredSubscriptionId(null);
+/**
+ * Realtime báo tin mới khi app ĐANG mở → đẩy hàng đợi đi tức thì thay vì chờ
+ * chu kỳ quét. Gom mọi tin trong `delayMs` thành MỘT lời gọi (fan-out nhiều
+ * người nhận trong một transaction chỉ tốn một lần invoke).
+ */
+let drainTimer: ReturnType<typeof setTimeout> | null = null;
+export function bumpPushDrain(delayMs = 2000): void {
+  if (!("PushManager" in window)) return;
+  if (drainTimer) clearTimeout(drainTimer);
+  drainTimer = setTimeout(() => {
+    drainTimer = null;
+    void drainMyPushQueue();
+  }, delayMs);
+}
+
+/**
+ * Bật mặc định: khi quyền còn 'default', hẹn xin quyền ngay theo thao tác
+ * thật đầu tiên của người dùng (pointerdown). Chrome/Edge/Safari đều từ chối
+ * mở hộp quyền nếu không có gesture, nên đây là cách duy nhất 'tự bật' mà
+ * không khiếm nhã. Người khoanh tay chờ thì lần mở app sau lại hẹn.
+ */
+let autoPromptArmed = false;
+function armAutoEnableOnFirstGesture(): void {
+  if (autoPromptArmed) return;
+  if (!pushSupportInfo().supported) return;
+  if (notificationPermission() !== "default") return;
+  let lastAttempt = 0;
+  try {
+    lastAttempt = Number(localStorage.getItem(AUTO_PROMPT_KEY)) || 0;
+  } catch {
+    /* private mode: cứ hỏi theo gesture, không có cooldown */
   }
-  await subscription?.unsubscribe().catch(() => false);
-}
-
-/** Thu hồi thiết bị bất kỳ trong danh sách (theo id RPC list trả về). */
-export async function revokeDevice(id: string): Promise<boolean> {
-  return await api.call<boolean>("unregister_push_subscription", { p_id: id });
-}
-
-/** Bật/tắt "mọi thiết bị" của riêng người dùng. */
-export async function setAllDevicesPushEnabled(enabled: boolean): Promise<void> {
-  await api.call("set_push_enabled", { p_enabled: enabled });
-}
-
-export interface PushDeviceInfo {
-  id: string;
-  device_label: string | null;
-  device_hint: string;
-  created_at: string;
-  last_used_at: string;
-}
-/** Danh sách máy đã đăng ký — server cố tình KHÔNG trả endpoint/keys. */
-export async function listMyPushDevices(): Promise<PushDeviceInfo[]> {
-  return await api.call<PushDeviceInfo[]>("list_my_push_devices");
+  if (Date.now() - lastAttempt < AUTO_PROMPT_COOLDOWN_MS) return;
+  autoPromptArmed = true;
+  window.addEventListener(
+    "pointerdown",
+    () => {
+      try {
+        localStorage.setItem(AUTO_PROMPT_KEY, String(Date.now()));
+      } catch {
+        /* không lưu được cooldown cũng không chặn luồng bật push */
+      }
+      void enablePush().catch(() => null);
+    },
+    { once: true, capture: true },
+  );
 }
 
 /**
@@ -227,26 +251,36 @@ export async function drainMyPushQueue(): Promise<void> {
 }
 
 /**
- * Đồng bộ im lặng sau khi phiên được server xác thực:
- * - đã từng bật push trên máy này → đăng ký lại keys (endpoint có thể đổi)
+ * Đồng bộ im lặng sau khi phiên được server xác thực — push bật mặc định:
+ * - quyền đã GRANTED → đảm bảo có subscription (tạo im lặng, không hộp hỏi),
+ *   tái đăng ký keys (endpoint có thể đổi), tự chữa công tắc tắt từ UI cũ,
  *   và rút bớt hàng đợi dồn khi offline.
- * - chưa bao giờ bật → KHÔNG làm gì, KHÔNG hỏi quyền.
+ * - quyền còn DEFAULT → hẹn hỏi theo thao tác đầu tiên (armAutoEnable...).
+ * - quyền DENIED → tôn trọng quyết định của trình duyệt, không hỏi lại.
  */
 export async function syncPushOnLogin(): Promise<void> {
+  armAutoEnableOnFirstGesture();
   if (!pushSupportInfo().supported) return;
   if (notificationPermission() !== "granted") return;
   const registration = await readyRegistration().catch(() => null);
-  const subscription = await registration?.pushManager.getSubscription();
+  if (!registration) return;
+  let subscription = await registration.pushManager.getSubscription();
+  if (!subscription) {
+    const applicationKey = import.meta.env.VITE_VAPID_PUBLIC_KEY as string | undefined;
+    if (!applicationKey) return;
+    subscription = await registration.pushManager
+      .subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: urlBase64ToApplicationKey(applicationKey),
+      })
+      .catch(() => null);
+  }
   if (subscription) {
     await registerWithServer(subscription).catch(() => null);
+    // Không còn công tắc trong app: xóa dấu vết 'tắt mọi thiết bị' cũ để
+    // hàng đợi về trạng thái bật mặc định của server.
+    await api.call("set_push_enabled", { p_enabled: true }).catch(() => null);
   }
-  await drainMyPushQueue();
-}
-
-/** Gửi thông báo TEST về chính các thiết bị của người dùng (Phase 2.6). */
-export async function sendTestPush(): Promise<void> {
-  await api.call<string>("request_push_test");
-  // Kéo luôn thay vì chờ lược định kỳ — người bấm muốn thấy kết quả tại chỗ.
   await drainMyPushQueue();
 }
 

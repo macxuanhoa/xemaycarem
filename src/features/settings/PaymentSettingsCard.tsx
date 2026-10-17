@@ -7,32 +7,28 @@ import {
   Copy,
   CreditCard,
   Landmark,
-  Loader2,
   RotateCcw,
   Search,
   TriangleAlert,
-  QrCode,
 } from "lucide-react";
 import { Button, Card, ErrorState, Field } from "@/components/ui";
 import { api } from "@/lib/api";
 import { toast } from "@/lib/toast";
 import { VIETNAM_BANKS, getBankByBin, searchBanks, type BankInfo } from "@/lib/vietqr/banks";
-import { removeVietnameseTones, renderQrToDataUrl } from "@/lib/vietqr/emvco";
+import { removeVietnameseTones } from "@/lib/vietqr/emvco";
 import {
   hasBankSettingsErrors,
   validateBankSettings,
 } from "@/lib/vietqr/settingsValidation";
 
 /**
- * Mã xem trước ở Cài đặt KHÔNG được quét để trả tiền. Bản cũ gọi
- * img.vietqr.io với đúng số tài khoản + tên chủ tài khoản thật, nên ai quét
- * được màn hình là chuyển tiền vào cửa hàng với nội dung "CAREM TEST" —
- * giao dịch lạc vào UNMATCHED, và mỗi lần xem trước còn đẩy thông tin tài
- * khoản riêng của OWNER sang một bên thứ ba. Mã minh hoạ giờ vẽ tại máy trên
- * một chuỗi tĩnh, không phải payload EMVCo/Napas.
+ * Thẻ xem trước ở Cài đặt chỉ mô phỏng hình thức một tấm thẻ ngân hàng — KHÔNG
+ * chứa mã QR nào. Bản cũ nhúng cả ảnh mã VietQR (kể cả bản "minh hoạ" vẽ tại
+ * máy) nên trông như một công cụ thanh toán thật: vừa rối mắt, vừa dễ khiến
+ * người xem tưởng quét được để chuyển tiền. Giờ bỏ hẳn mã QR — số tài khoản &
+ * tên chủ tài khoản hiển thị trực tiếp, không còn rủi ro quét nhầm hay leak dữ
+ * liệu của OWNER sang bên thứ ba.
  */
-const DEMO_QR_TEXT = "Cà Rem · Mã minh họa giao diện — không dùng để thanh toán";
-
 type BankSettings = {
   bank_bin?: string;
   bank_name?: string;
@@ -287,11 +283,6 @@ export function PaymentSettingsCard({
   // gõ xong khiến biểu mẫu như đang mắng người điền.
   const [showErrors, setShowErrors] = useState(false);
 
-  // Mã xem trước: vẽ tại máy (không phải mã thanh toán), chỉ hiện khi đã đủ
-  // thông tin, có debounce và có trạng thái loading/lỗi rõ ràng.
-  const [qrState, setQrState] = useState<"idle" | "loading" | "ready" | "error">("idle");
-  const [demoQrUrl, setDemoQrUrl] = useState<string | null>(null);
-
   const q = useQuery({
     queryKey: ["settings"],
     queryFn: () => api.call<BankSettings>("get_settings"),
@@ -304,40 +295,6 @@ export function PaymentSettingsCard({
     setAccountNo(q.data.bank_account_no || "");
     setAccountName(q.data.bank_account_name || "");
   }, [q.data, dirty]);
-
-  // Vẽ mã minh hoạ sau 450ms ngừng gõ — giảm số lần vẽ lại, hết cảnh nhấp nháy.
-  // Chuỗi vẽ là DEMO_QR_TEXT tĩnh: số tài khoản thật không rời khỏi máy, và
-  // không có thiết bị nào quét màn hình này mà chuyển được tiền.
-  useEffect(() => {
-    const bin = bankBin.trim();
-    const no = accountNo.trim();
-    if (!bin || !no) {
-      setDemoQrUrl(null);
-      setQrState("idle");
-      return;
-    }
-    setQrState("loading");
-    let alive = true;
-    const t = window.setTimeout(() => {
-      void renderQrToDataUrl(DEMO_QR_TEXT, 240)
-        .then((url) => {
-          if (!alive) return;
-          setDemoQrUrl(url);
-          // Data URL đã giải mã xong: không phụ thuộc onLoad (sự kiện có thể đã
-          // chạy trước khi React kịp gắn trình nghe — ảnh/cache bị kẹt spinner).
-          setQrState("ready");
-        })
-        .catch(() => {
-          if (!alive) return;
-          setDemoQrUrl(null);
-          setQrState("error");
-        });
-    }, 450);
-    return () => {
-      alive = false;
-      window.clearTimeout(t);
-    };
-  }, [bankBin, accountNo]);
 
   const fieldErrors = validateBankSettings({
     bankBin,
@@ -516,18 +473,29 @@ export function PaymentSettingsCard({
           aria-label="Xem trước thẻ tài khoản nhận tiền"
         >
           <div className="bank-card-sheen" aria-hidden />
+          <div className="bank-card-corner" aria-hidden />
+
           <div className="bank-card-header">
             <div className="bank-card-brand">
               <div className="bank-card-brand-icon" aria-hidden>
                 <Landmark size={18} />
               </div>
-              <span className="bank-card-brand-name">
-                {selectedBank?.shortName || bankName || "Tài khoản nhận"}
-              </span>
+              <div className="bank-card-brand-text">
+                <span className="bank-card-brand-name">
+                  {selectedBank?.shortName || bankName || "Tài khoản nhận"}
+                </span>
+                <span className="bank-card-brand-sub">Tài khoản nhận tiền</span>
+              </div>
             </div>
-            <span className="bank-card-vietqr">
-              <QrCode size={13} /> VietQR
+            <span className="bank-card-mono" aria-hidden>
+              {(selectedBank?.code || "CAREM").slice(0, 4).toUpperCase()}
             </span>
+          </div>
+
+          <div className="bank-card-chip" aria-hidden>
+            <span className="bank-card-chip-line" />
+            <span className="bank-card-chip-line" />
+            <span className="bank-card-chip-line" />
           </div>
 
           <div className="bank-card-body">
@@ -544,46 +512,7 @@ export function PaymentSettingsCard({
                 {accountName || "CHƯA THIẾT LẬP"}
               </div>
             </div>
-
-            <div className="bank-card-qr">
-              <div className="bank-card-qr-tile">
-                {demoQrUrl && qrState !== "error" ? (
-                  <>
-                    {qrState === "loading" && (
-                      <span className="bank-card-qr-spinner" aria-hidden>
-                        <Loader2 size={18} />
-                      </span>
-                    )}
-                    <img
-                      src={demoQrUrl}
-                      alt="Mã QR minh họa giao diện, không dùng để thanh toán"
-                      className={"bank-card-qr-img" + (qrState === "ready" ? " is-ready" : "")}
-                      onError={() => setQrState("error")}
-                    />
-                  </>
-                ) : qrState === "error" ? (
-                  <span
-                    className="bank-card-qr-placeholder is-error"
-                    title="Chưa vẽ được mã minh họa — hãy thử lại"
-                    role="img"
-                    aria-label="Chưa vẽ được mã minh họa"
-                  >
-                    <TriangleAlert size={20} />
-                  </span>
-                ) : (
-                  <span
-                    className="bank-card-qr-placeholder"
-                    title="Mã minh họa hiển thị khi đã đủ thông tin"
-                    aria-hidden
-                  >
-                    <QrCode size={24} />
-                  </span>
-                )}
-              </div>
-              {/* Nhãn tại chỗ: chỉ nhìn thoáng qua cũng biết đây không phải mã
-                  thật — tránh ai đó mở Cài đặt rồi quay chụp đem đi chuyển tiền. */}
-              <span className="bank-card-qr-demo">Minh họa · không thanh toán</span>
-            </div>
+            <span className="bank-card-badge">Chuyển khoản 24/7</span>
           </div>
         </div>
       </div>

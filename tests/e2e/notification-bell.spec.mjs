@@ -196,7 +196,7 @@ test("Bell shows on desktop and mobile with unread badge and grouped panel", asy
 });
 
 /**
- * Chuông phải giữ "Thông báo" và pill số chưa đọc trên MỘT hàng chữ. Trước đây
+ * Chuông phải giữ "Thông báo" và con số chưa đọc trên MỘT hàng chữ. Trước đây
  * cả hai co theo chỗ còn lại, nên đúng lúc có tin mới — số dài ra, chữ "chưa
  * đọc" dài nhất — tiêu đề gãy thành "Thông / báo" còn pill gãy thành
  * "1234 chưa / đọc" và tràn ra khỏi ô cao 19px của nó.
@@ -207,6 +207,28 @@ const textLines = (page, selector) =>
     range.selectNodeContents(node);
     return new Set([...range.getClientRects()].map((r) => Math.round(r.y))).size;
   });
+
+/**
+ * Tâm dọc của mọi thành phần đang có trong hàng tiêu đề. Hàng tiêu đề là
+ * MỘT HÀNG nên các tâm phải trùng nhau; `flex-wrap: wrap` bản cũ cho phép
+ * cụm "Đánh dấu tất cả đã đọc ✕" rơi xuống hàng riêng đúng lúc đông tin chưa
+ * đọc — header cao thêm một dòng và đẩy cả danh sách tụt xuống.
+ */
+const headerRowCenters = (page) =>
+  page.locator(".notification-panel-header").evaluate((node) =>
+    [
+      ".notification-panel-title-text",
+      ".notification-panel-count",
+      ".notification-mark-all",
+      ".notification-panel-close",
+    ]
+      .map((sel) => node.querySelector(sel))
+      .filter(Boolean)
+      .map((el) => {
+        const r = el.getBoundingClientRect();
+        return Math.round((r.top + r.height / 2) * 10) / 10;
+      }),
+  );
 
 test("Panel header keeps the title and the unread count on one line", async ({
   page,
@@ -241,9 +263,53 @@ test("Panel header keeps the title and the unread count on one line", async ({
         .locator(".notification-panel-header")
         .evaluate((node) => node.scrollWidth > node.clientWidth),
     ).toBe(false);
+    // Cả cụm hành động nằm NGAY TRÊN cùng một hàng với tiêu đề, kể cả khi
+    // con số chưa đọc dài nhất; header không được phồng thêm một dòng.
+    const centers = await headerRowCenters(page);
+    expect(centers.length).toBe(4);
+    expect(Math.max(...centers) - Math.min(...centers)).toBeLessThanOrEqual(1);
+    expect(
+      await panel
+        .locator(".notification-panel-header")
+        .evaluate((node) => node.getBoundingClientRect().height),
+    ).toBeLessThanOrEqual(74);
     await page.keyboard.press("Escape");
     await expect(panel).toHaveCount(0);
   }
+});
+
+/**
+ * Panel hẹp (điện thoại) cất phần chữ của nút "Đánh dấu tất cả đã đọc", chỉ
+ * còn icon ✓ — đổi cách thể hiện chứ KHÔNG đổi tên trợ năng, nên người dùng bàn
+ * phím/trợ năng và automation vẫn tìm thấy nút; đổi lại hàng tiêu đề luôn là
+ * một hàng và tiêu đề không bị dấu … cắt mất chữ.
+ */
+test("Phone header compresses mark-all to an icon without losing it", async ({
+  page,
+}) => {
+  await installMock(page, { unread: 12 });
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("/");
+  await bell(page).click();
+  const panel = page.locator(".notification-panel");
+  await expect(panel).toBeVisible();
+  const markAll = page.getByRole("button", { name: "Đánh dấu tất cả đã đọc" });
+  await expect(markAll).toBeVisible();
+  const box = await markAll.boundingBox();
+  // Ngưỡng 36 (không phải 40) vì lúc mở panel vẫn đang chạy animation
+  // `scale(0.985 → 1)` nên ô bấm đo được non hơn khai báo một chút —
+  // cùng cách đo mà bản cũ đã dùng cho nút đóng.
+  expect(box.width).toBeGreaterThanOrEqual(36);
+  expect(box.height).toBeGreaterThanOrEqual(36);
+  // Không còn cảnh chữ bị cắt: tiêu đề giữ nguyên vẹn trên một hàng.
+  const title = panel.locator(".notification-panel-title-text");
+  expect(
+    await title.evaluate((node) => node.scrollWidth - node.clientWidth),
+  ).toBeLessThanOrEqual(1);
+  const centers = await headerRowCenters(page);
+  expect(Math.max(...centers) - Math.min(...centers)).toBeLessThanOrEqual(1);
+  await markAll.click();
+  await expect(page.locator(".notification-badge")).toHaveCount(0);
 });
 
 test("Clicking a notification marks it read and deep-links", async ({ page }) => {

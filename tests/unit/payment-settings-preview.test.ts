@@ -1,7 +1,6 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import { renderQrToDataUrl, removeVietnameseTones } from "@/lib/vietqr/emvco";
-import { transferContentFromPayload } from "@/lib/vietqr/transferContent";
+import { removeVietnameseTones } from "@/lib/vietqr/emvco";
 import {
   ACCOUNT_NAME_LIMIT,
   ACCOUNT_NO_LIMIT,
@@ -11,18 +10,15 @@ import {
 } from "@/lib/vietqr/settingsValidation";
 
 /**
- * P0-5 (mã xem trước ở Cài đặt là mã THẬT, quét được): trang Cài đặt từng gọi
- * thẳng img.vietqr.io với số tài khoản + tên chủ tài khoản thật của OWNER, nên
- * preview sinh ra một mã thanh toán hợp lệ — ai quét màn hình là chuyển tiền vào
- * cửa hàng với nội dung "CAREM TEST", giao dịch lạc vào UNMATCHED, và thông tin
- * tài khoản riêng tư bị đẩy sang bên thứ ba mỗi lần hiển thị.
+ * P0-5 (mã xem trước ở Cài đặt): thẻ preview từng nhúng cả ảnh mã QR — kể cả
+ * bản "minh hoạ" vẽ tại máy — trông như một công cụ thanh toán thật, dễ khiến
+ * người xem tưởng quét được và từng có tiền sử gọi thẳng img.vietqr.io làm leak
+ * số tài khoản + tên chủ tài khoản của OWNER sang bên thứ ba.
  *
- * P1-e (kiểm tra biểu mẫu + trạng thái nút): ràng buộc phải khớp đúng hợp đồng
- * server `save_settings` để nhân viên không bị chặn những gì server chấp nhận,
- * và ngược lại không gửi đi cấu hình thiếu.
- *
- * Test nguồn (source contract) cùng phép kiểm chứng hành vi thật trên chuỗi demo:
- * không còn đường nào để trang Cài đặt phát hành mã trả tiền được.
+ * Bản hiện tại BỎ HẲN mã QR khỏi thẻ: hợp đồng mới là Cài đặt không được chứa
+ * bất kỳ mã QR nào (không vẽ, không nhúng, không nhãn "minh họa"), chỉ hiển
+ * thị trực tiếp số tài khoản & chủ tài khoản. Kèm đó là ràng buộc biểu mẫu
+ * (P1-e) khớp đúng hợp đồng server `save_settings`.
  */
 
 const card = readFileSync("src/features/settings/PaymentSettingsCard.tsx", "utf8");
@@ -35,10 +31,7 @@ const code = card
   .replace(/\/\*[\s\S]*?\*\//g, "")
   .replace(/^\s*\/\/.*$/gm, "");
 
-const DEMO_QR_TEXT =
-  "Cà Rem · Mã minh họa giao diện — không dùng để thanh toán";
-
-describe("P0-5 · preview ở Cài đặt không thể là mã thanh toán", () => {
+describe("P0-5 · preview ở Cài đặt không chứa mã QR nào", () => {
   it("không gọi img.vietqr.io (không leak số tài khoản ra bên thứ ba)", () => {
     expect(code).not.toMatch(/img\.vietqr\.io/i);
     expect(code).not.toContain("buildVietQrQuickLink");
@@ -50,41 +43,18 @@ describe("P0-5 · preview ở Cài đặt không thể là mã thanh toán", () 
     expect(code).not.toContain("qr_payload");
   });
 
-  it("vẽ mã ngay tại máy từ một chuỗi minh họa tĩnh", () => {
-    expect(code).toContain("renderQrToDataUrl");
-    expect(code).toContain("DEMO_QR_TEXT");
-    expect(code).toMatch(/renderQrToDataUrl\(\s*DEMO_QR_TEXT/);
+  it("thẻ xem trước bỏ hẳn mã QR: không vẽ, không nhúng, không nhãn 'minh họa'", () => {
+    expect(code).not.toContain("renderQrToDataUrl");
+    expect(code).not.toContain("DEMO_QR_TEXT");
+    expect(code).not.toMatch(/bank-card-qr/);
+    expect(code).not.toMatch(/<img\b/);
+    expect(card).not.toMatch(/minh họa · không thanh toán/i);
   });
 
-  it("chuỗi demo không phải mã VietQR: không đọc được memo EMVCo từ nó", () => {
-    expect(DEMO_QR_TEXT.startsWith("000201")).toBe(false);
-    expect(transferContentFromPayload(DEMO_QR_TEXT)).toBeNull();
-  });
-
-  it("số tài khoản và tên chủ tài khoản không được nội suy vào ảnh preview", () => {
-    // Bất kỳ template literal nào chứa accountNo/accountName phải phục vụ chữ
-    // hiển thị trên thẻ, không phải input của hàm vẽ mã.
-    const qrCalls = code.match(/renderQrToDataUrl\([^)]*\)/gs) ?? [];
-    expect(qrCalls.length).toBeGreaterThan(0);
-    for (const call of qrCalls) {
-      expect(call).not.toMatch(/accountNo|accountName|bankBin/i);
-    }
-  });
-
-  it("ảnh preview thật giải mã thành data URL nội bộ, không phải URL bên thứ ba", async () => {
-    const url = await renderQrToDataUrl(DEMO_QR_TEXT, 240);
-    expect(url.startsWith("data:image/")).toBe(true);
-    expect(url).not.toMatch(/^https?:/i);
-    expect(url).not.toMatch(/vietqr/i);
-  });
-
-  it("trạng thái ready chỉ đến từ việc giải data URL, không từ onLoad của ảnh cache", () => {
-    expect(code).toContain("setQrState(\"ready\")");
-    // Ảnh đã cache bắn sự kiện onLoad TRƯỚC khi React kịp gắn trình nghe → trạng
-    // thái "ready" không bao giờ tới, ô mã kẹt spinner vĩnh viễn. Data URL tự giải
-    // nên ready gắn vào promise; onError vẫn giữ vì đó là tín hiệu vẽ hỏng.
-    expect(code).not.toMatch(/onLoad=\{[^}]*setQrState/s);
-    expect(code).toMatch(/onError=\{[^}]*setQrState\("error"\)/s);
+  it("thay vào đó hiển thị trực tiếp số tài khoản & chủ tài khoản trên thẻ", () => {
+    expect(code).toContain("bank-card-visual");
+    expect(code).toContain("groupAccount(accountNo)");
+    expect(code).toContain("bank-card-holder-name");
   });
 });
 

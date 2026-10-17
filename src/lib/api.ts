@@ -604,15 +604,6 @@ export const api = {
         p_reason: reason,
       },
     ),
-  confirmVietQrPayment: async (data: {
-    qr_request_id: string;
-    request_id?: string;
-    payment_date?: string;
-    notes?: string;
-  }) =>
-    call<string | null>("confirm_vietqr_payment", {
-      p_data: data,
-    }),
   getActiveVietQrRequest: async (vehicleId: string, saleId?: string) =>
     call<import("@/types").VietQrPaymentRequest | null>(
       "get_active_vietqr_request",

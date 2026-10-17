@@ -496,13 +496,24 @@ export function VehicleDetailPage() {
       <Card>
         <h2 className="section-title">Giá trị xe</h2>
         <div className="value-summary">
-          {/* Chỉ hiển thị giá thu vào của chiếc xe */}
+          {/* "Giá thu vào" ở đây là toàn bộ tiền thực bỏ ra cho chiếc xe: giá thu
+              lúc mua cộng TỔNG mọi chi phí đang hoạt động. Server đã quy các dòng
+              chi phí lẻ về một con số duy nhất (total_cost = purchase_price +
+              expense_total), nên dù ghi bao nhiêu dòng rời cũng chỉ hiện một tổng;
+              ta tái sử dụng số của server (bigint) thay vì cộng tay để không lệch
+              số và không vỡ ô khi con số quá dài. Chưa có chi phí thì total_cost
+              đúng bằng giá thu. Nhân viên không có quyền tài chính không nhận được
+              total_cost nên vẫn chỉ thấy giá thu gốc — ranh giới tiền giữ nguyên. */}
           <div className="value-item">
             <span>Giá thu vào</span>
             <strong>
               {vehicle.cost_pending
                 ? "Chưa có giá thu"
-                : money(vehicle.purchase_price)}
+                : money(
+                    financial
+                      ? (vehicle.total_cost ?? vehicle.purchase_price)
+                      : vehicle.purchase_price,
+                  )}
             </strong>
           </div>
         </div>

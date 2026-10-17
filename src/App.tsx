@@ -76,7 +76,9 @@ const NotificationsPage = lazy(() =>
 );
 const CapturePage = lazy(() => import("@/features/capture/CapturePage"));
 const AssistPage = lazy(() => import("@/features/assistant/AssistPage"));
-const CopilotPage = lazy(() => import("@/features/copilot/CopilotPage"));
+const CaremAssistantPage = lazy(
+  () => import("@/features/assistant/CaremAssistantPage"),
+);
 const DocsPage = lazy(() => import("@/features/docs/DocsPage"));
 const ShowroomPage = lazy(() => import("@/features/showroom/ShowroomPage"));
 /* Unapproved prototype stays available for local review only. */
@@ -187,7 +189,10 @@ export default function App() {
               <Route path="sales/:id" element={<SaleDetailPage />} />
               <Route path="capture" element={<CapturePage />} />
               <Route path="assist" element={<AssistPage />} />
-              <Route path="copilot" element={<CopilotPage />} />
+              <Route path="assistant" element={<CaremAssistantPage />} />
+              {/* Tra cứu AI đã nhập một cùng Trợ lý Cà Rem (16/10/2026): URL cũ
+                  vẫn sống cho bookmark/liên kết cổ, chỉ chuyển về một mặt phẳng. */}
+              <Route path="copilot" element={<Navigate to="/assistant" replace />} />
               <Route path="docs" element={<DocsPage />} />
               <Route path="docs/:slug" element={<DocsPage />} />
               <Route path="receivables" element={<Navigate to="/vehicles?status=SOLD" replace />} />

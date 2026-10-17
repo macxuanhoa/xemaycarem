@@ -115,11 +115,16 @@ test('any role manages "Bộ nhớ viết tắt thu xe" in Settings and it feeds
   await page.getByRole('button', { name: 'Bộ nhớ viết tắt thu xe' }).click()
   await expect(page.getByRole('heading', { name: 'Bộ nhớ viết tắt thu xe' })).toBeVisible()
   const form = page.locator('.settings-rule-form')
+  // Bộ nhớ chỉ còn dạy viết tắt Loại xe — không có ô "Trường điền" nữa.
+  await expect(form.getByLabel('Trường điền')).toHaveCount(0)
   await form.getByLabel('Viết tắt').fill('hg')
-  await form.getByLabel('Trường điền').selectOption('vehicle_type')
   await form.getByLabel('Thành').fill('Xe tay ga')
   await form.getByRole('button', { name: 'Lưu quy tắc' }).click()
-  await expect(page.locator('.intake-rule-chip').filter({ hasText: 'hg' })).toContainText('Xe tay ga')
+  const savedRow = page.locator('.settings-rule-row').filter({ hasText: 'hg' })
+  await expect(savedRow).toContainText('Xe tay ga')
+  // Bản in A4 chỉ hiện khi bấm "Xuất PDF" (mượn hộp thoại in của trình duyệt).
+  await expect(page.getByRole('button', { name: /Xuất PDF/ })).toBeVisible()
+  await expect(page.locator('.print-shorthand-dictionary')).toBeHidden()
 
   await page.goto('/intake')
   await page.locator('textarea.intake-notes').fill('hg den gia 10tr fk HG-01')

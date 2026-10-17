@@ -8,6 +8,7 @@ import { describe, expect, it } from "vitest";
 import {
   parsePushPayload,
   safeDeepLink as clientSafeDeepLink,
+  buildNotificationOptions,
   PUSH_FALLBACK_LINK,
   type CaremPushPayload,
 } from "../../src/lib/pushContracts";
@@ -102,6 +103,38 @@ describe("push payload contract — server build ↔ client parse", () => {
     expect(parsePushPayload(JSON.stringify({ v: 1, kind: "sms", id: "x", title: "t", body: "", link: "/" }))).toBeNull();
     expect(parsePushPayload(JSON.stringify({ v: 1, kind: "notification", id: "", title: "t", body: "", link: "/" }))).toBeNull();
     expect(parsePushPayload(JSON.stringify({ v: 1, kind: "notification", id: "x", title: "", body: "", link: "/" }))).toBeNull();
+  });
+});
+
+describe("SW notification options — buildNotificationOptions", () => {
+  const payload: CaremPushPayload = {
+    v: 1, kind: "notification", id: DELIVERY_ID,
+    title: "Tiền về", body: "Khớp mã QR — chờ xác nhận", link: "/bank-reconciliation",
+  };
+
+  it("business notifications carry actions, rhythm, sticky flag and per-delivery tag", () => {
+    const options = buildNotificationOptions(payload);
+    expect(options.tag).toBe(`notification:${DELIVERY_ID}`);
+    expect(options.actions.map((a) => a.action)).toEqual(["open", "dismiss"]);
+    expect(options.actions.map((a) => a.title)).toEqual(["Mở app", "Bỏ qua"]);
+    expect(options.vibrate).toEqual([120, 60, 120]);
+    expect(options.requireInteraction).toBe(true); // tiền về không tự biến mất
+    expect(options.data.deepLink).toBe("/bank-reconciliation");
+    expect(options.icon).toBe("/icon-192.png");
+    expect(options.badge).toBe("/icon-192.png");
+    expect(options.body).toBe(payload.body);
+  });
+
+  it("test pings do not pin themselves to the desktop", () => {
+    const options = buildNotificationOptions({ ...payload, kind: "test" });
+    expect(options.requireInteraction).toBe(false);
+    expect(options.tag).toBe(`test:${DELIVERY_ID}`);
+  });
+
+  it("never lets a hostile link escape the whitelist into notification data", () => {
+    const parsed = parsePushPayload(buildPushPayloadJson(item({ link: "//evil.example" })))!;
+    const options = buildNotificationOptions(parsed);
+    expect(options.data.deepLink).toBe(PUSH_FALLBACK_LINK);
   });
 });
 

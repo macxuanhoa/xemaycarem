@@ -7324,17 +7324,27 @@ mark.search-hit {
       .print-vehicle-label,
       .print-vehicle-label *,
       :has(.print-vehicle-label)
+    ),
+  body[data-print-target="shorthand-dictionary"]
+    :not(
+      .print-shorthand-dictionary,
+      .print-shorthand-dictionary *,
+      :has(.print-shorthand-dictionary)
     ) {
     display: none !important;
   }
   body[data-print-target="customer-receipt"] :has(.print-customer-receipt),
-  body[data-print-target="vehicle-label"] :has(.print-vehicle-label) {
+  body[data-print-target="vehicle-label"] :has(.print-vehicle-label),
+  body[data-print-target="shorthand-dictionary"]
+    :has(.print-shorthand-dictionary) {
     display: contents !important;
   }
   body[data-print-target="customer-receipt"] .print-customer-receipt,
   body[data-print-target="customer-receipt"] .print-customer-receipt *,
   body[data-print-target="vehicle-label"] .print-vehicle-label,
-  body[data-print-target="vehicle-label"] .print-vehicle-label * {
+  body[data-print-target="vehicle-label"] .print-vehicle-label *,
+  body[data-print-target="shorthand-dictionary"] .print-shorthand-dictionary,
+  body[data-print-target="shorthand-dictionary"] .print-shorthand-dictionary * {
     visibility: visible !important;
   }
   body[data-print-target="customer-receipt"] .print-customer-receipt,
@@ -7347,6 +7357,73 @@ mark.search-hit {
     border-radius: 0;
     box-shadow: none;
     background: white;
+  }
+  /* "Bảng Viết Tắt Loại Xe • Cà Rem": only rendered when the card's export
+     button tags the body — bring it back and lay it out as a tidy A4 sheet. */
+  body[data-print-target="shorthand-dictionary"] .print-shorthand-dictionary {
+    display: block;
+    position: static;
+    width: 100%;
+    margin: 0;
+    padding: 0;
+    color: #0f172a;
+    background: white;
+  }
+  .print-shorthand-dictionary h1 {
+    margin: 0 0 2px;
+    font-size: 17px;
+    text-align: center;
+    letter-spacing: 0.2px;
+  }
+  .print-shorthand-dictionary .print-meta {
+    margin: 0 0 14px;
+    font-size: 10.5px;
+    color: #475569;
+    text-align: center;
+  }
+  .print-shorthand-dictionary table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12.5px;
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
+  }
+  .print-shorthand-dictionary th,
+  .print-shorthand-dictionary td {
+    border: 1px solid #94a3b8;
+    padding: 6px 10px;
+    text-align: left;
+    vertical-align: top;
+  }
+  .print-shorthand-dictionary th {
+    background: #f1f5f9;
+    font-size: 10.5px;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    color: #334155;
+  }
+  .print-shorthand-dictionary thead {
+    display: table-header-group; /* header repeats on every page */
+  }
+  .print-shorthand-dictionary tbody tr {
+    break-inside: avoid;
+  }
+  .print-shorthand-dictionary .print-col-index {
+    width: 40px;
+    text-align: center;
+    color: #475569;
+    font-variant-numeric: tabular-nums;
+  }
+  .print-shorthand-dictionary .print-col-key {
+    width: 190px;
+    font-weight: 600;
+  }
+  .print-shorthand-dictionary .print-foot {
+    margin: 12px 0 0;
+    font-size: 9.5px;
+    color: #64748b;
+    text-align: center;
   }
   body:not([data-print-target]) .sidebar,
   body:not([data-print-target]) .topbar,
@@ -14261,44 +14338,114 @@ html[data-theme="dark"] .header-theme-toggle {
   border-radius: 8px;
   padding: 6px 10px;
 }
-.intake-rule-list {
+/* Danh sách quy tắc đã lưu trong "Bộ nhớ viết tắt thu xe" (Cài đặt): bảng
+   thẳng hàng thay cho dải chip dài ngắn khác nhau từng khiến lệch cột. */
+.settings-rule-section {
+  margin-top: 18px;
+}
+.settings-rule-head {
   display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px 14px;
+  margin-bottom: 10px;
+}
+.settings-rule-head h3 {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 700;
+  color: #0f172a;
+  display: flex;
+  align-items: baseline;
   flex-wrap: wrap;
   gap: 8px;
-  margin-top: 12px;
 }
-.intake-rule-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  background: #f1f5f9;
-  border: 1px solid #e2e8f0;
-  border-radius: 999px;
-  padding: 4px 6px 4px 12px;
-  font-size: 12.5px;
-  color: #334155;
-}
-.intake-rule-chip code {
-  font-size: 12px;
-}
-.intake-rule-chip small {
+.settings-rule-head h3 small {
+  font-size: 11.5px;
+  font-weight: 500;
   color: #64748b;
 }
-.intake-rule-chip button {
+.settings-rule-table-wrap {
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  overflow: hidden;
+  background: #ffffff;
+}
+.settings-rule-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13.5px;
+}
+.settings-rule-table th {
+  text-align: left;
+  font-size: 11px;
+  font-weight: 650;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #64748b;
+  background: #f8fafc;
+  padding: 9px 14px;
+  border-bottom: 1px solid #e2e8f0;
+}
+.settings-rule-table td {
+  padding: 10px 14px;
+  border-bottom: 1px solid #eef2f7;
+  color: #334155;
+  vertical-align: middle;
+}
+.settings-rule-table tbody tr:last-child td {
+  border-bottom: 0;
+}
+.settings-rule-table tbody tr:hover {
+  background: #f8fafc;
+}
+.settings-rule-table td:first-child {
+  width: 180px;
+}
+.settings-rule-table td:last-child {
+  width: 46px;
+  text-align: right;
+}
+.settings-rule-table code {
+  display: inline-block;
+  background: #f1f5f9;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  padding: 2px 8px;
+  font-size: 12.5px;
+  color: #0f172a;
+}
+.settings-rule-value {
+  overflow-wrap: anywhere;
+}
+.settings-rule-delete {
   border: none;
   background: none;
   color: #94a3b8;
   cursor: pointer;
   display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
   padding: 3px;
   border-radius: 50%;
   transition:
     color 150ms ease,
     background 150ms ease;
 }
-.intake-rule-chip button:hover {
+.settings-rule-delete:hover {
   color: #be123c;
   background: #fee2e2;
+}
+.settings-rule-export-hint {
+  margin: 10px 2px 0;
+}
+/* Bản in A4 của bảng viết tắt: ẩn hẳn trên màn hình, chỉ hiện khi bấm
+   "Xuất PDF" (body[data-print-target="shorthand-dictionary"]). */
+.print-shorthand-dictionary {
+  display: none;
 }
 /* Form thêm quy tắc trong "Bộ nhớ viết tắt thu xe" (Cài đặt). */
 .settings-rule-form {
@@ -14396,12 +14543,31 @@ html[data-theme="dark"] .header-theme-toggle {
 [data-theme="dark"] .intake-entry.has-issues {
   border-color: #5b1f2a;
 }
-[data-theme="dark"] .intake-rule-chip {
-  background: #171821;
+[data-theme="dark"] .settings-rule-head h3 {
+  color: #e2e8f0;
+}
+[data-theme="dark"] .settings-rule-table-wrap {
+  background: #14161e;
   border-color: #262833;
+}
+[data-theme="dark"] .settings-rule-table th {
+  background: #181a23;
+  color: #8a93a6;
+  border-color: #262833;
+}
+[data-theme="dark"] .settings-rule-table td {
+  border-color: #1f2129;
   color: #c4cad8;
 }
-[data-theme="dark"] .intake-rule-chip button:hover {
+[data-theme="dark"] .settings-rule-table tbody tr:hover {
+  background: #181a23;
+}
+[data-theme="dark"] .settings-rule-table code {
+  background: #171821;
+  border-color: #262833;
+  color: #e2e8f0;
+}
+[data-theme="dark"] .settings-rule-delete:hover {
   background: #2a1418;
   color: #fda4af;
 }
@@ -14846,24 +15012,30 @@ html[data-theme="dark"] .header-theme-toggle {
 }
 /* Cụm danh tính chiếc xe — phần DUY NHẤT của dòng tiêu đề được phát sáng.
    Đọc đúng thứ tự nghiệp vụ: THAO TÁC trước (chữ thường), rồi mới đến xe
-   (tên loại + biển số gom vào một viên). Bản cũ đặt tên loại xe ở
+   (tên loại + biển số) gom vào một viên. Bản cũ đặt tên loại xe ở
    ĐẦU dòng nên "Honda Wave Alpha Thu vào xe 43A1-99999" đọc ngược hành động.
-   Là highlight INLINE (không phải khối inline-flex): danh tính dài vẫn ngắt
-   dòng được trong panel hẹp, và `box-decoration-break: clone` bo tròn + vẽ
-   lại quầng sáng cho TỪNG mảnh, thay vì đóng thành một ô chữ nhật cứng
-   chiếm hết bề ngang trên điện thoại. */
+   Trong viên, tên xe (sans) và biển số (mono) khác phông nên phải CHUNG một
+   baseline (align-items: baseline) — canh giữa kiểu center làm mặt số mono trôi
+   lên/xuống so với chữ, chính là cái "chữ lệch so với khung". line-height hẹp +
+   padding đối xứng để khung ôm sát chữ; flex-wrap + max-width để danh tính dài
+   tự xuống dòng trong panel hẹp thay vì tràn ngang. */
 .notification-vehicle {
-  display: inline;
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  column-gap: 5px;
+  row-gap: 2px;
+  vertical-align: middle;
+  max-width: 100%;
   margin-left: 4px;
-  padding: 1.5px 7px;
-  border-radius: 7px;
+  padding: 2px 8px;
+  line-height: 1.25;
+  border-radius: 8px;
   background: linear-gradient(135deg, #e8edff, #f1ecff 55%, #e8f4ff);
   box-shadow:
     inset 0 0 0 1px rgba(79, 70, 229, 0.18),
     0 0 12px -3px rgba(79, 70, 229, 0.45);
   color: #312e81;
-  -webkit-box-decoration-break: clone;
-  box-decoration-break: clone;
 }
 /* Tên loại xe: vai trò "xe nào", ngay trước biển số. */
 .notification-vehicle-type {
@@ -14875,7 +15047,6 @@ html[data-theme="dark"] .header-theme-toggle {
 /* Biển số (hoặc mã nội bộ thế chỗ xe chưa có biển): token quan trọng nhất
    của dòng — mono, đậm, tabular để đọc/đối chiếu không nhầm mặt số. */
 .notification-vehicle-plate {
-  margin-left: 5px;
   font-family: var(--font-mono, "JetBrains Mono", ui-monospace, monospace);
   font-weight: 700;
   font-size: 12px;
@@ -14888,7 +15059,6 @@ html[data-theme="dark"] .header-theme-toggle {
 /* Đuôi danh tính khi xe KHÔNG có biển: "chưa có biển · <khung>" là chữ mô tả,
    không phải mặt số — nên đứng cùng viên nhưng giữ phông chữ thường. */
 .notification-vehicle-phrase {
-  margin-left: 5px;
   font-size: 11.5px;
   font-weight: 600;
   color: #4338ca;
@@ -17927,6 +18097,40 @@ html[data-theme="dark"] .header-theme-toggle {
   opacity: 0.05;
   mix-blend-mode: overlay;
 }
+/* Chữ ký "Cà Rem" viết tay phủ khắp nền tối như hoa văn chống giả: thuần trình
+   bày, nằm sau scrim, không tương tác và KHÔNG nằm trong ảnh tải về (chỉ là
+   chrome của hộp thoại). Vài nth-child xoay/nhỏ dần để lưới không cứng. */
+.vietqr-ambient-marks {
+  position: absolute;
+  inset: -22%;
+  display: flex;
+  flex-wrap: wrap;
+  align-content: flex-start;
+  justify-content: center;
+  gap: 24px 38px;
+  transform: rotate(-18deg);
+  font-family: "Allura", "Segoe Script", cursive;
+  font-size: 28px;
+  line-height: 1;
+  color: #ff5562;
+  opacity: 0.1;
+  pointer-events: none;
+  user-select: none;
+}
+.vietqr-ambient-marks em {
+  font-style: normal;
+  white-space: nowrap;
+}
+.vietqr-ambient-marks em:nth-child(3n) {
+  font-size: 22px;
+  opacity: 0.8;
+}
+.vietqr-ambient-marks em:nth-child(4n) {
+  transform: rotate(6deg);
+}
+.vietqr-ambient-marks em:nth-child(5n) {
+  transform: rotate(-7deg);
+}
 /* Chữ ký thương hiệu chạy sau lớp thẻ QR — chỉ là ánh neon, không tương tác. */
 .vietqr-ambient-sign {
   position: absolute;
@@ -18783,6 +18987,24 @@ html[data-theme="dark"] .header-theme-toggle {
 .vietqr-modal-panel .button.vietqr-btn-confirm:hover {
   filter: brightness(1.05);
 }
+/* "Đã hoàn tất giao dịch": chiếm nguyên hàng trên, kéo hai nút cũ xuống dưới.
+   CỐ Ý không tô xanh như "Xác nhận và đóng" — xanh trong modal này nghĩa là tiền
+   đã về thật; nút này chỉ khai "khách báo đã chuyển" và mở form chờ chủ đối chiếu
+   sao kê, nên viền nét đứt để nhìn là biết chưa ngã ngũ. */
+.vietqr-modal-panel .button.vietqr-btn-manual {
+  grid-column: 1 / -1;
+  order: -1;
+  color: #eef2f8;
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px dashed rgba(255, 255, 255, 0.42);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.09);
+  transition: background-color 150ms ease, border-color 150ms ease, color 150ms ease;
+}
+.vietqr-modal-panel .button.vietqr-btn-manual:hover {
+  background: rgba(255, 255, 255, 0.16);
+  border-color: rgba(255, 255, 255, 0.6);
+  color: #fff;
+}
 .vietqr-footnote {
   display: grid;
   justify-items: center;
@@ -19549,7 +19771,7 @@ html[data-theme="dark"] .header-theme-toggle {
   .mobile-menu-close,
   .header-theme-toggle,
   .mobile-menu,
-  .intake-rule-chip button {
+  .settings-rule-delete {
     min-width: var(--touch-target);
     min-height: var(--touch-target);
   }
@@ -23675,5 +23897,66 @@ html[data-theme="dark"] .header-theme-toggle {
 }
 [data-theme="dark"] .ca-dock {
   background: linear-gradient(to top, rgba(15, 16, 21, 1) 72%, rgba(15, 16, 21, 0));
+}
+
+/* ════ Card "Giao diện hệ thống" — seasonal theme (OWNER settings) ════
+   Hàng ngày AUTO gọn cho chế độ "Tự động theo lịch": các input date cỡ
+   nhỏ, tự xuống dòng thay vì tràn khỏi ô lịch khi cột hẹp. Switch dùng
+   lại .ac-switch của console thông báo. */
+.seasonal-window {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 14px;
+  padding: 12px 14px;
+  border: 1px solid var(--line, #e3e4ea);
+  border-radius: var(--radius, 12px);
+  background: var(--surface-sunken, #f8fafc);
+}
+.seasonal-window-field {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  font-size: 12.5px;
+  font-weight: 550;
+  color: var(--muted, #64748b);
+}
+.seasonal-window-field input[type="date"] {
+  flex: 0 1 148px;
+  width: 148px;
+  min-width: 0;
+  min-height: 38px;
+  padding: 7px 10px;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+.seasonal-window-arrow {
+  color: var(--muted, #94a3b8);
+  font-size: 13px;
+}
+@media (max-width: 640px) {
+  .seasonal-window-field {
+    flex: 1 1 100%;
+    justify-content: space-between;
+    gap: 10px;
+  }
+  .seasonal-window-field input[type="date"] {
+    flex: 1 1 auto;
+    width: auto;
+    max-width: 200px;
+  }
+  .seasonal-window-arrow {
+    display: none;
+  }
+}
+[data-theme="dark"] .seasonal-window {
+  background: #14161e;
+  border-color: #262833;
+}
+/* Switch tắt tiếng khi một công tắc khác chiếm quyền (AUTO phủ bật-ngay). */
+.ac-switch.is-disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
 }
 

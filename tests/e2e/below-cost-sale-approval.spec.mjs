@@ -355,7 +355,7 @@ test("Xe đang chờ duyệt: không bán được, chỉ rút được yêu c�
   });
   await page.goto(`/vehicles/${vehicleId}/sell`);
   await expect(
-    page.getByText(/đang có yêu cầu bán dưới giá thu chờ chủ duyệt/),
+    page.getByText(/Xe đang chờ chủ duyệt yêu cầu bán dưới giá thu/),
   ).toBeVisible();
   await fillSale(page, "18tr");
   await expect(submitButton(page)).toBeDisabled();

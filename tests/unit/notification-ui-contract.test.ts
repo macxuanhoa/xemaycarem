@@ -14,6 +14,10 @@ import { ACTION_TONE } from "@/lib/notifications";
  *          tin mới phải được trình đọc màn hình nêu bằng một live region.
  *  · P1-b: hai bộ lọc là tab thật (tablist/tab/tabpanel + phím mũi tên).
  *  · P2:   một hàng viết một lần, dùng chung hai surface; chữ chạy vô hạn bỏ.
+ *  · P2-b: hàng tiêu đề chuông là MỘT hàng ở mọi khổ — nhãn "Đánh dấu tất cả
+ *          đã đọc" co bằng @container chứ không được rơi xuống hàng riêng.
+ *  · P2-c: dòng tin phải đọc "thao tác → danh tính xe", mã nội bộ chỉ ghi
+ *          thêm cuối dòng (không phải tên xe trước thao tác như bản cũ).
  */
 
 const read = (path: string) => readFileSync(path, "utf8");
@@ -202,6 +206,72 @@ describe("P2 — một hàng viết một lần cho cả hai surface", () => {
   it("tone gắn trên hàng để CSS phân biệt trạng thái cần người xử lý", () => {
     expect(row).toContain("data-tone={tone}");
     expect(row).toContain('ACTION_ICON[item.action] ?? NOTIFICATION_FALLBACK_ICON');
+  });
+});
+
+describe("P2-b — hàng tiêu đề chuông luôn là MỘT hàng", () => {
+  // Bỏ comment: lời giải thích trong CSS kể lại chính lỗi cũ ("trước đây
+  // flex-wrap: wrap") nên kiểm tra phải soi phần luật, không soi cả file.
+  const style = strip(css);
+  const headerRule = () =>
+    style.match(/\.notification-panel-header\s*\{[^}]*\}/)?.[0] ?? "";
+
+  it("tiêu đề + số chưa đọc + cụm hành động không còn được xuống hàng", () => {
+    const rule = headerRule();
+    expect(rule).toContain("flex-wrap: nowrap");
+    expect(rule).not.toContain("flex-wrap: wrap");
+    // row-gap chỉ tồn tại để nới hàng thứ hai — phải biến mất cùng wrap.
+    expect(rule).not.toMatch(/row-gap/);
+    // Chính hàng tiêu đề là container, nên ngưỡng co nhãn đo theo số chỗ THẬT
+    // còn lại của hàng (panel 420px từng bị tính nhầm thành 418 vì viền).
+    expect(rule).toContain("container-type: inline-size");
+    // Khối hành động không được co, tiêu đề mới là phần nhường chỗ.
+    expect(rule).toMatch(/justify-content: space-between/);
+  });
+
+  it("nhãn nút đánh dấu tách thành span riêng, cất bằng @container chứ không gãy hàng", () => {
+    // aria-label mang cả cụm đầy đủ → tên trợ năng không đổi khi CSS cất chữ.
+    expect(bell).toMatch(
+      /className="notification-mark-all"[\s\S]{0,240}?aria-label="Đánh dấu tất cả đã đọc"/,
+    );
+    expect(bell).toContain("Đánh dấu tất cả đã đọc");
+    expect(bell).toMatch(/className="notification-mark-all-label"/);
+    const tier = style.match(/@container[^{]*\{[\s\S]*?\n\}/)?.[0] ?? "";
+    expect(tier).toMatch(/@container \(max-width: \d+px\)/);
+    expect(tier).toMatch(/\.notification-mark-all-label\s*\{[^}]*display: none/);
+    // Mất chữ thì icon phải còn ô vuông đủ to bấm bằng ngón tay.
+    expect(tier).toMatch(/\.notification-mark-all\s*\{[^}]*min-width: 40px/);
+    expect(tier).toMatch(/\.notification-mark-all\s*\{[^}]*min-height: 40px/);
+  });
+});
+
+describe("P2-c — dòng tiêu đề đọc là THAO TÁC rồi mới đến xe", () => {
+  it("hành động đứng đầu, danh tính xe (tên loại + biển số) gom một cụm ngay sau đó", () => {
+    expect(row).toMatch(
+      /<span className=\{cls\.title\}>\s*\{parts\.action\}\s*\{[\s\S]{0,160}?className="notification-vehicle"/,
+    );
+    // Chip tên loại xe từng đứng TRƯỚC cả câu → "Honda Wave Alpha Thu vào xe".
+    expect(row).not.toMatch(/<span className=\{cls\.title\}>\s*\{typeName/);
+    // Biển số và tên loại xe phải nằm TRONG cùng một viên danh tính.
+    expect(row).toMatch(
+      /className="notification-vehicle"[\s\S]{0,400}?className="notification-vehicle-type"[\s\S]{0,400}?className=\{identityClass\}/,
+    );
+    expect(row).toContain('"notification-vehicle-plate"');
+    expect(row).toContain('"notification-vehicle-phrase"');
+    // Đuôi số khung KHÔNG được quay lại tiêu đề: body đã nêu lại nguyên nhãn,
+    // nhét nó vào tiêu đề chỉ khiến dòng tin gãy đôi trong panel 460px.
+    expect(row).not.toMatch(/parts\.detail/);
+  });
+
+  it("mã nội bộ là phần ghi thêm cuối dòng tiêu đề, không còn dính vào body", () => {
+    const titleAt = row.indexOf("cls.title");
+    const codeAt = row.indexOf("notification-internal-code");
+    const bodyAt = row.indexOf("{item.body &&");
+    expect(titleAt).toBeGreaterThan(-1);
+    expect(codeAt).toBeGreaterThan(titleAt);
+    expect(codeAt).toBeLessThan(bodyAt);
+    // Không được phát ra class mã nội bộ bên trong khối body.
+    expect(row.slice(bodyAt)).not.toContain("notification-internal-code");
   });
 });
 

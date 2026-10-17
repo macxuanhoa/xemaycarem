@@ -96,8 +96,9 @@ describe("VietQR modal — vòng đời ảnh QR và nguồn nội dung duy nh�
     expect(modalCode).not.toMatch(/buildVietQrQuickLink\([\s\S]{0,400}?addInfo/);
   });
 
-  it("P0-4: qr_payload của server chỉ được tin khi đọc lại được memo trong nó", () => {
-    expect(modalCode).toContain("transferContentFromPayload(request.qr_payload)");
+  it("qr_payload cũ chỉ được tái dùng khi memo khớp đúng nội dung đã chọn", () => {
+    expect(modalCode).toContain("const embeddedContent = transferContentFromPayload(request.qr_payload)");
+    expect(modalCode).toMatch(/const embedded = embeddedContent === description\s*\? request\.qr_payload\s*: null/);
   });
 
   it("P1-e: ảnh QR cache hỏng được phát hiện qua complete + naturalWidth, không chờ onLoad", () => {
@@ -110,9 +111,15 @@ describe("VietQR modal — vòng đời ảnh QR và nguồn nội dung duy nh�
     expect(modalCode).toMatch(/}, \[qrImageUrl\]\);/);
   });
 
-  it("modal giữ đúng chuỗi memo server cấp khi server đã nhúng memo vào payload", () => {
-    // Chuỗi hiển thị không được tự do "dọn dẹp" thêm (bỏ dấu, cắt ngắn) — đối
-    // soát dựa trên nguyên văn nội dung chuyển khoản.
+  it("modal giữ nguyên dấu của nội dung đã chọn cho màn hình và mã QR", () => {
     expect(modalCode).not.toMatch(/removeVietnameseTones\([^)]*\)[\s\S]{0,80}(description|transferContent|memo)/i);
+  });
+
+  it("memo lấy tên danh mục xe từ cả hai màn hình, không dự phòng bằng biển số hoặc mã kho", () => {
+    const memoContext = modalCode.match(/const memoContext = useMemo\([\s\S]*?\n {2}\);/)?.[0];
+    expect(memoContext).toContain('vehicleName: vehicle.vehicle_type?.trim() || ""');
+    expect(memoContext).not.toMatch(/license_plate|internal_code|vehicle_title|payerName/);
+    const saleDetail = readFileSync("src/features/sales/SaleDetailPage.tsx", "utf8");
+    expect(saleDetail).toContain("vehicle_type: sale.vehicle_type");
   });
 });

@@ -6,6 +6,7 @@ import { api } from "./api";
 import { supabase } from "./supabase";
 import { toast } from "./toast";
 import { friendlyError } from "./errors";
+import { bumpPushDrain } from "./push";
 import { useAuth } from "@/features/auth/AuthProvider";
 import { patchNotificationsCache } from "./notificationsCache";
 import type { NotificationItem } from "@/types";
@@ -58,7 +59,13 @@ export function useNotificationsRealtime(
           table: "notifications",
           filter: `user_id=eq.${userId}`,
         },
-        refresh,
+        (payload) => {
+          refresh();
+          // Tin MỚI (không phải đánh dấu đã đọc) → đẩy hàng đợi Web Push đi
+          // ngay: các thiết bị khác cùng tài khoản nhận push trong vài giây
+          // thay vì chờ chu kỳ quét gần nhất.
+          if (payload.eventType === "INSERT") bumpPushDrain();
+        },
       )
       .subscribe((status) => setLive(status === "SUBSCRIBED"));
     const onOnline = () => refresh();

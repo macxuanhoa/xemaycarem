@@ -12,6 +12,7 @@ import { AppError } from "@/lib/errors";
 import { toast } from "@/lib/toast";
 import { canFinance, canManage, canOperate } from "@/lib/permissions";
 import { dateLabel, money, today } from "@/lib/format";
+import { CHAR_LIMITS } from "@/lib/validation";
 import { useAuth } from "@/features/auth/AuthProvider";
 import {
   Badge,
@@ -49,6 +50,14 @@ export function SaleDetailPage() {
   const [reason, setReason] = useState("");
   const [receipt, setReceipt] = useState<Payment | "sale" | null>(null);
   const [showVietQr, setShowVietQr] = useState(false);
+  // Lời khai "khách đã chuyển" từ cửa sổ QR khi không có báo tiền tự động: mang
+  // đúng số tiền + mã tham chiếu + tài khoản nhận sang form thu tiền thường để Chủ
+  // đối chiếu sao kê, thay vì bắt gõ lại và dễ gõ nhầm thành khoản thu khác.
+  const [qrManualFill, setQrManualFill] = useState<{
+    amount: number;
+    reference: string;
+    evidenceScope: string;
+  } | null>(null);
 
   const query = useQuery({
     queryKey: ["sale", id],
@@ -342,9 +351,11 @@ export function SaleDetailPage() {
                 sale.status === "COMPLETED" &&
                 sale.remaining_amount > 0 && (
                   <div className="row" style={{ gap: "8px" }}>
-                    <Button variant="ghost" onClick={() => setShowVietQr(true)}>
-                      <QrCode size={16} /> VietQR
-                    </Button>
+                    {canFinance(profile) && (
+                      <Button variant="ghost" onClick={() => setShowVietQr(true)}>
+                        <QrCode size={16} /> VietQR
+                      </Button>
+                    )}
                     <Button
                       variant="secondary"
                       onClick={() => setShowPayment(!showPayment)}
@@ -394,9 +405,13 @@ export function SaleDetailPage() {
             )}
             {showPayment && !sale.sale_price_hidden && sale.status === "COMPLETED" && (
               <PaymentEditor
-                key={`${sale.id}-${sale.paid_amount}`}
+                key={`${sale.id}-${sale.paid_amount}-${qrManualFill?.reference ?? "plain"}`}
                 sale={sale}
-                onClose={() => setShowPayment(false)}
+                prefill={qrManualFill ?? undefined}
+                onClose={() => {
+                  setShowPayment(false);
+                  setQrManualFill(null);
+                }}
               />
             )}
           </Card>
@@ -484,6 +499,7 @@ export function SaleDetailPage() {
             license_plate: sale.license_plate || sale.vehicle?.license_plate,
             internal_code: sale.vehicle_code || sale.vehicle?.internal_code,
             vehicle_title: vehicleTitle(sale),
+            vehicle_type: sale.vehicle_type,
           }}
           saleId={sale.id}
           saleCode={sale.sale_code}
@@ -494,6 +510,20 @@ export function SaleDetailPage() {
             setShowVietQr(false);
             await client.invalidateQueries();
           }}
+          // Form thu tiền chỉ mở được khi đơn đã chốt còn công nợ, nên đường "đã
+          // hoàn tất giao dịch" cũng chỉ bày ra đúng lúc đó — khỏi nút dẫn vào cụt.
+          onManualConfirm={
+            sale.status === "COMPLETED" && sale.remaining_amount > 0
+              ? (request) => {
+                  setQrManualFill({
+                    amount: request.amount,
+                    reference: request.qr_reference,
+                    evidenceScope: request.bank_account_no || "",
+                  });
+                  setShowPayment(true);
+                }
+              : undefined
+          }
         />
       )}
     </div>
@@ -503,20 +533,34 @@ export function SaleDetailPage() {
 export function PaymentEditor({
   sale,
   onClose,
+  prefill,
 }: {
   sale: Sale;
   onClose: () => void;
+  /**
+   * Số liệu mang sang từ cửa sổ QR khi khách báo đã chuyển mà hệ thống không có
+   * báo tiền tự động. Chỉ là giá trị điền sẵn — đề nghị thu vẫn phải qua Chủ/Quản
+   * lý đối chiếu sao kê rồi mới ghi sổ, không đổi quyền hay bỏ cổng xác minh.
+   */
+  prefill?: { amount?: number; reference?: string; evidenceScope?: string };
 }) {
   const client = useQueryClient();
   const { profile } = useAuth();
-  const [evidenceScope, setEvidenceScope] = useState("");
+  const [evidenceScope, setEvidenceScope] = useState(
+    prefill?.evidenceScope ?? "",
+  );
   const form = useForm<PaymentFormValues>({
     resolver: zodResolver(paymentSchema),
     defaultValues: {
-      amount: sale.remaining_amount,
+      // Không cho số mang sang vượt phần còn phải thu: khách trả một phần trong
+      // mã thì ghi đúng phần đó, trả thừa đã có kiểm tra chặn lúc lưu.
+      amount: Math.min(
+        sale.remaining_amount,
+        prefill?.amount ?? sale.remaining_amount,
+      ),
       payment_method: "BANK_TRANSFER",
       payment_date: today(),
-      reference: "",
+      reference: prefill?.reference ?? "",
       notes: "",
     },
   });
@@ -531,13 +575,13 @@ export function PaymentEditor({
         const ledger = await api.call<Sale & { payments: Payment[] }>("get_sale", { p_id: sale.id });
         if (ledger.payments.some(payment => payment.id === pending)) {
           confirmPayment(profile.id, sale.id, pending);
-          toast.success("Khoản thu trước đã được ghi nhận. Đã đối soát, không tạo thêm khoản thu.");
+          toast.success("Khoản thu trước đã được ghi nhận. Đã đối soát, không tạo thêm khoản thu.", { important: true });
           return;
         }
         const latest = await api.call<{ confirmed: boolean; receipt: PaymentReceipt | null }>("get_payment_receipt_request", { p_request_id: pending });
         if (latest.confirmed && latest.receipt?.sale_id === sale.id) {
           confirmPayment(profile.id, sale.id, pending);
-          toast.success(latest.receipt.status === "RECORDED" ? "Khoản thu trước đã được ghi nhận. Đã đối soát, không tạo thêm khoản thu." : latest.receipt.status === "REJECTED" ? "Đề nghị thu tiền trước đã bị từ chối. Kiểm tra lại với quản lý." : "Đề nghị thu tiền trước đã được lưu. Không tạo thêm; quản lý kiểm tra mục chờ xác minh.");
+          toast.success(latest.receipt.status === "RECORDED" ? "Khoản thu trước đã được ghi nhận. Đã đối soát, không tạo thêm khoản thu." : latest.receipt.status === "REJECTED" ? "Đề nghị thu tiền trước đã bị từ chối. Kiểm tra lại với quản lý." : "Đề nghị thu tiền trước đã được lưu. Không tạo thêm; quản lý kiểm tra mục chờ xác minh.", { important: true });
           return;
         }
       }
@@ -551,7 +595,7 @@ export function PaymentEditor({
         },
       });
       confirmPayment(profile.id, sale.id, id);
-      toast.success(saved.status === "RECORDED" ? "Chứng từ này đã được ghi nhận. Không tạo thêm khoản thu." : saved.status === "REJECTED" ? "Chứng từ này đã bị từ chối. Kiểm tra lại với quản lý." : "Đã lưu đề nghị thu tiền, chờ quản lý xác minh. Tiền đã thu chưa thay đổi.");
+      toast.success(saved.status === "RECORDED" ? "Chứng từ này đã được ghi nhận. Không tạo thêm khoản thu." : saved.status === "REJECTED" ? "Chứng từ này đã bị từ chối. Kiểm tra lại với quản lý." : "Đã lưu đề nghị thu tiền, chờ quản lý xác minh. Tiền đã thu chưa thay đổi.", { important: true });
     },
     onSuccess: async () => {
       await Promise.all(
@@ -630,8 +674,10 @@ export function PaymentEditor({
         <Field
           label="Mã tham chiếu"
           error={form.formState.errors.reference?.message}
+          counter={{ value: form.watch("reference"), max: CHAR_LIMITS.reference }}
         >
           <input
+            maxLength={CHAR_LIMITS.reference}
             {...form.register("reference")}
             placeholder="Mã chuyển khoản / chứng từ"
           />
@@ -640,8 +686,12 @@ export function PaymentEditor({
           <input maxLength={120} value={evidenceScope} onChange={event => setEvidenceScope(event.target.value)} placeholder="Tài khoản nhận hoặc mã sổ phiếu thu" />
         </Field>
       </div>
-      <Field label="Ghi chú" error={form.formState.errors.notes?.message}>
-        <textarea rows={2} {...form.register("notes")} />
+      <Field
+        label="Ghi chú"
+        error={form.formState.errors.notes?.message}
+        counter={{ value: form.watch("notes"), max: CHAR_LIMITS.paymentNotes }}
+      >
+        <textarea rows={2} maxLength={CHAR_LIMITS.paymentNotes} {...form.register("notes")} />
       </Field>
       </fieldset>
       {mutation.isError && <ErrorState error={mutation.error} />}

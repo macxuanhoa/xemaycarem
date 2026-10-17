@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { dateValue, moneyValue } from "@/lib/validation";
+import { cappedString, CHAR_LIMITS, dateValue, moneyValue } from "@/lib/validation";
 import { isValidMotorbikePlate, PLATE_INVALID_MESSAGE } from "@/lib/plate";
 import { compactFrame } from "@/lib/frameNumber";
 
@@ -8,37 +8,33 @@ export const acquisitionSchema = z
     // Số khung: máy chủ TỰ suy loại theo độ dài chuỗi nén (`private.frame_kind`):
     // rỗng hoặc ≥ 11 ký tự = FULL (VIN đầy đủ, có thể để trống → server sinh GEN
     // placeholder); 5–10 ký tự = PARTIAL (mảnh rút gọn, chỉ báo nghi trùng).
-    frame_number: z
-      .string()
-      .trim()
-      .max(100, "Số khung tối đa 100 ký tự."),
+    frame_number: cappedString("Số khung", CHAR_LIMITS.frame),
     // Bật khi nhân viên đã đối chiếu danh sách xe tương tự ở mức YELLOW.
     duplicate_ack: z.boolean().optional(),
-    license_plate: z
-      .string()
-      .trim()
-      .max(30)
-      .refine(isValidMotorbikePlate, PLATE_INVALID_MESSAGE),
+    license_plate: cappedString("Biển số", CHAR_LIMITS.plate).refine(
+      isValidMotorbikePlate,
+      PLATE_INVALID_MESSAGE,
+    ),
     // Tên loại xe (mẫu xe) nhập tự do; gợi ý học từ xe đã lưu, server get-or-create.
     vehicle_type: z
       .string()
       .trim()
       .min(2, "Nhập loại / dòng xe (tối thiểu 2 ký tự).")
-      .max(60, "Tên xe tối đa 60 ký tự."),
+      .max(CHAR_LIMITS.vehicleType, `Tên xe tối đa ${CHAR_LIMITS.vehicleType} ký tự, hãy viết gọn lại.`),
     year: z
       .number({ error: "Nhập năm sản xuất hợp lệ." })
       .int("Năm sản xuất phải là số nguyên.")
       .min(1950, "Năm sản xuất từ 1950 trở lại đây.")
       .max(new Date().getFullYear() + 1, "Năm sản xuất không được vượt quá năm tới.")
       .optional(),
-    color: z.string().trim().max(60),
+    color: cappedString("Màu sắc", CHAR_LIMITS.color),
     acquisition_date: dateValue,
     // Giá thu là thông tin bắt buộc khi đưa xe vào kho, với mọi role đang thao
     // tác xe (server chặn PURCHASE_PRICE_REQUIRED). Ô tiền để trống = NaN.
     purchase_price: moneyValue.optional(),
-    seller_name: z.string().trim().max(160),
-    seller_phone: z.string().trim().max(30),
-    notes: z.string().trim().max(5000),
+    seller_name: cappedString("Tên người bán", CHAR_LIMITS.name),
+    seller_phone: cappedString("Số điện thoại người bán", CHAR_LIMITS.phone),
+    notes: cappedString("Ghi chú", CHAR_LIMITS.notes),
   })
   .superRefine((values, ctx) => {
     if (

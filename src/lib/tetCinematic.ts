@@ -64,6 +64,9 @@ type Particle = {
   lit: boolean;
   life: number;
   spark?: boolean;
+  /** mai = yellow apricot petal, dao = pink peach petal, lixi = red envelope,
+   *  ring = expanding shockwave drawn on top of a burst. */
+  kind?: "mai" | "dao" | "lixi" | "ring";
   decay?: number;
   trail?: { x: number; y: number }[];
 };
@@ -91,24 +94,56 @@ function createParticles(canvas: HTMLCanvasElement, mobile: boolean) {
 
   const petal = (depth: number): Particle => {
     const scale = depth === 2 ? 1.9 : depth === 1 ? 1 : 0.55;
+    // Far layer stays pure mai haze; near layers mix apricot, peach and lì xì
+    // so the drift reads like a real spring yard, not one cloned sprite.
+    const roll = Math.random();
+    const kind: Particle["kind"] =
+      depth === 0 ? "mai" : roll < 0.6 ? "mai" : roll < 0.86 ? "dao" : "lixi";
     const gold = Math.random() < 0.78;
     return {
       x: Math.random() * W,
       y: -30 - Math.random() * H * 0.6,
       vx: (Math.random() - 0.5) * (depth === 2 ? 40 : 22),
-      vy: 34 + Math.random() * 60 * scale,
-      r: (5 + Math.random() * 6) * scale,
+      vy:
+        (34 + Math.random() * 60 * scale) *
+        (kind === "lixi" ? 0.68 : 1), // envelopes flutter down slower
+      r: (5 + Math.random() * 6) * scale * (kind === "lixi" ? 1.15 : 1),
       rot: Math.random() * Math.PI * 2,
-      vr: (Math.random() - 0.5) * 2.6,
+      vr: (Math.random() - 0.5) * (kind === "lixi" ? 1.1 : 2.6),
       sway: Math.random() * Math.PI * 2,
-      swayV: 0.6 + Math.random() * 1.4,
+      swayV:
+        kind === "lixi" ? 0.4 + Math.random() * 0.8 : 0.6 + Math.random() * 1.4,
       depth,
       scale,
-      hue: gold ? 42 + Math.random() * 10 : 20 + Math.random() * 8,
+      hue:
+        kind === "dao"
+          ? 338 + Math.random() * 14 // blush pink
+          : gold
+            ? 42 + Math.random() * 10
+            : 20 + Math.random() * 8,
       lit: Math.random() < 0.3,
       life: 1,
+      kind,
     };
   };
+  const ring = (x: number, y: number): Particle => ({
+    x,
+    y,
+    vx: 0,
+    vy: 0,
+    r: 10,
+    rot: 0,
+    vr: 0,
+    sway: 0,
+    swayV: 0,
+    depth: 1,
+    scale: 1,
+    hue: 44,
+    lit: true,
+    life: 1,
+    decay: 1.5,
+    kind: "ring",
+  });
   const spark = (x: number, y: number): Particle => {
     const a = Math.random() * Math.PI * 2;
     const v = 120 + Math.random() * 340;
@@ -148,6 +183,7 @@ function createParticles(canvas: HTMLCanvasElement, mobile: boolean) {
       }
     },
     burst: (x: number, y: number, n: number) => {
+      list.push(ring(x, y));
       for (let i = 0; i < n && list.length < MAX + 40; i++) list.push(spark(x, y));
       for (let i = 0; i < Math.round(n * 0.5) && list.length < MAX + 60; i++) {
         const d = Math.random() < 0.4 ? 1 : 2;
@@ -162,6 +198,12 @@ function createParticles(canvas: HTMLCanvasElement, mobile: boolean) {
     step: (dt: number, gravity: number) => {
       for (let i = list.length - 1; i >= 0; i--) {
         const p = list[i];
+        if (p.kind === "ring") {
+          p.r += 340 * dt;
+          p.life -= (p.decay ?? 1.5) * dt;
+          if (p.life <= 0) list.splice(i, 1);
+          continue;
+        }
         if (p.spark) {
           p.trail!.push({ x: p.x, y: p.y });
           if (p.trail!.length > 7) p.trail!.shift();
@@ -174,7 +216,8 @@ function createParticles(canvas: HTMLCanvasElement, mobile: boolean) {
           continue;
         }
         p.sway += p.swayV * dt;
-        p.x += (p.vx + Math.sin(p.sway) * 26 * p.scale) * dt;
+        const amp = p.kind === "lixi" ? 46 : 26;
+        p.x += (p.vx + Math.sin(p.sway) * amp * p.scale) * dt;
         p.y += p.vy * dt * gravity;
         p.rot += p.vr * dt;
         if (p.y > H + 40) {
@@ -210,8 +253,51 @@ function createParticles(canvas: HTMLCanvasElement, mobile: boolean) {
           ctx.restore();
           continue;
         }
+        if (p.kind === "ring") {
+          ctx.save();
+          ctx.globalAlpha = Math.max(p.life, 0) * 0.5;
+          ctx.strokeStyle = "hsl(44,95%,70%)";
+          ctx.lineWidth = 1 + Math.max(p.life, 0) * 2.4;
+          ctx.beginPath();
+          ctx.arc(p.x, p.y, p.r, 0, 6.284);
+          ctx.stroke();
+          ctx.restore();
+          continue;
+        }
         const alpha = p.depth === 0 ? 0.34 : p.depth === 1 ? 0.72 : 0.9;
         const blurOut = p.depth === 2 && blurNear ? 0.66 : 1;
+        if (p.kind === "lixi") {
+          // Red envelope: foil-stamped rectangle rocking on its string.
+          ctx.save();
+          ctx.globalAlpha = alpha * 0.92 * blurOut;
+          ctx.translate(p.x, p.y);
+          ctx.rotate(Math.sin(p.sway) * 0.55);
+          const w = p.r * 2.1;
+          const h = p.r * 2.9;
+          const rad = Math.min(2.5, w * 0.16);
+          const rr = (bw: number, bh: number) => {
+            ctx.beginPath();
+            ctx.moveTo(-bw / 2 + rad, -bh / 2);
+            ctx.arcTo(bw / 2, -bh / 2, bw / 2, bh / 2, rad);
+            ctx.arcTo(bw / 2, bh / 2, -bw / 2, bh / 2, rad);
+            ctx.arcTo(-bw / 2, bh / 2, -bw / 2, -bh / 2, rad);
+            ctx.arcTo(-bw / 2, -bh / 2, bw / 2, -bh / 2, rad);
+            ctx.closePath();
+          };
+          ctx.fillStyle = "#c8322f";
+          rr(w, h);
+          ctx.fill();
+          ctx.strokeStyle = "rgba(233,189,106,.85)";
+          ctx.lineWidth = 1;
+          rr(w - 2.6, h - 2.6);
+          ctx.stroke();
+          ctx.fillStyle = "#e9bd6a";
+          ctx.beginPath();
+          ctx.arc(0, 0, Math.max(1.2, p.r * 0.32), 0, 6.284);
+          ctx.fill();
+          ctx.restore();
+          continue;
+        }
         ctx.save();
         ctx.globalAlpha = alpha * blurOut;
         ctx.translate(p.x, p.y);
@@ -260,10 +346,14 @@ export function playCinematicOpening(host: HTMLElement, opts: CinematicOptions) 
   stage.innerHTML =
     '<div class="cine-void"></div>' +
     '<div class="cine-sweep"></div>' +
+    '<div class="cine-rays"></div>' +
     '<canvas class="cine-dust cine-speed"></canvas>' +
     '<div class="cine-plate"><img alt="Dê Lái cưỡi xe máy chở xuân về nhà" /><div class="cine-plate-grade"></div></div>' +
     '<div class="cine-curtain"></div>' +
     '<canvas class="cine-fx"></canvas>' +
+    '<div class="cine-vignette"></div>' +
+    '<div class="cine-flash"></div>' +
+    '<div class="cine-grain"></div>' +
     '<div class="cine-bar top"></div><div class="cine-bar bottom"></div>' +
     '<div class="cine-caption"></div>' +
     '<button class="cine-never" type="button">Không chiếu màn chào nữa</button>' +
@@ -277,6 +367,7 @@ export function playCinematicOpening(host: HTMLElement, opts: CinematicOptions) 
   const plateEl = find<HTMLDivElement>(".cine-plate")!;
   const curtainEl = find<HTMLDivElement>(".cine-curtain")!;
   const captionEl = find<HTMLDivElement>(".cine-caption")!;
+  const flashEl = find<HTMLDivElement>(".cine-flash")!;
   const fxCanvas = find<HTMLCanvasElement>(".cine-fx")!;
   const speedCanvas = find<HTMLCanvasElement>(".cine-speed")!;
   captionEl.textContent = opts.caption;
@@ -314,6 +405,13 @@ export function playCinematicOpening(host: HTMLElement, opts: CinematicOptions) 
   let finTarget = 1;
   let removeTimer = 0;
   let settled = false;
+  // Finale fireworks cadence + pointer parallax (target vs smoothed).
+  let fwIdx = 0;
+  const FW = [T.finale[0] + 150, T.finale[0] + 750, T.finale[0] + 1350];
+  let ptx = 0;
+  let pty = 0;
+  let ppx = 0;
+  let ppy = 0;
   let resolveDone: () => void = () => {};
   const done = new Promise<void>((resolve) => {
     resolveDone = resolve;
@@ -322,7 +420,12 @@ export function playCinematicOpening(host: HTMLElement, opts: CinematicOptions) 
   const onKey = (e: KeyboardEvent) => {
     if (e.key === "Escape") finish();
   };
+  const onMove = (e: PointerEvent) => {
+    ptx = e.clientX / Math.max(globalThis.innerWidth || 1, 1) - 0.5;
+    pty = e.clientY / Math.max(globalThis.innerHeight || 1, 1) - 0.5;
+  };
   window.addEventListener("keydown", onKey);
+  stage.addEventListener("pointermove", onMove);
   find(".cine-skip")!.addEventListener("click", finish);
   find(".cine-never")!.addEventListener("click", () => {
     opts.onNever();
@@ -330,6 +433,9 @@ export function playCinematicOpening(host: HTMLElement, opts: CinematicOptions) 
   });
 
   function render(t: number, dt: number) {
+    const pk = Math.min(1, dt / 90);
+    ppx += (ptx - ppx) * pk;
+    ppy += (pty - ppy) * pk;
     voidEl.style.opacity = String(seg(t, 0, 700));
     let p = seg(t, T.awaken[0], T.awaken[1]);
     sweepEl.style.transform = `translateX(${p * 220}vw) skewX(-14deg)`;
@@ -337,6 +443,7 @@ export function playCinematicOpening(host: HTMLElement, opts: CinematicOptions) 
 
     // S2 entrance
     p = outBack(seg(t, T.entrance[0], T.entrance[1]));
+    if (t >= T.entrance[0]) stage.classList.add("cine-rays-on");
     const blur =
       t < T.entrance[1] ? lerp(16, 0, clamp01((t - T.entrance[0]) / 1400)) : 0;
     const x = lerp(120, 0, p);
@@ -345,7 +452,7 @@ export function playCinematicOpening(host: HTMLElement, opts: CinematicOptions) 
     const bob =
       t > T.entrance[1] && t < T.finale[0] ? Math.sin(t / 420) * 0.9 : 0;
     if (hasPlate && t < T.finale[0]) {
-      plateEl.style.transform = `translate3d(calc(-50% + ${x}vw), calc(-50% + ${bob}vh), 0) rotate(${rot}deg) scale(${sc})`;
+      plateEl.style.transform = `translate3d(calc(-50% + ${x}vw + ${ppx * 22}px), calc(-50% + ${bob}vh + ${ppy * 14}px), 0) rotate(${rot}deg) scale(${sc})`;
     }
     plateEl.style.opacity = String(seg(t, T.entrance[0], T.entrance[0] + 420));
     plateEl.style.filter = blur > 0.4 ? `blur(${blur.toFixed(1)}px)` : "none";
@@ -360,10 +467,14 @@ export function playCinematicOpening(host: HTMLElement, opts: CinematicOptions) 
     if (!burstDone && t >= T.burst[0]) {
       burstDone = true;
       fx?.burst(innerWidth / 2, innerHeight / 2, isMobile ? 34 : 80);
+      flashEl.classList.add("cine-flash-on");
     }
-    captionEl.style.opacity = String(
-      seg(t, T.burst[0] + 300, T.burst[0] + 900) *
-        clamp01((T.wipe[1] - t) / 500),
+    captionEl.style.setProperty(
+      "--o",
+      String(
+        seg(t, T.burst[0] + 300, T.burst[0] + 900) *
+          clamp01((T.wipe[1] - t) / 500),
+      ),
     );
 
     // S4 wipe — the one theme write of the whole module, via callback.
@@ -376,8 +487,17 @@ export function playCinematicOpening(host: HTMLElement, opts: CinematicOptions) 
       opts.onReveal();
     }
 
-    // S5 finale: the plate flies home to the hero banner (measured once).
+    // S5 finale: the plate flies home to the hero banner (measured once),
+    // while distant fireworks salute over the shop.
     p = seg(t, T.finale[0], T.finale[1]);
+    while (fwIdx < FW.length && t >= FW[fwIdx]) {
+      fx?.burst(
+        innerWidth * (0.18 + Math.random() * 0.64),
+        innerHeight * (0.12 + Math.random() * 0.3),
+        isMobile ? 16 : 34,
+      );
+      fwIdx++;
+    }
     if (hasPlate && p > 0) {
       const e = inOutQuart(p);
       if (!finInit) {
@@ -398,8 +518,8 @@ export function playCinematicOpening(host: HTMLElement, opts: CinematicOptions) 
       const s = lerp(1, finTarget, e);
       const arc = Math.sin(e * Math.PI) * -6;
       plateEl.style.transform =
-        `translate3d(calc(-50% + ${x * (1 - e)}vw + ${finDx * e}px), ` +
-        `calc(-50% + ${finDy * e}px + ${arc}vh), 0) ` +
+        `translate3d(calc(-50% + ${x * (1 - e)}vw + ${finDx * e}px + ${ppx * 22 * (1 - e)}px), ` +
+        `calc(-50% + ${finDy * e}px + ${arc}vh + ${ppy * 14 * (1 - e)}px), 0) ` +
         `rotate(${rot * (1 - e)}deg) scale(${s})`;
       plateEl.style.opacity = String(1 - seg(t, T.finale[1] - 500, T.finale[1]));
     }
@@ -466,6 +586,7 @@ export function playCinematicOpening(host: HTMLElement, opts: CinematicOptions) 
     if (raf) cancelAnimationFrame(raf);
     if (removeTimer) clearTimeout(removeTimer);
     window.removeEventListener("keydown", onKey);
+    stage.removeEventListener("pointermove", onMove);
     scrollLock.remove();
     fx?.clear();
     stage.remove();

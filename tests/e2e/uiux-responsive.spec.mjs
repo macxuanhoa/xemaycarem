@@ -12,7 +12,7 @@ for (const width of [320, 360, 375, 390, 430]) {
     await page.setViewportSize({ width, height: 844 });
     const { writes } = await installUiuxMock(page, { long: true });
     for (const [path, active] of [
-      ["/copilot", null],
+      ["/assistant", null],
       ["/intake", "Thu xe"],
       ["/acquisitions", "Thu xe"],
       [`/vehicles/${vehicleId}`, "Tồn kho"],
@@ -307,7 +307,7 @@ test("Single-page intake has no pagination controls and first-blur plate validat
   await expect(plate).toHaveAttribute("aria-invalid", "true");
 });
 
-test("Copilot sources have readable names, current-stock scope and provider fallback", async ({
+test("Trợ lý Cà Rem sources have readable names, current-stock scope and provider fallback", async ({
   page,
 }) => {
   const { writes } = await installUiuxMock(page, {
@@ -317,7 +317,7 @@ test("Copilot sources have readable names, current-stock scope and provider fall
       warnings: ["AI đang tạm nghỉ. Cà Rem vẫn tra cứu trực tiếp."],
     },
   });
-  await page.goto("/copilot");
+  await page.goto("/assistant");
   await page
     .getByLabel("Bạn muốn hỏi gì về cửa hàng?")
     .fill("Tồn kho tháng 9?");

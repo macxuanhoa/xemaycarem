@@ -4,7 +4,7 @@ import { api } from "@/lib/api";
 import { useNetworkStatus } from "@/lib/networkStatus";
 import { toast } from "@/lib/toast";
 import type { VietQrPaymentRequest } from "@/types";
-import { isVerifiedReceipt, isWatchableRequest, vietqrActiveQueryKey } from "./vietqrVerification";
+import { isVerifiedReceipt, isWatchableRequest, moneyPollMs, vietqrActiveQueryKey } from "./vietqrVerification";
 
 /**
  * P1-c: vòng xác minh tiền vào PHẢI sống sót sau khi đóng modal.
@@ -44,8 +44,13 @@ export function useVietQrPaymentWatcher({
     staleTime: 0,
     refetchOnMount: "always",
     // Chỉ hỏi tiếp khi còn cơ hội nhận tiền. refetchInterval dạng hàm đọc kết quả
-    // hiện tại, nên bản ghi đã hủy/xác minh thì vòng lặp tự tắt.
-    refetchInterval: (state) => (isWatchableRequest(state.state.data) ? 5_000 : false),
+    // hiện tại, nên bản ghi đã hủy/xác minh thì vòng lặp tự tắt. Bản ghi không còn
+    // kênh báo tiền tự động (monitoring_available = false) tụt sang nhịp chậm: tiền
+    // không tự về được thì hỏi 5 giây/lần chỉ tốn request mà vẫn không báo gì.
+    refetchInterval: (state) =>
+      isWatchableRequest(state.state.data)
+        ? moneyPollMs(state.state.data)
+        : false,
     retry: false,
   });
 

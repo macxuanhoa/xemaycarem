@@ -89,7 +89,7 @@ export function AppLayout() {
   // The AI section stays collapsed until opened, but is revealed on its pages.
   // Seeded from the router location so server-render tests never touch window.
   const [aiSectionOpen, setAiSectionOpen] = useState(
-    () => pathname.startsWith("/copilot") || pathname.startsWith("/docs"),
+    () => pathname.startsWith("/assistant") || pathname.startsWith("/docs"),
   );
   const navigationType = useNavigationType();
   const saleRoute =
@@ -109,7 +109,7 @@ export function AppLayout() {
           : pathname === to || pathname.startsWith(`${to}/`);
 
   useEffect(() => {
-    if (pathname.startsWith("/copilot") || pathname.startsWith("/docs"))
+    if (pathname.startsWith("/assistant") || pathname.startsWith("/docs"))
       setAiSectionOpen(true);
   }, [pathname]);
 
@@ -146,7 +146,7 @@ export function AppLayout() {
     if (pathname.startsWith("/users")) return "Nhân sự";
     if (pathname.startsWith("/capture")) return "Camera thông minh";
     if (pathname.startsWith("/intake")) return "Thu xe tốc ký";
-    if (pathname.startsWith("/copilot")) return "Trợ lý AI";
+    if (pathname.startsWith("/assistant")) return "Trợ lý Cà Rem";
     if (pathname.startsWith("/docs")) return "Tài liệu cửa hàng";
     if (pathname.startsWith("/sell")) return "Bán xe";
     return "";
@@ -223,7 +223,7 @@ export function AppLayout() {
             );
           })}
         </nav>
-        {/* AI mode: grounded Q&A plus the documentation the answers cite. */}
+        {/* Một mặt phẳng trợ lý duy nhất: hỏi là tra cứu, kèm tài liệu được trích. */}
         {canOperate(profile) && (
           <div className="ai-nav-group">
             <button
@@ -232,8 +232,8 @@ export function AppLayout() {
               aria-expanded={aiSectionOpen}
               aria-controls="ai-nav-links"
               onClick={() => setAiSectionOpen((open) => !open)}
-              onMouseEnter={() => preloadRoute("/copilot")}
-              onFocus={() => preloadRoute("/copilot")}
+              onMouseEnter={() => preloadRoute("/assistant")}
+              onFocus={() => preloadRoute("/assistant")}
             >
               <Bot size={18} />
               <span className="ai-nav-caption">TRỢ LÝ AI</span>
@@ -245,13 +245,13 @@ export function AppLayout() {
             {aiSectionOpen && (
               <nav id="ai-nav-links" aria-label="Trợ lý AI">
                 <NavLink
-                  to="/copilot"
+                  to="/assistant"
                   onClick={drawer.close}
-                  onMouseEnter={() => preloadRoute("/copilot")}
-                  onFocus={() => preloadRoute("/copilot")}
+                  onMouseEnter={() => preloadRoute("/assistant")}
+                  onFocus={() => preloadRoute("/assistant")}
                 >
                   <Bot size={20} />
-                  <span>Hỏi AI Cà Rem</span>
+                  <span>Trợ lý Cà Rem</span>
                 </NavLink>
                 <NavLink
                   to="/docs"
@@ -491,7 +491,7 @@ export function AppLayout() {
             <Outlet />
           </Suspense>
         </main>
-        {!["/acquisitions", "/acquisitions/new", "/vehicles", "/copilot"].includes(
+        {!["/acquisitions", "/acquisitions/new", "/vehicles", "/assistant"].includes(
           pathname,
         ) && (
           <footer className="workspace-footer">

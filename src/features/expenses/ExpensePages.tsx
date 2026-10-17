@@ -50,7 +50,11 @@ type ExpenseRecord = Expense & { kind?: ExpenseKind; vehicle_code?: string };
 export const expenseSchema = z.object({
   vehicle_id: z.string(),
   type: z.string().min(1, "Chọn loại chi phí."),
-  description: z.string().trim().min(1, "Nhập nội dung chi phí.").max(1000),
+  description: z
+    .string()
+    .trim()
+    .min(1, "Nhập nội dung chi phí.")
+    .max(1000, "Nội dung chi phí tối đa 1000 ký tự, hãy viết gọn lại."),
   amount: moneyValue.refine((amount) => amount > 0, "Chi phí phải lớn hơn 0."),
   expense_date: dateValue,
 });
@@ -955,9 +959,11 @@ function ExpenseEditor({
           <Field
             label="Nội dung chi phí *"
             error={form.formState.errors.description?.message}
+            counter={{ value: form.watch("description"), max: 1000 }}
           >
             <textarea
               rows={2}
+              maxLength={1000}
               placeholder={
                 editorKind === "vehicle"
                   ? "Ví dụ: thay lốp trước, thay nhớt, bảo dưỡng phanh…"

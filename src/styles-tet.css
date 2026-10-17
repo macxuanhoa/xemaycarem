@@ -95,6 +95,13 @@
   background-position: 31px 0, 0 0, 62px 0, 0 0, 0 0;
   background-repeat: no-repeat, repeat-x, repeat-x, repeat-x, no-repeat;
   opacity: .8;
+  /* Dây lồng đèn đung đưa trong gió xuân — chỉ transform, chạy trên GPU */
+  transform-origin: 50% 0;
+  animation: tetLanternSway 6.5s ease-in-out infinite;
+}
+@keyframes tetLanternSway {
+  0%, 100% { transform: translateX(-2px) rotate(-.32deg); }
+  50% { transform: translateX(2px) rotate(.32deg); }
 }
 
 /* ─── Sidebar: sơn mài đỏ thẫm, chữ vàng ─── */
@@ -104,7 +111,7 @@
 [data-seasonal="tet"] .brand small { color: #cbb289; }
 [data-seasonal="tet"] .nav-caption { color: #a88d5f; }
 [data-seasonal="tet"] .sidebar nav a { color: #d9c49a; }
-[data-seasonal="tet"] .sidebar nav a.active { background: linear-gradient(135deg, #e9bd6a 0%, #c9953f 100%); color: #3d1206; font-weight: 700; box-shadow: 0 4px 14px rgba(201, 149, 63, .35); }
+[data-seasonal="tet"] .sidebar nav a.active { background: linear-gradient(135deg, #e9bd6a 0%, #c9953f 100%); background-size: 220% 100%; color: #3d1206; font-weight: 700; box-shadow: 0 4px 14px rgba(201, 149, 63, .35); animation: tetShimmer 6s ease-in-out infinite; }
 [data-seasonal="tet"] .sidebar nav a:not(.active):hover { background: rgba(242, 193, 78, .1); color: #fff3d6; }
 [data-seasonal="tet"] .sidebar-signout { color: #d9c49a; }
 [data-seasonal="tet"] .ai-nav-toggle { color: #a88d5f; }
@@ -130,7 +137,13 @@
 [data-seasonal="tet"] .header-showroom-link:hover { background: #6d1220; color: #fff3d6; border-color: #f2c14e; }
 
 /* ─── Card: giấy dó + viền vàng corner-bracket tinh tế ─── */
-[data-seasonal="tet"] .card { background: var(--tet-card); border-color: var(--line); box-shadow: 0 4px 20px -3px rgba(61, 18, 6, .08), 0 1px 3px rgba(61, 18, 6, .04); position: relative; }
+[data-seasonal="tet"] .card { background: var(--tet-card); border-color: var(--line); box-shadow: 0 4px 20px -3px rgba(61, 18, 6, .08), 0 1px 3px rgba(61, 18, 6, .04); position: relative; animation: tetCardIn 180ms ease-out backwards; }
+/* Thẻ lần lượt bước vào khi mở trang — trình tự ngắn, đúng nhịp chuẩn thao tác */
+[data-seasonal="tet"] .card:nth-child(2) { animation-delay: 40ms; }
+[data-seasonal="tet"] .card:nth-child(3) { animation-delay: 80ms; }
+[data-seasonal="tet"] .card:nth-child(4) { animation-delay: 120ms; }
+[data-seasonal="tet"] .card:nth-child(n+5) { animation-delay: 150ms; }
+@keyframes tetCardIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
 [data-seasonal="tet"] .card::after {
   content: ""; position: absolute; inset: 5px; border-radius: 14px; pointer-events: none; opacity: .45;
   background:
@@ -162,9 +175,11 @@
   pointer-events: none; z-index: 1;
 }
 @keyframes tetSway { 0%, 100% { transform: rotate(-2deg); } 50% { transform: rotate(2.4deg); } }
-[data-seasonal="tet"] .carem-banner-glow { background: radial-gradient(circle, rgba(242, 193, 78, .3) 0%, rgba(242, 193, 78, 0) 70%); }
+[data-seasonal="tet"] .carem-banner-glow { background: radial-gradient(circle, rgba(242, 193, 78, .3) 0%, rgba(242, 193, 78, 0) 70%); animation: tetGlowBreath 7s ease-in-out infinite; }
+@keyframes tetGlowBreath { 0%, 100% { filter: brightness(1); } 50% { filter: brightness(1.55); } }
 [data-seasonal="tet"] .carem-badge-store { color: #fbe39f; background: rgba(242, 193, 78, .14); border-color: rgba(242, 193, 78, .4); }
-[data-seasonal="tet"] .carem-pulse-dot { background: #f2c14e; box-shadow: 0 0 10px #f2c14e; }
+[data-seasonal="tet"] .carem-pulse-dot { background: #f2c14e; animation: tetDotBreath 2.4s ease-in-out infinite; }
+@keyframes tetDotBreath { 0%, 100% { box-shadow: 0 0 4px rgba(242, 193, 78, .5); } 50% { box-shadow: 0 0 14px rgba(242, 193, 78, 1); } }
 [data-seasonal="tet"] .carem-badge-greeting { color: #ffe9bd; }
 [data-seasonal="tet"] .carem-name-highlight { color: #f2c14e; text-shadow: 0 0 16px rgba(242, 193, 78, .5); }
 [data-seasonal="tet"] .carem-banner-subtitle { color: #e8d3b0; }
@@ -368,10 +383,41 @@
 [data-seasonal="tet"][data-theme="dark"] .bottom-nav a.active .bottom-nav-icon { background: rgba(242, 193, 78, .14); }
 [data-seasonal="tet"][data-theme="dark"] .bottom-nav .bottom-nav-fab { box-shadow: 0 0 0 4px #150f0e, 0 10px 20px -10px rgba(0, 0, 0, .8); }
 
+/* ═══ CÁNH HOA RƠI MÙA XUÂN (tetAmbient.ts tạo khi bật Tết) ═══
+   Thuần trang trí: pointer-events:none, hạt nhỏ, mờ, mật độ thấp — không bao
+   giờ che dữ liệu; chỉ chạy transform/opacity nên nhẹ GPU trên tablet cửa hàng. */
+.tet-ambient { position: fixed; inset: 0; z-index: 3; pointer-events: none; overflow: hidden; }
+.tet-petal-fall {
+  position: absolute; top: 0; left: 0;
+  animation: tetPetalDrop var(--dur) linear var(--delay) infinite;
+  will-change: transform;
+}
+.tet-petal {
+  position: absolute; top: 0; display: block; width: 18px; height: 18px;
+  opacity: .55;
+  animation: tetPetalSway calc(var(--dur) / 3.2) ease-in-out infinite;
+}
+.tet-petal--mai { background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cg fill='%23e9bd6a' fill-opacity='0.9'%3E%3Cellipse cx='12' cy='7' rx='3.2' ry='4.6'/%3E%3Cellipse cx='12' cy='7' rx='3.2' ry='4.6' transform='rotate(72 12 12)'/%3E%3Cellipse cx='12' cy='7' rx='3.2' ry='4.6' transform='rotate(144 12 12)'/%3E%3Cellipse cx='12' cy='7' rx='3.2' ry='4.6' transform='rotate(216 12 12)'/%3E%3Cellipse cx='12' cy='7' rx='3.2' ry='4.6' transform='rotate(288 12 12)'/%3E%3C/g%3E%3Ccircle cx='12' cy='12' r='1.8' fill='%23a32636'/%3E%3C/svg%3E") center / contain no-repeat; }
+.tet-petal--dao { background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cg fill='%23f291ad' fill-opacity='0.9'%3E%3Cellipse cx='12' cy='7' rx='3.2' ry='4.6'/%3E%3Cellipse cx='12' cy='7' rx='3.2' ry='4.6' transform='rotate(72 12 12)'/%3E%3Cellipse cx='12' cy='7' rx='3.2' ry='4.6' transform='rotate(144 12 12)'/%3E%3Cellipse cx='12' cy='7' rx='3.2' ry='4.6' transform='rotate(216 12 12)'/%3E%3Cellipse cx='12' cy='7' rx='3.2' ry='4.6' transform='rotate(288 12 12)'/%3E%3C/g%3E%3Ccircle cx='12' cy='12' r='1.8' fill='%23c9953f'/%3E%3C/svg%3E") center / contain no-repeat; }
+/* Rơi thẳng chậm + đung đưa ngang xoay tròn — hai transform lồng nhau cho
+   cảm giác cánh hoa thật theo gió, không phải hình vuông trượt trên màn hình. */
+@keyframes tetPetalDrop { from { transform: translateY(-8vh); } to { transform: translateY(114vh); } }
+@keyframes tetPetalSway {
+  0%, 100% { transform: scale(var(--s, 1)) translateX(calc(var(--sway, 4vw) * -1)) rotate(-24deg); }
+  50% { transform: scale(var(--s, 1)) translateX(var(--sway, 4vw)) rotate(28deg); }
+}
+[data-seasonal="tet"][data-theme="dark"] .tet-petal { opacity: .4; }
+
 @media (prefers-reduced-motion: reduce) {
   [data-seasonal="tet"] .carem-hero-banner::after { animation: none; }
   [data-seasonal="tet"] .carem-btn-lime { animation: none; }
   [data-seasonal="tet"] .carem-banner-inner::after { animation: none; }
+  [data-seasonal="tet"] body::after { animation: none; }
+  [data-seasonal="tet"] .carem-banner-glow { animation: none; }
+  [data-seasonal="tet"] .carem-pulse-dot { animation: none; }
+  [data-seasonal="tet"] .sidebar nav a.active { animation: none; }
+  [data-seasonal="tet"] .card { animation: none; }
+  .tet-ambient { display: none; }
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -434,4 +480,9 @@
   [data-seasonal="tet"] .digest-support-grid::before,
   [data-seasonal="tet"] body::after { display: none; }
   [data-seasonal="tet"] body::before { opacity: .38; background-size: 240px 240px, 240px 240px; }
+  .tet-ambient { display: none; }
 }
+
+/* Công tắc on/off (ac-switch, card "Giao diện hệ thống"): nền indigo mặc
+   định đổi sang đỏ điều phối của áo Tết cho hợp sắc chung. */
+[data-seasonal="tet"] .ac-switch input:checked + .ac-switch-track { background: var(--primary); }

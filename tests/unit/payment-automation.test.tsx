@@ -93,20 +93,13 @@ describe("buildAdvancedSavePayload — chỉ 3 cờ kết nối thanh toán", ()
 
 function seedClient() {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: Infinity } } });
-  client.setQueryData(["settings"], {
-    bank_bin: "970436",
-    bank_name: "MB Bank",
-    bank_account_no: "1234567890",
-    bank_account_name: "NGUYEN VAN A",
-    vietqr_enabled: true,
-  });
   client.setQueryData(["bank-webhook-state"], { provider: "SEPAY", webhook_enabled: true, auto_match_enabled: true, account_configured: true });
   client.setQueryData(["bank-recon-summary"], { byStatus: { MATCHED_PENDING: 2, MANUAL_REVIEW: 1, UNMATCHED: 3, RECORDED: 5 }, totalAll: 11 });
   return client;
 }
 
 describe("PaymentAutomationCard render (SSR)", () => {
-  it("đủ 4 khối A/B/C/D, che số tài khoản, không báo thành công giả", () => {
+  it("chỉ còn khối kết nối + nâng cao — không trùng tài khoản nhận/đối soát, không báo thành công giả", () => {
     const html = renderToStaticMarkup(
       <QueryClientProvider client={seedClient()}>
         <MemoryRouter>
@@ -114,12 +107,13 @@ describe("PaymentAutomationCard render (SSR)", () => {
         </MemoryRouter>
       </QueryClientProvider>,
     );
-    expect(html).toContain("Tài khoản nhận tiền");
     expect(html).toContain("Kết nối ngân hàng");
-    expect(html).toContain("Đối soát thanh toán");
     expect(html).toContain("Cài đặt nâng cao");
-    expect(html).toContain("7890"); // 4 số cuối tài khoản, đã che
-    expect(html).not.toContain("1234567890"); // không lộ full số tài khoản
+    // Tài khoản nhận tiền và hàng đợi đối soát có tab/trang riêng — không lặp lại ở đây.
+    expect(html).not.toContain("Đối soát thanh toán");
+    expect(html).not.toContain("Mở trang đối soát");
+    expect(html).not.toContain("Thay đổi tài khoản");
+    expect(html).not.toContain("1234567890"); // không lộ số tài khoản
     // health null lúc SSR → chưa kiểm → không được khẳng định đã nhận webhook.
     expect(html).not.toContain("Đã kiểm thử nhận webhook");
   });

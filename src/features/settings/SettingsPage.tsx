@@ -17,7 +17,6 @@ import { SharedScheduleCard } from "@/features/users/components/SharedScheduleCa
 import { AnnouncementManager } from "./AnnouncementManager";
 import { PaymentSettingsCard } from "./PaymentSettingsCard";
 import { ShorthandDictionaryCard } from "./ShorthandDictionaryCard";
-import { PushSettingsCard } from "./PushSettingsCard";
 import { PaymentAutomationCard } from "./PaymentAutomationCard";
 import { SeasonalThemeCard } from "./SeasonalThemeCard";
 export default function SettingsPage() {
@@ -26,7 +25,7 @@ export default function SettingsPage() {
     [password, setPassword] = useState(""),
     [currentPassword, setCurrentPassword] = useState("");
   const [activeTab, setActiveTab] = useState<
-    "PROFILE" | "PAYMENT" | "SCHEDULE" | "MESSAGES" | "AUTOMATION" | "THEME" | "SHORTHAND" | "NOTIFICATIONS"
+    "PROFILE" | "PAYMENT" | "SCHEDULE" | "MESSAGES" | "AUTOMATION" | "THEME" | "SHORTHAND"
   >("PROFILE");
 
   const profileMutation = useMutation({
@@ -71,8 +70,6 @@ export default function SettingsPage() {
   // Bộ nhớ viết tắt thu xe là của riêng từng tài khoản trên máy này — mọi
   // role đều quản lý được, không cần quyền owner.
   const showShorthand = activeTab === "SHORTHAND";
-  // Thông báo đẩy cũng là thiết bị riêng của từng người — mọi role tự bật/tắt.
-  const showNotifications = activeTab === "NOTIFICATIONS";
 
   return (
     <div className="stack settings-shell">
@@ -102,14 +99,6 @@ export default function SettingsPage() {
           onClick={() => setActiveTab("SHORTHAND")}
         >
           <span>Bộ nhớ viết tắt thu xe</span>
-        </button>
-        <button
-          type="button"
-          aria-pressed={activeTab === "NOTIFICATIONS"}
-          className={`settings-nav-item ${activeTab === "NOTIFICATIONS" ? "active" : ""}`}
-          onClick={() => setActiveTab("NOTIFICATIONS")}
-        >
-          <span>Thông báo đẩy</span>
         </button>
         {isOwner(profile) && (
           <button
@@ -256,8 +245,6 @@ export default function SettingsPage() {
       {showTheme && <SeasonalThemeCard />}
 
       {showShorthand && <ShorthandDictionaryCard />}
-
-      {showNotifications && <PushSettingsCard />}
     </div>
   );
 }

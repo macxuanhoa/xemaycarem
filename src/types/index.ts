@@ -511,7 +511,10 @@ export type NotificationAction =
   | "CANCEL_SALE_BELOW_COST"
   | "BANK_TRANSACTION_MATCHED"
   | "BANK_TRANSACTION_REVIEW"
-  | "BANK_TRANSACTION_UNMATCHED";
+  | "BANK_TRANSACTION_UNMATCHED"
+  | "ADD_EXPENSE"
+  | "UPDATE_EXPENSE"
+  | "CANCEL_EXPENSE";
 
 /**
  * Generic approval queue row (migration 20261008000200). `kind` discriminates

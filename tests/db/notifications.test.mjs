@@ -155,6 +155,46 @@ export async function runNotificationsTests(externalDb, { engine = 'postgres' } 
     assert.ok(created.some((n) => n.user_id === users.staff && /đã cập nhật thông tin xe/.test(n.body)))
     pass('UPDATE_VEHICLE notifies the vehicle creator when someone else edits it')
 
+    // 7b. Chi phí gắn xe nay đi vào chuông (migration 20261017000600): nhân viên
+    //     ghi/sửa/hủy một khoản trên chính xe anh ta tạo → tác giả + mọi chủ/quản
+    //     lý nhận tin; số tiền gate theo người đọc; chi phí CHUNG (business) vẫn
+    //     im lặng (audit-only).
+    const expId = await run('staff', (client) => rpc(client, 'save_expense', "'vehicle',$1::jsonb", [
+      JSON.stringify({ vehicle_id: carA, expense_type: 'REPAIR', description: 'Thay nhớt kiểm thử', amount: 350_000, expense_date: day }),
+    ]))
+    created = await notifs('ADD_EXPENSE', expId)
+    assert.deepEqual(
+      created.map((n) => n.user_id).sort(),
+      [users.owner, users.manager, users.financialManager, users.staff].sort(),
+    )
+    assert.match(created.find((n) => n.user_id === users.staff).body, /350\.000 đ/) // tác giả thấy số mình ghi
+    assert.match(created.find((n) => n.user_id === users.owner).body, /350\.000 đ/)
+    assert.equal(created.find((n) => n.user_id === users.manager).body.includes('350.000'), false) // quản lý không giữ quyền tiền: bản không con số
+    assert.match(created.find((n) => n.user_id === users.manager).body, /chi phí sửa chữa/) // loại chi phí (không nhạy cảm) vẫn hiện
+    assert.equal(created.find((n) => n.user_id === users.staff).deep_link, `/vehicles/${carA}`)
+
+    const expUpdatedAt = (await row('SELECT updated_at::text AS ts FROM public.vehicle_expenses WHERE id=$1', [expId])).ts
+    await run('staff', (client) => rpc(client, 'save_expense', "'vehicle',$1::jsonb,$2::uuid", [
+      JSON.stringify({ expense_type: 'PARTS', amount: 400_000, expected_updated_at: expUpdatedAt }), expId,
+    ]))
+    created = await notifs('UPDATE_EXPENSE', expId)
+    assert.equal(created.length, 4)
+    assert.match(created.find((n) => n.user_id === users.staff).body, /đã cập nhật chi phí/)
+    assert.match(created.find((n) => n.user_id === users.financialManager).body, /400\.000 đ/)
+
+    await run('staff', (client) => rpc(client, 'cancel_expense', "'vehicle',$1::uuid,'Hủy chi phí kiểm thử'", [expId]))
+    created = await notifs('CANCEL_EXPENSE', expId)
+    assert.match(created.find((n) => n.user_id === users.owner).body, /đã hủy chi phí/)
+
+    await run('owner', (client) => rpc(client, 'save_expense', "'business',$1::jsonb", [
+      JSON.stringify({ category: 'RENT', description: 'Thuê mặt bằng kiểm thử', amount: 5_000_000, expense_date: day }),
+    ]))
+    assert.equal(
+      await count("SELECT count(*) AS count FROM public.notifications WHERE action IN ('ADD_EXPENSE','UPDATE_EXPENSE','CANCEL_EXPENSE') AND entity_type='business_expenses'"),
+      0,
+    )
+    pass('vehicle-expense add/edit/cancel fans out to actor + bosses with gated money, while business (chung) expenses stay audit-only')
+
     // 8. list_notifications is scoped, paginated and carries unread_count.
     const listed = await call('staff', 'list_notifications', { limit: 2 })
     assert.equal(listed.items.length, 2)

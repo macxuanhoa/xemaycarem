@@ -159,6 +159,7 @@ function QuickExpenseEditor({
               <Field
                 label="Tên của các loại chi phí *"
                 error={fieldErrors.description}
+                counter={{ value: description, max: 250 }}
               >
                 <textarea
                   rows={3}

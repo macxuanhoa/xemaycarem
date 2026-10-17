@@ -5,7 +5,7 @@ import {
   NOTIFICATION_FALLBACK_ICON,
   isFreshGroup,
   relativeTime,
-  splitVehicleIdentity,
+  splitNotificationTitle,
   tidyBody,
 } from "@/lib/notifications";
 import type { NotificationItem } from "@/types";
@@ -109,14 +109,28 @@ export function NotificationRow({
   const Icon = ACTION_ICON[item.action] ?? NOTIFICATION_FALLBACK_ICON;
   const tone = ACTION_TONE[item.action] ?? "neutral";
   const unread = item.read_at === null;
-  // Bóc biển số ra khỏi tiêu đề để gắn chip nổi bật — nhìn là biết xe nào.
-  const { before, plate, after } = splitVehicleIdentity(item.title);
-  // Tên loại xe (Honda Wave, Sirius…) từ DB — ưu tiên hiển thị để chủ quán
-  // nhận ra xe ngay, thay vì phải đọc biển số hoặc mã nội bộ.
+  // "Thu vào xe 43A1-99999 · 8D4AA1234" → thao tác đứng trước, danh tính xe
+  // (tên loại + biển số) gom vào một cụm phát sáng ngay sau đó; số khung đã
+  // có trong body nên không lặp lại ở tiêu đề cho dòng tin khỏi gãy đôi.
+  const parts = splitNotificationTitle(item.title, item.vehicle_internal_code);
+  // Tên loại xe (Honda Wave, Sirius…) từ DB — đi cùng biển số trong cùng cụm
+  // danh tính, chứ không đứng trước chiếm chỗ của thao tác như bản cũ.
   const typeName =
     item.vehicle_type && item.vehicle_type !== "Chưa phân loại"
       ? item.vehicle_type
       : null;
+  // "chưa có biển · <khung>" là chữ mô tả chứ không phải mặt số, nên không
+  // khoác mono cho nó và cũng không cần trợ năng đọc thêm nhãn "Biển số".
+  const identityClass =
+    parts.identityKind === "phrase"
+      ? "notification-vehicle-phrase"
+      : "notification-vehicle-plate";
+  const identityLabel =
+    parts.identityKind === "plate"
+      ? `Biển số ${parts.identity}`
+      : parts.identityKind === "code"
+        ? `Mã nội bộ ${parts.identity}`
+        : undefined;
   const navigable = !!item.deep_link;
   // Một dòng đã đọc và không dẫn đi đâu vẫn bấm được thì chỉ để lại một nút
   // chết: người dùng bấm, chẳng có gì xảy ra, và mũi tên báo sai đường.
@@ -130,22 +144,30 @@ export function NotificationRow({
       </span>
       <span className={cls.text}>
         <span className={cls.title}>
-          {typeName && <span className="notification-vehicle-type">{typeName}</span>}
-          {before}
-          {plate && (
-            <span className="notification-plate" aria-label={`Biển số ${plate}`}>
-              {plate}
+          {parts.action}
+          {(parts.identity || typeName) && (
+            <span className="notification-vehicle">
+              {typeName && (
+                <span className="notification-vehicle-type">{typeName}</span>
+              )}
+              {parts.identity && (
+                <span
+                  className={identityClass}
+                  aria-label={identityLabel}
+                >
+                  {parts.identity}
+                </span>
+              )}
             </span>
           )}
-          {after}
+          {parts.code && (
+            <span className="notification-internal-code">
+              · {parts.code}
+            </span>
+          )}
         </span>
         {item.body && (
-          <span className={cls.body}>
-            {tidyBody(item.body)}
-            {item.vehicle_internal_code && (
-              <span className="notification-internal-code"> · {item.vehicle_internal_code}</span>
-            )}
-          </span>
+          <span className={cls.body}>{tidyBody(item.body)}</span>
         )}
         <span className={cls.time}>{relativeTime(item.created_at, now)}</span>
       </span>

@@ -27,6 +27,49 @@ export interface CaremPushPayload {
 /** Trang dự phòng tuyệt đối an toàn khi payload thiếu/hỏng. */
 export const PUSH_FALLBACK_LINK = "/thong-bao";
 
+/** Icon/badge dùng chung cho mọi notification (khớp đường dẫn precache). */
+const NOTIFICATION_ICON = "/icon-192.png";
+
+/**
+ * Cấu hình hiển thị cho mọi notification Cà Rem — tách thành hàm THUẦN để
+ * unit test chốt được hành vi (SW chạy trong ServiceWorkerGlobalScope, không
+ * render trong vitest được).
+ * - actions "Mở app" / "Bỏ qua": thao tác ngay trên màn hình khóa, không cần
+ *   chạm vào thân thông báo (iOS <16 bỏ trường này một cách vô hại).
+ * - vibrate: Android rung có nhịp; nền tảng khác bỏ qua.
+ * - requireInteraction: tin nghiệp vụ đứng trên desktop cho tới khi người
+ *   dùng tương tác — tiền về không tự biến mất; tin TEST thì không.
+ * - tag: trình duyệt thu gọn notification trùng khi gửi lại cùng hàng.
+ */
+export interface CaremNotificationOptions {
+  body: string;
+  tag: string;
+  icon: string;
+  badge: string;
+  vibrate: number[];
+  requireInteraction: boolean;
+  actions: { action: "open" | "dismiss"; title: string }[];
+  data: { deepLink: string };
+}
+
+export function buildNotificationOptions(
+  payload: Pick<CaremPushPayload, "v" | "kind" | "id" | "title" | "body" | "link">,
+): CaremNotificationOptions {
+  return {
+    body: payload.body,
+    tag: `${payload.kind}:${payload.id}`,
+    icon: NOTIFICATION_ICON,
+    badge: NOTIFICATION_ICON,
+    vibrate: [120, 60, 120],
+    requireInteraction: payload.kind === "notification",
+    actions: [
+      { action: "open", title: "Mở app" },
+      { action: "dismiss", title: "Bỏ qua" },
+    ],
+    data: { deepLink: payload.link },
+  };
+}
+
 /**
  * Whitelist deep link: chỉ nhận path nội bộ bắt đầu bằng một dấu
  * "/". Chặn "//host" (protocol-relative), scheme ngoài "http(s)://…", ký tự

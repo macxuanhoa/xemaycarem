@@ -1,16 +1,11 @@
 import { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Activity,
-  ArrowRight,
-  Banknote,
   CheckCircle2,
   ChevronDown,
   CircleDashed,
   CircleX,
-  CreditCard,
-  Landmark,
   Plug,
   TriangleAlert,
 } from "lucide-react";
@@ -21,23 +16,17 @@ import { canFinance } from "@/lib/permissions";
 import { useAuth } from "@/features/auth/AuthProvider";
 import { confirmAction } from "@/components/ui/ConfirmDialog";
 import { Button, Card, ErrorState, Field, Loading } from "@/components/ui";
-import { getBankByBin } from "@/lib/vietqr/banks";
 
 /**
- * Màn "Thanh toán & Đối soát" cho chủ cửa hàng — tài khoản nhận, kết nối
- * ngân hàng, đối soát và cài đặt nâng cao trong một trang gọn.
+ * Màn "Thanh toán & Đối soát" cho chủ cửa hàng — chuyên trách KẾT NỐI ngân hàng:
+ * trạng thái thật, nút kiểm tra endpoint và cài đặt nâng cao.
+ * Tài khoản nhận tiền và hàng đợi đối soát đã có tab/trang riêng trong sidebar
+ * nên KHÔNG lặp lại ở đây; số liệu đối soát chỉ được hỏi ngầm để làm bằng
+ * chứng cho trạng thái kết nối.
  * Nguyên tắc: mọi trạng thái đều suy từ tín hiệu THẬT (RPC + probe Edge + số
  * giao dịch đối soát). Không bao giờ tuyên bố "thành công" chỉ vì endpoint trả
  * CONFIGURED — phải có bằng chứng webhook thực sự được nhận và ghi nhận.
  */
-
-type BankSettings = {
-  bank_bin?: string;
-  bank_name?: string;
-  bank_account_no?: string;
-  bank_account_name?: string;
-  vietqr_enabled?: boolean;
-};
 
 type Health = "CONFIGURED" | "NOT_CONFIGURED" | "UNREACHABLE";
 
@@ -127,12 +116,6 @@ export function buildAdvancedSavePayload(a: {
   };
 }
 
-function maskAccount(no: string) {
-  const t = no.replace(/\s/g, "");
-  if (t.length <= 4) return t;
-  return `•••• •••• ${t.slice(-4)}`;
-}
-
 function StatusPill({ tone, label }: { tone: ConnectionTone; label: string }) {
   return <span className={`pa-status tone-${tone}`}>{label}</span>;
 }
@@ -155,10 +138,6 @@ export function PaymentAutomationCard({ onOpenPayment }: { onOpenPayment?: () =>
   const [autoMatch, setAutoMatch] = useState(true);
   const [dirty, setDirty] = useState(false);
 
-  const settings = useQuery({
-    queryKey: ["settings"],
-    queryFn: () => api.call<BankSettings>("get_settings"),
-  });
   const stateQuery = useQuery({
     queryKey: ["bank-webhook-state"],
     queryFn: () => api.getBankWebhookState(),
@@ -246,9 +225,7 @@ export function PaymentAutomationCard({ onOpenPayment }: { onOpenPayment?: () =>
   };
 
   const st = stateQuery.data;
-  const s = settings.data;
   const blocked = st ? !st.account_configured : false;
-  const bank = getBankByBin(s?.bank_bin || "");
   const counts = recon.data;
   const anyTxnReceived: boolean | null = counts ? counts.totalAll > 0 : null;
   const conn = deriveConnectionStatus({
@@ -289,37 +266,7 @@ export function PaymentAutomationCard({ onOpenPayment }: { onOpenPayment?: () =>
 
   return (
     <div className="stack payment-automation">
-      {/* SECTION 1 — TÀI KHOẢN NHẬN TIỀN (chỉ đọc, tóm tắt) */}
-      <Card className="stack">
-        <div className="row between wrap gap-sm">
-          <h2 className="section-title" style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <CreditCard size={18} /> Tài khoản nhận tiền
-          </h2>
-          <StatusPill
-            tone={st?.account_configured ? "success" : "warning"}
-            label={st?.account_configured ? "Đã thiết lập" : "Chưa thiết lập"}
-          />
-        </div>
-        <div className="pa-account">
-          <div className="pa-account-icon" aria-hidden>
-            <Landmark size={20} />
-          </div>
-          <div className="pa-account-body">
-            <div className="pa-account-bank">
-              {bank?.shortName || s?.bank_name || "Chưa chọn ngân hàng"}
-            </div>
-            <div className="pa-account-meta">
-              <span className="pa-account-no">{s?.bank_account_no ? maskAccount(s.bank_account_no) : "Chưa có số tài khoản"}</span>
-              {s?.bank_account_name ? <span className="muted small">· {s.bank_account_name}</span> : null}
-            </div>
-          </div>
-          <Button variant="secondary" onClick={() => onOpenPayment?.()}>
-            Thay đổi tài khoản
-          </Button>
-        </div>
-      </Card>
-
-      {/* SECTION 2 — KẾT NỐI NGÂN HÀNG */}
+      {/* KHỐI DUY NHẤT — KẾT NỐI NGÂN HÀNG (tài khoản & đối soát có trang riêng) */}
       <Card className="stack">
         <div className="row between wrap gap-sm">
           <h2 className="section-title" style={{ display: "flex", alignItems: "center", gap: 8 }}>
@@ -328,6 +275,11 @@ export function PaymentAutomationCard({ onOpenPayment }: { onOpenPayment?: () =>
           <StatusPill tone={conn.tone} label={conn.label} />
         </div>
         <p className="pa-conn-hint">{conn.hint}</p>
+        {!st?.account_configured && onOpenPayment && (
+          <p className="muted small" style={{ margin: 0 }}>
+            Webhook chỉ bật được sau khi khai báo tài khoản nhận tiền ở tab "Tài khoản nhận tiền".
+          </p>
+        )}
 
         <div className="row between wrap gap-sm">
           <Button onClick={() => void probe()} disabled={probing} style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
@@ -339,40 +291,7 @@ export function PaymentAutomationCard({ onOpenPayment }: { onOpenPayment?: () =>
         </div>
       </Card>
 
-      {/* SECTION 3 — ĐỐI SOÁT THANH TOÁN (số liệu thật + điều hướng trang sẵn có) */}
-      <Card className="stack">
-        <div className="row between wrap gap-sm">
-          <h2 className="section-title" style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <Banknote size={18} /> Đối soát thanh toán
-          </h2>
-          {canRecon && (
-            <Link to="/bank-reconciliation" className="button button-secondary" style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
-              Mở trang đối soát <ArrowRight size={15} />
-            </Link>
-          )}
-        </div>
-        {!canRecon ? (
-          <p className="muted small" style={{ margin: 0 }}>
-            Bạn không có quyền xem số liệu thu. Việc đối soát do chủ cửa hàng hoặc quản lý được cấp quyền đảm nhiệm.
-          </p>
-        ) : recon.isPending ? (
-          <Loading />
-        ) : recon.error ? (
-          <ErrorState error={recon.error} retry={() => void recon.refetch()} />
-        ) : (
-          <div className="kpi-grid">
-            {RECON_BUCKETS.map((b) => (
-              <div key={b.key} className="metric-card pa-metric">
-                <span className="metric-title">{b.label}</span>
-                <span className="metric-value">{recon.data?.byStatus[b.key] ?? 0}</span>
-                <span className="metric-sub">{b.hint}</span>
-              </div>
-            ))}
-          </div>
-        )}
-      </Card>
-
-      {/* SECTION 4 — CÀI ĐẶT NÂNG CAO (giữ chức năng thật, có xác nhận) */}
+      {/* CÀI ĐẶT NÂNG CAO (giữ chức năng thật, có xác nhận) */}
       {advancedOpen && (
         <Card className="stack pa-advanced">
           <h2 className="section-title">Cài đặt nâng cao</h2>

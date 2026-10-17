@@ -45,17 +45,17 @@ export async function runVietQrLifecycleTests(
   });
   let sequence = 0,
     day;
-  const vehicle = () =>
+  const vehicle = (vehicle_type = "Honda Vision") =>
     call("save_vehicle", {
       request_id: randomUUID(),
-      vehicle_type: "Honda Vision",
+      vehicle_type,
       license_plate: `QR${++sequence}-${randomUUID().slice(0, 6)}`,
       purchase_date: day,
       purchase_price: 1000,
     });
-  const qr = async (amount = 100, payer_name = "Nguyễn Văn An") =>
+  const qr = async (amount = 100, payer_name = "Nguyễn Văn An", vehicle_type = "Honda Vision") =>
     call("create_vietqr_payment_request", {
-      vehicle_id: await vehicle(),
+      vehicle_id: await vehicle(vehicle_type),
       amount,
       payer_name,
     });
@@ -99,7 +99,7 @@ export async function runVietQrLifecycleTests(
     });
 
     await check(
-      "server creates fixed fifteen minute window and reference-first bank memo with full agreement",
+      "server creates fixed fifteen minute window and compact bank memo with full agreement metadata",
       async () => {
         const q = await qr();
         assert.equal(
@@ -110,17 +110,14 @@ export async function runVietQrLifecycleTests(
           Date.parse(q.replace_available_at) - Date.parse(q.created_at),
           60_000,
         );
-        // Mã đối soát đứng ĐẦU để sống sót khi ngân hàng/SePay cắt memo, nhờ đó
-        // webhook luôn trích được "CAREM GD<digits>" và UI tự hoàn tất.
-        assert.match(
-          q.transfer_content,
-          /^CAREM GD\d+ Nguyễn Văn An thanh toán tiền xe Honda Vision - \S+$/,
-        );
+        assert.equal(q.transfer_content, `${q.qr_reference} (Honda Vision)`);
+        assert.equal(q.payer_name, "Nguyễn Văn An");
         assert.equal(
           q.transfer_content.split(q.qr_reference).length - 1,
           1,
         );
         assert.ok(q.transfer_content.length <= 130);
+        assert.ok(Buffer.byteLength(q.transfer_content, "utf8") <= 95);
         assert.match(
           q.agreement_text,
           /Nguyễn Văn An đồng ý thanh toán cho TRAN VAN REM/,
@@ -128,6 +125,48 @@ export async function runVietQrLifecycleTests(
         assert.match(q.agreement_text, /Honda Vision/);
         assert.ok(q.contract_reference.startsWith("HD-XE-"));
         assert.equal(q.monitoring_available, true);
+      },
+    );
+    await check(
+      "compact memo trims only the vehicle name to the QR byte limit",
+      async () => {
+        const type = "Đ".repeat(60);
+        const q = await qr(100, "Tên khách hàng vẫn còn nguyên", type);
+        assert.ok(q.transfer_content.startsWith(`${q.qr_reference} (`));
+        assert.ok(q.transfer_content.endsWith(")"));
+        const name = q.transfer_content.slice(q.qr_reference.length + 2, -1);
+        assert.ok(name.length > 0 && name.length < type.length);
+        assert.ok(type.startsWith(name));
+        assert.ok(Buffer.byteLength(q.transfer_content, "utf8") <= 95);
+        assert.equal(q.payer_name, "Tên khách hàng vẫn còn nguyên");
+        assert.ok(q.agreement_text.includes(q.payer_name));
+        assert.ok(q.agreement_text.includes(type));
+      },
+    );
+    await check(
+      "parenthesized numeric vehicle names retain the exact matching reference",
+      async () => {
+        for (const name of ["125cc", "67"]) {
+          const q = await qr(100, "Nguyễn Văn An", name);
+          assert.equal(q.transfer_content, `${q.qr_reference} (${name})`);
+          const response = await ingest(sender(q));
+          assert.equal(response.status, "RECEIVED");
+          const stored = await row(
+            "SELECT reference, transfer_content, qr_request_id FROM public.bank_transactions WHERE id=$1",
+            [response.id],
+          );
+          assert.equal(stored.reference, q.qr_reference);
+          assert.equal(stored.qr_request_id, q.id);
+          assert.equal(stored.transfer_content, q.transfer_content);
+        }
+      },
+    );
+    await check(
+      "legacy separators and wrapped references remain supported beside numeric labels",
+      async () => {
+        const q = await qr();
+        const memo = `(${q.qr_reference.toLowerCase().replace("carem gd", "c-a.r/e(m) g(d)").replace(/(\d{2})/, "$1(")}) (125cc)`;
+        assert.equal((await ingest(sender(q, { transfer_content: memo }))).status, "RECEIVED");
       },
     );
     await check(
@@ -141,6 +180,7 @@ export async function runVietQrLifecycleTests(
           });
         assert.equal(repeat.id, q.id);
         assert.equal(repeat.expires_at, q.expires_at);
+        assert.equal(repeat.transfer_content, `${q.qr_reference} (Honda Vision)`);
         assert.equal((await active(q.vehicle_id)).id, q.id);
       },
     );
@@ -299,11 +339,12 @@ export async function runVietQrLifecycleTests(
         assert.equal((await get(q.id)).status, "EXPIRED");
         await assert.rejects(
           () => call("confirm_bank_transaction", { id: response.id }),
-          // 20261015000200 tách mã lỗi theo đúng nguyên nhân (không còn dùng chung
-          // VIETQR_BANK_EVIDENCE_REQUIRED). Điều cần chốt ở đây là TIỀN VỀ MUỘN không
-          // được kích hoạt trạng thái thu — mọi ngả từ chối hợp lệ đều nằm trong hai
-          // mã dưới đây; ngả "ghi được tiền" sẽ rơi xuống và làm đỏ ca này.
-          /VIETQR_REQUEST_NOT_PENDING|BANK_TRANSACTION_NOT_CONFIRMABLE/,
+          // Chủ chốt B (17/10): cổng bằng chứng phục hồi — khoản về muộn/sai cửa
+          // sổ thời gian luôn bị từ chối. Ba mã dưới đây đều là ngả từ chối hợp lệ
+          // (BANK_EVIDENCE khi cổng B chặn theo lý do; NOT_PENDING/NOT_CONFIRMABLE
+          // theo nhánh hiện trạng). Điều cần chốt không đổi: TIỀN VỀ MUỘN không
+          // kích hoạt trạng thái thu — ngả "ghi được tiền" sẽ rơi xuống và đỏ ca này.
+          /VIETQR_REQUEST_NOT_PENDING|BANK_TRANSACTION_NOT_CONFIRMABLE|VIETQR_BANK_EVIDENCE_REQUIRED/,
         );
       },
     );
@@ -362,6 +403,14 @@ export async function runVietQrLifecycleTests(
           sender(q, { transfer_content: q.qr_reference + other.qr_reference }),
         );
         assert.equal(adjacent.status, "MANUAL_REVIEW");
+        const parenthesized = await ingest(
+          sender(q, { transfer_content: `${q.qr_reference} (125cc) (${other.qr_reference})` }),
+        );
+        assert.equal(parenthesized.status, "MANUAL_REVIEW");
+        assert.equal((await row(
+          "SELECT match_reason FROM public.bank_transactions WHERE id=$1",
+          [parenthesized.id],
+        )).match_reason, "AMBIGUOUS_REFERENCE");
         assert.equal((await get(q.id)).status, "PENDING");
       },
     );
@@ -504,8 +553,9 @@ export async function runVietQrLifecycleTests(
       "reference sequence remains unique beyond five digits",
       async () => {
         await db.exec("SELECT setval('private.vietqr_ref_seq',99999,true)");
-        const q = await qr();
+        const q = await qr(100, "Nguyễn Văn An", "125cc");
         assert.equal(q.qr_reference, "CAREM GD100000");
+        assert.equal(q.transfer_content, "CAREM GD100000 (125cc)");
         assert.equal((await ingest(sender(q))).status, "RECEIVED");
       },
     );

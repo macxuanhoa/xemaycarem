@@ -234,6 +234,34 @@ export async function runPushNotificationsTests(externalDb, { engine = 'postgres
     assert.equal(await count('SELECT count(*)::int AS n FROM public.push_deliveries WHERE id=$1', [testId]), 0)
     pass('terminal deliveries older than 30 days are deleted during the next claim (minimal retention)')
 
+    // 9. Instant dispatch (migration 20261017000200): config lockdown + no-op safety.
+    await assert.rejects(run('staff', (c) => c.query('SELECT * FROM public.push_dispatch_config')), /permission denied|row-level security/)
+    await assert.rejects(asUser(db, null, (c) => c.query('SELECT * FROM public.push_dispatch_config'), 'anon'), /permission denied|row-level security/)
+    await assert.rejects(run('staff', (c) => c.query('SELECT private.dispatch_push_now()')), /permission denied|cannot be used in this context/)
+    pass('push_dispatch_config is invisible to anon/authenticated and the trigger function is un-callable (RLS on, zero policies, all grants revoked)')
+    const trig = await row("SELECT count(*)::int AS n FROM information_schema.triggers WHERE event_object_table='push_deliveries' AND trigger_name='dispatch_push_after_enqueue'")
+    assert.equal(trig.n, 1, 'instant-dispatch trigger must exist on the outbox')
+    const fn = await row("SELECT prosecdef, proconfig FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace WHERE n.nspname='private' AND p.proname='dispatch_push_now'")
+    assert.equal(fn.prosecdef, true, 'dispatch_push_now must be SECURITY DEFINER')
+    assert.ok(
+      (fn.proconfig ?? []).some((cfg) => cfg === 'search_path=' || cfg.startsWith('search_path=')),
+      `dispatch_push_now must pin an empty search_path, got: ${JSON.stringify(fn.proconfig)}`,
+    )
+    pass('instant-dispatch function exists with SECURITY DEFINER + fixed search_path (matches house rules)')
+    // DB test cluster không cài pg_net: mọi đường phải im lặng, không nổ
+    // dù config trống hay đã nạp — chứng chỉ nghiệp vụ KHÔNG bao giờ gãy
+    // vì kênh push.
+    const qBefore = await count("SELECT count(*)::int AS n FROM public.push_deliveries WHERE status='QUEUED'")
+    await notify('staff', 'Không pg_net — ping phải tự tắt', 'B', '/doi-soat')
+    assert.equal(await count("SELECT count(*)::int AS n FROM public.push_deliveries WHERE status='QUEUED'"), qBefore + 1)
+    await db.query("INSERT INTO public.push_dispatch_config (id, url, token) VALUES (1, 'https://example.invalid/functions/v1/push-dispatch', $1) ON CONFLICT (id) DO NOTHING", ['token'.repeat(8)])
+    await notify('staff', 'Có config, vẫn không pg_net', 'B', '/doi-soat')
+    assert.equal(await count("SELECT count(*)::int AS n FROM public.push_deliveries WHERE status='QUEUED'"), qBefore + 2)
+    pass('business enqueue never breaks with the config empty OR populated but pg_net absent (graceful no-op)')
+    await assert.rejects(db.query("INSERT INTO public.push_dispatch_config (id, url, token) VALUES (2, 'https://ok.example/f', repeat('x', 32))"), /violates check constraint|2019|id/)
+    await assert.rejects(db.query("INSERT INTO public.push_dispatch_config (id, url, token) VALUES (1, 'http://insecure.example/f', repeat('x', 32)) ON CONFLICT (id) DO NOTHING"), /violates check constraint/)
+    pass('dispatch config enforces single row and HTTPS-only endpoint')
+
     console.log(`\n${passed} web push database checks passed on ${engine}.`)
   } finally {
     if (ownDb) await db.close()

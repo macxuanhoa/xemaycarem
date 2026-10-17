@@ -28,8 +28,8 @@
   z-index: 6;
   transition: height 700ms cubic-bezier(.22, 1, .36, 1);
 }
-.tet-cine-stage .cine-bar.top { top: 0; }
-.tet-cine-stage .cine-bar.bottom { bottom: 0; }
+.tet-cine-stage .cine-bar.top { top: 0; border-bottom: 1px solid rgba(242, 193, 78, .14); }
+.tet-cine-stage .cine-bar.bottom { bottom: 0; border-top: 1px solid rgba(242, 193, 78, .14); }
 .tet-cine-stage.cine-hasbars .cine-bar { height: 6.5vh; }
 
 /* SCN 01: đánh thức */
@@ -54,6 +54,23 @@
   will-change: transform;
 }
 .tet-cine-stage .cine-dust { position: absolute; inset: 0; z-index: 3; }
+
+/* Tia nắng vàng sau khung tranh — bật khi Dê Lái bước vào */
+.tet-cine-stage .cine-rays {
+  position: absolute; inset: -20%;
+  z-index: 2;
+  pointer-events: none;
+  opacity: 0;
+  background: repeating-conic-gradient(from 0deg at 50% 50%,
+    rgba(255, 214, 122, .16) 0deg 6deg,
+    rgba(255, 214, 122, 0) 6deg 20deg);
+  -webkit-mask-image: radial-gradient(closest-side at 50% 50%, #000 6%, transparent 60%);
+  mask-image: radial-gradient(closest-side at 50% 50%, #000 6%, transparent 60%);
+  animation: cineRaysSpin 36s linear infinite;
+  transition: opacity 900ms ease;
+}
+.tet-cine-stage.cine-rays-on .cine-rays { opacity: .75; }
+@keyframes cineRaysSpin { to { transform: rotate(360deg); } }
 
 /* SCN 02: Dê Lái đi vào */
 .tet-cine-stage .cine-plate {
@@ -83,6 +100,38 @@
 
 /* SCN 03: hạt sáng + quỹ đạo (Canvas2D, không WebGL) */
 .tet-cine-stage .cine-fx { position: absolute; inset: 0; z-index: 5; display: block; width: 100%; height: 100%; }
+
+/* Chất liệu điện ảnh: tối bốn góc + bụi phim + chớp vàng đúng nhịp burst */
+.tet-cine-stage .cine-vignette {
+  position: absolute; inset: 0;
+  z-index: 7;
+  pointer-events: none;
+  background: radial-gradient(120% 100% at 50% 45%, rgba(0, 0, 0, 0) 55%, rgba(3, 1, 4, .55) 100%);
+}
+.tet-cine-stage .cine-grain {
+  position: absolute; inset: -50%;
+  z-index: 8;
+  pointer-events: none;
+  opacity: .06;
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/%3E%3C/filter%3E%3Crect width='140' height='140' filter='url(%23n)' opacity='0.6'/%3E%3C/svg%3E");
+  animation: cineGrain 0.8s steps(4) infinite;
+}
+@keyframes cineGrain {
+  0% { transform: translate3d(0, 0, 0); }
+  25% { transform: translate3d(-3%, 2%, 0); }
+  50% { transform: translate3d(2%, -3%, 0); }
+  75% { transform: translate3d(-2%, -2%, 0); }
+  100% { transform: translate3d(0, 0, 0); }
+}
+.tet-cine-stage .cine-flash {
+  position: absolute; inset: 0;
+  z-index: 7;
+  pointer-events: none;
+  opacity: 0;
+  background: radial-gradient(70% 55% at 50% 50%, #fff6dc 0%, rgba(255, 214, 122, .4) 45%, rgba(255, 214, 122, 0) 75%);
+}
+.tet-cine-stage .cine-flash.cine-flash-on { animation: cineFlash 750ms ease-out both; }
+@keyframes cineFlash { 0% { opacity: 0; } 12% { opacity: .85; } 100% { opacity: 0; } }
 
 /* SCN 04: rèm chuyển giao diện */
 .tet-cine-stage .cine-curtain {
@@ -122,9 +171,9 @@
   cursor: pointer;
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
-  transition: transform .2s ease, background .2s ease, border-color .2s ease;
+  transition: background 180ms ease, border-color 180ms ease, color 180ms ease;
 }
-.tet-cine-stage .cine-skip:hover { transform: translateY(-2px); background: rgba(24, 9, 14, .75); border-color: rgba(242, 193, 78, .8); }
+.tet-cine-stage .cine-skip:hover { background: rgba(24, 9, 14, .75); border-color: rgba(242, 193, 78, .8); color: #fff3d6; }
 .tet-cine-stage .cine-skip svg { width: 14px; height: 14px; }
 
 .tet-cine-stage .cine-never {
@@ -144,7 +193,8 @@
 
 .tet-cine-stage .cine-caption {
   position: absolute; left: 50%; bottom: calc(9vh + 26px);
-  transform: translateX(-50%);
+  /* --o do engine đẩy từng khung hình: chữ vừa hiện vừa bay lên nhẹ */
+  transform: translateX(-50%) translateY(calc((1 - var(--o, 0)) * 16px));
   z-index: 9;
   font-family: "Playfair Display", serif;
   font-style: italic;
@@ -152,7 +202,7 @@
   color: #f4dfae;
   letter-spacing: .04em;
   text-shadow: 0 2px 18px rgba(0, 0, 0, .8);
-  opacity: 0;
+  opacity: var(--o, 0);
   white-space: nowrap;
   pointer-events: none;
 }

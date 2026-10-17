@@ -78,9 +78,7 @@ describe("vietqr/transferContent — đọc lại memo từ payload EMVCo", () =
 });
 
 describe("vietqr/transferContent — MỘT nguồn duy nhất cho mã và màn hình", () => {
-  it("P0-4: bản ghi prod chưa có transfer_content — memo hiển thị chính là memo nhúng trong QR", () => {
-    // Exactly the production shape today: `20261014000400` (thêm transfer_content)
-    // chưa áp, nên server trả về chuỗi rỗng và qr_payload cũng rỗng.
+  it("yêu cầu chưa có memo — màn hình và QR cùng dùng mã và tên xe trong ngoặc", () => {
     const request = {
       qr_reference: REF,
       transfer_content: "",
@@ -102,11 +100,11 @@ describe("vietqr/transferContent — MỘT nguồn duy nhất cho mã và màn h
 
     expect(transferContentFromPayload(payload)).toBe(description);
     expect(addInfoFromQuickLink(imageUrl)).toBe(description);
-    expect(description).toContain(REF);
+    expect(description).toBe(`${REF} (Honda Wave Alpha)`);
   });
 
-  it("memo do server sinh luôn được dùng nguyên văn, không tự bịa lại", () => {
-    const serverMemo = `${REF} Trần Văn Test thanh toán tiền xe Yamaha NVX`;
+  it("giữ tên xe chụp trong memo ngắn của server dù tên trên màn hình đã đổi", () => {
+    const serverMemo = `${REF} (Yamaha NVX)`;
     const request = {
       qr_reference: REF,
       transfer_content: serverMemo,
@@ -117,8 +115,8 @@ describe("vietqr/transferContent — MỘT nguồn duy nhất cho mã và màn h
     expect(resolveTransferContent(request, screenContext)).toBe(serverMemo);
   });
 
-  it("payload do server cấp thắng: màn hình hiển thị đúng memo khách sẽ quét", () => {
-    const scannedMemo = `${REF} Lý Thanh Quét thanh toán tiền xe Vario`;
+  it("đọc tên xe từ payload ngắn khi server chưa cấp memo", () => {
+    const scannedMemo = `${REF} (Vario)`;
     const payload = buildVietQrEmvCoPayload({
       bankBin: BIN,
       accountNo: ACCOUNT_NO,
@@ -160,7 +158,7 @@ describe("vietqr/transferContent — MỘT nguồn duy nhất cho mã và màn h
 });
 
 describe("vietqr/transferContent — memo dự phòng theo quy tắc server", () => {
-  it("đặt mã đối soát lên ĐẦU để sống sót qua lần cắt memo của ngân hàng", () => {
+  it("giữ nguyên mã, chỉ thêm tên xe trong ngoặc; bỏ tên khách và mã kho", () => {
     const memo = composeTransferContent({
       reference: REF,
       payerName: "Nguyễn Thị Cà Rem",
@@ -169,14 +167,14 @@ describe("vietqr/transferContent — memo dự phòng theo quy tắc server", ()
     });
 
     expect(memo.startsWith(`${REF} `)).toBe(true);
-    expect(memo).toBe(`${REF} Nguyễn Thị Cà Rem thanh toán tiền xe Honda Wave Alpha - CR-0417`);
+    expect(memo).toBe(`${REF} (Honda Wave Alpha)`);
   });
 
-  it("rút gọn tên khách khi vượt trần và không bao giờ cắt vào mã đối soát", () => {
+  it("chỉ rút gọn tên xe quá dài, giữ nguyên mã và ngoặc đóng", () => {
     const memo = composeTransferContent({
       reference: REF,
       payerName: "Khách hàng có cái tên cực kỳ dài ".repeat(8),
-      vehicleName: "Honda Wave Alpha 2024 màu xanh dương",
+      vehicleName: "Honda Wave Alpha màu xanh dương ".repeat(8),
       internalCode: "CR-0417",
     });
 
@@ -184,6 +182,9 @@ describe("vietqr/transferContent — memo dự phòng theo quy tắc server", ()
     // memo phải nhúng vừa thẻ EMVCo (2 chữ số độ dài) — không phát hành mã lệch.
     expect(utf8Length(memo)).toBeLessThanOrEqual(95);
     expect(memo.startsWith(`${REF} `)).toBe(true);
+    expect(memo.endsWith(")")).toBe(true);
+    expect(memo).not.toContain("Khách hàng");
+    expect(memo).not.toContain("CR-0417");
     // Memo nén vẫn trích được "CAREMGD<5 số>" đúng như ingest_bank_transaction.
     expect(containsReference(memo, REF)).toBe(true);
     expect(transferContentFromPayload(
@@ -191,9 +192,9 @@ describe("vietqr/transferContent — memo dự phòng theo quy tắc server", ()
     )).toBe(memo);
   });
 
-  it("tên xe rỗng vẫn thành câu đọc được, không tạo khoảng trắng thừa", () => {
+  it("tên xe rỗng dùng xe, không đưa tên khách vào memo", () => {
     expect(composeTransferContent({ reference: REF, payerName: "Trần B" })).toBe(
-      `${REF} Trần B thanh toán tiền xe xe`,
+      `${REF} (xe)`,
     );
   });
 
@@ -216,18 +217,24 @@ describe("vietqr/transferContent — memo dự phòng theo quy tắc server", ()
     expect(containsReference("Thanh toan don hang 00123", REF)).toBe(false);
     expect(containsReference(REF, "CAREM GD99999")).toBe(false);
     expect(containsReference(REF, "")).toBe(false);
+    expect(containsReference(`${REF}1 (Honda Vision)`, REF)).toBe(false);
+    expect(containsReference(`${REF} (125cc)`, REF)).toBe(true);
+    expect(containsReference("CAREM GD100000 (67)", "CAREM GD100000")).toBe(true);
+    expect(containsReference("(c-a.r/e(m) g(d)00123) (125cc)", REF)).toBe(true);
+    expect(containsReference("CAREM GD10000(0) (125cc)", "CAREM GD10000")).toBe(false);
+    expect(containsReference("CAREM GD100000(125cc)", "CAREM GD100000125")).toBe(false);
+    expect(containsReference("CARE(M) GD100000(125cc)", "CAREM GD100000125")).toBe(false);
   });
 });
 
 /**
- * P0-4 trên đúng hợp đồng server ĐANG CHẠY TRONG PRODUCTION
- * (`20261014000700_vietqr_full_wording_memo` — đã apply trong ledger):
+ * Memo từ phiên bản server cũ (`20261014000700_vietqr_full_wording_memo`):
  *   v_content := v_payer_text || ' thanh toán tiền xe ' || tên || ' - ' || mã nội bộ
  *                || ' với giá: ' || giá || '; Mã giao dịch là: ' || v_ref
  * Server chỉ trần 130 KÝ TỰ, còn thẻ EMVCo chứa nổi 95 BYTE. Memo hợp lệ của
  * server vì thế thường KHÔNG nhét vừa mã QR — và bản cũ hiển thị memo dài trong
- * khi mã lại mang chuỗi ngắn hơn. selectQrTransferContent() là chốt chặn: một
- * chuỗi duy nhất cho màn hình, nút Copy, ảnh quick link và payload EMVCo.
+ * khi mã lại mang chuỗi ngắn hơn. Mẫu mới thay toàn bộ phần mô tả cũ bằng tên
+ * xe trong ngoặc và dùng cùng chuỗi cho màn hình, Copy, ảnh và payload.
  */
 const LIVE_SERVER_MEMO =
   "Nguyễn Thị Cà Rem thanh toán tiền xe Honda Wave Alpha - CR-0417 với giá: 17.500.000; Mã giao dịch là: " +
@@ -258,6 +265,7 @@ describe("vietqr/transferContent — P0-4: một memo duy nhất cho mọi kênh
     expect(utf8Length(content)).toBeLessThanOrEqual(95);
     expect(containsReference(content, REF)).toBe(true);
     expect(content.startsWith(`${REF} `)).toBe(true);
+    expect(content).toBe(`${REF} (Honda Wave Alpha)`);
     // Không bao giờ trả về nguyên memo dài của server.
     expect(content).not.toBe(LIVE_SERVER_MEMO);
   });
@@ -299,8 +307,8 @@ describe("vietqr/transferContent — P0-4: một memo duy nhất cho mọi kênh
     expect(transferContentFromPayload(emvco)).toBe(addInfoFromQuickLink(imageUrl));
   });
 
-  it("memo ngắn của server giữ nguyên văn — không cắt bừa", () => {
-    const short = `${REF} Nguyễn Thị Cà Rem thanh toán tiền xe Honda Wave Alpha`;
+  it("memo ngắn đúng mẫu mới của server giữ nguyên văn", () => {
+    const short = `${REF} (Honda Wave Alpha)`;
     expect(utf8Length(short)).toBeLessThanOrEqual(95);
     expect(
       selectQrTransferContent({ qr_reference: REF, transfer_content: short, qr_payload: "" }, screenContext),
@@ -321,10 +329,10 @@ describe("vietqr/transferContent — P0-4: một memo duy nhất cho mọi kênh
 
     expect(utf8Length(content)).toBeLessThanOrEqual(95);
     expect(containsReference(content, REF)).toBe(true);
-    expect(content).toContain("thanh toán tiền xe");
+    expect(content).toBe(`${REF} (Honda Wave Alpha)`);
   });
 
-  it("memo đã nhúng sẵn trong qr_payload thắng mọi nguồn khác và không bị viết lại", () => {
+  it("QR cũ có tên khách được thay bằng mẫu ngắn từ tên xe trên màn hình", () => {
     const embedded = buildVietQrEmvCoPayload({
       bankBin: BIN,
       accountNo: ACCOUNT_NO,
@@ -338,6 +346,33 @@ describe("vietqr/transferContent — P0-4: một memo duy nhất cho mọi kênh
         { qr_reference: REF, transfer_content: LIVE_SERVER_MEMO, qr_payload: embedded },
         screenContext,
       ),
-    ).toBe("CAREM GD00123 Trần Văn Tám thanh toán tiền xe Yamaha NVX");
+    ).toBe(`${REF} (Honda Wave Alpha)`);
+  });
+
+  it("memo ngắn từ server được ưu tiên hơn payload cũ", () => {
+    const embedded = buildVietQrEmvCoPayload({
+      bankBin: BIN,
+      accountNo: ACCOUNT_NO,
+      description: `${REF} (Vario)`,
+    });
+    expect(selectQrTransferContent({
+      qr_reference: REF,
+      transfer_content: `${REF} (Honda Vision)`,
+      qr_payload: embedded,
+    }, screenContext)).toBe(`${REF} (Honda Vision)`);
+  });
+
+  it("không lấy tên từ memo của mã khác hoặc từ tên khách khi thiếu tên xe", () => {
+    expect(selectQrTransferContent({
+      qr_reference: REF,
+      transfer_content: "CAREM GD99999 (Honda Vision)",
+      payer_name: "Nguyễn Văn An",
+    })).toBe(`${REF} (xe)`);
+  });
+
+  it("giữ nguyên mã trên 5 chữ số và tên xe bắt đầu bằng số", () => {
+    expect(selectQrTransferContent({ qr_reference: "CAREM GD100000" }, {
+      vehicleName: "125cc",
+    })).toBe("CAREM GD100000 (125cc)");
   });
 });

@@ -16,6 +16,7 @@ import { AppError, mapDuplicateReviewError } from "@/lib/errors";
 import { canOperate } from "@/lib/permissions";
 import { dateLabel, money, today } from "@/lib/format";
 import { canonicalizePlate, PLATE_EXAMPLE } from "@/lib/plate";
+import { CHAR_LIMITS } from "@/lib/validation";
 import { formatVndApproxText, formatVndWords } from "@/lib/moneyHelper";
 import { useAuth } from "@/features/auth/AuthProvider";
 import {
@@ -227,12 +228,11 @@ function AcquisitionEditor() {
         toast.success("Đã lưu ngoại lệ nghi trùng.", {
           description:
             "Chủ/Quản lý đã trực tiếp thu xe kèm lý do ngoại lệ được ghi nhận vào kiểm toán.",
-          duration: 6000,
+          important: true,
         });
       } else {
         toast.success("Thu xe thành công.", {
           description: "Xe và phiếu thu đã sẵn sàng trong kho.",
-          duration: 5000,
           action: { label: "Thu xe tiếp", onClick: () => navigate("/acquisitions/new") },
         });
       }
@@ -268,7 +268,7 @@ function AcquisitionEditor() {
       toast.success("Đã gửi yêu cầu xác minh.", {
         description:
           "Xe chưa được lưu vào kho. Chủ/Quản lý sẽ đối chiếu; bạn nhận thông báo khi có quyết định.",
-        duration: 6000,
+        important: true,
       });
       navigate("/acquisitions");
     },
@@ -349,7 +349,6 @@ function AcquisitionEditor() {
           await client.invalidateQueries();
           toast.success("Thu xe thành công.", {
             description: "Xe và phiếu thu đã sẵn sàng trong kho.",
-            duration: 5000,
             action: { label: "Thu xe tiếp", onClick: () => navigate("/acquisitions/new") },
           });
           navigate(`/vehicles/${vehicleId}`);
@@ -414,6 +413,7 @@ function AcquisitionEditor() {
                 <AutocompleteInput
                   autoFocus
                   aria-label="Loại xe *"
+                  maxLength={CHAR_LIMITS.vehicleType}
                   value={form.watch("vehicle_type")}
                   onChange={(value) => setText("vehicle_type", value)}
                   onBlur={() => void form.trigger("vehicle_type")}
@@ -427,6 +427,7 @@ function AcquisitionEditor() {
                 <input
                   autoCapitalize="characters"
                   enterKeyHint="next"
+                  maxLength={CHAR_LIMITS.plate}
                   {...form.register("license_plate")}
                   onBlur={() => {
                     const val = form.getValues("license_plate");
@@ -443,6 +444,7 @@ function AcquisitionEditor() {
                 <input
                   autoCapitalize="characters"
                   enterKeyHint="next"
+                  maxLength={CHAR_LIMITS.frame}
                   {...form.register("frame_number")}
                   onBlur={() => {
                     const val = form.getValues("frame_number");
@@ -501,6 +503,7 @@ function AcquisitionEditor() {
               >
                 <AutocompleteInput
                   aria-label="Màu sắc"
+                  maxLength={CHAR_LIMITS.color}
                   value={form.watch("color")}
                   onChange={(value) => setText("color", value)}
                   onBlur={() => void form.trigger("color")}
@@ -545,9 +548,14 @@ function AcquisitionEditor() {
               </Field>
             </div>
 
-            <Field label="Ghi chú" error={error("notes")}>
+            <Field
+              label="Ghi chú"
+              error={error("notes")}
+              counter={{ value: form.watch("notes"), max: CHAR_LIMITS.notes }}
+            >
               <textarea
                 rows={3}
+                maxLength={CHAR_LIMITS.notes}
                 {...form.register("notes")}
                 placeholder="Tình trạng xe, giấy tờ, phụ kiện, trầy xước, lỗi cần sửa…"
               />
@@ -558,9 +566,14 @@ function AcquisitionEditor() {
           <Card>
             <h2 className="section-title">2. Thông tin người bán</h2>
             <div className="form-grid">
-              <Field label="Tên người bán" error={error("seller_name")}>
+              <Field
+                label="Tên người bán"
+                error={error("seller_name")}
+                counter={{ value: form.watch("seller_name"), max: CHAR_LIMITS.name }}
+              >
                 <input
                   enterKeyHint="next"
+                  maxLength={CHAR_LIMITS.name}
                   {...form.register("seller_name")}
                   onBlur={() => {
                     const val = form.getValues("seller_name");
@@ -579,6 +592,7 @@ function AcquisitionEditor() {
                 <input
                   type="tel"
                   enterKeyHint="done"
+                  maxLength={CHAR_LIMITS.phone}
                   {...form.register("seller_phone")}
                   onBlur={() => {
                     const val = form.getValues("seller_phone");

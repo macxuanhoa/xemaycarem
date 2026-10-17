@@ -209,8 +209,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setError(null);
       if (pushSyncedFor.current !== row.id) {
         pushSyncedFor.current = row.id;
-        // Im lặng tái đăng ký keys + rút hàng đợi dồn (chỉ khi user ĐÃ bật
-        // push từ trước — không bao giờ tự bật, không bao giờ tự hỏi quyền).
+        // Push bật mặc định: tái đăng ký keys im lặng + hẹn hỏi quyền theo
+        // thao tác đầu tiên (chưa từng hỏi), và rút hàng đợi dồn khi offline.
         void syncPushOnLogin();
       }
     } catch (e) {

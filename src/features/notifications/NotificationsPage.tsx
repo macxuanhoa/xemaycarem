@@ -6,7 +6,7 @@ import {
   useMutation,
   useQueryClient,
 } from "@tanstack/react-query";
-import { BellOff, Check } from "lucide-react";
+import { BellOff, Eye } from "lucide-react";
 import { api } from "@/lib/api";
 import { toast } from "@/lib/toast";
 import { friendlyError } from "@/lib/errors";
@@ -194,7 +194,7 @@ export function NotificationsPage() {
             disabled={markAll.isPending}
             onClick={() => markAll.mutate()}
           >
-            <Check size={14} />
+            <Eye size={14} aria-hidden="true" />
             Đánh dấu tất cả đã đọc
           </button>
         )}

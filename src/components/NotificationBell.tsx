@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useNavigate } from "react-router-dom";
-import { Bell, BellOff, X } from "lucide-react";
+import { Bell, BellOff, Eye, X } from "lucide-react";
 import { useNotifications } from "@/lib/useNotifications";
 import {
   NotificationGroupHeading,
@@ -218,13 +218,23 @@ export function NotificationBell() {
                 </h2>
                 <div className="notification-panel-actions">
                   {unreadCount > 0 && (
+                    // aria-label mang cả cụm đầy đủ vì ở panel hẹp (điện thoại)
+                    // CSS cất hẳn phần chữ, nút chỉ còn icon con mắt 40×40 — tên
+                    // trợ năng, tooltip và selector kiểm thử vẫn không đổi. Icon
+                    // mắt (không phải dấu ✓) tự đọc là "đánh dấu đã đọc" ngay cả
+                    // khi đứng một mình, hết cảnh "chỉ một dấu tick" mơ hồ.
                     <button
                       type="button"
                       className="notification-mark-all"
+                      aria-label="Đánh dấu tất cả đã đọc"
+                      title="Đánh dấu tất cả đã đọc"
                       disabled={markAllPending}
                       onClick={() => markAll()}
                     >
-                      Đánh dấu tất cả đã đọc
+                      <Eye size={13} aria-hidden="true" />
+                      <span className="notification-mark-all-label">
+                        Đánh dấu tất cả đã đọc
+                      </span>
                     </button>
                   )}
                   <button

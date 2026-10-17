@@ -22,7 +22,7 @@ const routeLoaders: Record<string, () => Promise<unknown>> = {
   "/settings": () => import("@/features/settings/SettingsPage"),
   "/capture": () => import("@/features/capture/CapturePage"),
   "/assist": () => import("@/features/assistant/AssistPage"),
-  "/copilot": () => import("@/features/copilot/CopilotPage"),
+  "/assistant": () => import("@/features/assistant/CaremAssistantPage"),
   "/docs": () => import("@/features/docs/DocsPage"),
 };
 

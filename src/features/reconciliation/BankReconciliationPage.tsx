@@ -41,6 +41,8 @@ const STATUS_LABEL: Record<BankTxnStatus, string> = {
 
 const REASON_LABEL: Record<string, string> = {
   REFERENCE_AMOUNT_MATCH: "Mã tham chiếu và số tiền trùng khớp",
+  AUTO_RECORDED: "Tự ghi sổ — khớp tuyệt đối, mã do chủ tạo",
+  PENDING_OWNER_APPROVAL: "Khớp tuyệt đối nhưng mã do nhân viên tạo — chờ chủ duyệt",
   AMOUNT_MISMATCH: "Số tiền không khớp yêu cầu",
   REQUEST_NOT_PENDING: "Yêu cầu đã được xử lý trước đó",
   REFERENCE_FOUND_NO_REQUEST: "Có mã tham chiếu nhưng không còn yêu cầu chờ",
@@ -56,15 +58,24 @@ const REASON_LABEL: Record<string, string> = {
   "": "—",
 };
 
-const FILTERS: { key: string; label: string; status?: BankTxnStatus }[] = [
+// Ba nhóm thay cho bảy tab cũ: "Cần bạn xử lý" gộp mọi hàng đợi còn chờ người quyết,
+// "Lịch sử" gom các giao dịch đã ngã ngũ (kể cả chờ nối hợp đồng — không cần thao tác).
+const FILTERS: { key: string; label: string; status?: string }[] = [
+  { key: "ATTENTION", label: "Cần bạn xử lý", status: "ATTENTION" },
+  { key: "HISTORY", label: "Lịch sử", status: "HISTORY" },
   { key: "all", label: "Tất cả" },
-  { key: "MATCHED_PENDING", label: "Chờ xác nhận", status: "MATCHED_PENDING" },
-  { key: "MANUAL_REVIEW", label: "Rà soát", status: "MANUAL_REVIEW" },
-  { key: "RECEIVED", label: "Chờ hợp đồng", status: "RECEIVED" },
-  { key: "UNMATCHED", label: "Chưa khớp", status: "UNMATCHED" },
-  { key: "RECORDED", label: "Đã ghi nhận", status: "RECORDED" },
-  { key: "IGNORED", label: "Đã bỏ qua", status: "IGNORED" },
 ];
+
+const EMPTY_STATE_BY_FILTER: Record<string, { title: string; description: string }> = {
+  ATTENTION: {
+    title: "Hàng đợi đang trống",
+    description: "Mọi giao dịch chuyển khoản đã được xử lý. Tiền về mới sẽ tự xuất hiện ở đây.",
+  },
+  HISTORY: {
+    title: "Chưa có giao dịch đã ngã ngũ",
+    description: "Các khoản đã ghi nhận, đã bỏ qua hoặc đang chờ nối hợp đồng sẽ nằm ở đây.",
+  },
+};
 
 /** Nút hành động tải với vòng quay riêng, tránh khóa cả danh sách. */
 function RowButton({
@@ -96,7 +107,7 @@ function RowButton({
 export default function BankReconciliationPage() {
   const { profile } = useAuth();
   const client = useQueryClient();
-  const [filter, setFilter] = useState("all");
+  const [filter, setFilter] = useState("ATTENTION");
   const [page, setPage] = useState(1);
   const [linking, setLinking] = useState<BankTransaction | null>(null);
   const [linkRef, setLinkRef] = useState("");
@@ -250,8 +261,13 @@ export default function BankReconciliationPage() {
         <ErrorState error={query.error} retry={() => void query.refetch()} />
       ) : !data || data.items.length === 0 ? (
         <EmptyState
-          title="Chưa có giao dịch nào"
-          description="Khi khách chuyển khoản và webhook ngân hàng được bật, các khoản tiền sẽ xuất hiện ở đây."
+          title={(EMPTY_STATE_BY_FILTER[filter] ?? { title: "Chưa có giao dịch nào" }).title}
+          description={
+            (EMPTY_STATE_BY_FILTER[filter] ?? {
+              description:
+                "Khi khách chuyển khoản và webhook ngân hàng được bật, các khoản tiền sẽ xuất hiện ở đây.",
+            }).description
+          }
         />
       ) : (
         <>

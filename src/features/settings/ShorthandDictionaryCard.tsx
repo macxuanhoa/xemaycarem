@@ -4,27 +4,21 @@
  * ở trang Thu xe tốc ký kèm cơ chế "Học"; nay tách sang Cài đặt và mọi role
  * đều quản lý được quy tắc của chính mình. Trang tốc ký nạp lại từ điển này
  * khi mở, nên thêm/xoá quy tắc ở đây có hiệu lực cho lần dán kế tiếp.
+ * Chỉ còn dạy viết tắt cho LOẠI XE (Màu sắc / Năm sản xuất dùng từ điển
+ * mặc định của parser). Danh sách hiển thị dạng bảng thẳng hàng, kèm bản in
+ * "Bảng Viết Tắt Loại Xe • Cà Rem" xuất PDF qua hộp thoại in của trình duyệt.
  */
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { X } from "lucide-react";
+import { FileDown, X } from "lucide-react";
 import { Button, Card, Field } from "@/components/ui";
 import { AutocompleteInput } from "@/components/ui/AutocompleteInput";
 import { useAuth } from "@/features/auth/AuthProvider";
 import { api } from "@/lib/api";
+import { dateLabel } from "@/lib/format";
 import { toast } from "@/lib/toast";
-import {
-  INTAKE_FIELDS,
-  type LearnedDictionary,
-  type IntakeFieldKey,
-} from "@/lib/shorthand/parseIntakeNotes";
-import {
-  LOCAL_LEARNING_FIELDS,
-  forgetRule,
-  learnRule,
-  listRules,
-  loadDictionary,
-} from "@/lib/shorthand/learnedDictionary";
+import { type LearnedDictionary } from "@/lib/shorthand/parseIntakeNotes";
+import { forgetRule, learnRule, listRules, loadDictionary } from "@/lib/shorthand/learnedDictionary";
 import type { Paged, Vehicle } from "@/types";
 
 // Defer Storage getter access until the dictionary helper's guarded
@@ -39,11 +33,10 @@ export function ShorthandDictionaryCard() {
   const [dict, setDict] = useState<LearnedDictionary>(() =>
     loadDictionary(profile?.id, dictionaryStorage),
   );
-  const [rule, setRule] = useState<{
-    key: string;
-    field: IntakeFieldKey;
-    value: string;
-  }>({ key: "", field: "vehicle_type", value: "" });
+  const [rule, setRule] = useState<{ key: string; value: string }>({
+    key: "",
+    value: "",
+  });
   const rules = useMemo(() => listRules(dict), [dict]);
 
   // Gợi ý "Loại xe" lấy từ tên xe THẬT đã lưu trong Kho, giống trang tốc ký.
@@ -69,19 +62,28 @@ export function ShorthandDictionaryCard() {
     const next = learnRule(
       profile?.id,
       rule.key,
-      rule.field,
+      "vehicle_type",
       rule.value,
       dictionaryStorage,
     );
     if (next === dict) {
-      toast.error("Chưa lưu được — cần cả viết tắt lẫn giá trị.");
+      toast.error("Chưa lưu được — cần cả viết tắt lẫn loại xe.");
       return;
     }
     setDict(next);
-    setRule({ ...rule, key: "", value: "" });
+    setRule({ key: "", value: "" });
     toast.success("Đã lưu quy tắc viết tắt.", {
       description: "Lần dán tốc ký kế tiếp sẽ tự nhận ra từ này.",
     });
+  };
+
+  // Xuất PDF bằng cách mượn hộp thoại in của trình duyệt (không thêm thư viện):
+  // đánh dấu bản in đang chọn rồi in — CSS @media print chỉ giữ lại bảng viết
+  // tắt, khổ A4 gọn gàng.
+  const exportPdf = () => {
+    document.body.dataset.printTarget = "shorthand-dictionary";
+    window.print();
+    delete document.body.dataset.printTarget;
   };
 
   return (
@@ -89,9 +91,9 @@ export function ShorthandDictionaryCard() {
       <h2>Bộ nhớ viết tắt thu xe</h2>
       <p className="muted small" style={{ marginBottom: "16px" }}>
         Cà Rem tra các quy tắc này khi bạn dán ghi chú ở <strong>Thu xe tốc
-        ký</strong>. Bộ nhớ lưu riêng theo tài khoản trên thiết bị này và không
-        chứa thông tin cá nhân — chỉ nhận ba nhóm: Loại xe, Màu sắc, Năm sản
-        xuất.
+        ký</strong>. Bộ nhớ lưu riêng theo tài khoản trên thiết bị này, không
+        chứa thông tin cá nhân và chỉ dạy viết tắt cho trường <strong>Loại
+        xe</strong>.
       </p>
       <div className="settings-rule-form">
         <Field label="Viết tắt">
@@ -101,48 +103,24 @@ export function ShorthandDictionaryCard() {
             onChange={(event) =>
               setRule({ ...rule, key: event.target.value })
             }
+            onKeyDown={(event) => {
+              if (event.key === "Enter") {
+                event.preventDefault();
+                saveRule();
+              }
+            }}
             placeholder="VD: nxl"
           />
         </Field>
-        <Field label="Trường điền">
-          <select
-            value={rule.field}
-            onChange={(event) =>
-              setRule({
-                ...rule,
-                field: event.target.value as IntakeFieldKey,
-              })
-            }
-          >
-            {INTAKE_FIELDS.filter((field) =>
-              LOCAL_LEARNING_FIELDS.has(field.key),
-            ).map((field) => (
-              <option key={field.key} value={field.key}>
-                {field.label}
-              </option>
-            ))}
-          </select>
-        </Field>
         <Field label="Thành">
-          {rule.field === "vehicle_type" ? (
-            <AutocompleteInput
-              aria-label="Thành"
-              value={rule.value}
-              onChange={(value) => setRule({ ...rule, value })}
-              suggestions={typeNames}
-              maxSuggestions={10}
-              placeholder="VD: Honda Vision"
-            />
-          ) : (
-            <input
-              value={rule.value}
-              maxLength={250}
-              onChange={(event) =>
-                setRule({ ...rule, value: event.target.value })
-              }
-              placeholder="Ví dụ: Đen"
-            />
-          )}
+          <AutocompleteInput
+            aria-label="Thành"
+            value={rule.value}
+            onChange={(value) => setRule({ ...rule, value })}
+            suggestions={typeNames}
+            maxSuggestions={10}
+            placeholder="VD: Honda Vision"
+          />
         </Field>
         <div className="row" style={{ gap: "8px" }}>
           <Button
@@ -155,25 +133,59 @@ export function ShorthandDictionaryCard() {
         </div>
       </div>
       {!!rules.length && (
-        <div className="intake-rule-list">
-          {rules.map((item) => (
-            <span className="intake-rule-chip" key={item.key}>
-              <code>{item.key}</code> → {item.value}
-              <small>
-                {INTAKE_FIELDS.find((f) => f.key === item.field)?.label ??
-                  item.field}
-              </small>
-              <button
-                type="button"
-                aria-label={`Xoá quy tắc ${item.key}`}
-                onClick={() =>
-                  setDict(forgetRule(profile?.id, item.key, dictionaryStorage))
-                }
-              >
-                <X size={12} />
-              </button>
-            </span>
-          ))}
+        <div className="settings-rule-section">
+          <div className="settings-rule-head">
+            <h3>
+              Quy tắc đã lưu
+              <small>{rules.length} quy tắc · chỉ áp dụng cho Loại xe</small>
+            </h3>
+            <Button variant="secondary" onClick={exportPdf}>
+              <FileDown size={14} /> Xuất PDF
+            </Button>
+          </div>
+          <div className="settings-rule-table-wrap">
+            <table className="settings-rule-table">
+              <thead>
+                <tr>
+                  <th>Viết tắt</th>
+                  <th>Được hiểu là</th>
+                  <th aria-label="Thao tác" />
+                </tr>
+              </thead>
+              <tbody>
+                {rules.map((item) => (
+                  <tr className="settings-rule-row" key={item.key}>
+                    <td>
+                      <code>{item.key}</code>
+                    </td>
+                    <td className="settings-rule-value">{item.value}</td>
+                    <td>
+                      <button
+                        type="button"
+                        className="settings-rule-delete"
+                        aria-label={`Xoá quy tắc ${item.key}`}
+                        onClick={() =>
+                          setDict(
+                            forgetRule(
+                              profile?.id,
+                              item.key,
+                              dictionaryStorage,
+                            ),
+                          )
+                        }
+                      >
+                        <X size={13} />
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <p className="muted small settings-rule-export-hint">
+            Nhấn <strong>Xuất PDF</strong> rồi chọn “Lưu dưới dạng PDF” trong
+            hộp thoại in để giữ bảng viết tắt gọn gàng, dễ tra.
+          </p>
         </div>
       )}
       {!rules.length && (
@@ -182,6 +194,37 @@ export function ShorthandDictionaryCard() {
           không phải gõ lại.
         </p>
       )}
+      {/* Bản in chỉ hiện khi bấm "Xuất PDF" (ẩn trên màn hình, giữ trong DOM
+          cho @media print). */}
+      <div className="print-shorthand-dictionary" aria-hidden="true">
+        <h1>Bảng Viết Tắt Loại Xe • Cà Rem</h1>
+        <p className="print-meta">
+          In ngày {dateLabel(new Date().toISOString())} · {rules.length} quy
+          tắc · Bộ nhớ viết tắt thu xe của tài khoản này
+        </p>
+        <table>
+          <thead>
+            <tr>
+              <th className="print-col-index">STT</th>
+              <th className="print-col-key">Viết tắt</th>
+              <th>Được hiểu là (Loại xe)</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rules.map((item, index) => (
+              <tr key={item.key}>
+                <td className="print-col-index">{index + 1}</td>
+                <td className="print-col-key">{item.key}</td>
+                <td>{item.value}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        <p className="print-foot">
+          Bảng do Cà Rem tạo tự động — mỗi hàng là một quy tắc tra khi dán ghi
+          chú ở Thu xe tốc ký.
+        </p>
+      </div>
     </Card>
   );
 }

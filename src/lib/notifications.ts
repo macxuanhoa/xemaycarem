@@ -10,6 +10,8 @@ import {
   Inbox,
   Landmark,
   Pencil,
+  Receipt,
+  ReceiptText,
   ScanSearch,
   Scale,
   Send,
@@ -163,6 +165,70 @@ export function splitVehicleIdentity(title: string): {
 }
 
 /**
+ * Bố cục MỘT dòng tiêu đề chuông: THAO TÁC trước, danh tính xe sau.
+ *
+ * Server dựng tiêu đề `"Thu vào xe 43A1-99999 · 8D4AA1234"` — thao tác đã đứng
+ * trước. Bản UI từng ghép thêm tên loại xe vào ĐẦU dòng thành `"Honda Wave
+ * Alpha Thu vào xe 43A1-99999"`, tức đọc ngược hẳn hành động vừa xảy ra.
+ *   · `action`   — "Thu vào xe" (thao tác, chữ thường)
+ *   · `identity` — token danh tính phát sáng: biển số; mã nội bộ khi xe chưa
+ *                  có biển/khung; hoặc nguyên cụm "chưa có biển · <khung>"
+ *   · `code`     — mã nội bộ GHI THÊM ở cuối dòng; null khi tiêu đề đã chứa nó
+ *
+ * Phần đuôi sau biển số (số khung, "chưa có khung") KHÔNG lên tiêu đề: body
+ * của mọi tin nghiệp vụ đều đã spelling nguyên nhãn `biển · khung`, nên giữ nó
+ * ở tiêu đề chỉ khiến dòng tin gãy đôi trong panel 460px.
+ */
+export type NotificationTitleParts = {
+  action: string;
+  identity: string | null;
+  /** Danh tính là biển số, mã nội bộ thế chỗ, hay một cụm chữ "chưa có biển · …". */
+  identityKind: "plate" | "code" | "phrase" | null;
+  code: string | null;
+};
+
+/** Nhãn `vehicle_label_text` khi xe chưa có biển: cả cụm là danh tính. */
+const NO_PLATE_RE = /chưa có biển(?:\s*·\s*[^·]+)?/;
+
+export function splitNotificationTitle(
+  title: string,
+  internalCode: string | null | undefined,
+): NotificationTitleParts {
+  const code = internalCode?.trim() || null;
+  const { before, plate } = splitVehicleIdentity(title);
+  if (plate) {
+    return {
+      action: before.trimEnd(),
+      identity: plate,
+      identityKind: "plate",
+      code: code && !title.includes(code) ? code : null,
+    };
+  }
+  // Xe chưa có biển/khung: `vehicle_label_text` đặt mã nội bộ làm danh tính,
+  // nên mã nằm ngay cuối tiêu đề chứ không phải một dòng riêng.
+  if (code && title.endsWith(code)) {
+    return {
+      action: title.slice(0, title.length - code.length).trimEnd(),
+      identity: code,
+      identityKind: "code",
+      code: null,
+    };
+  }
+  const noPlate = title.match(NO_PLATE_RE);
+  if (noPlate && noPlate.index !== undefined) {
+    return {
+      action: title.slice(0, noPlate.index).trimEnd(),
+      identity: noPlate[0].trim(),
+      identityKind: "phrase",
+      code: code && !title.includes(code) ? code : null,
+    };
+  }
+  // Tiêu đề không nói về một chiếc xe cụ thể (đối soát ngân hàng…) hoặc chỉ
+  // chung chung "xe trong kho": giữ nguyên câu, mã ghi thêm nếu có.
+  return { action: title, identity: null, identityKind: null, code };
+}
+
+/**
  * Icon cho từng loại hành động thông báo — dùng chung giữa chuông nổi
  * (NotificationBell) và trang đầy đủ (/thong-bao). Thêm hành động mới ở đây
  * để cả hai nơi cùng cập nhật, không bị lệch.
@@ -192,6 +258,11 @@ export const ACTION_ICON: Record<NotificationAction, LucideIcon> = {
   BANK_TRANSACTION_MATCHED: Landmark,
   BANK_TRANSACTION_REVIEW: Scale,
   BANK_TRANSACTION_UNMATCHED: ScanSearch,
+  // Chi phí gắn xe (migration 20261017000600): một hóa đơn mới, rồi bị sửa, rồi
+  // bị hủy. Hủy dùng lại hình Ban như mọi thao tác hủy khác để đọc là "đã gỡ".
+  ADD_EXPENSE: Receipt,
+  UPDATE_EXPENSE: ReceiptText,
+  CANCEL_EXPENSE: Ban,
 };
 
 /** Nhóm màu ngữ cảnh: thu vào/thanh toán = được, hủy = cảnh báo, còn lại trung tính. */
@@ -215,6 +286,11 @@ export const ACTION_TONE: Record<NotificationAction, "success" | "warning" | "ne
   // soát, không phải tin tham khảo. Để trung tính thì nó chìm nghỉm giữa
   // những dòng "đã cập nhật xe".
   BANK_TRANSACTION_UNMATCHED: "warning",
+  // Thêm/sửa chi phí là tin tham khảo (neutral); hủy một khoản tiền đã ghi là
+  // ngoại lệ đáng nhìn (warning), cùng luật với hủy thu/hủy bán.
+  ADD_EXPENSE: "neutral",
+  UPDATE_EXPENSE: "neutral",
+  CANCEL_EXPENSE: "warning",
 };
 
 /**

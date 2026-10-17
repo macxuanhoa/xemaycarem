@@ -19,19 +19,36 @@ export type Toast = {
 type Input = {
   title: string;
   description?: string;
+  /** Bỏ trống để dùng mốc cộng dồn; chỉ truyền khi cần ghim vĩnh viễn (0) hoặc ngoài lề. */
   duration?: number;
+  /** Toast "cần xem kỹ": mô tả dài hoặc nghiệp vụ phải đối chiếu → +1 giây. */
+  important?: boolean;
   closable?: boolean;
   action?: ToastAction;
 };
 
-// Defaults follow the agreed feedback language: quick for success, longer and
-// manually dismissible for problems. Errors stay on screen long enough to read.
-const DEFAULT_DURATION: Record<ToastVariant, number> = {
-  success: 3000,
-  info: 4000,
-  warning: 5000,
-  error: 9000,
-};
+// Một mốc đọc chung cho MỌI toast thường: đủ để đọc xong một dòng tiêu đề và
+// một dòng mô tả. Không còn chia tốc độ theo kind (success/info/warning như nhau).
+const BASE_MS = 4000;
+// Chỉ số cộng dồn bậc 1 — toast "quan trọng, cần xem kỹ" (gửi yêu cầu xác minh,
+// lưu ngoại lệ nghi trùng, gửi duyệt lên chủ, cần chủ xác nhận giá bán, đối soát
+// khoản thu) được +1 giây.
+const READ_CAREFULLY_MS = 1000;
+// Chỉ số cộng dồn bậc 2 — lỗi luôn tự tắt lâu nhất: thường kèm mô tả dài và nhân
+// viên cần thời gian sao chép mã lỗi.
+const ERROR_MS = 4000;
+
+// Thời lượng suy ra từ các bậc cộng dồn (base + bậc), thay cho bảng con số tuỳ ý
+// theo kind. Error = BASE + READ + ERROR = 9000ms; important = 5000ms; thường = 4000ms.
+function resolveDuration(variant: ToastVariant, important: boolean): number {
+  if (variant === "error") return BASE_MS + READ_CAREFULLY_MS + ERROR_MS;
+  if (important) return BASE_MS + READ_CAREFULLY_MS;
+  return BASE_MS;
+}
+
+// Số toast thường hiển thị cùng lúc; vượt trần thì toast cũ trôi đi bằng đúng
+// hiệu ứng mờ dần (không gỡ tức thì).
+const MAX_VISIBLE = 4;
 
 // Entrance/exit keyframe durations in styles.css — keep in sync.
 const EXIT_MS = 220;
@@ -116,7 +133,7 @@ function push(variant: ToastVariant, input: Input) {
     typeof crypto !== "undefined" && "randomUUID" in crypto
       ? crypto.randomUUID()
       : Math.random().toString(36).slice(2);
-  const duration = input.duration ?? DEFAULT_DURATION[variant];
+  const duration = input.duration ?? resolveDuration(variant, input.important ?? false);
   const toast: Toast = {
     id,
     variant,
@@ -126,14 +143,19 @@ function push(variant: ToastVariant, input: Input) {
     closable: input.closable ?? (variant === "error" || variant === "warning"),
     action: input.action,
   };
-  // Keep at most 4 visible notices so the stack never becomes noisy.
-  toasts = [toast, ...toasts].slice(0, 4);
+  toasts = [toast, ...toasts];
   emit();
   if (duration > 0) {
     timers.set(id, { timer: null, remaining: duration });
     schedule(id);
   } else {
     timers.set(id, { timer: null, remaining: null });
+  }
+  // Vượt trần: để đúng số toast thường hiển thị. Toast bị đẩy ra đi qua dismiss()
+  // nên vẫn mờ dần và được dọn timer, thay vì gỡ tức thì khi slice mảng.
+  const visible = toasts.filter((t) => !t.leaving);
+  if (visible.length > MAX_VISIBLE) {
+    for (const evicted of visible.slice(MAX_VISIBLE)) dismiss(evicted.id);
   }
   return id;
 }
